@@ -1,5 +1,5 @@
 import os
-from fastapi import FastAPI, APIRouter, Query, HTTPException
+from fastapi import FastAPI, Query, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
@@ -22,6 +22,17 @@ if os.path.exists(STATIC_DIR):
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 if os.path.exists(PUBLIC_DIR):
     app.mount("/public", StaticFiles(directory=PUBLIC_DIR), name="public")
+
+@app.middleware("http")
+async def normalize_vercel_path(request, call_next):
+    path = request.scope.get("path", "")
+    if path.startswith("/api/index.py"):
+        sub = path.replace("/api/index.py", "", 1)
+        request.scope["path"] = sub if sub.startswith("/") else ("/" + sub)
+    elif path.startswith("/index.py"):
+        sub = path.replace("/index.py", "", 1)
+        request.scope["path"] = sub if sub.startswith("/") else ("/" + sub)
+    return await call_next(request)
 
 @app.on_event("startup")
 def startup():
@@ -46,38 +57,42 @@ def read_root():
             return FileResponse(candidate)
     return Response(content="<h1>GrowwFAHH is Online</h1>", media_type="text/html")
 
-# Create API router so endpoints match both with /api and without /api (for Vercel rewrites)
-api = APIRouter()
-
-@api.get("/account")
+@app.get("/api/account")
+@app.get("/account")
 def read_account():
     return get_account()
 
-@api.get("/indices")
+@app.get("/api/indices")
+@app.get("/indices")
 def read_indices():
     return market_service.get_indices()
 
-@api.get("/explore")
+@app.get("/api/explore")
+@app.get("/explore")
 def read_explore():
     return market_service.get_explore_data()
 
-@api.get("/search")
+@app.get("/api/search")
+@app.get("/search")
 def search(q: str = Query(..., min_length=1)):
     return market_service.search_market(q)
 
-@api.get("/quote")
+@app.get("/api/quote")
+@app.get("/quote")
 def read_quote(symbol: str, asset_type: str = "STOCK"):
     if asset_type.upper() == "MUTUAL_FUND":
         return market_service.get_mutual_fund_quote(symbol)
     return market_service.get_stock_quote(symbol)
 
-@api.get("/history")
+@app.get("/api/history")
+@app.get("/history")
 def read_history(symbol: str, asset_type: str = "STOCK", timeframe: str = "1D"):
     if asset_type.upper() == "MUTUAL_FUND":
         return market_service.get_mf_chart(symbol, timeframe)
     return market_service.get_stock_chart(symbol, timeframe)
 
-@api.get("/portfolio")
+@app.get("/api/portfolio")
+@app.get("/portfolio")
 def read_portfolio():
     account = get_account()
     raw_holdings = get_holdings()
@@ -159,7 +174,8 @@ class OrderRequest(BaseModel):
     quantity: float
     price: float
 
-@api.post("/order")
+@app.post("/api/order")
+@app.post("/order")
 def place_order(order: OrderRequest):
     if order.quantity <= 0 or order.price <= 0:
         raise HTTPException(status_code=400, detail="Invalid quantity or price")
@@ -177,11 +193,13 @@ def place_order(order: OrderRequest):
         raise HTTPException(status_code=400, detail=result.get("error", "Transaction failed"))
     return result
 
-@api.get("/orders")
+@app.get("/api/orders")
+@app.get("/orders")
 def read_orders(limit: int = 50):
     return get_orders(limit=limit)
 
-@api.get("/watchlist")
+@app.get("/api/watchlist")
+@app.get("/watchlist")
 def read_watchlist():
     items = get_watchlist()
     results = []
@@ -206,12 +224,14 @@ class WatchlistRequest(BaseModel):
     name: str
     asset_type: str = "STOCK"
 
-@api.post("/watchlist")
+@app.post("/api/watchlist")
+@app.post("/watchlist")
 def add_watchlist(item: WatchlistRequest):
     add_to_watchlist(item.symbol, item.name, item.asset_type)
     return {"status": "success"}
 
-@api.delete("/watchlist/{symbol}")
+@app.delete("/api/watchlist/{symbol}")
+@app.delete("/watchlist/{symbol}")
 def delete_watchlist(symbol: str):
     remove_from_watchlist(symbol)
     return {"status": "success"}
@@ -219,18 +239,16 @@ def delete_watchlist(symbol: str):
 class DepositRequest(BaseModel):
     amount: float
 
-@api.post("/account/deposit")
+@app.post("/api/account/deposit")
+@app.post("/account/deposit")
 def deposit(req: DepositRequest):
     if req.amount <= 0:
         raise HTTPException(status_code=400, detail="Deposit amount must be positive")
     new_balance = deposit_funds(req.amount)
     return {"status": "success", "new_balance": new_balance}
 
-@api.post("/account/reset")
+@app.post("/api/account/reset")
+@app.post("/account/reset")
 def reset():
     reset_account(1000000.0)
     return {"status": "success", "message": "Account balance reset to ₹10,00,000"}
-
-# Register router for both with /api and direct routes (supports both Vercel rewrites and local)
-app.include_router(api, prefix="/api")
-app.include_router(api, prefix="")
