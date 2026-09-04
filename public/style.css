@@ -2633,3 +2633,86 @@ body {
     position: static;
   }
 }
+
+
+/* Simulated Mobile SMS Push Notification */
+.sms-push-banner {
+  position: fixed;
+  top: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(14, 165, 233, 0.45);
+  border-radius: 16px;
+  padding: 0.9rem 1.25rem;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65), 0 0 20px rgba(14, 165, 233, 0.2);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  max-width: 440px;
+  width: 90%;
+  cursor: pointer;
+  animation: slideDownSms 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.sms-push-banner:hover {
+  transform: translateX(-50%) translateY(2px);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.75), 0 0 25px rgba(14, 165, 233, 0.3);
+}
+
+@keyframes slideDownSms {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.sms-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #0EA5E9 0%, #10B981 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+
+.sms-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.sms-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--brand-cyan);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+
+.sms-text {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+
+.sms-tap {
+  font-size: 0.72rem;
+  color: var(--accent-green);
+  font-weight: 700;
+  margin-top: 3px;
+}

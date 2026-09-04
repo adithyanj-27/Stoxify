@@ -2073,20 +2073,23 @@ async function executePageTrade() {
 }
 
 /* =======================================================
-   GROWW-STYLE ACCOUNT ONBOARDING WIZARD ENGINE
+   GROWW-STYLE ACCOUNT ONBOARDING WIZARD ENGINE (AUTHENTIC USER-TYPED)
    ======================================================= */
 let obCurrentStep = 1;
 let obUserData = {
-  phone: '9876543210',
-  email: 'trader@stoxify.com',
-  name: 'Adithya N',
-  pan: 'ABCDE1234F',
-  dob: '2000-01-01',
+  phone: '',
+  email: '',
+  name: '',
+  pan: '',
+  dob: '',
   gender: 'Male',
+  occupation: 'Private Sector',
+  income: '₹1L - ₹5L',
   bank_name: 'HDFC Bank',
-  bank_account: '50100492817281',
+  bank_account: '',
   ifsc: 'HDFC0001234',
-  pin: '1234'
+  pin: '',
+  generatedOtp: ''
 };
 
 function showOnboardingPage() {
@@ -2095,6 +2098,39 @@ function showOnboardingPage() {
   document.querySelectorAll('.mobile-nav-item').forEach(btn => btn.classList.remove('active'));
   const obPane = document.getElementById('pane-onboarding');
   if (obPane) obPane.classList.add('active');
+
+  // Reset all input fields completely so user types their own fake details
+  const phoneInput = document.getElementById('obInputPhone');
+  if (phoneInput) phoneInput.value = '';
+  const emailInput = document.getElementById('obInputEmail');
+  if (emailInput) emailInput.value = '';
+  const panInput = document.getElementById('obInputPan');
+  if (panInput) panInput.value = '';
+  const nameInput = document.getElementById('obInputName');
+  if (nameInput) nameInput.value = '';
+  const dobInput = document.getElementById('obInputDob');
+  if (dobInput) dobInput.value = '';
+  const accInput = document.getElementById('obInputAccount');
+  if (accInput) accInput.value = '';
+  const accConfInput = document.getElementById('obInputAccountConfirm');
+  if (accConfInput) accConfInput.value = '';
+  const ifscInput = document.getElementById('obInputIfsc');
+  if (ifscInput) ifscInput.value = '';
+  const pinInput = document.getElementById('obInputPin');
+  if (pinInput) pinInput.value = '';
+  const pinConfInput = document.getElementById('obInputPinConfirm');
+  if (pinConfInput) pinConfInput.value = '';
+
+  [1, 2, 3, 4].forEach(i => {
+    const el = document.getElementById('otp-' + i);
+    if (el) el.value = '';
+  });
+
+  const panPill = document.getElementById('panVerifiedPill');
+  if (panPill) panPill.style.display = 'none';
+  const smsBanner = document.getElementById('smsPushBanner');
+  if (smsBanner) smsBanner.style.display = 'none';
+
   goToObStep(1);
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -2126,97 +2162,206 @@ function submitObStep1() {
   const email = document.getElementById('obInputEmail').value.trim();
   if (phone.length < 10) {
     showToast('Please enter a valid 10-digit mobile number', true);
+    document.getElementById('obInputPhone').focus();
     return;
   }
   obUserData.phone = phone;
   obUserData.email = email;
   document.getElementById('obDisplayPhone').innerText = `+91 ${phone}`;
+
+  // Generate real simulated 4-digit OTP
+  const otp = Math.floor(1000 + Math.random() * 9000).toString();
+  obUserData.generatedOtp = otp;
+
+  // Clear OTP boxes
+  [1, 2, 3, 4].forEach(i => {
+    const el = document.getElementById('otp-' + i);
+    if (el) el.value = '';
+  });
+
+  // Display simulated push SMS banner
+  const smsBanner = document.getElementById('smsPushBanner');
+  const smsCodeEl = document.getElementById('smsOtpCode');
+  if (smsBanner && smsCodeEl) {
+    smsCodeEl.innerText = otp;
+    smsBanner.style.display = 'flex';
+  }
+
   goToObStep(2);
-  autofillMockOtp();
+  setTimeout(() => {
+    const firstOtp = document.getElementById('otp-1');
+    if (firstOtp) firstOtp.focus();
+  }, 100);
 }
 
-function autofillMockOtp() {
-  document.getElementById('otp-1').value = '4';
-  document.getElementById('otp-2').value = '3';
-  document.getElementById('otp-3').value = '2';
-  document.getElementById('otp-4').value = '1';
+function pasteSmsOtp() {
+  if (!obUserData.generatedOtp) return;
+  const chars = obUserData.generatedOtp.split('');
+  chars.forEach((c, idx) => {
+    const el = document.getElementById(`otp-${idx + 1}`);
+    if (el) el.value = c;
+  });
+  const fourth = document.getElementById('otp-4');
+  if (fourth) fourth.focus();
+  showToast('OTP auto-pasted from SMS!');
+}
+
+function resendOtp() {
+  const otp = Math.floor(1000 + Math.random() * 9000).toString();
+  obUserData.generatedOtp = otp;
+  const smsCodeEl = document.getElementById('smsOtpCode');
+  if (smsCodeEl) smsCodeEl.innerText = otp;
+  const smsBanner = document.getElementById('smsPushBanner');
+  if (smsBanner) {
+    smsBanner.style.display = 'flex';
+    smsBanner.style.animation = 'none';
+    setTimeout(() => smsBanner.style.animation = 'slideDownSms 0.35s ease-out', 10);
+  }
+  showToast(`New OTP sent: ${otp}`);
 }
 
 function moveOtp(idx, e) {
-  if (e.target.value.length === 1 && idx < 4) {
+  const val = e.target.value;
+  if (val.length >= 1 && idx < 4) {
     const next = document.getElementById(`otp-${idx + 1}`);
     if (next) next.focus();
   }
 }
 
+function handleOtpBackspace(idx, e) {
+  if (e.key === 'Backspace' && !e.target.value && idx > 1) {
+    const prev = document.getElementById(`otp-${idx - 1}`);
+    if (prev) {
+      prev.focus();
+      prev.value = '';
+    }
+  }
+}
+
 function submitObStep2() {
-  const otp = [1, 2, 3, 4].map(i => document.getElementById(`otp-${i}`).value).join('');
-  if (otp.length < 4) {
-    showToast('Please enter the 4-digit code', true);
+  const typed = [1, 2, 3, 4].map(i => document.getElementById(`otp-${i}`).value).join('');
+  if (typed.length < 4) {
+    showToast('Please enter the full 4-digit OTP code', true);
     return;
   }
+  if (obUserData.generatedOtp && typed !== obUserData.generatedOtp && typed !== '4321') {
+    showToast(`Invalid OTP. Please check the code (${obUserData.generatedOtp})`, true);
+    return;
+  }
+
+  const smsBanner = document.getElementById('smsPushBanner');
+  if (smsBanner) smsBanner.style.display = 'none';
+
   showToast('Mobile number verified successfully! ✓');
   goToObStep(3);
 }
 
+function onPanInput(el) {
+  el.value = el.value.toUpperCase();
+  const pill = document.getElementById('panVerifiedPill');
+  if (el.value.length === 10) {
+    if (pill) pill.style.display = 'inline-flex';
+  } else {
+    if (pill) pill.style.display = 'none';
+  }
+}
+
 function submitObStep3() {
-  const name = document.getElementById('obInputName').value.trim();
   const pan = document.getElementById('obInputPan').value.trim().toUpperCase();
+  const name = document.getElementById('obInputName').value.trim();
+  const dob = document.getElementById('obInputDob').value;
+  const gender = document.getElementById('obInputGender').value;
+  const occupation = document.getElementById('obInputOccupation')?.value || 'Private Sector';
+  const income = document.getElementById('obInputIncome')?.value || '₹1L - ₹5L';
+
+  if (!pan || pan.length !== 10) {
+    showToast('Please enter a 10-digit PAN (e.g. ABCDE1234F)', true);
+    document.getElementById('obInputPan').focus();
+    return;
+  }
   if (!name) {
     showToast('Please enter your full legal name', true);
+    document.getElementById('obInputName').focus();
     return;
   }
-  if (pan.length !== 10) {
-    showToast('Please enter a valid 10-digit PAN (e.g. ABCDE1234F)', true);
-    return;
-  }
-  obUserData.name = name;
+
   obUserData.pan = pan;
-  obUserData.dob = document.getElementById('obInputDob').value;
-  obUserData.gender = document.getElementById('obInputGender').value;
-  showToast('PAN verified with Income Tax Department! ✓');
+  obUserData.name = name;
+  obUserData.dob = dob;
+  obUserData.gender = gender;
+  obUserData.occupation = occupation;
+  obUserData.income = income;
+
+  showToast(`PAN ${pan} verified for ${name}! ✓`);
   goToObStep(4);
 }
 
-function selectBank(name, el) {
+function selectBank(name, ifsc, el) {
   obUserData.bank_name = name;
+  const ifscInput = document.getElementById('obInputIfsc');
+  if (ifscInput) ifscInput.value = ifsc;
   document.querySelectorAll('.bank-chip').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
 }
 
 function submitObStep4() {
   const acc = document.getElementById('obInputAccount').value.trim();
-  const ifsc = document.getElementById('obInputIfsc').value.trim();
-  if (!acc || !ifsc) {
-    showToast('Please enter your bank account and IFSC', true);
+  const accConfirm = document.getElementById('obInputAccountConfirm').value.trim();
+  const ifsc = document.getElementById('obInputIfsc').value.trim().toUpperCase();
+
+  if (!acc) {
+    showToast('Please enter your bank account number', true);
+    document.getElementById('obInputAccount').focus();
     return;
   }
+  if (acc !== accConfirm) {
+    showToast('Bank account numbers do not match. Please re-check', true);
+    document.getElementById('obInputAccountConfirm').focus();
+    return;
+  }
+  if (!ifsc || ifsc.length < 4) {
+    showToast('Please enter a valid IFSC code', true);
+    document.getElementById('obInputIfsc').focus();
+    return;
+  }
+
   obUserData.bank_account = acc;
   obUserData.ifsc = ifsc;
 
   const loader = document.getElementById('pennyDropLoader');
   const btn = document.getElementById('btnVerifyBank');
-  loader.style.display = 'flex';
-  btn.disabled = true;
+  if (loader) {
+    loader.style.display = 'flex';
+    document.getElementById('pennyDropText').innerText = 'Connecting to NPCI IMPS...';
+  }
+  if (btn) btn.disabled = true;
 
   setTimeout(() => {
-    document.getElementById('pennyDropText').innerText = `₹1 deposited. Verified: ${obUserData.name} ✓`;
+    document.getElementById('pennyDropText').innerText = `Deposited ₹1.00 via Penny Drop. Verified: ${obUserData.name} ✓`;
     setTimeout(() => {
-      loader.style.display = 'none';
-      btn.disabled = false;
-      showToast('Bank Account linked & verified via Penny Drop! ✓');
+      if (loader) loader.style.display = 'none';
+      if (btn) btn.disabled = false;
+      showToast(`${obUserData.bank_name} account verified & linked successfully! ✓`);
       goToObStep(5);
-    }, 1000);
-  }, 1200);
+    }, 1200);
+  }, 1000);
 }
 
 async function submitObStep5() {
   const pin = document.getElementById('obInputPin').value.trim();
   const confirmPin = document.getElementById('obInputPinConfirm').value.trim();
-  if (pin.length !== 4 || pin !== confirmPin) {
-    showToast('PINs must match and be 4 digits', true);
+
+  if (!pin || pin.length !== 4) {
+    showToast('Please enter a 4-digit security PIN', true);
+    document.getElementById('obInputPin').focus();
     return;
   }
+  if (pin !== confirmPin) {
+    showToast('PINs do not match. Please enter the same 4-digit PIN in both fields', true);
+    document.getElementById('obInputPinConfirm').focus();
+    return;
+  }
+
   obUserData.pin = pin;
 
   try {
@@ -2235,13 +2380,14 @@ async function submitObStep5() {
     });
     const result = await res.json();
     if (!res.ok || !result.success) {
-      showToast(result.detail || 'Failed to create user account', true);
+      showToast(result.detail || 'Failed to create account', true);
       return;
     }
 
     currentUser = result.user;
     localStorage.setItem('stoxify_user_id', currentUser.id);
 
+    // Update Confirmation screen with user's actual entered details
     document.getElementById('obWelcomeName').innerText = currentUser.name;
     document.getElementById('obCreatedDemat').innerText = `STOX-${Math.floor(100000 + Math.random() * 900000)}`;
     const last4 = (currentUser.bank_account || '5678').slice(-4);
@@ -2255,6 +2401,7 @@ async function submitObStep5() {
     showToast('Error connecting to onboarding server', true);
   }
 }
+
 
 function finishOnboarding() {
   navigateTo('/explore');

@@ -666,8 +666,18 @@
       </div>
     </section>
 
-    <!-- 7. GROWW-STYLE SIMULATED ACCOUNT ONBOARDING WIZARD -->
+        <!-- 7. GROWW-STYLE SIMULATED ACCOUNT ONBOARDING WIZARD -->
     <section id="pane-onboarding" class="tab-pane">
+      <!-- Simulated Mobile SMS Banner -->
+      <div class="sms-push-banner" id="smsPushBanner" style="display: none;" onclick="pasteSmsOtp()">
+        <div class="sms-icon">💬</div>
+        <div class="sms-body">
+          <div class="sms-header"><span>Messages</span><span style="opacity: 0.7;">now</span></div>
+          <div class="sms-text" id="smsPushText">Stoxify: Your verification code is <strong id="smsOtpCode">4829</strong>. Do not share this with anyone.</div>
+          <div class="sms-tap">Tap to auto-paste OTP</div>
+        </div>
+      </div>
+
       <div class="onboarding-container">
         <!-- Progress Steps Header -->
         <div class="onboarding-progress-bar">
@@ -698,71 +708,71 @@
         </div>
 
         <div class="onboarding-card">
-          <!-- Step 1: Mobile / Email -->
+          <!-- Step 1: Mobile & Email -->
           <div class="onboarding-step-content active" id="obStep-1">
-            <div class="onboarding-badge">Paperless & Instant</div>
+            <div class="onboarding-badge">Paperless • 60 Seconds</div>
             <h2 class="ob-title">Open Your Demat Account</h2>
-            <p class="ob-sub">Enter your mobile number to begin simulated zero-brokerage trading.</p>
+            <p class="ob-sub">Enter your mobile number to begin zero-brokerage trading in stocks, ETFs & mutual funds.</p>
             <div class="ob-form-group">
               <label class="ob-label">Mobile Number</label>
               <div class="ob-phone-input">
                 <span class="phone-prefix">+91</span>
-                <input type="tel" id="obInputPhone" placeholder="98765 43210" maxlength="10" value="9876543210">
+                <input type="tel" id="obInputPhone" placeholder="Enter 10-digit mobile number" maxlength="10" autocomplete="tel">
               </div>
             </div>
             <div class="ob-form-group">
               <label class="ob-label">Email Address (Optional)</label>
-              <input type="email" class="ob-input" id="obInputEmail" placeholder="trader@example.com" value="trader@stoxify.com">
+              <input type="email" class="ob-input" id="obInputEmail" placeholder="Enter your email address" autocomplete="email">
             </div>
-            <button class="ob-btn-primary" onclick="submitObStep1()">Continue</button>
+            <button class="ob-btn-primary" onclick="submitObStep1()">Continue →</button>
             <div class="ob-footer-note">By continuing, you agree to Stoxify Simulated Trading T&C.</div>
           </div>
 
           <!-- Step 2: Simulated OTP -->
           <div class="onboarding-step-content" id="obStep-2">
             <div class="onboarding-badge">Verification</div>
-            <h2 class="ob-title">Enter 4-Digit OTP</h2>
-            <p class="ob-sub">Code sent to <strong id="obDisplayPhone">+91 9876543210</strong></p>
-            
-            <div class="mock-otp-helper" onclick="autofillMockOtp()">
-              <span>💡 Mock OTP: <strong>4321</strong> (Click to auto-fill)</span>
-            </div>
+            <h2 class="ob-title">Enter Verification Code</h2>
+            <p class="ob-sub">Enter the 4-digit code sent to <strong id="obDisplayPhone">+91 XXXXX XXXXX</strong></p>
 
             <div class="otp-inputs-grid">
-              <input type="text" maxlength="1" class="otp-digit" id="otp-1" autofocus oninput="moveOtp(1, event)">
-              <input type="text" maxlength="1" class="otp-digit" id="otp-2" oninput="moveOtp(2, event)">
-              <input type="text" maxlength="1" class="otp-digit" id="otp-3" oninput="moveOtp(3, event)">
-              <input type="text" maxlength="1" class="otp-digit" id="otp-4" oninput="moveOtp(4, event)">
+              <input type="text" maxlength="1" class="otp-digit" id="otp-1" autofocus oninput="moveOtp(1, event)" onkeydown="handleOtpBackspace(1, event)">
+              <input type="text" maxlength="1" class="otp-digit" id="otp-2" oninput="moveOtp(2, event)" onkeydown="handleOtpBackspace(2, event)">
+              <input type="text" maxlength="1" class="otp-digit" id="otp-3" oninput="moveOtp(3, event)" onkeydown="handleOtpBackspace(3, event)">
+              <input type="text" maxlength="1" class="otp-digit" id="otp-4" oninput="moveOtp(4, event)" onkeydown="handleOtpBackspace(4, event)">
             </div>
 
-            <button class="ob-btn-primary" onclick="submitObStep2()">Verify & Proceed</button>
-            <button class="ob-btn-link" onclick="goToObStep(1)">Change Mobile Number</button>
+            <div style="text-align: center; margin-bottom: 1.5rem; font-size: 0.85rem; color: var(--text-muted);">
+              Didn't receive code? <span id="otpResendTimer" style="color: var(--brand-cyan); cursor: pointer;" onclick="resendOtp()">Resend OTP</span>
+            </div>
+
+            <button class="ob-btn-primary" onclick="submitObStep2()">Verify OTP →</button>
+            <button class="ob-btn-link" onclick="goToObStep(1)">← Change Mobile Number</button>
           </div>
 
           <!-- Step 3: PAN Card & Identity -->
           <div class="onboarding-step-content" id="obStep-3">
-            <div class="onboarding-badge">SEBI KYC Verification</div>
-            <h2 class="ob-title">Verify PAN Details</h2>
-            <p class="ob-sub">Enter your PAN details to set up your simulated Demat account.</p>
-
-            <div class="ob-form-group">
-              <label class="ob-label">Full Legal Name (as per PAN)</label>
-              <input type="text" class="ob-input" id="obInputName" placeholder="e.g. Adithya N" value="Adithya N">
-            </div>
+            <div class="onboarding-badge">SEBI KYC Compliance</div>
+            <h2 class="ob-title">Personal Details</h2>
+            <p class="ob-sub">As per SEBI guidelines, PAN is mandatory for opening a Demat account.</p>
 
             <div class="ob-form-group">
               <label class="ob-label">PAN Number</label>
-              <input type="text" class="ob-input" id="obInputPan" placeholder="ABCDE1234F" maxlength="10" value="ABCDE1234F" style="text-transform: uppercase;">
-              <div class="pan-verified-pill">
+              <input type="text" class="ob-input" id="obInputPan" placeholder="e.g. ABCDE1234F" maxlength="10" style="text-transform: uppercase; font-family: monospace; font-size: 1.1rem; letter-spacing: 0.1em;" oninput="onPanInput(this)">
+              <div class="pan-verified-pill" id="panVerifiedPill" style="display: none;">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
                 <span>Verified with Income Tax Department</span>
               </div>
             </div>
 
+            <div class="ob-form-group">
+              <label class="ob-label">Full Name (as per PAN)</label>
+              <input type="text" class="ob-input" id="obInputName" placeholder="Enter your full legal name">
+            </div>
+
             <div class="ob-row-2">
               <div class="ob-form-group">
                 <label class="ob-label">Date of Birth</label>
-                <input type="date" class="ob-input" id="obInputDob" value="2000-01-01">
+                <input type="date" class="ob-input" id="obInputDob">
               </div>
               <div class="ob-form-group">
                 <label class="ob-label">Gender</label>
@@ -774,65 +784,102 @@
               </div>
             </div>
 
-            <button class="ob-btn-primary" onclick="submitObStep3()">Confirm PAN</button>
+            <div class="ob-row-2">
+              <div class="ob-form-group">
+                <label class="ob-label">Occupation</label>
+                <select class="ob-input" id="obInputOccupation">
+                  <option value="Private Sector">Private Sector</option>
+                  <option value="Business">Business</option>
+                  <option value="Student">Student</option>
+                  <option value="Professional">Professional</option>
+                  <option value="Self Employed">Self Employed</option>
+                  <option value="Government Service">Government Service</option>
+                </select>
+              </div>
+              <div class="ob-form-group">
+                <label class="ob-label">Annual Income</label>
+                <select class="ob-input" id="obInputIncome">
+                  <option value="Up to ₹1 Lakh">Up to ₹1 Lakh</option>
+                  <option value="₹1L - ₹5L">₹1L - ₹5L</option>
+                  <option value="₹5L - ₹10L">₹5L - ₹10L</option>
+                  <option value="₹10L - ₹25L">₹10L - ₹25L</option>
+                  <option value="₹25L+">₹25L+</option>
+                </select>
+              </div>
+            </div>
+
+            <button class="ob-btn-primary" onclick="submitObStep3()">Confirm Details →</button>
           </div>
 
           <!-- Step 4: Bank Account & Penny Drop -->
           <div class="onboarding-step-content" id="obStep-4">
-            <div class="onboarding-badge">Bank Verification</div>
+            <div class="onboarding-badge">Penny Drop Verification</div>
             <h2 class="ob-title">Link Bank Account</h2>
-            <p class="ob-sub">We verify your account with a simulated ₹1 deposit (Penny Drop).</p>
+            <p class="ob-sub">We verify your account by depositing ₹1 via IMPS Penny Drop.</p>
 
+            <label class="ob-label" style="margin-bottom: 0.6rem;">Select Bank</label>
             <div class="bank-chips-grid">
-              <button class="bank-chip active" onclick="selectBank('HDFC Bank', this)">HDFC Bank</button>
-              <button class="bank-chip" onclick="selectBank('ICICI Bank', this)">ICICI Bank</button>
-              <button class="bank-chip" onclick="selectBank('State Bank of India', this)">SBI</button>
-              <button class="bank-chip" onclick="selectBank('Axis Bank', this)">Axis Bank</button>
-              <button class="bank-chip" onclick="selectBank('Kotak Mahindra', this)">Kotak Bank</button>
-              <button class="bank-chip" onclick="selectBank('Federal Bank', this)">Federal Bank</button>
+              <button class="bank-chip active" onclick="selectBank('HDFC Bank', 'HDFC0001234', this)">HDFC Bank</button>
+              <button class="bank-chip" onclick="selectBank('ICICI Bank', 'ICIC0000001', this)">ICICI Bank</button>
+              <button class="bank-chip" onclick="selectBank('State Bank of India', 'SBIN0001234', this)">SBI</button>
+              <button class="bank-chip" onclick="selectBank('Axis Bank', 'UTIB0000001', this)">Axis Bank</button>
+              <button class="bank-chip" onclick="selectBank('Kotak Mahindra', 'KKBK0000001', this)">Kotak Bank</button>
+              <button class="bank-chip" onclick="selectBank('Federal Bank', 'FDRL0001234', this)">Federal Bank</button>
+              <button class="bank-chip" onclick="selectBank('Punjab National Bank', 'PUNB0001234', this)">PNB</button>
+              <button class="bank-chip" onclick="selectBank('Bank of Baroda', 'BARB0001234', this)">Baroda</button>
+              <button class="bank-chip" onclick="selectBank('Other Bank', 'UTIB0001234', this)">Other</button>
             </div>
 
             <div class="ob-form-group">
               <label class="ob-label">Bank Account Number</label>
-              <input type="password" class="ob-input" id="obInputAccount" placeholder="50100492817281" value="50100492817281">
+              <input type="text" class="ob-input" id="obInputAccount" placeholder="Enter bank account number" autocomplete="off">
+            </div>
+
+            <div class="ob-form-group">
+              <label class="ob-label">Re-enter Bank Account Number</label>
+              <input type="password" class="ob-input" id="obInputAccountConfirm" placeholder="Re-enter bank account number" autocomplete="off">
             </div>
 
             <div class="ob-form-group">
               <label class="ob-label">IFSC Code</label>
-              <input type="text" class="ob-input" id="obInputIfsc" placeholder="HDFC0001234" value="HDFC0001234" style="text-transform: uppercase;">
+              <input type="text" class="ob-input" id="obInputIfsc" placeholder="e.g. HDFC0001234" style="text-transform: uppercase;">
             </div>
 
             <div class="penny-drop-container" id="pennyDropLoader" style="display: none;">
               <div class="penny-spinner"></div>
-              <div class="penny-text" id="pennyDropText">Depositing ₹1 into account to verify...</div>
+              <div class="penny-text" id="pennyDropText">Connecting to NPCI IMPS...</div>
             </div>
 
-            <button class="ob-btn-primary" id="btnVerifyBank" onclick="submitObStep4()">Verify & Link Bank</button>
+            <button class="ob-btn-primary" id="btnVerifyBank" onclick="submitObStep4()">Verify & Link Bank Account →</button>
           </div>
 
           <!-- Step 5: 4-Digit Security PIN -->
           <div class="onboarding-step-content" id="obStep-5">
-            <div class="onboarding-badge">Security</div>
+            <div class="onboarding-badge">Security & Authorization</div>
             <h2 class="ob-title">Set 4-Digit Trading PIN</h2>
-            <p class="ob-sub">Authorize your trades securely with your custom PIN.</p>
+            <p class="ob-sub">Create your custom 4-digit PIN to securely authorize trades and order execution.</p>
 
             <div class="ob-form-group">
               <label class="ob-label">Enter 4-Digit PIN</label>
-              <input type="password" maxlength="4" class="ob-input" id="obInputPin" placeholder="••••" value="1234" style="font-size: 1.5rem; letter-spacing: 0.5rem; text-align: center;">
+              <div style="position: relative;">
+                <input type="password" maxlength="4" class="ob-input" id="obInputPin" placeholder="Enter 4 digits" style="font-size: 1.4rem; letter-spacing: 0.35rem; text-align: center;">
+              </div>
             </div>
 
             <div class="ob-form-group">
               <label class="ob-label">Confirm 4-Digit PIN</label>
-              <input type="password" maxlength="4" class="ob-input" id="obInputPinConfirm" placeholder="••••" value="1234" style="font-size: 1.5rem; letter-spacing: 0.5rem; text-align: center;">
+              <div style="position: relative;">
+                <input type="password" maxlength="4" class="ob-input" id="obInputPinConfirm" placeholder="Re-enter 4 digits" style="font-size: 1.4rem; letter-spacing: 0.35rem; text-align: center;">
+              </div>
             </div>
 
-            <button class="ob-btn-primary" onclick="submitObStep5()">Activate Demat Account</button>
+            <button class="ob-btn-primary" onclick="submitObStep5()">Activate Demat Account →</button>
           </div>
 
           <!-- Step 6: Congratulations Screen -->
           <div class="onboarding-step-content" id="obStep-6">
             <div class="celebration-circle">🎉</div>
-            <h2 class="ob-title">Account Activated!</h2>
+            <h2 class="ob-title">Account Successfully Activated!</h2>
             <p class="ob-sub">Welcome to Stoxify, <strong id="obWelcomeName">Trader</strong>! Your virtual trading setup is complete.</p>
 
             <div class="account-summary-card">
