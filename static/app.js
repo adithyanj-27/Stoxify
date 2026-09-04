@@ -270,6 +270,56 @@ function filterExploreStocks(filter) {
   renderExploreStocks();
 }
 
+// --- Card Helpers: Avatars & Star Buttons ---
+function getCleanInitial(name, symbol) {
+  const str = (name || symbol || 'S').trim();
+  // Strip common prefixes like 'The '
+  const clean = str.replace(/^The\s+/i, '');
+  return clean.charAt(0).toUpperCase();
+}
+
+function renderAssetAvatar(item, assetType) {
+  const isMF = assetType === 'MUTUAL_FUND' || item.asset_type === 'MUTUAL_FUND';
+  if (isMF) {
+    return `<div class="card-avatar avatar-mf" title="Mutual Fund">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
+        <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
+      </svg>
+    </div>`;
+  }
+
+  const initial = getCleanInitial(item.name, item.symbol);
+  // Branded vibrant color palettes based on initial
+  const palettes = [
+    { bg: 'rgba(14, 165, 233, 0.15)', text: '#38BDF8', border: 'rgba(14, 165, 233, 0.35)' }, // Cyan
+    { bg: 'rgba(16, 185, 129, 0.15)', text: '#34D399', border: 'rgba(16, 185, 129, 0.35)' }, // Emerald
+    { bg: 'rgba(99, 102, 241, 0.15)', text: '#818CF8', border: 'rgba(99, 102, 241, 0.35)' }, // Indigo
+    { bg: 'rgba(236, 72, 153, 0.15)', text: '#F472B6', border: 'rgba(236, 72, 153, 0.35)' }, // Pink
+    { bg: 'rgba(245, 158, 11, 0.15)', text: '#FBBF24', border: 'rgba(245, 158, 11, 0.35)' }, // Amber
+    { bg: 'rgba(168, 85, 247, 0.15)', text: '#C084FC', border: 'rgba(168, 85, 247, 0.35)' }, // Purple
+  ];
+  const idx = (initial.charCodeAt(0) || 0) % palettes.length;
+  const p = palettes[idx];
+
+  return `<div class="card-avatar" style="background: ${p.bg}; color: ${p.text}; border-color: ${p.border};">${initial}</div>`;
+}
+
+function renderCardStarBtn(symbol, name, assetType) {
+  const isStarred = state.watchlist && state.watchlist.has(symbol);
+  const activeClass = isStarred ? 'active' : '';
+  const escapedName = (name || symbol).replace(/'/g, "\\'");
+  return `
+    <button class="card-star-btn ${activeClass}" 
+            onclick="event.stopPropagation(); toggleWatchlistItem('${symbol}', '${escapedName}', '${assetType}')" 
+            title="${isStarred ? 'Remove from Watchlist' : 'Add to Watchlist'}">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="${isStarred ? '#FBBF24' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+      </svg>
+    </button>
+  `;
+}
+
 function renderExploreStocks() {
   if (!state.exploreData || !state.exploreData.all_stocks) return;
   const grid = document.getElementById('stocksGrid');
@@ -296,18 +346,18 @@ function renderExploreStocks() {
   grid.innerHTML = list.map(s => {
     const isPos = s.change >= 0;
     const badgeClass = isPos ? 'badge-positive' : 'badge-negative';
-    const initial = (s.symbol || 'S').charAt(0).toUpperCase();
 
     return `
       <div class="stock-card" onclick="openAssetModal('${s.symbol}', 'STOCK')">
         <div class="card-top">
-          <div style="display: flex; gap: 0.75rem; align-items: center; overflow: hidden;">
-            <div class="card-avatar">${initial}</div>
+          <div class="card-header-left">
+            ${renderAssetAvatar(s, 'STOCK')}
             <div class="card-info">
-              <div class="card-title">${s.name}</div>
-              <div class="card-subtitle">${s.symbol} • ${s.sector || 'NSE'}</div>
+              <div class="card-title" title="${s.name}">${s.name}</div>
+              <div class="card-subtitle">${s.symbol} • ${s.sector || 'NSE Equities'}</div>
             </div>
           </div>
+          ${renderCardStarBtn(s.symbol, s.name, 'STOCK')}
         </div>
         <div class="card-bottom">
           <div>
@@ -330,15 +380,14 @@ function renderExploreMutualFunds() {
     return `
       <div class="stock-card" onclick="openAssetModal('${mf.symbol}', 'MUTUAL_FUND')">
         <div class="card-top">
-          <div style="display: flex; gap: 0.75rem; align-items: center; overflow: hidden;">
-            <div class="card-avatar" style="background: var(--brand-cyan-bg); color: var(--brand-cyan); border-color: rgba(255,107,0,0.3);">
-              MF
-            </div>
+          <div class="card-header-left">
+            ${renderAssetAvatar(mf, 'MUTUAL_FUND')}
             <div class="card-info">
-              <div class="card-title">${mf.name}</div>
-              <div class="card-subtitle">${mf.category} • ${mf.fund_house}</div>
+              <div class="card-title" title="${mf.name}">${mf.name}</div>
+              <div class="card-subtitle">${mf.category || 'Equity Fund'} • ${mf.fund_house || 'Mutual Fund'}</div>
             </div>
           </div>
+          ${renderCardStarBtn(mf.symbol, mf.name, 'MUTUAL_FUND')}
         </div>
         <div class="card-bottom">
           <div>
@@ -347,7 +396,7 @@ function renderExploreMutualFunds() {
           </div>
           <div style="text-align: right;">
             <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 2px;">1Y Return</div>
-            <div class="badge-positive" style="background: rgba(0, 208, 156, 0.15);">
+            <div class="badge-positive" style="background: rgba(16, 185, 129, 0.15); color: var(--accent-green);">
               +${formatNumber(mf.return_1y)}%
             </div>
           </div>
@@ -775,23 +824,25 @@ async function fetchWatchlist() {
     grid.innerHTML = items.map(item => {
       const isPos = item.change >= 0;
       const badgeClass = isPos ? 'badge-positive' : 'badge-negative';
+      const isMF = item.asset_type === 'MUTUAL_FUND';
+      const subtitle = isMF ? 'Mutual Fund • Direct Plan' : `${item.symbol} • Stock`;
+      const priceLabel = isMF ? 'NAV' : 'Market Price';
+
       return `
         <div class="stock-card" onclick="openAssetModal('${item.symbol}', '${item.asset_type}')">
           <div class="card-top">
-            <div style="display: flex; gap: 0.75rem; align-items: center;">
-              <div class="card-avatar">${(item.symbol || 'S').charAt(0).toUpperCase()}</div>
+            <div class="card-header-left">
+              ${renderAssetAvatar(item, item.asset_type)}
               <div class="card-info">
-                <div class="card-title">${item.name}</div>
-                <div class="card-subtitle">${item.symbol} • ${item.asset_type}</div>
+                <div class="card-title" title="${item.name}">${item.name}</div>
+                <div class="card-subtitle">${subtitle}</div>
               </div>
             </div>
-            <button class="icon-btn" onclick="event.stopPropagation(); toggleWatchlistItem('${item.symbol}', '${item.name.replace(/'/g, "\\'")}', '${item.asset_type}')" style="color: #FFB800;">
-              ★
-            </button>
+            ${renderCardStarBtn(item.symbol, item.name, item.asset_type)}
           </div>
           <div class="card-bottom">
             <div>
-              <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 2px;">Market Price</div>
+              <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 2px;">${priceLabel}</div>
               <div class="card-price">${formatINR(item.price)}</div>
             </div>
             <div class="${badgeClass}">
@@ -820,7 +871,12 @@ async function toggleWatchlistItem(symbol, name, assetType) {
     state.watchlist.add(symbol);
     showToast(`Added ${symbol} to watchlist`);
   }
-  if (state.currentTab === 'watchlist') fetchWatchlist();
+  if (state.currentTab === 'watchlist') {
+    fetchWatchlist();
+  } else if (state.currentTab === 'explore') {
+    renderExploreStocks();
+    renderExploreMutualFunds();
+  }
   if (state.currentModalAsset && state.currentModalAsset.symbol === symbol) renderModalWatchlistBtn(symbol, name, assetType);
 }
 
