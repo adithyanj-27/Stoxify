@@ -15,7 +15,7 @@ import market_service
 import market_hours
 from datetime import datetime
 
-app = FastAPI(title="Stoxify", description="BrokeAhh - Stock & Mutual Fund Broker Platform", version="1.0.0")
+app = FastAPI(title="Stoxify", description="Stoxify - Stock & Mutual Fund Broker Platform", version="1.0.0")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
@@ -49,12 +49,15 @@ def startup():
     except Exception:
         pass
 
-def get_user_id(request: Request) -> str:
-    return request.headers.get("x-user-id") or request.query_params.get("user_id") or "default"
+def get_user_id(request: Request) -> Optional[str]:
+    uid = request.headers.get("x-user-id") or request.query_params.get("user_id")
+    if uid and uid not in ["default", "guest", "null", "undefined", ""]:
+        return uid
+    return None
 
 @app.get("/favicon.ico")
 def favicon():
-    svg_icon = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#080D14"/><defs><linearGradient id="gC" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#38BDF8"/><stop offset="100%" stop-color="#0EA5E9"/></linearGradient><linearGradient id="gE" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#34D399"/><stop offset="100%" stop-color="#10B981"/></linearGradient></defs><circle cx="16" cy="16" r="12" stroke="url(#gC)" stroke-width="2.4" fill="none"/><path d="M10 20L15 15L18.5 17.5L23.5 10.5" stroke="url(#gE)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 10.5H23.5V15" stroke="url(#gE)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="23.5" cy="10.5" r="1.5" fill="#38BDF8"/></svg>"""
+    svg_icon = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0B0F19"/><defs><linearGradient id="stoxG" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#0EA5E9"/><stop offset="100%" stop-color="#10B981"/></linearGradient></defs><path d="M7 21L14 14L18 18L25 9" stroke="url(#stoxG)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 9H25V15" stroke="#10B981" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="25" cy="9" r="2.2" fill="#0EA5E9"/></svg>"""
     return Response(content=svg_icon, media_type="image/svg+xml")
 
 @app.get("/")
@@ -143,9 +146,11 @@ def api_create_user(req: CreateUserRequest):
 @app.get("/api/user/current")
 def api_get_current_user(request: Request):
     uid = get_user_id(request)
+    if not uid:
+        return {"is_guest": True, "id": None, "name": "Guest", "balance": 0.0}
     u = get_user(uid)
     if not u:
-        u = get_user("default")
+        return {"is_guest": True, "id": None, "name": "Guest", "balance": 0.0}
     return u
 
 @app.get("/api/user/list")
@@ -172,6 +177,8 @@ def toggle_simulation(req: SimulationToggleRequest):
 @app.get("/account")
 def read_account(request: Request):
     uid = get_user_id(request)
+    if not uid:
+        return {"balance": 0.0, "total_deposited": 0.0, "is_guest": True}
     return get_account(uid)
 
 @app.get("/api/indices")
@@ -245,6 +252,25 @@ def read_history(symbol: str, range: str = "1M"):
 @app.get("/portfolio")
 def read_portfolio(request: Request):
     uid = get_user_id(request)
+    if not uid:
+        return {
+            "balance": 0.0,
+            "invested_value": 0.0,
+            "invested_amount": 0.0,
+            "current_value": 0.0,
+            "total_pnl": 0.0,
+            "total_returns": 0.0,
+            "total_pnl_pct": 0.0,
+            "total_returns_pct": 0.0,
+            "today_pnl": 0.0,
+            "day_returns": 0.0,
+            "today_pnl_pct": 0.0,
+            "day_returns_pct": 0.0,
+            "net_worth": 0.0,
+            "holdings": [],
+            "is_guest": True
+        }
+
     account = get_account(uid)
     raw_holdings = get_holdings(uid)
 
@@ -297,18 +323,31 @@ def read_portfolio(request: Request):
     return {
         "balance": account["balance"],
         "invested_value": round(total_invested_val, 2),
+        "invested_amount": round(total_invested_val, 2),
         "current_value": round(total_current_val, 2),
         "total_pnl": round(total_pnl, 2),
+        "total_returns": round(total_pnl, 2),
         "total_pnl_pct": round(total_pnl_pct, 2),
+        "total_returns_pct": round(total_pnl_pct, 2),
         "today_pnl": round(total_day_pnl, 2),
+        "day_returns": round(total_day_pnl, 2),
         "today_pnl_pct": round(day_pnl_pct, 2),
+        "day_returns_pct": round(day_pnl_pct, 2),
         "net_worth": net_worth,
-        "holdings": holdings_detail
+        "holdings": holdings_detail,
+        "is_guest": False
     }
 
 @app.get("/api/positions")
 def read_positions(request: Request):
     uid = get_user_id(request)
+    if not uid:
+        return {
+            "positions": [],
+            "total_unrealized_pnl": 0.0,
+            "total_margin_used": 0.0,
+            "is_guest": True
+        }
     raw_positions = get_positions(uid)
     positions_detail = []
     total_unrealized_pnl = 0.0
@@ -350,6 +389,8 @@ class ExitPositionRequest(BaseModel):
 @app.post("/position/exit")
 def exit_single_position(req: ExitPositionRequest, request: Request):
     uid = get_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Account required")
     quote = market_service.get_stock_quote(req.symbol)
     res = exit_position(req.symbol, quote["price"], user_id=uid)
     if not res.get("success"):
@@ -360,6 +401,8 @@ def exit_single_position(req: ExitPositionRequest, request: Request):
 @app.post("/position/exit-all")
 def exit_all_positions(request: Request):
     uid = get_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Account required")
     raw_positions = get_positions(uid)
     exited = []
     for pos in raw_positions:
@@ -384,6 +427,18 @@ class OrderRequest(BaseModel):
 @app.post("/order")
 def place_order(order: OrderRequest, request: Request):
     uid = get_user_id(request)
+    if not uid:
+        raise HTTPException(
+            status_code=401, 
+            detail="Trading requires an account. Please complete quick account setup to unlock ₹10,00,000 virtual balance and start trading."
+        )
+    user = get_user(uid)
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Account not found. Please complete account setup to unlock ₹10,00,000."
+        )
+
     if order.quantity <= 0 or order.price <= 0:
         raise HTTPException(status_code=400, detail="Invalid quantity or price")
 
@@ -430,6 +485,8 @@ class CancelOrderRequest(BaseModel):
 @app.post("/order/cancel")
 def cancel_single_order(req: CancelOrderRequest, request: Request):
     uid = get_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Account required")
     res = cancel_order(req.order_id, user_id=uid)
     if not res.get("success"):
         raise HTTPException(status_code=400, detail=res.get("error", "Failed to cancel order"))
@@ -438,12 +495,14 @@ def cancel_single_order(req: CancelOrderRequest, request: Request):
 @app.get("/api/orders")
 def read_orders(request: Request, limit: int = 100, status: Optional[str] = None):
     uid = get_user_id(request)
+    if not uid:
+        return []
     return get_orders(limit=limit, status_filter=status, user_id=uid)
 
 @app.get("/api/watchlist")
 def read_watchlist(request: Request):
     uid = get_user_id(request)
-    items = get_watchlist(uid)
+    items = get_watchlist(uid or "default")
     results = []
     for item in items:
         if item["asset_type"] == "MUTUAL_FUND":
@@ -470,6 +529,8 @@ class WatchlistRequest(BaseModel):
 @app.post("/watchlist")
 def add_watchlist(item: WatchlistRequest, request: Request):
     uid = get_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Account required to customize watchlist")
     add_to_watchlist(item.symbol, item.name, item.asset_type, user_id=uid)
     return {"status": "success"}
 
@@ -477,6 +538,8 @@ def add_watchlist(item: WatchlistRequest, request: Request):
 @app.delete("/watchlist/{symbol}")
 def delete_watchlist(symbol: str, request: Request):
     uid = get_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Account required")
     remove_from_watchlist(symbol, user_id=uid)
     return {"status": "success"}
 
@@ -487,6 +550,8 @@ class DepositRequest(BaseModel):
 @app.post("/account/deposit")
 def deposit(req: DepositRequest, request: Request):
     uid = get_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Account required")
     if req.amount <= 0:
         raise HTTPException(status_code=400, detail="Deposit amount must be positive")
     new_balance = deposit_funds(req.amount, user_id=uid)
@@ -496,6 +561,8 @@ def deposit(req: DepositRequest, request: Request):
 @app.post("/account/reset")
 def reset(request: Request):
     uid = get_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Account required")
     reset_account(1000000.0, user_id=uid)
     return {"status": "success", "message": "Account balance reset to ₹10,00,000"}
 

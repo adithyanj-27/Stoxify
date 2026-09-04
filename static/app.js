@@ -1,24 +1,29 @@
 // Stoxify — Core Client Application Logic & Feature Engine
 
-// --- Active User Session & X-User-Id HTTP Interceptor ---
-let currentUser = {
-  id: localStorage.getItem('stoxify_user_id') || 'default',
-  name: 'Default Trader',
-  email: 'trader@stoxify.com',
-  phone: '9876543210',
-  bank_name: 'HDFC Bank',
-  balance: 1000000.0,
-  avatar_color: '#0EA5E9'
-};
+// Clean up legacy default session so unauthenticated visitors start in clean Guest mode
+if (localStorage.getItem('stoxify_user_id') === 'default') {
+  localStorage.removeItem('stoxify_user_id');
+}
 
+function isGuest() {
+  const uid = localStorage.getItem('stoxify_user_id');
+  return !uid || uid === 'default' || uid === 'guest';
+}
+
+let currentUser = null;
+
+// --- Active User Session & X-User-Id HTTP Interceptor ---
 const _nativeFetch = window.fetch;
 window.fetch = function(input, init = {}) {
   init = init || {};
   init.headers = init.headers || {};
-  if (init.headers instanceof Headers) {
-    init.headers.set('X-User-Id', currentUser.id);
-  } else {
-    init.headers['X-User-Id'] = currentUser.id;
+  const uid = localStorage.getItem('stoxify_user_id');
+  if (uid && uid !== 'default' && uid !== 'guest') {
+    if (init.headers instanceof Headers) {
+      init.headers.set('X-User-Id', uid);
+    } else {
+      init.headers['X-User-Id'] = uid;
+    }
   }
   return _nativeFetch(input, init);
 };
@@ -451,10 +456,21 @@ function renderExploreMutualFunds() {
 
 // --- Holdings View (Delivery CNC) ---
 async function fetchPortfolio() {
+  const guestBanner = document.getElementById('holdingsGuestBanner');
+  const authContent = document.getElementById('holdingsAuthContent');
+
+  if (isGuest()) {
+    if (guestBanner) guestBanner.style.display = 'flex';
+    if (authContent) authContent.style.display = 'none';
+    return;
+  }
+  if (guestBanner) guestBanner.style.display = 'none';
+  if (authContent) authContent.style.display = 'block';
+
   try {
     const res = await fetch('/api/portfolio');
     const data = await res.json();
-    state.account.balance = data.balance;
+    state.account.balance = data.balance || 0;
 
     const navBal = document.getElementById('navBalanceDisplay');
     if (navBal) navBal.innerText = formatINR(data.balance);
@@ -462,31 +478,52 @@ async function fetchPortfolio() {
     if (menuBal) menuBal.innerText = formatINR(data.balance);
     const summaryBal = document.getElementById('summaryAvailableBalance');
     if (summaryBal) summaryBal.innerText = formatINR(data.balance);
-    document.getElementById('summaryCurrentVal').innerText = formatINR(data.current_value);
-    document.getElementById('summaryInvestedVal').innerText = formatINR(data.invested_amount);
 
-    const isTotalPos = data.total_returns >= 0;
+    const curVal = data.current_value || 0;
+    const invVal = data.invested_value ?? data.invested_amount ?? 0;
+    const totalPnl = data.total_pnl ?? data.total_returns ?? 0;
+    const totalPnlPct = data.total_pnl_pct ?? data.total_returns_pct ?? 0;
+    const todayPnl = data.today_pnl ?? data.day_returns ?? 0;
+    const todayPnlPct = data.today_pnl_pct ?? data.day_returns_pct ?? 0;
+
+    const summaryCur = document.getElementById('summaryCurrentVal');
+    if (summaryCur) summaryCur.innerText = formatINR(curVal);
+    const summaryInv = document.getElementById('summaryInvestedVal');
+    if (summaryInv) summaryInv.innerText = formatINR(invVal);
+
+    const isTotalPos = totalPnl >= 0;
     const totalReturnsEl = document.getElementById('summaryTotalReturns');
-    totalReturnsEl.innerText = formatINR(data.total_returns);
-    totalReturnsEl.className = `banner-metric-val ${isTotalPos ? 'text-positive' : 'text-negative'}`;
+    if (totalReturnsEl) {
+      totalReturnsEl.innerText = formatINR(totalPnl);
+      totalReturnsEl.className = `banner-metric-val ${isTotalPos ? 'text-positive' : 'text-negative'}`;
+    }
 
     const totalPctEl = document.getElementById('summaryTotalReturnsPct');
-    totalPctEl.innerHTML = `<span class="${isTotalPos ? 'text-positive' : 'text-negative'}">${isTotalPos ? '+' : ''}${formatNumber(data.total_returns_pct)}%</span>`;
+    if (totalPctEl) {
+      totalPctEl.innerHTML = `<span class="${isTotalPos ? 'text-positive' : 'text-negative'}">${isTotalPos ? '+' : ''}${formatNumber(totalPnlPct)}%</span>`;
+    }
 
-    const isDayPos = data.day_returns >= 0;
+    const isDayPos = todayPnl >= 0;
     const dayPnlEl = document.getElementById('summaryTodayPnl');
-    dayPnlEl.innerHTML = `<span class="${isDayPos ? 'text-positive' : 'text-negative'}">1D: ${isDayPos ? '+' : ''}${formatINR(data.day_returns)} (${isDayPos ? '+' : ''}${formatNumber(data.day_returns_pct)}%)</span>`;
+    if (dayPnlEl) {
+      dayPnlEl.innerHTML = `<span class="${isDayPos ? 'text-positive' : 'text-negative'}">1D: ${isDayPos ? '+' : ''}${formatINR(todayPnl)} (${isDayPos ? '+' : ''}${formatNumber(todayPnlPct)}%)</span>`;
+    }
 
     const tableBody = document.getElementById('holdingsTableBody');
     const mobileList = document.getElementById('holdingsMobileList');
+    const holdings = data.holdings || [];
 
-    if (data.holdings.length === 0) {
-      tableBody.innerHTML = `
-        <tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 3.5rem;">No active holdings yet. Head to Explore to invest!</td></tr>
-      `;
-      mobileList.innerHTML = `
-        <div style="text-align: center; color: var(--text-muted); padding: 2.5rem;">No active holdings yet.</div>
-      `;
+    if (holdings.length === 0) {
+      if (tableBody) {
+        tableBody.innerHTML = `
+          <tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 3.5rem;">No active holdings yet. Head to Explore to invest!</td></tr>
+        `;
+      }
+      if (mobileList) {
+        mobileList.innerHTML = `
+          <div style="text-align: center; color: var(--text-muted); padding: 2.5rem;">No active holdings yet.</div>
+        `;
+      }
       return;
     }
 
@@ -557,6 +594,17 @@ async function fetchPortfolio() {
 
 // --- Positions View (Intraday MIS with 5x Leverage) ---
 async function fetchPositions() {
+  const guestBanner = document.getElementById('positionsGuestBanner');
+  const authContent = document.getElementById('positionsAuthContent');
+
+  if (isGuest()) {
+    if (guestBanner) guestBanner.style.display = 'flex';
+    if (authContent) authContent.style.display = 'none';
+    return;
+  }
+  if (guestBanner) guestBanner.style.display = 'none';
+  if (authContent) authContent.style.display = 'block';
+
   try {
     const res = await fetch('/api/positions');
     const data = await res.json();
@@ -1355,6 +1403,13 @@ function roundNumber(num, dec) {
 }
 
 async function submitOrder() {
+  if (isGuest()) {
+    closeTradeModal();
+    showToast('Please create your free account to unlock ₹10,00,000 virtual balance and start trading.', false);
+    navigateTo('/onboarding');
+    return;
+  }
+
   if (!state.currentModalAsset) return;
 
   const qty = parseFloat(document.getElementById('tradeQuantityInput').value);
@@ -1399,11 +1454,20 @@ async function submitOrder() {
 
     showToast(result.message || `Order processed successfully: ${state.orderAction} ${qty} ${payload.symbol}`);
     closeTradeModal();
-
     await fetchAccount();
-    if (state.currentTab === 'holdings') fetchPortfolio();
-    if (state.currentTab === 'positions') fetchPositions();
-    if (state.currentTab === 'orders') fetchOrders();
+    await fetchPortfolio();
+    await fetchPositions();
+    await fetchOrders();
+
+    openOrderSuccessModal({
+      symbol: payload.symbol,
+      name: payload.name,
+      action: payload.order_type,
+      product: payload.product_type,
+      quantity: qty,
+      price: payload.price,
+      total: qty * payload.price
+    });
   } catch (err) {
     console.error('Order submission error:', err);
     showToast('Failed to connect to execution server', true);
@@ -1599,44 +1663,73 @@ window.addEventListener('popstate', () => handleRoute());
    USER SESSION & NAVBAR PROFILE ENGINE
    ======================================================= */
 async function fetchCurrentUser() {
+  if (isGuest()) {
+    currentUser = null;
+    updateNavbarProfile();
+    return;
+  }
   try {
     const res = await fetch('/api/user/current');
     const u = await res.json();
-    if (u && u.id) {
+    if (u && u.id && !u.is_guest) {
       currentUser = u;
       localStorage.setItem('stoxify_user_id', u.id);
+    } else {
+      localStorage.removeItem('stoxify_user_id');
+      currentUser = null;
     }
-    updateNavbarProfile();
   } catch (err) {
     console.error('Failed to fetch user:', err);
+    currentUser = null;
   }
+  updateNavbarProfile();
 }
 
 function updateNavbarProfile() {
-  const openBtn = document.getElementById('navOpenAccountBtn');
+  const getStartedBtn = document.getElementById('navGetStartedBtn');
+  const profileWrapper = document.getElementById('navProfileWrapper');
   const initialsEl = document.getElementById('navUserInitials');
   const menuAvatarEl = document.getElementById('menuUserAvatar');
   const menuNameEl = document.getElementById('menuUserName');
   const menuEmailEl = document.getElementById('menuUserEmail');
+  const menuDematEl = document.getElementById('menuUserDemat');
   const menuBankEl = document.getElementById('menuUserBank');
   const menuBalEl = document.getElementById('menuUserBalance');
 
-  const initials = currentUser.name ? currentUser.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'DT';
+  if (isGuest() || !currentUser) {
+    if (getStartedBtn) getStartedBtn.style.display = 'inline-flex';
+    if (profileWrapper) profileWrapper.style.display = 'none';
+    const navBalEl = document.getElementById('navBalanceDisplay');
+    if (navBalEl) navBalEl.innerText = '₹0.00';
+    return;
+  }
+
+  // Authenticated user
+  if (getStartedBtn) getStartedBtn.style.display = 'none';
+  if (profileWrapper) profileWrapper.style.display = 'block';
+
+  const initials = currentUser.name ? currentUser.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'ST';
   if (initialsEl) initialsEl.innerText = initials;
   if (menuAvatarEl) menuAvatarEl.innerText = initials;
   if (menuNameEl) menuNameEl.innerText = currentUser.name;
   if (menuEmailEl) menuEmailEl.innerText = currentUser.email || 'trader@stoxify.com';
+  if (menuDematEl) menuDematEl.innerText = `Demat: STOX-${(currentUser.id || '9876').slice(-6).toUpperCase()}`;
   const last4 = (currentUser.bank_account || '5678').slice(-4);
   if (menuBankEl) menuBankEl.innerText = `${currentUser.bank_name || 'HDFC Bank'} •••• ${last4} (Verified ✓)`;
   if (menuBalEl) menuBalEl.innerText = formatINR(currentUser.balance || 1000000.0);
   const navBalEl = document.getElementById('navBalanceDisplay');
   if (navBalEl) navBalEl.innerText = formatINR(currentUser.balance || 1000000.0);
+}
 
-  if (currentUser.id === 'default') {
-    if (openBtn) openBtn.style.display = 'inline-flex';
-  } else {
-    if (openBtn) openBtn.style.display = 'none';
-  }
+function logoutUser() {
+  localStorage.removeItem('stoxify_user_id');
+  currentUser = null;
+  updateNavbarProfile();
+  showToast('Switched to Guest Mode.');
+  if (state.currentTab === 'holdings') fetchPortfolio();
+  if (state.currentTab === 'positions') fetchPositions();
+  if (state.currentTab === 'orders') fetchOrders();
+  navigateTo('/explore');
 }
 
 function toggleProfileDropdown() {
@@ -2032,8 +2125,22 @@ function recalcPageMargin() {
   const margin = pageOrderState.product === 'INTRADAY' ? total * 0.20 : total;
 
   document.getElementById('pageRequiredMargin').innerText = formatINR(margin);
-  const availCash = state.account ? state.account.balance : 1000000.0;
-  document.getElementById('pageAvailableCash').innerText = formatINR(availCash);
+  
+  const execBtn = document.getElementById('pageOrderExecuteBtn');
+  if (isGuest()) {
+    document.getElementById('pageAvailableCash').innerText = '₹0.00 (Locked)';
+    if (execBtn) {
+      execBtn.innerText = 'Get Started to Trade (Unlock ₹10L)';
+      execBtn.className = 'btn-trade-execute guest-locked';
+    }
+  } else {
+    const availCash = state.account ? state.account.balance : (currentUser ? currentUser.balance : 1000000.0);
+    document.getElementById('pageAvailableCash').innerText = formatINR(availCash);
+    if (execBtn) {
+      execBtn.className = `btn-trade-execute ${pageOrderState.action.toLowerCase()}`;
+      execBtn.innerText = `${pageOrderState.action} ${currentPageAsset.symbol || ''}`;
+    }
+  }
 }
 
 async function updatePageAvailableHolding(symbol) {
@@ -2048,6 +2155,12 @@ async function updatePageAvailableHolding(symbol) {
 }
 
 async function executePageTrade() {
+  if (isGuest()) {
+    showToast('Please create your free account to unlock ₹10,00,000 virtual balance and start trading.', false);
+    navigateTo('/onboarding');
+    return;
+  }
+
   const execBtn = document.getElementById('pageOrderExecuteBtn');
   if (execBtn && execBtn.disabled) return;
 
@@ -2109,11 +2222,21 @@ async function executePageTrade() {
 
     showToast(result.message || `${pageOrderState.action} order executed successfully!`);
     await fetchAccount();
-    if (state.currentTab === 'holdings') fetchPortfolio();
-    if (state.currentTab === 'positions') fetchPositions();
-    if (state.currentTab === 'orders') fetchOrders();
+    await fetchPortfolio();
+    await fetchPositions();
+    await fetchOrders();
     updatePageAvailableHolding(currentPageAsset.symbol);
     recalcPageMargin();
+
+    openOrderSuccessModal({
+      symbol: currentPageAsset.symbol,
+      name: currentPageAsset.name,
+      action: pageOrderState.action,
+      product: pageOrderState.product,
+      quantity: qty,
+      price: currentPageAsset.price,
+      total: qty * currentPageAsset.price
+    });
 
   } catch (err) {
     console.error('executePageTrade error:', err);
@@ -2460,4 +2583,53 @@ async function submitObStep5() {
 function finishOnboarding() {
   navigateTo('/explore');
   showToast(`Welcome to Stoxify, ${currentUser.name}! ₹10,00,000 virtual cash credited!`);
+}
+
+
+/* =======================================================
+   ORDER CONFIRMATION MODAL HELPERS
+   ======================================================= */
+function openOrderSuccessModal(orderData) {
+  const modal = document.getElementById('orderSuccessModal');
+  if (!modal) return;
+
+  const assetEl = document.getElementById('orderSuccessAsset');
+  if (assetEl) assetEl.innerText = `${orderData.name} (${orderData.symbol})`;
+  const typeEl = document.getElementById('orderSuccessType');
+  if (typeEl) typeEl.innerText = `${orderData.action} • ${orderData.product === 'INTRADAY' ? 'INTRADAY (MIS)' : 'DELIVERY (CNC)'}`;
+  const qtyEl = document.getElementById('orderSuccessQty');
+  if (qtyEl) qtyEl.innerText = `${orderData.quantity} Shares / Units`;
+  const priceEl = document.getElementById('orderSuccessPrice');
+  if (priceEl) priceEl.innerText = formatINR(orderData.price);
+  const totalEl = document.getElementById('orderSuccessTotal');
+  if (totalEl) totalEl.innerText = formatINR(orderData.total);
+
+  const viewBtn = document.getElementById('orderSuccessViewBtn');
+  if (viewBtn) {
+    if (orderData.product === 'INTRADAY') {
+      viewBtn.innerText = 'View in Positions →';
+      viewBtn.onclick = () => {
+        closeOrderSuccessModal();
+        navigateTo('/positions');
+      };
+    } else {
+      viewBtn.innerText = 'View in Holdings →';
+      viewBtn.onclick = () => {
+        closeOrderSuccessModal();
+        navigateTo('/holdings');
+      };
+    }
+  }
+
+  modal.classList.add('active');
+}
+
+function closeOrderSuccessModal() {
+  const modal = document.getElementById('orderSuccessModal');
+  if (modal) modal.classList.remove('active');
+}
+
+function goToHoldingsFromModal() {
+  closeOrderSuccessModal();
+  navigateTo('/holdings');
 }

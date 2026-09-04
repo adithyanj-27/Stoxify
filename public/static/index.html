@@ -20,27 +20,17 @@
   <header class="navbar">
     <div class="brand-container" onclick="navigateTo('/explore')">
       <div class="brand-logo">
-        <svg width="26" height="26" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <linearGradient id="gCyan" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#38BDF8" />
-              <stop offset="100%" stop-color="#0EA5E9" />
+            <linearGradient id="stoxBrandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#0EA5E9" />
+              <stop offset="60%" stop-color="#10B981" />
+              <stop offset="100%" stop-color="#34D399" />
             </linearGradient>
-            <linearGradient id="gEmerald" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#34D399" />
-              <stop offset="100%" stop-color="#10B981" />
-            </linearGradient>
-            <filter id="glowCyan" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="1.5" result="blur" />
-              <feComposite in="SourceGraphic" in2="blur" operator="over" />
-            </filter>
           </defs>
-          <!-- Minimalist Growth Coin Disc -->
-          <circle cx="16" cy="16" r="12.5" stroke="url(#gCyan)" stroke-width="2.4" />
-          <!-- Sharp Upward Breakout Trendline -->
-          <path d="M10 20L15 15L18.5 17.5L23.5 10.5" stroke="url(#gEmerald)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M19 10.5H23.5V15" stroke="url(#gEmerald)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" filter="url(#glowCyan)" />
-          <circle cx="23.5" cy="10.5" r="1.5" fill="#38BDF8" />
+          <path d="M7 21L14 14L18 18L25 9" stroke="url(#stoxBrandGrad)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M19 9H25V15" stroke="#10B981" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" />
+          <circle cx="25" cy="9" r="2.2" fill="#0EA5E9" />
         </svg>
       </div>
       <div class="brand-name">
@@ -85,10 +75,10 @@
         <span>Install App</span>
       </button>
 
-      <!-- Open Free Demat Account Button (Visible in Guest mode) -->
-      <button class="btn-open-account" id="navOpenAccountBtn" onclick="navigateTo('/onboarding')">
-        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-green);"></span>
-        <span>Open Free Account</span>
+      <!-- Get Started Button (Visible in Guest mode) -->
+      <button class="btn-get-started" id="navGetStartedBtn" onclick="navigateTo('/onboarding')">
+        <span>Get Started</span>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
       </button>
 
       <!-- Theme Toggle Button -->
@@ -106,16 +96,16 @@
         </svg>
       </button>
 
-      <!-- User Profile Avatar & Dropdown (Single Profile Icon) -->
-      <div class="user-profile-wrapper" id="navProfileWrapper" style="position: relative;">
+      <!-- User Profile Avatar & Dropdown (Hidden in Guest mode) -->
+      <div class="user-profile-wrapper" id="navProfileWrapper" style="position: relative; display: none;">
         <button class="user-avatar-btn" id="navUserAvatarBtn" onclick="toggleProfileDropdown()" title="User Profile & Balance">
-          <span id="navUserInitials">DT</span>
+          <span id="navUserInitials">ST</span>
         </button>
         <div class="user-dropdown-menu" id="userDropdownMenu" style="display: none;">
           <div class="dropdown-user-info">
-            <div class="user-avatar-large" id="menuUserAvatar">DT</div>
+            <div class="user-avatar-large" id="menuUserAvatar">ST</div>
             <div class="user-details">
-              <div class="user-name" id="menuUserName">Default Trader</div>
+              <div class="user-name" id="menuUserName">Trader</div>
               <div class="user-email" id="menuUserEmail">trader@stoxify.com</div>
               <div class="user-badge" id="menuUserDemat">Demat: STOX-782910</div>
             </div>
@@ -166,6 +156,10 @@
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><polyline points="3 3 3 8 8 8"></polyline></svg>
             <span>Reset to ₹10,00,000</span>
           </button>
+          <button class="dropdown-item" onclick="logoutUser()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+            <span>Log Out (Switch to Guest)</span>
+          </button>
         </div>
       </div>
     </div>
@@ -210,7 +204,7 @@
 
         <div class="section-header">
           <div>
-            <h2 class="section-title" id="exploreStocksTitle">Explore Indian Equities on BrokeAhh</h2>
+            <h2 class="section-title" id="exploreStocksTitle">Explore Indian Equities on Stoxify</h2>
             <p class="section-desc" id="exploreStocksDesc">Live market quotes directly from the National Stock Exchange (NSE) & BSE</p>
           </div>
         </div>
@@ -235,132 +229,163 @@
 
     <!-- 2. HOLDINGS TAB (Delivery / CNC) -->
     <section id="pane-holdings" class="tab-pane">
-      <div class="section-header">
-        <div>
-          <h2 class="section-title">Delivery Holdings</h2>
-          <p class="section-desc">Long-term portfolio assets held in demat (Delivery CNC)</p>
-        </div>
-        <button class="btn-primary" onclick="openFundsModal()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
+      <div id="holdingsGuestBanner" class="guest-locked-card" style="display: none;">
+        <div class="guest-locked-icon">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
           </svg>
-          Add Funds
+        </div>
+        <h3 class="guest-locked-title">Holdings Locked</h3>
+        <p class="guest-locked-desc">Complete quick account creation in 60 seconds to unlock <strong>₹10,00,000.00</strong> virtual trading capital, buy Delivery (CNC) stocks, and track your live portfolio.</p>
+        <button class="btn-get-started" onclick="navigateTo('/onboarding')">
+          <span>Get Started to Unlock ₹10L →</span>
         </button>
       </div>
 
-      <!-- Portfolio Summary Banner -->
-      <div class="portfolio-banner">
-        <div>
-          <div class="banner-metric-label">Current Value</div>
-          <div class="banner-metric-val" id="summaryCurrentVal">₹0.00</div>
-          <div class="banner-metric-sub" id="summaryTodayPnl"><span>1D: ₹0.00 (0.00%)</span></div>
+      <div id="holdingsAuthContent">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Delivery Holdings</h2>
+            <p class="section-desc">Long-term portfolio assets held in demat (Delivery CNC)</p>
+          </div>
+          <button class="btn-primary" onclick="openFundsModal()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            Add Funds
+          </button>
         </div>
-        <div>
-          <div class="banner-metric-label">Total Investment</div>
-          <div class="banner-metric-val" id="summaryInvestedVal">₹0.00</div>
-          <div class="banner-metric-sub" style="color: var(--text-muted);">Cost basis</div>
-        </div>
-        <div>
-          <div class="banner-metric-label">Total Returns</div>
-          <div class="banner-metric-val" id="summaryTotalReturns">₹0.00</div>
-          <div class="banner-metric-sub" id="summaryTotalReturnsPct"><span>0.00%</span></div>
-        </div>
-        <div>
-          <div class="banner-metric-label">Available Balance</div>
-          <div class="banner-metric-val" id="summaryAvailableBalance" style="color: var(--brand-green);">₹10,00,000.00</div>
-          <div class="banner-metric-sub" style="color: var(--text-muted);">Ready to trade</div>
-        </div>
-      </div>
 
-      <!-- Desktop Holdings Table -->
-      <div class="table-container desktop-table-container">
-        <table class="groww-table">
-          <thead>
-            <tr>
-              <th>Instrument</th>
-              <th>Type</th>
-              <th>Shares / Units</th>
-              <th>Avg. Price</th>
-              <th>Current Price</th>
-              <th>Current Value</th>
-              <th>Total Returns</th>
-              <th>1D Returns</th>
-              <th style="text-align: right;">Action</th>
-            </tr>
-          </thead>
-          <tbody id="holdingsTableBody">
-            <tr>
-              <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 3rem;">
-                No active holdings. Explore stocks and mutual funds to start investing!
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+        <!-- Portfolio Summary Banner -->
+        <div class="portfolio-banner">
+          <div>
+            <div class="banner-metric-label">Current Value</div>
+            <div class="banner-metric-val" id="summaryCurrentVal">₹0.00</div>
+            <div class="banner-metric-sub" id="summaryTodayPnl"><span>1D: ₹0.00 (0.00%)</span></div>
+          </div>
+          <div>
+            <div class="banner-metric-label">Total Investment</div>
+            <div class="banner-metric-val" id="summaryInvestedVal">₹0.00</div>
+            <div class="banner-metric-sub" style="color: var(--text-muted);">Cost basis</div>
+          </div>
+          <div>
+            <div class="banner-metric-label">Total Returns</div>
+            <div class="banner-metric-val" id="summaryTotalReturns">₹0.00</div>
+            <div class="banner-metric-sub" id="summaryTotalReturnsPct"><span>0.00%</span></div>
+          </div>
+          <div>
+            <div class="banner-metric-label">Available Balance</div>
+            <div class="banner-metric-val" id="summaryAvailableBalance" style="color: var(--accent-green);">₹10,00,000.00</div>
+            <div class="banner-metric-sub" style="color: var(--text-muted);">Ready to trade</div>
+          </div>
+        </div>
 
-      <!-- Mobile Holdings Cards List -->
-      <div class="mobile-cards-list" id="holdingsMobileList"></div>
+        <!-- Desktop Holdings Table -->
+        <div class="table-container desktop-table-container">
+          <table class="groww-table">
+            <thead>
+              <tr>
+                <th>Instrument</th>
+                <th>Type</th>
+                <th>Shares / Units</th>
+                <th>Avg. Price</th>
+                <th>Current Price</th>
+                <th>Current Value</th>
+                <th>Total Returns</th>
+                <th>1D Returns</th>
+                <th style="text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="holdingsTableBody">
+              <tr>
+                <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 3rem;">
+                  No active holdings. Explore stocks and mutual funds to start investing!
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Mobile Holdings Cards List -->
+        <div class="mobile-cards-list" id="holdingsMobileList"></div>
+      </div>
     </section>
 
     <!-- 3. POSITIONS TAB (Intraday / MIS with 5x Leverage) -->
     <section id="pane-positions" class="tab-pane">
-      <div class="section-header">
-        <div>
-          <h2 class="section-title">Intraday Positions</h2>
-          <p class="section-desc">Active day trades with 5x leverage (MIS • Auto Square-off at 03:20 PM IST)</p>
+      <div id="positionsGuestBanner" class="guest-locked-card" style="display: none;">
+        <div class="guest-locked-icon">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+          </svg>
         </div>
-        <button class="btn-danger" id="squareOffAllBtn" onclick="squareOffAllPositions()" style="display: none;">
-          Square Off All
+        <h3 class="guest-locked-title">Intraday Trading Locked</h3>
+        <p class="guest-locked-desc">Activate your free paper trading account to trade Intraday (MIS) with <strong>5x margin leverage</strong> and <strong>₹10,00,000</strong> virtual credit.</p>
+        <button class="btn-get-started" onclick="navigateTo('/onboarding')">
+          <span>Get Started to Unlock ₹10L →</span>
         </button>
       </div>
 
-      <!-- Positions Summary Banner -->
-      <div class="portfolio-banner" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
-        <div>
-          <div class="banner-metric-label">Total Unrealized P&L</div>
-          <div class="banner-metric-val" id="posTotalPnl">₹0.00</div>
-          <div class="banner-metric-sub" id="posTotalPnlPct"><span>0.00%</span></div>
+      <div id="positionsAuthContent">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Intraday Positions</h2>
+            <p class="section-desc">Active day trades with 5x leverage (MIS • Auto Square-off at 03:20 PM IST)</p>
+          </div>
+          <button class="btn-danger" id="squareOffAllBtn" onclick="squareOffAllPositions()" style="display: none;">
+            Square Off All
+          </button>
         </div>
-        <div>
-          <div class="banner-metric-label">Margin Deployed</div>
-          <div class="banner-metric-val" id="posMarginDeployed">₹0.00</div>
-          <div class="banner-metric-sub" style="color: var(--brand-green);">5x Leverage Applied</div>
-        </div>
-        <div>
-          <div class="banner-metric-label">Active Positions</div>
-          <div class="banner-metric-val" id="posActiveCount">0</div>
-          <div class="banner-metric-sub" style="color: var(--text-muted);">Must close by 03:20 PM</div>
-        </div>
-      </div>
 
-      <!-- Desktop Positions Table -->
-      <div class="table-container desktop-table-container">
-        <table class="groww-table">
-          <thead>
-            <tr>
-              <th>Instrument</th>
-              <th>Product</th>
-              <th>Net Quantity</th>
-              <th>Avg. Buy Price</th>
-              <th>LTP</th>
-              <th>Margin Used</th>
-              <th>Unrealized P&L</th>
-              <th style="text-align: right;">Action</th>
-            </tr>
-          </thead>
-          <tbody id="positionsTableBody">
-            <tr>
-              <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 3rem;">
-                No open intraday positions. Intraday trades will appear here with live P&L and 1-click square-off.
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+        <!-- Positions Summary Banner -->
+        <div class="portfolio-banner" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+          <div>
+            <div class="banner-metric-label">Total Unrealized P&L</div>
+            <div class="banner-metric-val" id="posTotalPnl">₹0.00</div>
+            <div class="banner-metric-sub" id="posTotalPnlPct"><span>0.00%</span></div>
+          </div>
+          <div>
+            <div class="banner-metric-label">Margin Deployed</div>
+            <div class="banner-metric-val" id="posMarginDeployed">₹0.00</div>
+            <div class="banner-metric-sub" style="color: var(--accent-green);">5x Leverage Applied</div>
+          </div>
+          <div>
+            <div class="banner-metric-label">Active Positions</div>
+            <div class="banner-metric-val" id="posActiveCount">0</div>
+            <div class="banner-metric-sub" style="color: var(--text-muted);">Must close by 03:20 PM</div>
+          </div>
+        </div>
 
-      <!-- Mobile Positions Cards List -->
-      <div class="mobile-cards-list" id="positionsMobileList"></div>
+        <!-- Desktop Positions Table -->
+        <div class="table-container desktop-table-container">
+          <table class="groww-table">
+            <thead>
+              <tr>
+                <th>Instrument</th>
+                <th>Product</th>
+                <th>Net Quantity</th>
+                <th>Avg. Buy Price</th>
+                <th>LTP</th>
+                <th>Margin Used</th>
+                <th>Unrealized P&L</th>
+                <th style="text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="positionsTableBody">
+              <tr>
+                <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 3rem;">
+                  No open intraday positions. Intraday trades will appear here with live P&L and 1-click square-off.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Mobile Positions Cards List -->
+        <div class="mobile-cards-list" id="positionsMobileList"></div>
+      </div>
     </section>
 
     <!-- 4. ORDERS TAB (Executed & Open Orders) -->
@@ -1315,6 +1340,50 @@
         </div>
         <button class="btn-primary" style="width: 100%; justify-content: center;" onclick="closeSwitchAccountModal(); navigateTo('/onboarding');">
           + Create Another Account
+        </button>
+      </div>
+    </div>
+  <!-- Order Execution Success Confirmation Modal -->
+  <div class="modal-overlay" id="orderSuccessModal">
+    <div class="modal-container order-success-container" style="max-width: 440px; text-align: center;">
+      <div class="order-success-icon-wrap">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10" fill="rgba(16, 185, 129, 0.12)" stroke="var(--accent-green)"></circle>
+          <polyline points="9 12 11.5 14.5 15.5 9.5"></polyline>
+        </svg>
+      </div>
+      <h3 style="font-size: 1.25rem; font-weight: 800; margin-top: 1rem; margin-bottom: 0.25rem;" id="orderSuccessTitle">Order Executed!</h3>
+      <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.25rem;" id="orderSuccessSubtitle">Your paper trade was filled instantly by the broker engine.</p>
+      
+      <div class="order-success-card">
+        <div class="order-success-row">
+          <span class="label">Asset</span>
+          <span class="val" id="orderSuccessAsset">RELIANCE</span>
+        </div>
+        <div class="order-success-row">
+          <span class="label">Action & Product</span>
+          <span class="val" id="orderSuccessType">BUY • DELIVERY (CNC)</span>
+        </div>
+        <div class="order-success-row">
+          <span class="label">Quantity Filled</span>
+          <span class="val" id="orderSuccessQty">2 Shares</span>
+        </div>
+        <div class="order-success-row">
+          <span class="label">Execution Price</span>
+          <span class="val" id="orderSuccessPrice">₹2,980.50</span>
+        </div>
+        <div class="order-success-row total">
+          <span class="label">Total Amount</span>
+          <span class="val" id="orderSuccessTotal">₹5,961.00</span>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem;">
+        <button class="btn-primary" id="orderSuccessViewBtn" style="flex: 1; justify-content: center;" onclick="goToHoldingsFromModal()">
+          View in Holdings →
+        </button>
+        <button class="btn-subtle" style="flex: 1; justify-content: center;" onclick="closeOrderSuccessModal()">
+          Continue Trading
         </button>
       </div>
     </div>

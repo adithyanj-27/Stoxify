@@ -14,7 +14,7 @@ if sys.platform == "win32":
 def open_browser():
     time.sleep(1.2)
     url = "http://127.0.0.1:8000"
-    print(f"\nLaunching BrokeAhh in your browser: {url}")
+    print(f"\nLaunching Stoxify in your browser: {url}")
     webbrowser.open(url)
 
 def main():

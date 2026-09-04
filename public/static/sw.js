@@ -1,5 +1,5 @@
-// BrokeAhh PWA Service Worker
-const CACHE_NAME = 'brokeahh-v1';
+// Stoxify PWA Service Worker
+const CACHE_NAME = 'stoxify-v1';
 const STATIC_ASSETS = [
   '/',
   '/static/style.css',
