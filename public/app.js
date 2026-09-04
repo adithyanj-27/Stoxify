@@ -115,8 +115,8 @@ async function fetchMarketStatus() {
     const dot = document.getElementById('marketPulseDot');
     const label = document.getElementById('marketStatusText');
 
-    dot.className = `pulse-dot ${data.badge_color || 'gray'}`;
-    label.innerText = data.status_text;
+    if (dot) dot.className = `pulse-dot ${data.badge_color || 'gray'}`;
+    if (label) label.innerText = data.status_text;
 
     // Update modal
     const clockEl = document.getElementById('modalClockIst');
