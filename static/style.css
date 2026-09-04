@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap');
 
 :root {
   --bg-main: #080D14;
@@ -49,7 +49,7 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -115,10 +115,10 @@ body {
 }
 
 .brand-name {
-  font-family: 'Playfair Display', Georgia, serif;
-  font-size: 1.55rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
   color: var(--text-primary);
   display: flex;
   align-items: center;
@@ -126,14 +126,14 @@ body {
 
 .brand-name span.brand-stox {
   color: var(--text-primary);
-  font-family: 'Playfair Display', Georgia, serif;
-  font-weight: 700;
+  font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 800;
 }
 
 .brand-name span.brand-ify {
   color: var(--brand-cyan);
-  font-family: 'Playfair Display', Georgia, serif;
-  font-weight: 700;
+  font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 800;
   position: relative;
 }
 
