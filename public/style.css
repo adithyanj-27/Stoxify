@@ -1,25 +1,24 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap');
 
 :root {
-  --bg-main: #0B0F19;
-  --bg-card: #151D2E;
-  --bg-card-hover: #1A2438;
-  --bg-elevated: #1E2A3F;
-  --border-subtle: #243044;
-  --border-active: #344B6B;
-  --text-primary: #F1F5F9;
+  --bg-main: #080D14;
+  --bg-card: #0F172A;
+  --bg-card-hover: #162035;
+  --bg-elevated: #1E293B;
+  --border-subtle: #1E293B;
+  --border-active: #334155;
+  --text-primary: #F8FAFC;
   --text-secondary: #94A3B8;
   --text-muted: #64748B;
-  --accent-gold: #F59E0B;
-  --accent-gold-hover: #D97706;
-  --accent-gold-bg: rgba(245, 158, 11, 0.12);
-  --accent-green: #059669;
-  --accent-green-hover: #047857;
-  --accent-green-bg: rgba(5, 150, 105, 0.12);
-  --accent-secondary: #F59E0B;
-  --danger-red: #EF4444;
-  --danger-red-bg: rgba(239, 68, 68, 0.12);
-  --accent-gradient: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  --brand-cyan: #0EA5E9;
+  --brand-cyan-hover: #0284C7;
+  --brand-cyan-bg: rgba(14, 165, 233, 0.12);
+  --accent-green: #10B981;
+  --accent-green-hover: #059669;
+  --accent-green-bg: rgba(16, 185, 129, 0.12);
+  --danger-red: #F43F5E;
+  --danger-red-bg: rgba(244, 63, 94, 0.12);
+  --accent-gradient: linear-gradient(135deg, #0EA5E9 0%, #10B981 100%);
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 12px 30px rgba(0, 0, 0, 0.5);
   --radius-sm: 8px;
@@ -30,18 +29,18 @@
 }
 
 [data-theme="light"] {
-  --bg-main: #F8FAFC;
+  --bg-main: #F1F5F9;
   --bg-card: #FFFFFF;
-  --bg-card-hover: #FEF9F0;
-  --bg-elevated: #F1F5F9;
-  --border-subtle: #E2E8F0;
-  --border-active: #CBD5E1;
+  --bg-card-hover: #F8FAFC;
+  --bg-elevated: #E2E8F0;
+  --border-subtle: #CBD5E1;
+  --border-active: #94A3B8;
   --text-primary: #0F172A;
   --text-secondary: #475569;
-  --text-muted: #94A3B8;
-  --accent-gold-bg: rgba(245, 158, 11, 0.1);
-  --accent-green-bg: rgba(5, 150, 105, 0.1);
-  --danger-red-bg: rgba(239, 68, 68, 0.1);
+  --text-muted: #64748B;
+  --brand-cyan-bg: rgba(14, 165, 233, 0.1);
+  --accent-green-bg: rgba(16, 185, 129, 0.1);
+  --danger-red-bg: rgba(244, 63, 94, 0.1);
   --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.06);
   --shadow-lg: 0 12px 30px rgba(15, 23, 42, 0.12);
 }
@@ -50,7 +49,7 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -110,25 +109,44 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, rgba(245,158,11,0.15) 0%, rgba(217,119,6,0.15) 100%);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  box-shadow: 0 0 16px rgba(245, 158, 11, 0.2);
+  background: linear-gradient(135deg, rgba(14,165,233,0.15) 0%, rgba(16,185,129,0.15) 100%);
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  box-shadow: 0 0 16px rgba(14, 165, 233, 0.2);
 }
 
 .brand-name {
-  font-size: 1.4rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   color: var(--text-primary);
+  display: flex;
+  align-items: center;
 }
 
-.brand-name span.groww {
-  color: var(--accent-gold);
+.brand-name span.brand-stox {
+  color: var(--text-primary);
+  font-family: 'Playfair Display', Georgia, serif;
+  font-weight: 700;
 }
 
-.brand-name span.fahh {
-  color: var(--text-primary);
+.brand-name span.brand-ify {
+  color: var(--brand-cyan);
+  font-family: 'Playfair Display', Georgia, serif;
+  font-weight: 700;
   position: relative;
+}
+
+.brand-name span.brand-ify::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  left: 0;
+  right: 0;
+  height: 2.5px;
+  background: var(--brand-cyan);
+  opacity: 0.45;
+  border-radius: 2px;
 }
 
 .search-wrapper {
@@ -149,7 +167,7 @@ body {
 }
 
 .search-input-box:focus-within {
-  border-color: var(--accent-gold);
+  border-color: var(--brand-cyan);
   box-shadow: 0 0 0 2px rgba(0, 208, 156, 0.2);
 }
 
@@ -223,8 +241,8 @@ body {
 }
 
 .nav-btn.active {
-  color: var(--accent-gold);
-  background: var(--accent-gold-bg);
+  color: var(--brand-cyan);
+  background: var(--brand-cyan-bg);
 }
 
 .nav-actions {
@@ -248,7 +266,7 @@ body {
 }
 
 .balance-chip:hover {
-  border-color: var(--accent-gold);
+  border-color: var(--brand-cyan);
   transform: translateY(-1px);
 }
 
@@ -258,7 +276,7 @@ body {
 }
 
 .balance-chip .amount {
-  color: var(--accent-gold);
+  color: var(--brand-cyan);
   font-weight: 700;
 }
 
@@ -417,7 +435,7 @@ body {
 }
 
 .sub-nav-btn.active {
-  color: var(--accent-gold);
+  color: var(--brand-cyan);
 }
 
 .sub-nav-btn.active::after {
@@ -457,9 +475,9 @@ body {
 }
 
 .pill-btn.active {
-  background: var(--accent-gold-bg);
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
+  background: var(--brand-cyan-bg);
+  border-color: var(--brand-cyan);
+  color: var(--brand-cyan);
 }
 
 /* Cards Grid */
@@ -657,7 +675,7 @@ body {
 
 /* Action Buttons */
 .btn-primary {
-  background: var(--accent-gold);
+  background: var(--brand-cyan);
   color: #1a0f00;
   font-weight: 700;
   border: none;
@@ -671,12 +689,12 @@ body {
 }
 
 .btn-primary:hover {
-  background: var(--accent-gold-hover);
-  box-shadow: 0 0 15px rgba(245, 158, 11, 0.4);
+  background: var(--brand-cyan-hover);
+  box-shadow: 0 0 15px rgba(14, 165, 233, 0.4);
 }
 
 .btn-orange {
-  background: var(--accent-gold);
+  background: var(--brand-cyan);
   color: #fff;
   font-weight: 700;
   border: none;
@@ -690,7 +708,7 @@ body {
 }
 
 .btn-orange:hover {
-  background: var(--accent-gold-hover);
+  background: var(--brand-cyan-hover);
   box-shadow: 0 0 15px rgba(255, 107, 0, 0.4);
 }
 
@@ -893,9 +911,9 @@ body {
 }
 
 .tf-btn.active {
-  background: var(--accent-gold-bg);
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
+  background: var(--brand-cyan-bg);
+  border-color: var(--brand-cyan);
+  color: var(--brand-cyan);
 }
 
 /* Toast Notifications */
@@ -912,7 +930,7 @@ body {
 .toast {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
-  border-left: 4px solid var(--accent-gold);
+  border-left: 4px solid var(--brand-cyan);
   color: var(--text-primary);
   padding: 0.9rem 1.25rem;
   border-radius: var(--radius-sm);
@@ -945,9 +963,9 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  background: var(--accent-gold-bg);
-  color: var(--accent-gold);
-  border: 1px solid rgba(245, 158, 11, 0.4);
+  background: var(--brand-cyan-bg);
+  color: var(--brand-cyan);
+  border: 1px solid rgba(14, 165, 233, 0.4);
   padding: 0.35rem 0.75rem;
   border-radius: var(--radius-full);
   font-size: 0.78rem;
@@ -958,9 +976,9 @@ body {
 }
 
 .btn-install-app:hover {
-  background: var(--accent-gold);
+  background: var(--brand-cyan);
   color: #1a0f00;
-  box-shadow: 0 0 14px rgba(245, 158, 11, 0.4);
+  box-shadow: 0 0 14px rgba(14, 165, 233, 0.4);
   transform: translateY(-1px);
 }
 
@@ -1010,8 +1028,8 @@ body {
 }
 
 .pulse-dot.orange {
-  background-color: var(--accent-gold);
-  box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+  background-color: var(--brand-cyan);
+  box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.7);
   animation: pulseOrange 2s infinite;
 }
 
@@ -1026,7 +1044,7 @@ body {
 }
 
 @keyframes pulseOrange {
-  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.7); }
   70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(255, 107, 0, 0); }
   100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 107, 0, 0); }
 }
@@ -1036,7 +1054,7 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--accent-gold);
+  background: var(--brand-cyan);
   color: #fff;
   font-size: 0.65rem;
   font-weight: 800;
@@ -1049,7 +1067,7 @@ body {
   position: absolute;
   top: -4px;
   right: -8px;
-  background: var(--accent-gold);
+  background: var(--brand-cyan);
   color: #fff;
   font-size: 0.6rem;
   font-weight: 800;
@@ -1084,15 +1102,15 @@ body {
 
 .quick-chip:hover {
   background: var(--bg-elevated);
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
+  border-color: var(--brand-cyan);
+  color: var(--brand-cyan);
 }
 
 /* --- Leverage Info Banner --- */
 .leverage-info-banner {
   background: rgba(255, 107, 0, 0.1);
   border: 1px solid rgba(255, 107, 0, 0.3);
-  color: var(--accent-gold);
+  color: var(--brand-cyan);
   padding: 0.6rem 0.8rem;
   border-radius: var(--radius-sm);
   font-size: 0.78rem;
@@ -1175,7 +1193,7 @@ body {
 }
 
 .charges-link:hover {
-  color: var(--accent-gold);
+  color: var(--brand-cyan);
 }
 
 /* --- Timings Info Row --- */
@@ -1222,7 +1240,7 @@ body {
 }
 
 .toggle-switch input:checked + .toggle-slider {
-  background-color: var(--accent-gold);
+  background-color: var(--brand-cyan);
 }
 
 .toggle-switch input:checked + .toggle-slider:before {
@@ -1335,11 +1353,11 @@ body {
 }
 
 .mobile-nav-item.active {
-  color: var(--accent-gold);
+  color: var(--brand-cyan);
 }
 
 .mobile-nav-item.active svg {
-  stroke: var(--accent-gold);
+  stroke: var(--brand-cyan);
 }
 
 /* ========================================================= */
@@ -1366,13 +1384,26 @@ body {
   }
 
   .brand-logo {
-    width: 32px;
-    height: 32px;
-  }
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(14,165,233,0.15) 0%, rgba(16,185,129,0.15) 100%);
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  box-shadow: 0 0 16px rgba(14, 165, 233, 0.2);
+}
 
   .brand-name {
-    font-size: 1.15rem;
-  }
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+}
 
   .search-wrapper {
     order: 3;
@@ -1507,5 +1538,11 @@ body {
   font-variant-numeric: tabular-nums;
 }
 .brand-name {
-  letter-spacing: -0.02em;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
 }

@@ -1,7 +1,7 @@
 {
-  "name": "brokeahh",
+  "name": "stoxify",
   "version": "1.0.0",
-  "description": "BrokeAhh - Stock & Mutual Fund Broker Platform (For traders too broke to lose real money on Zerodha)",
+  "description": "Stoxify - Stock & Mutual Fund Broker Platform (For traders too broke to lose real money on Zerodha)",
   "main": "run.py",
   "scripts": {
     "dev": "py run.py",

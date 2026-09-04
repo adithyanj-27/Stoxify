@@ -1,13 +1,13 @@
 {
   "name": "BrokeAhh \u2014 Stock & Mutual Fund Broker",
-  "short_name": "BrokeAhh",
+  "short_name": "Stoxify",
   "start_url": "/",
   "id": "/",
   "display": "standalone",
-  "background_color": "#0B0F19",
-  "theme_color": "#0B0F19",
+  "background_color": "#080D14",
+  "theme_color": "#080D14",
   "orientation": "portrait-primary",
-  "description": "For traders too broke to lose real money on Zerodha",
+  "description": "Modern Stock & Mutual Fund Paper Trading Platform",
   "icons": [
     {
       "src": "/static/icon-192.png",

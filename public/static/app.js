@@ -1,4 +1,4 @@
-// BrokeAhh — Core Client Application Logic & Feature Engine
+// Stoxify — Core Client Application Logic & Feature Engine
 
 const state = {
   currentTab: 'explore',
@@ -70,7 +70,7 @@ function showToast(message, isError = false) {
 
 // --- Theme Management ---
 function initTheme() {
-  const saved = localStorage.getItem('brokeahh_theme') || localStorage.getItem('growwfahh_theme') || 'dark';
+  const saved = localStorage.getItem('stoxify_theme') || localStorage.getItem('growwfahh_theme') || 'dark';
   document.documentElement.setAttribute('data-theme', saved);
   updateThemeIcon(saved);
 }
@@ -79,7 +79,7 @@ function toggleTheme() {
   const current = document.documentElement.getAttribute('data-theme');
   const next = current === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', next);
-  localStorage.setItem('brokeahh_theme', next);
+  localStorage.setItem('stoxify_theme', next);
   updateThemeIcon(next);
   if (state.chartInstance && state.currentModalAsset) {
     loadChartTimeframe(state.currentModalTimeframe);
@@ -331,7 +331,7 @@ function renderExploreMutualFunds() {
       <div class="stock-card" onclick="openAssetModal('${mf.symbol}', 'MUTUAL_FUND')">
         <div class="card-top">
           <div style="display: flex; gap: 0.75rem; align-items: center; overflow: hidden;">
-            <div class="card-avatar" style="background: var(--accent-gold-bg); color: var(--accent-gold); border-color: rgba(255,107,0,0.3);">
+            <div class="card-avatar" style="background: var(--brand-cyan-bg); color: var(--brand-cyan); border-color: rgba(255,107,0,0.3);">
               MF
             </div>
             <div class="card-info">
@@ -513,7 +513,7 @@ async function fetchPositions() {
             <div style="font-weight: 700;">${p.name}</div>
             <div style="font-size: 0.75rem; color: var(--text-muted);">${p.symbol}</div>
           </td>
-          <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem; background: var(--accent-gold-bg); color: var(--accent-gold); border-color: rgba(255,107,0,0.3);">Intraday 5x</span></td>
+          <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem; background: var(--brand-cyan-bg); color: var(--brand-cyan); border-color: rgba(255,107,0,0.3);">Intraday 5x</span></td>
           <td style="font-weight: 700;">${p.quantity}</td>
           <td>${formatINR(p.avg_price)}</td>
           <td style="font-weight: 700;">${formatINR(p.current_price)}</td>
@@ -536,7 +536,7 @@ async function fetchPositions() {
         <div class="mobile-card-item">
           <div class="mobile-card-top">
             <div>
-              <div class="mobile-card-symbol">${p.symbol} <span class="pill-btn" style="padding: 1px 5px; font-size: 0.65rem; background: var(--accent-gold-bg); color: var(--accent-gold);">MIS 5x</span></div>
+              <div class="mobile-card-symbol">${p.symbol} <span class="pill-btn" style="padding: 1px 5px; font-size: 0.65rem; background: var(--brand-cyan-bg); color: var(--brand-cyan);">MIS 5x</span></div>
               <div class="mobile-card-name">${p.name}</div>
             </div>
             <div class="mobile-card-price">
@@ -697,10 +697,10 @@ async function fetchOrders() {
             <td><span class="badge-${isBuy ? 'positive' : 'negative'}">${o.order_type}</span></td>
             <td>${o.product_type}</td>
             <td style="font-weight: 600;">${o.quantity}</td>
-            <td style="font-weight: 700; color: var(--accent-gold);">${formatINR(o.limit_price || o.price)}</td>
+            <td style="font-weight: 700; color: var(--brand-cyan);">${formatINR(o.limit_price || o.price)}</td>
             <td>${formatINR(o.total_amount)}</td>
             <td style="font-size: 0.75rem; color: var(--text-muted);">${o.timestamp || 'Today'}</td>
-            <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem; color: var(--accent-gold);">OPEN</span></td>
+            <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem; color: var(--brand-cyan);">OPEN</span></td>
             <td style="text-align: right;">
               <button class="btn-danger" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" onclick="cancelOrder(${o.id})">Cancel</button>
             </td>
@@ -711,14 +711,14 @@ async function fetchOrders() {
       openMobileList.innerHTML = openOrders.map(o => {
         const isBuy = o.order_type === 'BUY';
         return `
-          <div class="mobile-card-item" style="border-left: 4px solid var(--accent-gold);">
+          <div class="mobile-card-item" style="border-left: 4px solid var(--brand-cyan);">
             <div class="mobile-card-top">
               <div>
                 <div class="mobile-card-symbol">${o.symbol} <span class="badge-${isBuy ? 'positive' : 'negative'}">${o.order_type} LIMIT</span></div>
                 <div class="mobile-card-name">Order #${o.id} • ${o.product_type}</div>
               </div>
               <div class="mobile-card-price">
-                <span style="color: var(--accent-gold);">${formatINR(o.limit_price || o.price)}</span>
+                <span style="color: var(--brand-cyan);">${formatINR(o.limit_price || o.price)}</span>
                 <div style="font-size: 0.75rem; color: var(--text-muted);">Pending Execution</div>
               </div>
             </div>
@@ -1317,7 +1317,7 @@ async function submitDeposit() {
 }
 
 async function submitResetAccount() {
-  if (!confirm('Are you sure you want to reset your BrokeAhh account? This will set your balance back to ₹10,00,000 and clear all holdings, intraday positions, and order history.')) {
+  if (!confirm('Are you sure you want to reset your Stoxify account? This will set your balance back to ₹10,00,000 and clear all holdings, intraday positions, and order history.')) {
     return;
   }
 
@@ -1325,7 +1325,7 @@ async function submitResetAccount() {
     const res = await fetch('/api/account/reset', { method: 'POST' });
     const data = await res.json();
     if (data.status === 'success') {
-      showToast('BrokeAhh account successfully reset to fresh ₹10,00,000');
+      showToast('Stoxify account successfully reset to fresh ₹10,00,000');
       await fetchAccount();
       closeFundsModal();
       if (state.currentTab === 'holdings') fetchPortfolio();
@@ -1373,14 +1373,14 @@ window.addEventListener('appinstalled', () => {
   deferredInstallPrompt = null;
   const btn = document.getElementById('btnInstallApp');
   if (btn) btn.style.display = 'none';
-  showToast('BrokeAhh installed successfully!');
+  showToast('Stoxify installed successfully!');
 });
 
 // Register Service Worker
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').then((reg) => {
-      console.log('BrokeAhh PWA Service Worker registered:', reg.scope);
+      console.log('Stoxify PWA Service Worker registered:', reg.scope);
     }).catch((err) => {
       console.warn('Service Worker registration skipped:', err);
     });

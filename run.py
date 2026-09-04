@@ -20,8 +20,8 @@ def open_browser():
 def main():
     print("""
 =========================================================
-  BROKEAHH - STOCK & MUTUAL FUND BROKER PLATFORM
-  "For traders too broke to lose real money on Zerodha"
+  STOXIFY - STOCK & MUTUAL FUND BROKER PLATFORM
+  "Modern Stock & Mutual Fund Broker Platform"
 =========================================================
   Status: Online & Ready
   Starting Account Balance: Rs. 10,00,000

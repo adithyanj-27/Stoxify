@@ -8,16 +8,18 @@ import tempfile
 import shutil
 
 if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
-    DB_PATH = os.path.join(tempfile.gettempdir(), "brokeahh.db")
+    DB_PATH = os.path.join(tempfile.gettempdir(), "stoxify.db")
 else:
-    DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "brokeahh.db")
-    # Migrate from growwfahh.db if existing and brokeahh.db not yet created
-    old_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), "growwfahh.db")
-    if os.path.exists(old_db) and not os.path.exists(DB_PATH):
-        try:
-            shutil.copy2(old_db, DB_PATH)
-        except Exception:
-            pass
+    DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stoxify.db")
+    # Migrate from brokeahh.db or growwfahh.db if existing and stoxify.db not yet created
+    for prior_db_name in ["brokeahh.db", "growwfahh.db"]:
+        prior_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), prior_db_name)
+        if os.path.exists(prior_db) and not os.path.exists(DB_PATH):
+            try:
+                shutil.copy2(prior_db, DB_PATH)
+                break
+            except Exception:
+                pass
 
 def get_connection():
     conn = sqlite3.connect(DB_PATH)

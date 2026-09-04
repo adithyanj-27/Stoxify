@@ -15,7 +15,7 @@ import market_service
 import market_hours
 from datetime import datetime
 
-app = FastAPI(title="BrokeAhh", description="BrokeAhh - Stock & Mutual Fund Broker Platform", version="1.0.0")
+app = FastAPI(title="Stoxify", description="BrokeAhh - Stock & Mutual Fund Broker Platform", version="1.0.0")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
@@ -51,7 +51,7 @@ def startup():
 
 @app.get("/favicon.ico")
 def favicon():
-    svg_icon = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#0B0F19"/><defs><linearGradient id="gGold" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#FBBF24"/><stop offset="100%" stop-color="#D97706"/></linearGradient><linearGradient id="gJade" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#10B981"/><stop offset="100%" stop-color="#059669"/></linearGradient></defs><line x1="9" y1="3" x2="9" y2="7" stroke="url(#gGold)" stroke-width="2" stroke-linecap="round"/><line x1="9" y1="25" x2="9" y2="29" stroke="url(#gGold)" stroke-width="2" stroke-linecap="round"/><rect x="7" y="7" width="4" height="18" rx="2" fill="url(#gGold)"/><path d="M9 8.5H15.5C19 8.5 22 10.2 22 13C22 15.8 19 16.5 15.5 16.5H9" stroke="url(#gGold)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 16.5H16.5C20.5 16.5 24 18.2 24 21C24 23.8 20.5 24.5 16.5 24.5H9" stroke="url(#gGold)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="22" cy="13" r="1.8" fill="url(#gJade)"/><circle cx="24" cy="21" r="1.8" fill="url(#gJade)"/></svg>"""
+    svg_icon = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#080D14"/><defs><linearGradient id="gC" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#38BDF8"/><stop offset="100%" stop-color="#0EA5E9"/></linearGradient><linearGradient id="gE" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#34D399"/><stop offset="100%" stop-color="#10B981"/></linearGradient></defs><circle cx="16" cy="16" r="12" stroke="url(#gC)" stroke-width="2.4" fill="none"/><path d="M10 20L15 15L18.5 17.5L23.5 10.5" stroke="url(#gE)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 10.5H23.5V15" stroke="url(#gE)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="23.5" cy="10.5" r="1.5" fill="#38BDF8"/></svg>"""
     return Response(content=svg_icon, media_type="image/svg+xml")
 
 @app.get("/")
@@ -63,7 +63,7 @@ def read_root():
     ]:
         if os.path.exists(candidate):
             return FileResponse(candidate)
-    return Response(content="<h1>BrokeAhh is Online</h1>", media_type="text/html")
+    return Response(content="<h1>Stoxify is Online</h1>", media_type="text/html")
 
 @app.get("/static/style.css")
 @app.get("/style.css")

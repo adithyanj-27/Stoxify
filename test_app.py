@@ -7,7 +7,7 @@ if sys.platform == "win32":
 # Set clean test environment
 def test_all():
     print("=======================================")
-    print(" Running BrokeAhh Automated Test Suite")
+    print(" Running Stoxify Automated Test Suite")
     print("=======================================")
 
     # 1. Test Database
@@ -151,7 +151,7 @@ def test_all():
     print(" ✓ Database reset to fresh ₹10,00,000 balance")
 
     print("\n=======================================================")
-    print(" ALL BROKEAHH ADVANCED BROKER TESTS PASSED 100%!")
+    print(" ALL STOXIFY ADVANCED BROKER TESTS PASSED 100%!")
     print("=======================================================")
 
 if __name__ == "__main__":

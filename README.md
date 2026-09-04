@@ -1,6 +1,6 @@
-# BrokeAhh — Stock & Mutual Fund Broker Platform
+# Stoxify — Modern Stock & Mutual Fund Broker Platform
 
-> *"For traders too broke to lose real money on Zerodha."*
+> *"Master Dalal Street with real market tools and zero capital risk."*
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.13-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.13" />
@@ -10,7 +10,7 @@
   <img src="https://img.shields.io/badge/NSE%20%26%20BSE-Live%20Market-00D09C?style=for-the-badge" alt="NSE Market" />
 </p>
 
-BrokeAhh is a modern, broker-grade trading and investment platform inspired by Groww and Upstox, featuring **authentic Indian brokerage mechanics**, **₹10,00,000 available balance**, live Indian equities (NSE/BSE), official Mutual Fund NAVs (AMFI), strict IST market hours, and 5x intraday leverage.
+Stoxify is a modern, broker-grade trading and investment platform inspired by Groww and Upstox, featuring **authentic Indian brokerage mechanics**, **₹10,00,000 available balance**, live Indian equities (NSE/BSE), official Mutual Fund NAVs (AMFI), strict IST market hours, and 5x intraday leverage.
 
 ---
 
@@ -35,17 +35,17 @@ BrokeAhh is a modern, broker-grade trading and investment platform inspired by G
 - **Mobile First UX:**
   - Bottom app navigation bar on mobile browsers.
   - Slide-up bottom sheet trading drawer with quick quantity chips (+1, +5, +10, +25, +50).
-- **Persistence:** Local SQLite database (`brokeahh.db`) ensuring all trades, holdings, and watchlists are preserved.
+- **Persistence:** Local SQLite database (`stoxify.db`) ensuring all trades, holdings, and watchlists are preserved.
 
 ---
 
 ## 🚀 One-Click Deploy to Vercel
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/adithyanj-27/BrokeAhh)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/adithyanj-27/Stoxify)
 
-1. Push this repository to your GitHub account: `https://github.com/adithyanj-27/BrokeAhh`.
+1. Push this repository to your GitHub account: `https://github.com/adithyanj-27/Stoxify`.
 2. Link your GitHub repository in your [Vercel Dashboard](https://vercel.com).
-3. Vercel deploys your site serverless with custom domain/subdomain like `https://brokeahh.vercel.app`.
+3. Vercel deploys your site serverless with custom domain/subdomain like `https://stoxify.vercel.app`.
 
 ---
 
@@ -54,8 +54,8 @@ BrokeAhh is a modern, broker-grade trading and investment platform inspired by G
 ### Quick Start:
 ```bash
 # Clone the repository
-git clone https://github.com/adithyanj-27/BrokeAhh.git
-cd BrokeAhh
+git clone https://github.com/adithyanj-27/Stoxify.git
+cd Stoxify
 
 # Install dependencies
 pip install -r requirements.txt
@@ -65,7 +65,7 @@ py run.py
 ```
 
 ### Windows Double-Click Launcher:
-Double-click `start_brokeahh.bat` to launch the platform.
+Double-click `start_stoxify.bat` to launch the platform.
 
 ### Running Automated Verification Tests:
 ```bash
@@ -77,7 +77,7 @@ py test_app.py
 ## 📂 Project Structure
 
 ```
-BrokeAhh/
+Stoxify/
 ├── api/
 │   └── index.py            # Vercel serverless entrypoint
 ├── static/
@@ -85,12 +85,12 @@ BrokeAhh/
 │   ├── style.css           # Modern brokerage design system
 │   └── app.js              # Client-side reactivity, Chart.js, orders
 ├── market_hours.py         # IST calendar, sessions, and simulation toggle
-├── database.py             # SQLite schema (brokeahh.db), 5x leverage, square-off engine
+├── database.py             # SQLite schema (stoxify.db), 5x leverage, square-off engine
 ├── market_service.py       # High-performance market data & 3-tier search
 ├── stock_master.py         # Curated 150+ stocks, aliases, & AMFI funds
 ├── main.py                 # FastAPI backend REST API
 ├── run.py                  # One-click launcher
-├── start_brokeahh.bat      # Windows launcher
+├── start_stoxify.bat      # Windows launcher
 ├── package.json            # npm scripts
 ├── requirements.txt        # Python backend dependencies
 ├── vercel.json             # Vercel serverless routing configuration
