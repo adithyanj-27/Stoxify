@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GrowwFAHH — Invest in Stocks & Mutual Funds</title>
+  <title>BrokeAhh — Stock & Mutual Fund Broker Platform</title>
   <link rel="stylesheet" href="/static/style.css" onerror="this.onerror=null;this.href='/style.css';">
   <!-- Chart.js for high performance financial line & area charts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -37,7 +37,7 @@
         </svg>
       </div>
       <div class="brand-name">
-        <span class="groww">Groww</span><span class="fahh">FAHH</span>
+        <span class="groww">Broke</span><span class="fahh">Ahh</span>
       </div>
     </div>
 
@@ -53,16 +53,27 @@
       <div class="search-results-dropdown" id="searchResultsDropdown"></div>
     </div>
 
-    <!-- Nav Links -->
-    <nav class="nav-links">
+    <!-- Nav Links (Desktop) -->
+    <nav class="nav-links desktop-only">
       <button class="nav-btn active" id="nav-explore" onclick="switchTab('explore')">Explore</button>
       <button class="nav-btn" id="nav-holdings" onclick="switchTab('holdings')">Holdings</button>
-      <button class="nav-btn" id="nav-orders" onclick="switchTab('orders')">Orders</button>
+      <button class="nav-btn" id="nav-positions" onclick="switchTab('positions')">
+        Positions <span class="badge-count" id="navPositionsBadge" style="display: none;">0</span>
+      </button>
+      <button class="nav-btn" id="nav-orders" onclick="switchTab('orders')">
+        Orders <span class="badge-count" id="navOrdersBadge" style="display: none;">0</span>
+      </button>
       <button class="nav-btn" id="nav-watchlist" onclick="switchTab('watchlist')">Watchlist</button>
     </nav>
 
     <!-- Nav Right Controls -->
     <div class="nav-actions">
+      <!-- Live Market Status Pill -->
+      <div class="market-status-pill" id="navMarketStatus" onclick="openMarketHoursModal()" title="Indian Market Session & Settings">
+        <span class="pulse-dot" id="marketPulseDot"></span>
+        <span class="status-label" id="marketStatusText">Market Closed</span>
+      </div>
+
       <div class="balance-chip" onclick="openFundsModal()" title="Manage Account Balance">
         <span class="label">Balance:</span>
         <span class="amount" id="navBalanceDisplay">₹10,00,000.00</span>
@@ -93,23 +104,10 @@
 
   <!-- Sticky Indices Bar -->
   <div class="indices-bar" id="indicesBar">
-    <!-- Populated by JS -->
-    <div class="index-pill">
-      <span class="name">NIFTY 50</span>
-      <span class="price">--</span>
-    </div>
-    <div class="index-pill">
-      <span class="name">SENSEX</span>
-      <span class="price">--</span>
-    </div>
-    <div class="index-pill">
-      <span class="name">BANK NIFTY</span>
-      <span class="price">--</span>
-    </div>
-    <div class="index-pill">
-      <span class="name">NIFTY IT</span>
-      <span class="price">--</span>
-    </div>
+    <div class="index-pill"><span class="name">NIFTY 50</span><span class="price">--</span></div>
+    <div class="index-pill"><span class="name">SENSEX</span><span class="price">--</span></div>
+    <div class="index-pill"><span class="name">BANK NIFTY</span><span class="price">--</span></div>
+    <div class="index-pill"><span class="name">NIFTY IT</span><span class="price">--</span></div>
   </div>
 
   <!-- Main Container -->
@@ -128,28 +126,27 @@
           <button class="pill-btn active" onclick="filterExploreStocks('all')">All / Most Active</button>
           <button class="pill-btn" onclick="filterExploreStocks('gainers')">Top Gainers</button>
           <button class="pill-btn" onclick="filterExploreStocks('losers')">Top Losers</button>
-          <button class="pill-btn" onclick="filterExploreStocks('Defense')">Defense & Aerospace</button>
-          <button class="pill-btn" onclick="filterExploreStocks('Railways')">Railways & PSUs</button>
-          <button class="pill-btn" onclick="filterExploreStocks('Energy')">Energy & Power</button>
+          <button class="pill-btn" onclick="filterExploreStocks('Defense')">Defense</button>
+          <button class="pill-btn" onclick="filterExploreStocks('Railways')">Railways</button>
+          <button class="pill-btn" onclick="filterExploreStocks('Energy')">Energy</button>
           <button class="pill-btn" onclick="filterExploreStocks('Banking')">Banking</button>
-          <button class="pill-btn" onclick="filterExploreStocks('Finance')">Financial Services</button>
-          <button class="pill-btn" onclick="filterExploreStocks('IT')">IT & Tech</button>
-          <button class="pill-btn" onclick="filterExploreStocks('Auto')">Automobile</button>
-          <button class="pill-btn" onclick="filterExploreStocks('Metals')">Metals & Mining</button>
-          <button class="pill-btn" onclick="filterExploreStocks('Consumer')">Consumer & Retail</button>
-          <button class="pill-btn" onclick="filterExploreStocks('Pharma')">Pharma & Healthcare</button>
-          <button class="pill-btn" onclick="filterExploreStocks('Infra')">Infra & Realty</button>
+          <button class="pill-btn" onclick="filterExploreStocks('Finance')">Finance</button>
+          <button class="pill-btn" onclick="filterExploreStocks('IT')">IT</button>
+          <button class="pill-btn" onclick="filterExploreStocks('Auto')">Auto</button>
+          <button class="pill-btn" onclick="filterExploreStocks('Metals')">Metals</button>
+          <button class="pill-btn" onclick="filterExploreStocks('Consumer')">Consumer</button>
+          <button class="pill-btn" onclick="filterExploreStocks('Pharma')">Pharma</button>
+          <button class="pill-btn" onclick="filterExploreStocks('Infra')">Infra</button>
         </div>
 
         <div class="section-header">
           <div>
-            <h2 class="section-title" id="exploreStocksTitle">Explore Indian Equities on GrowwFAHH</h2>
+            <h2 class="section-title" id="exploreStocksTitle">Explore Indian Equities on BrokeAhh</h2>
             <p class="section-desc" id="exploreStocksDesc">Live market quotes directly from the National Stock Exchange (NSE) & BSE</p>
           </div>
         </div>
 
         <div class="cards-grid" id="stocksGrid">
-          <!-- Populated by JS -->
           <div style="color: var(--text-muted); font-size: 0.9rem; padding: 2rem;">Loading live market data...</div>
         </div>
       </div>
@@ -163,18 +160,16 @@
           </div>
         </div>
 
-        <div class="cards-grid" id="mfGrid">
-          <!-- Populated by JS -->
-        </div>
+        <div class="cards-grid" id="mfGrid"></div>
       </div>
     </section>
 
-    <!-- 2. HOLDINGS TAB -->
+    <!-- 2. HOLDINGS TAB (Delivery / CNC) -->
     <section id="pane-holdings" class="tab-pane">
       <div class="section-header">
         <div>
-          <h2 class="section-title">Portfolio Holdings</h2>
-          <p class="section-desc">Real-time valuation of your stock and mutual fund investments</p>
+          <h2 class="section-title">Delivery Holdings</h2>
+          <p class="section-desc">Long-term portfolio assets held in demat (Delivery CNC)</p>
         </div>
         <button class="btn-primary" onclick="openFundsModal()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -190,38 +185,27 @@
         <div>
           <div class="banner-metric-label">Current Value</div>
           <div class="banner-metric-val" id="summaryCurrentVal">₹0.00</div>
-          <div class="banner-metric-sub" id="summaryTodayPnl">
-            <span>1D: ₹0.00 (0.00%)</span>
-          </div>
+          <div class="banner-metric-sub" id="summaryTodayPnl"><span>1D: ₹0.00 (0.00%)</span></div>
         </div>
-
         <div>
           <div class="banner-metric-label">Total Investment</div>
           <div class="banner-metric-val" id="summaryInvestedVal">₹0.00</div>
-          <div class="banner-metric-sub" style="color: var(--text-muted);">
-            Cost basis
-          </div>
+          <div class="banner-metric-sub" style="color: var(--text-muted);">Cost basis</div>
         </div>
-
         <div>
           <div class="banner-metric-label">Total Returns</div>
           <div class="banner-metric-val" id="summaryTotalReturns">₹0.00</div>
-          <div class="banner-metric-sub" id="summaryTotalReturnsPct">
-            <span>0.00%</span>
-          </div>
+          <div class="banner-metric-sub" id="summaryTotalReturnsPct"><span>0.00%</span></div>
         </div>
-
         <div>
           <div class="banner-metric-label">Available Balance</div>
           <div class="banner-metric-val" id="summaryAvailableBalance" style="color: var(--brand-green);">₹10,00,000.00</div>
-          <div class="banner-metric-sub" style="color: var(--text-muted);">
-            Ready to deploy
-          </div>
+          <div class="banner-metric-sub" style="color: var(--text-muted);">Ready to trade</div>
         </div>
       </div>
 
-      <!-- Holdings Table -->
-      <div class="table-container">
+      <!-- Desktop Holdings Table -->
+      <div class="table-container desktop-table-container">
         <table class="groww-table">
           <thead>
             <tr>
@@ -245,44 +229,143 @@
           </tbody>
         </table>
       </div>
+
+      <!-- Mobile Holdings Cards List -->
+      <div class="mobile-cards-list" id="holdingsMobileList"></div>
     </section>
 
-    <!-- 3. ORDERS TAB -->
-    <section id="pane-orders" class="tab-pane">
+    <!-- 3. POSITIONS TAB (Intraday / MIS with 5x Leverage) -->
+    <section id="pane-positions" class="tab-pane">
       <div class="section-header">
         <div>
-          <h2 class="section-title">Order Book & History</h2>
-          <p class="section-desc">Complete ledger of executed market orders and transactions</p>
+          <h2 class="section-title">Intraday Positions</h2>
+          <p class="section-desc">Active day trades with 5x leverage (MIS • Auto Square-off at 03:20 PM IST)</p>
+        </div>
+        <button class="btn-danger" id="squareOffAllBtn" onclick="squareOffAllPositions()" style="display: none;">
+          Square Off All
+        </button>
+      </div>
+
+      <!-- Positions Summary Banner -->
+      <div class="portfolio-banner" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+        <div>
+          <div class="banner-metric-label">Total Unrealized P&L</div>
+          <div class="banner-metric-val" id="posTotalPnl">₹0.00</div>
+          <div class="banner-metric-sub" id="posTotalPnlPct"><span>0.00%</span></div>
+        </div>
+        <div>
+          <div class="banner-metric-label">Margin Deployed</div>
+          <div class="banner-metric-val" id="posMarginDeployed">₹0.00</div>
+          <div class="banner-metric-sub" style="color: var(--brand-green);">5x Leverage Applied</div>
+        </div>
+        <div>
+          <div class="banner-metric-label">Active Positions</div>
+          <div class="banner-metric-val" id="posActiveCount">0</div>
+          <div class="banner-metric-sub" style="color: var(--text-muted);">Must close by 03:20 PM</div>
         </div>
       </div>
 
-      <div class="table-container">
+      <!-- Desktop Positions Table -->
+      <div class="table-container desktop-table-container">
         <table class="groww-table">
           <thead>
             <tr>
-              <th>Date & Time</th>
               <th>Instrument</th>
-              <th>Action</th>
               <th>Product</th>
-              <th>Quantity</th>
-              <th>Executed Price</th>
-              <th>Total Amount</th>
-              <th>Realized P&L</th>
-              <th>Status</th>
+              <th>Net Quantity</th>
+              <th>Avg. Buy Price</th>
+              <th>LTP</th>
+              <th>Margin Used</th>
+              <th>Unrealized P&L</th>
+              <th style="text-align: right;">Action</th>
             </tr>
           </thead>
-          <tbody id="ordersTableBody">
+          <tbody id="positionsTableBody">
             <tr>
-              <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 3rem;">
-                No orders placed yet.
+              <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 3rem;">
+                No open intraday positions. Intraday trades will appear here with live P&L and 1-click square-off.
               </td>
             </tr>
           </tbody>
         </table>
       </div>
+
+      <!-- Mobile Positions Cards List -->
+      <div class="mobile-cards-list" id="positionsMobileList"></div>
     </section>
 
-    <!-- 4. WATCHLIST TAB -->
+    <!-- 4. ORDERS TAB (Executed & Open Orders) -->
+    <section id="pane-orders" class="tab-pane">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">Order Book & Transactions</h2>
+          <p class="section-desc">Real-time ledger of limit orders and executed market trades</p>
+        </div>
+      </div>
+
+      <div class="sub-nav" style="margin-bottom: 1.25rem;">
+        <button class="sub-nav-btn active" id="subnav-executed" onclick="switchOrdersSubnav('executed')">
+          Executed Orders
+        </button>
+        <button class="sub-nav-btn" id="subnav-open" onclick="switchOrdersSubnav('open')">
+          Open Orders (<span id="openOrdersCount">0</span>)
+        </button>
+      </div>
+
+      <!-- Executed Orders View -->
+      <div id="orders-executed-container">
+        <div class="table-container desktop-table-container">
+          <table class="groww-table">
+            <thead>
+              <tr>
+                <th>Date & Time</th>
+                <th>Instrument</th>
+                <th>Action</th>
+                <th>Product</th>
+                <th>Variety</th>
+                <th>Quantity</th>
+                <th>Price</th>
+                <th>Amount</th>
+                <th>Realized P&L</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="ordersTableBody">
+              <tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 3rem;">No orders placed yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="mobile-cards-list" id="ordersMobileList"></div>
+      </div>
+
+      <!-- Open Orders View (Pending Limits) -->
+      <div id="orders-open-container" style="display: none;">
+        <div class="table-container desktop-table-container">
+          <table class="groww-table">
+            <thead>
+              <tr>
+                <th>Order ID</th>
+                <th>Instrument</th>
+                <th>Type</th>
+                <th>Product</th>
+                <th>Quantity</th>
+                <th>Limit Price</th>
+                <th>Blocked Margin</th>
+                <th>Placed At</th>
+                <th>Status</th>
+                <th style="text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="openOrdersTableBody">
+              <tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 3rem;">No pending limit orders.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="mobile-cards-list" id="openOrdersMobileList"></div>
+      </div>
+    </section>
+
+    <!-- 5. WATCHLIST TAB -->
     <section id="pane-watchlist" class="tab-pane">
       <div class="section-header">
         <div>
@@ -291,16 +374,15 @@
         </div>
       </div>
 
-      <div class="cards-grid" id="watchlistGrid">
-        <!-- Populated by JS -->
-      </div>
+      <div class="cards-grid" id="watchlistGrid"></div>
     </section>
 
   </main>
 
-  <!-- Stock & Mutual Fund Detail / Trade Modal -->
+  <!-- Stock & Mutual Fund Detail / Trade Modal (Converts to Bottom Sheet on Mobile!) -->
   <div class="modal-overlay" id="tradeModalOverlay">
-    <div class="modal-card">
+    <div class="modal-card trade-modal-card">
+      <div class="sheet-drag-handle mobile-only"></div>
       <div class="modal-header">
         <div style="display: flex; align-items: center; gap: 0.75rem;">
           <div class="card-avatar" id="modalAvatar">T</div>
@@ -322,7 +404,7 @@
 
       <div class="modal-body">
         <div class="modal-grid">
-          <!-- Left Column: Chart & Stats -->
+          <!-- Left Column: Chart, Stats, Depth -->
           <div>
             <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.75rem;">
               <div>
@@ -343,13 +425,13 @@
             </div>
 
             <!-- Chart Canvas -->
-            <div style="height: 240px; position: relative; margin-bottom: 1.25rem;">
+            <div style="height: 220px; position: relative; margin-bottom: 1rem;">
               <canvas id="tradeChartCanvas"></canvas>
             </div>
 
             <!-- Performance Range Bar -->
-            <div style="background: var(--bg-main); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 0.9rem; margin-bottom: 1rem;">
-              <div style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.5rem;">
+            <div style="background: var(--bg-main); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 0.75rem; margin-bottom: 1rem;">
+              <div style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.4rem;">
                 Today's Range
               </div>
               <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.85rem; font-weight: 700;">
@@ -359,8 +441,38 @@
             </div>
 
             <!-- Key Fundamentals Grid -->
-            <div id="modalFundamentals" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; font-size: 0.8rem;">
-              <!-- Populated dynamically -->
+            <div id="modalFundamentals" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.6rem; font-size: 0.8rem; margin-bottom: 1rem;"></div>
+
+            <!-- Level-2 Market Depth (5-tier Bid/Ask Ladder) -->
+            <div id="modalDepthSection" style="background: var(--bg-main); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 0.85rem; margin-bottom: 1rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">Level-2 Market Depth</span>
+                <span id="depthSpreadLabel" style="font-size: 0.75rem; color: var(--text-muted);">Spread: 0.05%</span>
+              </div>
+
+              <!-- Depth Table -->
+              <div class="depth-grid">
+                <div class="depth-column">
+                  <div class="depth-header"><span>Orders</span><span>Qty</span><span>Bid</span></div>
+                  <div id="depthBidsList"></div>
+                </div>
+                <div class="depth-column">
+                  <div class="depth-header"><span>Ask</span><span>Qty</span><span>Orders</span></div>
+                  <div id="depthAsksList"></div>
+                </div>
+              </div>
+
+              <!-- Volume Comparison Progress Bar -->
+              <div style="margin-top: 0.6rem;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.75rem; font-weight: 700; margin-bottom: 0.25rem;">
+                  <span id="depthBuyPct" style="color: var(--brand-green);">Buy: 50.0%</span>
+                  <span id="depthSellPct" style="color: var(--danger-red);">Sell: 50.0%</span>
+                </div>
+                <div class="depth-progress-bar">
+                  <div id="depthBuyProgress" class="depth-progress-buy" style="width: 50%;"></div>
+                  <div id="depthSellProgress" class="depth-progress-sell" style="width: 50%;"></div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -373,16 +485,32 @@
                 <button class="trade-toggle-btn" id="orderActionSell" onclick="setOrderAction('SELL')">SELL</button>
               </div>
 
-              <!-- Product Type Toggle -->
+              <!-- Product Type Toggle (Delivery CNC vs Intraday MIS) -->
               <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
                 <span style="color: var(--text-secondary); font-weight: 600;">Product Type</span>
-                <div class="trade-toggle-group" style="width: 170px;">
+                <div class="trade-toggle-group" style="width: 180px;">
                   <button class="trade-toggle-btn active buy" id="productDelivery" onclick="setProductType('DELIVERY')">Delivery</button>
-                  <button class="trade-toggle-btn" id="productIntraday" onclick="setProductType('INTRADAY')">Intraday</button>
+                  <button class="trade-toggle-btn" id="productIntraday" onclick="setProductType('INTRADAY')">
+                    Intraday <span style="font-size: 0.65rem; background: var(--brand-orange); color: #fff; padding: 1px 4px; border-radius: 4px; margin-left: 2px;">5x</span>
+                  </button>
                 </div>
               </div>
 
-              <!-- Quantity Input with Stepper -->
+              <!-- Leverage Notice Banner for Intraday -->
+              <div id="leverageBanner" class="leverage-info-banner" style="display: none;">
+                ⚡ <strong>5x Leverage Applied:</strong> Only 20% margin required. Positions must be squared off before 03:20 PM IST.
+              </div>
+
+              <!-- Order Variety Toggle (Market vs Limit) -->
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
+                <span style="color: var(--text-secondary); font-weight: 600;">Order Variety</span>
+                <div class="trade-toggle-group" style="width: 180px;">
+                  <button class="trade-toggle-btn active buy" id="varietyMarket" onclick="setOrderVariety('MARKET')">Market</button>
+                  <button class="trade-toggle-btn" id="varietyLimit" onclick="setOrderVariety('LIMIT')">Limit</button>
+                </div>
+              </div>
+
+              <!-- Quantity Input with Stepper and Quick Chips -->
               <div>
                 <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.4rem;">
                   Quantity (Shares)
@@ -392,28 +520,52 @@
                   <input type="number" id="tradeQuantityInput" value="1" min="1" step="1" oninput="calculateOrderMargin()">
                   <button class="stepper-btn" onclick="stepQuantity(1)">+</button>
                 </div>
+                <!-- Quick Preset Quantity Chips -->
+                <div class="quick-chips">
+                  <button type="button" class="quick-chip" onclick="setQuickQty(5)">+5</button>
+                  <button type="button" class="quick-chip" onclick="setQuickQty(10)">+10</button>
+                  <button type="button" class="quick-chip" onclick="setQuickQty(25)">+25</button>
+                  <button type="button" class="quick-chip" onclick="setQuickQty(50)">+50</button>
+                  <button type="button" class="quick-chip" onclick="setQuickQty(100)">+100</button>
+                </div>
               </div>
 
-              <!-- Order Price -->
-              <div>
+              <!-- Limit Price Input (Only active when Limit is chosen) -->
+              <div id="limitPriceGroup" style="display: none;">
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.4rem;">
+                  Limit Price (₹)
+                </label>
+                <div class="stepper-input">
+                  <button class="stepper-btn" onclick="stepLimitPrice(-0.5)">−</button>
+                  <input type="number" id="tradeLimitPriceInput" step="0.05" oninput="calculateOrderMargin()">
+                  <button class="stepper-btn" onclick="stepLimitPrice(0.5)">+</button>
+                </div>
+              </div>
+
+              <!-- Market Price Display (when Market order) -->
+              <div id="marketPriceGroup">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-                  <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);">Order Price (₹)</label>
-                  <span style="font-size: 0.75rem; color: var(--brand-green); font-weight: 600;">Market Order</span>
+                  <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);">Market LTP (₹)</label>
+                  <span style="font-size: 0.75rem; color: var(--brand-green); font-weight: 600;">At Market</span>
                 </div>
                 <div class="stepper-input">
                   <input type="number" id="tradePriceInput" readonly style="color: var(--text-muted); cursor: not-allowed;">
                 </div>
               </div>
 
-              <!-- Margin / Required Calculation -->
-              <div style="background: var(--bg-elevated); padding: 0.85rem; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.825rem;">
+              <!-- Margin Calculation Card -->
+              <div class="margin-calc-card">
                 <div style="display: flex; justify-content: space-between;">
-                  <span style="color: var(--text-secondary);">Required Amount:</span>
+                  <span style="color: var(--text-secondary);" id="marginLabelText">Required Margin:</span>
                   <span id="orderRequiredAmount" style="font-weight: 700;">₹0.00</span>
                 </div>
                 <div style="display: flex; justify-content: space-between;">
                   <span style="color: var(--text-secondary);">Available Balance:</span>
                   <span id="orderAvailableBalance" style="font-weight: 700; color: var(--brand-green);">₹10,00,000.00</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; border-top: 1px dashed var(--border-subtle); padding-top: 0.35rem; margin-top: 0.2rem;">
+                  <span class="charges-link" onclick="openChargesModal()">Estimated Taxes & Charges:</span>
+                  <span id="orderEstCharges" style="font-weight: 600; color: var(--text-secondary); cursor: pointer;" onclick="openChargesModal()">₹0.00 ℹ️</span>
                 </div>
               </div>
 
@@ -424,6 +576,74 @@
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Market Hours & Simulation Settings Modal -->
+  <div class="modal-overlay" id="marketHoursModalOverlay">
+    <div class="modal-card" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.15rem; font-weight: 800;">Indian Market Schedule & Timings</h3>
+        <button class="icon-btn" onclick="closeMarketHoursModal()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 1rem;">
+        <div style="background: var(--bg-main); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 1rem;">
+          <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; margin-bottom: 0.25rem;">Live Market Clock</div>
+          <div id="modalClockIst" style="font-size: 1.6rem; font-weight: 800; color: var(--brand-green);">--:--:-- IST</div>
+          <div id="modalMarketDate" style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.2rem;">--</div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.825rem;">
+          <div class="timing-row"><span>Pre-Market Session</span><strong>09:00 AM – 09:08 AM IST</strong></div>
+          <div class="timing-row"><span>Normal Market Hours</span><strong>09:15 AM – 03:30 PM IST</strong></div>
+          <div class="timing-row"><span>Intraday (MIS) Cutoff</span><strong style="color: var(--brand-orange);">03:20 PM IST (Auto Square-off)</strong></div>
+          <div class="timing-row"><span>After-Market Orders (AMO)</span><strong>03:45 PM – 08:59 AM next day</strong></div>
+        </div>
+
+        <div style="background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 0.85rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <div style="font-weight: 700; font-size: 0.875rem;">Simulated 24/7 Trading Mode</div>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">Permit Intraday trading anytime for off-market testing</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="simulationModeToggle" onchange="toggleSimulationMode(this.checked)">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Taxes & Regulatory Charges Breakdown Modal -->
+  <div class="modal-overlay" id="chargesModalOverlay">
+    <div class="modal-card" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.15rem; font-weight: 800;">Estimated Taxes & Charges</h3>
+        <button class="icon-btn" onclick="closeChargesModal()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 0.8rem; font-size: 0.85rem;">
+        <div id="chargesBreakdownList" style="display: flex; flex-direction: column; gap: 0.5rem;"></div>
+        <hr style="border: none; border-top: 1px solid var(--border-subtle); margin: 0.25rem 0;">
+        <div style="display: flex; justify-content: space-between; font-weight: 800; font-size: 1rem;">
+          <span>Total Taxes & Charges</span>
+          <span id="chargesModalTotal" style="color: var(--brand-green);">₹0.00</span>
+        </div>
+        <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.4rem;">
+          Taxes & regulatory charges are prescribed by SEBI, Exchange (NSE/BSE), and Ministry of Finance.
+        </p>
       </div>
     </div>
   </div>
@@ -451,7 +671,7 @@
           <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 0.5rem;">
             Add Funds to Balance (₹)
           </label>
-          <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
+          <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap;">
             <button class="pill-btn" onclick="quickAddFunds(25000)">+ ₹25,000</button>
             <button class="pill-btn" onclick="quickAddFunds(50000)">+ ₹50,000</button>
             <button class="pill-btn" onclick="quickAddFunds(100000)">+ ₹1,00,000</button>
@@ -469,7 +689,7 @@
         <div>
           <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--danger-red); margin-bottom: 0.3rem;">Reset Account</h4>
           <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.75rem;">
-            Resets available balance to initial ₹10,00,000 and clears all current holdings and order history.
+            Resets available balance to initial ₹10,00,000 and clears all current holdings, intraday positions, and order history.
           </p>
           <button class="btn-danger" style="width: 100%;" onclick="submitResetAccount()">
             Reset to ₹10,00,000 Balance
@@ -478,6 +698,52 @@
       </div>
     </div>
   </div>
+
+  <!-- Mobile Bottom App Bar (Only on Screens < 768px) -->
+  <nav class="mobile-bottom-bar mobile-only">
+    <button class="mobile-nav-item active" id="mob-nav-explore" onclick="switchTab('explore')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+      </svg>
+      <span>Explore</span>
+    </button>
+    <button class="mobile-nav-item" id="mob-nav-holdings" onclick="switchTab('holdings')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+      </svg>
+      <span>Holdings</span>
+    </button>
+    <button class="mobile-nav-item" id="mob-nav-positions" onclick="switchTab('positions')">
+      <div style="position: relative; display: inline-flex;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+        </svg>
+        <span class="mobile-badge" id="mobPositionsBadge" style="display: none;">0</span>
+      </div>
+      <span>Positions</span>
+    </button>
+    <button class="mobile-nav-item" id="mob-nav-orders" onclick="switchTab('orders')">
+      <div style="position: relative; display: inline-flex;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+          <polyline points="10 9 9 9 8 9"></polyline>
+        </svg>
+        <span class="mobile-badge" id="mobOpenOrdersBadge" style="display: none;">0</span>
+      </div>
+      <span>Orders</span>
+    </button>
+    <button class="mobile-nav-item" id="mob-nav-watchlist" onclick="switchTab('watchlist')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+      </svg>
+      <span>Watchlist</span>
+    </button>
+  </nav>
 
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toastContainer"></div>

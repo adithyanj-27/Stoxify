@@ -63,7 +63,7 @@ def read_root():
     ]:
         if os.path.exists(candidate):
             return FileResponse(candidate)
-    return Response(content="<h1>GrowwFAHH is Online</h1>", media_type="text/html")
+    return Response(content="<h1>BrokeAhh is Online</h1>", media_type="text/html")
 
 @app.get("/static/style.css")
 @app.get("/style.css")
