@@ -2048,11 +2048,41 @@ async function updatePageAvailableHolding(symbol) {
 }
 
 async function executePageTrade() {
-  if (!currentPageAsset) return;
+  const execBtn = document.getElementById('pageOrderExecuteBtn');
+  if (execBtn && execBtn.disabled) return;
+
+  if (!currentPageAsset) {
+    const path = window.location.pathname;
+    const sym = path.startsWith('/stock/') ? path.replace('/stock/', '').trim() : (path.startsWith('/mf/') ? path.replace('/mf/', '').trim() : '');
+    if (sym) {
+      await showAssetPage(sym, path.startsWith('/mf/') ? 'MUTUAL_FUND' : 'STOCK');
+    }
+    if (!currentPageAsset) {
+      showToast('Asset quote not loaded yet. Please wait a moment or refresh.', true);
+      return;
+    }
+  }
+
   const qty = parseInt(document.getElementById('pageOrderQuantity').value || '1', 10);
+  if (!qty || qty <= 0 || isNaN(qty)) {
+    showToast('Please specify a valid quantity (minimum 1)', true);
+    return;
+  }
+
   const limitPrice = pageOrderState.variety === 'LIMIT' 
     ? parseFloat(document.getElementById('pageOrderLimitPrice').value || currentPageAsset.price)
     : null;
+
+  if (pageOrderState.variety === 'LIMIT' && (!limitPrice || limitPrice <= 0 || isNaN(limitPrice))) {
+    showToast('Please enter a valid Limit Price', true);
+    return;
+  }
+
+  const originalBtnText = execBtn ? execBtn.innerText : '';
+  if (execBtn) {
+    execBtn.disabled = true;
+    execBtn.innerText = 'Executing Order...';
+  }
 
   try {
     const res = await fetch('/api/order', {
@@ -2078,12 +2108,21 @@ async function executePageTrade() {
     }
 
     showToast(result.message || `${pageOrderState.action} order executed successfully!`);
-    fetchAccount();
+    await fetchAccount();
+    if (state.currentTab === 'holdings') fetchPortfolio();
+    if (state.currentTab === 'positions') fetchPositions();
+    if (state.currentTab === 'orders') fetchOrders();
     updatePageAvailableHolding(currentPageAsset.symbol);
     recalcPageMargin();
 
   } catch (err) {
+    console.error('executePageTrade error:', err);
     showToast('Failed to connect to trade server', true);
+  } finally {
+    if (execBtn) {
+      execBtn.disabled = false;
+      execBtn.innerText = originalBtnText;
+    }
   }
 }
 

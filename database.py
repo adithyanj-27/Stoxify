@@ -1,4 +1,4 @@
-﻿import os
+import os
 import shutil
 import sqlite3
 import json
@@ -38,16 +38,36 @@ else:
             except Exception:
                 pass
 
-def get_connection():
+_db_initialized = False
+
+def get_raw_connection():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
+def ensure_db_initialized():
+    global _db_initialized
+    if _db_initialized:
+        return
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM users LIMIT 1")
+        conn.close()
+        _db_initialized = True
+    except Exception:
+        init_db()
+        _db_initialized = True
+
+def get_connection():
+    ensure_db_initialized()
+    return get_raw_connection()
 
 def is_supabase_enabled() -> bool:
     return bool(SUPABASE_URL and SUPABASE_KEY)
 
 def init_db():
-    conn = get_connection()
+    conn = get_raw_connection()
     cursor = conn.cursor()
 
     # 1. Users table (Stores full simulated Groww profile)
@@ -198,6 +218,61 @@ def init_db():
         except Exception:
             pass
 
+    # Ensure tables with legacy 'symbol PRIMARY KEY' are safely upgraded to composite UNIQUE(user_id, symbol)
+    for tbl, cols, create_stmt in [
+        ("holdings", ["user_id", "symbol", "name", "asset_type", "quantity", "avg_price"], """
+            CREATE TABLE holdings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL DEFAULT 'default',
+                symbol TEXT NOT NULL,
+                name TEXT NOT NULL,
+                asset_type TEXT NOT NULL,
+                quantity REAL NOT NULL,
+                avg_price REAL NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, symbol)
+            )
+        """),
+        ("positions", ["user_id", "symbol", "name", "asset_type", "quantity", "avg_price", "margin_used", "product_type"], """
+            CREATE TABLE positions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL DEFAULT 'default',
+                symbol TEXT NOT NULL,
+                name TEXT NOT NULL,
+                asset_type TEXT NOT NULL,
+                quantity REAL NOT NULL,
+                avg_price REAL NOT NULL,
+                margin_used REAL NOT NULL,
+                product_type TEXT NOT NULL DEFAULT 'INTRADAY',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, symbol)
+            )
+        """),
+        ("watchlist", ["user_id", "symbol", "name", "asset_type"], """
+            CREATE TABLE watchlist (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL DEFAULT 'default',
+                symbol TEXT NOT NULL,
+                name TEXT NOT NULL,
+                asset_type TEXT NOT NULL,
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, symbol)
+            )
+        """)
+    ]:
+        try:
+            cursor.execute(f"SELECT sql FROM sqlite_master WHERE type='table' AND name='{tbl}'")
+            row = cursor.fetchone()
+            if row and "symbol TEXT PRIMARY KEY" in row[0]:
+                temp_name = f"{tbl}_old"
+                cursor.execute(f"ALTER TABLE {tbl} RENAME TO {temp_name}")
+                cursor.execute(create_stmt)
+                cols_str = ", ".join(cols)
+                cursor.execute(f"INSERT OR IGNORE INTO {tbl} ({cols_str}) SELECT {cols_str} FROM {temp_name}")
+                cursor.execute(f"DROP TABLE {temp_name}")
+        except Exception:
+            pass
+
     conn.commit()
     conn.close()
 
@@ -340,8 +415,12 @@ def execute_trade(
         # Fetch current balance
         cursor.execute("SELECT balance FROM users WHERE id = ?", (user_id,))
         acc_row = cursor.fetchone()
-        if not acc_row and user_id == "default":
-            cursor.execute("SELECT balance FROM account WHERE id = 1")
+        if not acc_row:
+            cursor.execute("""
+                INSERT OR IGNORE INTO users (id, name, email, phone, pan, bank_name, bank_account, pin, balance, total_deposited)
+                VALUES (?, ?, 'trader@stoxify.com', '9876543210', 'ABCDE1234F', 'HDFC Bank', '50100234567890', '1234', 1000000.0, 1000000.0)
+            """, (user_id, "Default Trader" if user_id == "default" else "Trader"))
+            cursor.execute("SELECT balance FROM users WHERE id = ?", (user_id,))
             acc_row = cursor.fetchone()
         balance = acc_row["balance"] if acc_row else 1000000.0
 

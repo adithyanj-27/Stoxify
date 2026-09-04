@@ -117,22 +117,12 @@ def validate_order_timing(product_type: str) -> Tuple[bool, str, str]:
 
     if product == "INTRADAY":
         if not status["intraday_allowed"]:
-            if not status["is_open"]:
-                return (
-                    False, 
-                    "REJECTED", 
-                    "Intraday (MIS) trading is only permitted during live market hours (09:15 AM – 03:20 PM IST, Monday to Friday). For off-market hours, place Delivery orders as AMO (After Market Orders)."
-                )
-            else:
-                return (
-                    False, 
-                    "REJECTED", 
-                    "Intraday trading cutoff reached for today (03:20 PM IST); new intraday positions cannot be opened."
-                )
+            # In paper trading / simulation platform, allow execution as 24/7 simulated intraday
+            return (True, "INTRADAY", "Simulated Intraday 5x order executed")
         return (True, "NORMAL", "")
 
     # Delivery orders
     if status["is_open"]:
         return (True, "NORMAL", "")
     else:
-        return (True, "AMO", "Order placed as After-Market Order (AMO). It will be executed at next market open.")
+        return (True, "AMO", "Order placed as After-Market Order (AMO)")
