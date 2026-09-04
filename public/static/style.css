@@ -124,31 +124,6 @@ body {
   align-items: center;
 }
 
-.brand-name span.brand-stox {
-  color: var(--text-primary);
-  font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-weight: 800;
-}
-
-.brand-name span.brand-ify {
-  color: var(--brand-cyan);
-  font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-weight: 800;
-  position: relative;
-}
-
-.brand-name span.brand-ify::after {
-  content: '';
-  position: absolute;
-  bottom: 2px;
-  left: 0;
-  right: 0;
-  height: 2.5px;
-  background: var(--brand-cyan);
-  opacity: 0.45;
-  border-radius: 2px;
-}
-
 .search-wrapper {
   position: relative;
   flex: 1;
