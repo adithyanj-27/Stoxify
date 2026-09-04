@@ -247,9 +247,14 @@ async function fetchAccount() {
     const res = await fetch('/api/account');
     const data = await res.json();
     state.account = data;
-    document.getElementById('navBalanceDisplay').innerText = formatINR(data.balance);
-    document.getElementById('summaryAvailableBalance').innerText = formatINR(data.balance);
-    document.getElementById('fundsCurrentBalance').innerText = formatINR(data.balance);
+    const navBal = document.getElementById('navBalanceDisplay');
+    if (navBal) navBal.innerText = formatINR(data.balance);
+    const menuBal = document.getElementById('menuUserBalance');
+    if (menuBal) menuBal.innerText = formatINR(data.balance);
+    const summaryBal = document.getElementById('summaryAvailableBalance');
+    if (summaryBal) summaryBal.innerText = formatINR(data.balance);
+    const fundsBal = document.getElementById('fundsCurrentBalance');
+    if (fundsBal) fundsBal.innerText = formatINR(data.balance);
   } catch (err) {
     console.error('Failed to fetch account:', err);
   }
@@ -451,8 +456,12 @@ async function fetchPortfolio() {
     const data = await res.json();
     state.account.balance = data.balance;
 
-    document.getElementById('navBalanceDisplay').innerText = formatINR(data.balance);
-    document.getElementById('summaryAvailableBalance').innerText = formatINR(data.balance);
+    const navBal = document.getElementById('navBalanceDisplay');
+    if (navBal) navBal.innerText = formatINR(data.balance);
+    const menuBal = document.getElementById('menuUserBalance');
+    if (menuBal) menuBal.innerText = formatINR(data.balance);
+    const summaryBal = document.getElementById('summaryAvailableBalance');
+    if (summaryBal) summaryBal.innerText = formatINR(data.balance);
     document.getElementById('summaryCurrentVal').innerText = formatINR(data.current_value);
     document.getElementById('summaryInvestedVal').innerText = formatINR(data.invested_amount);
 
@@ -1403,8 +1412,12 @@ async function submitOrder() {
 
 // --- Funds & Reset Modal ---
 function openFundsModal() {
+  const menu = document.getElementById('userDropdownMenu');
+  if (menu) menu.style.display = 'none';
   document.getElementById('fundsModalOverlay').classList.add('active');
-  document.getElementById('fundsCurrentBalance').innerText = formatINR(state.account.balance);
+  const bal = (state.account && state.account.balance !== undefined) ? state.account.balance : (currentUser ? currentUser.balance : 1000000.0);
+  const fundsBal = document.getElementById('fundsCurrentBalance');
+  if (fundsBal) fundsBal.innerText = formatINR(bal);
 }
 
 function closeFundsModal() {
@@ -1616,6 +1629,8 @@ function updateNavbarProfile() {
   const last4 = (currentUser.bank_account || '5678').slice(-4);
   if (menuBankEl) menuBankEl.innerText = `${currentUser.bank_name || 'HDFC Bank'} •••• ${last4} (Verified ✓)`;
   if (menuBalEl) menuBalEl.innerText = formatINR(currentUser.balance || 1000000.0);
+  const navBalEl = document.getElementById('navBalanceDisplay');
+  if (navBalEl) navBalEl.innerText = formatINR(currentUser.balance || 1000000.0);
 
   if (currentUser.id === 'default') {
     if (openBtn) openBtn.style.display = 'inline-flex';

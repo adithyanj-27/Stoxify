@@ -91,50 +91,7 @@
         <span>Open Free Account</span>
       </button>
 
-      <!-- User Profile Avatar & Dropdown -->
-      <div class="user-profile-wrapper" id="navProfileWrapper" style="position: relative;">
-        <button class="user-avatar-btn" id="navUserAvatarBtn" onclick="toggleProfileDropdown()" title="User Profile">
-          <span id="navUserInitials">DT</span>
-        </button>
-        <div class="user-dropdown-menu" id="userDropdownMenu" style="display: none;">
-          <div class="dropdown-user-info">
-            <div class="user-avatar-large" id="menuUserAvatar">DT</div>
-            <div class="user-details">
-              <div class="user-name" id="menuUserName">Default Trader</div>
-              <div class="user-email" id="menuUserEmail">trader@stoxify.com</div>
-              <div class="user-badge" id="menuUserDemat">Demat: STOX-782910</div>
-            </div>
-          </div>
-          <div class="dropdown-divider"></div>
-          <div class="dropdown-bank-row">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            <span id="menuUserBank">HDFC Bank •••• 5678 (Verified ✓)</span>
-          </div>
-          <div class="dropdown-balance-row">
-            <span>Virtual Cash</span>
-            <strong id="menuUserBalance">₹10,00,000.00</strong>
-          </div>
-          <div class="dropdown-divider"></div>
-          <button class="dropdown-item" onclick="openSwitchAccountModal()">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg>
-            <span>Switch Account</span>
-          </button>
-          <button class="dropdown-item" onclick="navigateTo('/onboarding')">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-            <span>Create New Account</span>
-          </button>
-          <button class="dropdown-item text-danger" onclick="resetUserPortfolio()">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><polyline points="3 3 3 8 8 8"></polyline></svg>
-            <span>Reset to ₹10,00,000</span>
-          </button>
-        </div>
-      </div>
-
-      <div class="balance-chip" onclick="openFundsModal()"  title="Manage Account Balance">
-        <span class="label">Balance:</span>
-        <span class="amount" id="navBalanceDisplay">₹10,00,000.00</span>
-      </div>
-
+      <!-- Theme Toggle Button -->
       <button class="icon-btn" onclick="toggleTheme()" title="Toggle Dark/Light Mode">
         <svg id="themeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="5"></circle>
@@ -149,12 +106,68 @@
         </svg>
       </button>
 
-      <button class="icon-btn" onclick="openFundsModal()" title="Account & Settings">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-          <circle cx="12" cy="7" r="4"></circle>
-        </svg>
-      </button>
+      <!-- User Profile Avatar & Dropdown (Single Profile Icon) -->
+      <div class="user-profile-wrapper" id="navProfileWrapper" style="position: relative;">
+        <button class="user-avatar-btn" id="navUserAvatarBtn" onclick="toggleProfileDropdown()" title="User Profile & Balance">
+          <span id="navUserInitials">DT</span>
+        </button>
+        <div class="user-dropdown-menu" id="userDropdownMenu" style="display: none;">
+          <div class="dropdown-user-info">
+            <div class="user-avatar-large" id="menuUserAvatar">DT</div>
+            <div class="user-details">
+              <div class="user-name" id="menuUserName">Default Trader</div>
+              <div class="user-email" id="menuUserEmail">trader@stoxify.com</div>
+              <div class="user-badge" id="menuUserDemat">Demat: STOX-782910</div>
+            </div>
+          </div>
+
+          <!-- Embedded Funds & Balance Card -->
+          <div class="dropdown-funds-card">
+            <div class="funds-card-top">
+              <div>
+                <div class="funds-card-label">Virtual Cash Balance</div>
+                <div class="funds-card-sub">Equity & F&O Margin</div>
+              </div>
+              <button class="btn-manage-funds" onclick="openFundsModal()" title="Add or Withdraw virtual funds">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                <span>Add Funds</span>
+              </button>
+            </div>
+            <div class="funds-card-amount" id="menuUserBalance">₹10,00,000.00</div>
+            <span id="navBalanceDisplay" style="display: none;">₹10,00,000.00</span>
+            <div class="funds-card-footer">
+              <span class="funds-badge-pill">⚡ 5x Intraday</span>
+              <span class="funds-status-dot">Instant Deposit ✓</span>
+            </div>
+          </div>
+
+          <div class="dropdown-divider"></div>
+
+          <div class="dropdown-bank-row">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <span id="menuUserBank">HDFC Bank •••• 5678 (Verified ✓)</span>
+          </div>
+
+          <div class="dropdown-divider"></div>
+
+          <button class="dropdown-item" onclick="openFundsModal()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path><path d="M12 18V6"></path></svg>
+            <span>Manage Funds & Deposit</span>
+          </button>
+          <button class="dropdown-item" onclick="openSwitchAccountModal()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg>
+            <span>Switch Account</span>
+          </button>
+          <button class="dropdown-item" onclick="navigateTo('/onboarding')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            <span>Create New Account</span>
+          </button>
+          <button class="dropdown-item text-danger" onclick="resetUserPortfolio()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><polyline points="3 3 3 8 8 8"></polyline></svg>
+            <span>Reset to ₹10,00,000</span>
+          </button>
+        </div>
+      </div>
     </div>
   </header>
 
