@@ -89,6 +89,29 @@ def get_script():
             return FileResponse(candidate, media_type="application/javascript")
     return Response(content="// script not found", media_type="application/javascript")
 
+@app.get("/manifest.json")
+@app.get("/manifest.webmanifest")
+def get_manifest():
+    for candidate in [
+        os.path.join(STATIC_DIR, "manifest.json"),
+        os.path.join(PUBLIC_DIR, "manifest.json"),
+        os.path.join(BASE_DIR, "manifest.json")
+    ]:
+        if os.path.exists(candidate):
+            return FileResponse(candidate, media_type="application/manifest+json")
+    return Response(content="{}", media_type="application/manifest+json")
+
+@app.get("/sw.js")
+def get_sw():
+    for candidate in [
+        os.path.join(STATIC_DIR, "sw.js"),
+        os.path.join(PUBLIC_DIR, "sw.js"),
+        os.path.join(BASE_DIR, "sw.js")
+    ]:
+        if os.path.exists(candidate):
+            return FileResponse(candidate, media_type="application/javascript")
+    return Response(content="// sw not found", media_type="application/javascript")
+
 @app.get("/api/market-status")
 @app.get("/market-status")
 def read_market_status():

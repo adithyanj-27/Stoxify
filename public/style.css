@@ -940,6 +940,39 @@ body {
   }
 }
 
+/* --- PWA Install App Button --- */
+.btn-install-app {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--accent-gold-bg);
+  color: var(--accent-gold);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-full);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition);
+  white-space: nowrap;
+}
+
+.btn-install-app:hover {
+  background: var(--accent-gold);
+  color: #1a0f00;
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.4);
+  transform: translateY(-1px);
+}
+
+.btn-install-app svg {
+  stroke: currentColor;
+  transition: transform 0.2s ease;
+}
+
+.btn-install-app:hover svg {
+  transform: translateY(1px);
+}
+
 /* --- Market Status Pill --- */
 .market-status-pill {
   display: flex;
@@ -1350,6 +1383,11 @@ body {
 
   .nav-actions {
     gap: 0.4rem;
+  }
+
+  .btn-install-app {
+    padding: 0.25rem 0.55rem;
+    font-size: 0.7rem;
   }
 
   .market-status-pill {

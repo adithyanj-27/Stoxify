@@ -1337,9 +1337,66 @@ async function submitResetAccount() {
   }
 }
 
+// --- PWA (Progressive Web App) Install Engine ---
+let deferredInstallPrompt = null;
+
+function isAppInstalled() {
+  return window.matchMedia('(display-mode: standalone)').matches || 
+         window.navigator.standalone === true ||
+         document.referrer.includes('android-app://');
+}
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  if (!isAppInstalled()) {
+    const btn = document.getElementById('btnInstallApp');
+    if (btn) btn.style.display = 'inline-flex';
+  }
+});
+
+async function installPWA() {
+  if (!deferredInstallPrompt) {
+    showToast('To install: click the Install icon (⤓) in your browser address bar');
+    return;
+  }
+  deferredInstallPrompt.prompt();
+  const { outcome } = await deferredInstallPrompt.userChoice;
+  if (outcome === 'accepted') {
+    const btn = document.getElementById('btnInstallApp');
+    if (btn) btn.style.display = 'none';
+  }
+  deferredInstallPrompt = null;
+}
+
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  const btn = document.getElementById('btnInstallApp');
+  if (btn) btn.style.display = 'none';
+  showToast('BrokeAhh installed successfully!');
+});
+
+// Register Service Worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').then((reg) => {
+      console.log('BrokeAhh PWA Service Worker registered:', reg.scope);
+    }).catch((err) => {
+      console.warn('Service Worker registration skipped:', err);
+    });
+  });
+}
+
 // --- Initialization ---
 window.addEventListener('DOMContentLoaded', () => {
   initTheme();
+  
+  // Hide install button immediately if already running in standalone/installed mode
+  if (isAppInstalled()) {
+    const btn = document.getElementById('btnInstallApp');
+    if (btn) btn.style.display = 'none';
+  }
+
   Promise.all([
     fetchMarketStatus(),
     fetchAccount(),
@@ -1357,3 +1414,4 @@ window.addEventListener('DOMContentLoaded', () => {
     if (state.currentTab === 'positions') fetchPositions();
   }, 20000);
 });
+

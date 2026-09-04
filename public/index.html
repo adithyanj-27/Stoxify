@@ -4,6 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BrokeAhh — Stock & Mutual Fund Broker Platform</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0B0F19">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="BrokeAhh">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
   <link rel="stylesheet" href="/static/style.css" onerror="this.onerror=null;this.href='/style.css';">
   <!-- Chart.js for high performance financial line & area charts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -74,6 +80,16 @@
 
     <!-- Nav Right Controls -->
     <div class="nav-actions">
+      <!-- PWA Install App Button -->
+      <button class="btn-install-app" id="btnInstallApp" onclick="installPWA()" title="Install BrokeAhh App" style="display: none;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        <span>Install App</span>
+      </button>
+
       <!-- Live Market Status Pill -->
       <div class="market-status-pill" id="navMarketStatus" onclick="openMarketHoursModal()" title="Indian Market Session & Settings">
         <span class="pulse-dot" id="marketPulseDot"></span>
