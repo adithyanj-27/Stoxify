@@ -62,6 +62,30 @@ def read_root():
             return FileResponse(candidate)
     return Response(content="<h1>GrowwFAHH is Online</h1>", media_type="text/html")
 
+@app.get("/static/style.css")
+@app.get("/style.css")
+def get_style():
+    for candidate in [
+        os.path.join(STATIC_DIR, "style.css"),
+        os.path.join(PUBLIC_DIR, "style.css"),
+        os.path.join(BASE_DIR, "style.css")
+    ]:
+        if os.path.exists(candidate):
+            return FileResponse(candidate, media_type="text/css")
+    return Response(content="/* style not found */", media_type="text/css")
+
+@app.get("/static/app.js")
+@app.get("/app.js")
+def get_script():
+    for candidate in [
+        os.path.join(STATIC_DIR, "app.js"),
+        os.path.join(PUBLIC_DIR, "app.js"),
+        os.path.join(BASE_DIR, "app.js")
+    ]:
+        if os.path.exists(candidate):
+            return FileResponse(candidate, media_type="application/javascript")
+    return Response(content="// script not found", media_type="application/javascript")
+
 @app.get("/api/account")
 @app.get("/account")
 def read_account():
