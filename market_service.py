@@ -1,6 +1,6 @@
 import time
 import requests
-import threading
+import concurrent.futures
 import yfinance as yf
 from typing import Dict, List, Any, Optional
 
@@ -10,59 +10,19 @@ from stock_master import STOCK_MASTER, MUTUAL_FUND_MASTER
 _CACHE: Dict[str, Any] = {}
 _CACHE_EXPIRY: Dict[str, float] = {}
 
-# Pre-populate cache with instant baseline data so API responses take < 5ms!
-for s in STOCK_MASTER:
-    _CACHE[f"quote_{s['symbol']}"] = {
-        "symbol": s["symbol"],
-        "name": s["name"],
-        "asset_type": "STOCK",
-        "price": s["price"],
-        "change": s["change"],
-        "change_pct": s["change_pct"],
-        "previous_close": round(s["price"] - s["change"], 2),
-        "day_high": round(s["price"] * 1.015, 2),
-        "day_low": round(s["price"] * 0.985, 2),
-        "fifty_two_week_high": round(s["price"] * 1.25, 2),
-        "fifty_two_week_low": round(s["price"] * 0.80, 2),
-        "market_cap": 500000000000,
-        "pe_ratio": 24.5,
-        "pb_ratio": 3.2,
-        "dividend_yield": 1.1,
-        "volume": 1200000,
-        "sector": s["sector"]
-    }
-    _CACHE_EXPIRY[f"quote_{s['symbol']}"] = time.time() + 60
-
-for mf in MUTUAL_FUND_MASTER:
-    _CACHE[f"mf_{mf['code']}"] = {
-        "symbol": mf["code"],
-        "name": mf["name"],
-        "asset_type": "MUTUAL_FUND",
-        "price": mf["price"],
-        "change": mf["change"],
-        "change_pct": mf["change_pct"],
-        "previous_close": round(mf["price"] - mf["change"], 2),
-        "category": mf["category"],
-        "fund_house": mf["fund_house"],
-        "rating": mf["rating"],
-        "return_1y": mf["return_1y"],
-        "nav_date": "Today"
-    }
-    _CACHE_EXPIRY[f"mf_{mf['code']}"] = time.time() + 300
-
-# Pre-populate indices
+# Pre-populate index metadata
 _CACHE["indices"] = [
-    {"symbol": "^NSEI", "name": "NIFTY 50", "short": "NIFTY 50", "price": 23955.40, "change": 134.65, "change_pct": 0.56},
-    {"symbol": "^BSESN", "name": "SENSEX", "short": "SENSEX", "price": 76689.64, "change": 384.50, "change_pct": 0.50},
-    {"symbol": "^NSEBANK", "name": "BANK NIFTY", "short": "BANK NIFTY", "price": 50890.30, "change": -55.20, "change_pct": -0.11},
-    {"symbol": "^CNXIT", "name": "NIFTY IT", "short": "NIFTY IT", "price": 38450.75, "change": 240.10, "change_pct": 0.63}
+    {"symbol": "^NSEI", "name": "NIFTY 50", "short": "NIFTY 50", "price": 24000.0, "change": 120.5, "change_pct": 0.50},
+    {"symbol": "^BSESN", "name": "SENSEX", "short": "SENSEX", "price": 78000.0, "change": 350.0, "change_pct": 0.45},
+    {"symbol": "^NSEBANK", "name": "BANK NIFTY", "short": "BANK NIFTY", "price": 51000.0, "change": -45.0, "change_pct": -0.09},
+    {"symbol": "^CNXIT", "name": "NIFTY IT", "short": "NIFTY IT", "price": 38500.0, "change": 210.0, "change_pct": 0.55}
 ]
-_CACHE_EXPIRY["indices"] = time.time() + 60
+_CACHE_EXPIRY["indices"] = 0  # Mark expired initially to fetch live immediately
 
 def get_cached(key: str) -> Optional[Any]:
     if key in _CACHE and time.time() < _CACHE_EXPIRY.get(key, 0):
         return _CACHE[key]
-    return _CACHE.get(key)  # Return stale if available to never block UI!
+    return None
 
 def set_cached(key: str, val: Any, ttl: int = 60):
     _CACHE[key] = val
@@ -71,9 +31,6 @@ def set_cached(key: str, val: Any, ttl: int = 60):
 def get_indices() -> List[Dict[str, Any]]:
     cached = get_cached("indices")
     if cached:
-        # Trigger background refresh if expired
-        if time.time() >= _CACHE_EXPIRY.get("indices", 0):
-            threading.Thread(target=_refresh_indices_async, daemon=True).start()
         return cached
     return _refresh_indices_sync()
 
@@ -108,9 +65,6 @@ def _refresh_indices_sync():
         return results
     return _CACHE.get("indices", [])
 
-def _refresh_indices_async():
-    _refresh_indices_sync()
-
 def get_stock_quote(symbol: str) -> Dict[str, Any]:
     formatted_symbol = symbol.strip().upper()
     if not formatted_symbol.endswith(".NS") and not formatted_symbol.endswith(".BO") and not formatted_symbol.startswith("^"):
@@ -119,9 +73,6 @@ def get_stock_quote(symbol: str) -> Dict[str, Any]:
     cache_key = f"quote_{formatted_symbol}"
     cached = get_cached(cache_key)
     if cached:
-        # If stale, trigger async refresh in background so caller never waits!
-        if time.time() >= _CACHE_EXPIRY.get(cache_key, 0):
-            threading.Thread(target=_refresh_stock_quote_sync, args=(formatted_symbol,), daemon=True).start()
         return cached
 
     return _refresh_stock_quote_sync(formatted_symbol)
@@ -130,23 +81,38 @@ def _refresh_stock_quote_sync(formatted_symbol: str) -> Dict[str, Any]:
     cache_key = f"quote_{formatted_symbol}"
     matched = next((s for s in STOCK_MASTER if s["symbol"] == formatted_symbol), None)
 
+    name = matched["name"] if matched else formatted_symbol.replace(".NS", "").replace(".BO", "")
+    sector = matched["sector"] if matched else "NSE Equities"
+
     try:
         t = yf.Ticker(formatted_symbol)
         fast = t.fast_info
         price = getattr(fast, "last_price", None)
         prev_close = getattr(fast, "previous_close", None)
 
-        if price is None:
+        if price is None or price <= 0:
             info = t.info or {}
-            price = info.get("currentPrice") or info.get("regularMarketPrice") or (matched["price"] if matched else 1000.0)
+            price = info.get("currentPrice") or info.get("regularMarketPrice") or info.get("previousClose")
+            if not prev_close:
+                prev_close = info.get("previousClose") or price
+            if not matched:
+                name = info.get("shortName") or info.get("longName") or name
+                sector = info.get("sector") or sector
+
+        if price is None or price <= 0:
+            raise ValueError(f"Could not retrieve price for {formatted_symbol}")
 
         price = round(float(price), 2)
         prev_close = round(float(prev_close or price), 2)
         change = round(price - prev_close, 2)
         change_pct = round((change / prev_close) * 100, 2) if prev_close else 0.0
 
-        name = matched["name"] if matched else formatted_symbol.replace(".NS", "")
-        sector = matched["sector"] if matched else "NSE Equities"
+        day_high = getattr(fast, "day_high", None)
+        day_low = getattr(fast, "day_low", None)
+        year_high = getattr(fast, "year_high", None)
+        year_low = getattr(fast, "year_low", None)
+        market_cap = getattr(fast, "market_cap", None)
+        volume = getattr(fast, "last_volume", None)
 
         data = {
             "symbol": formatted_symbol,
@@ -156,114 +122,166 @@ def _refresh_stock_quote_sync(formatted_symbol: str) -> Dict[str, Any]:
             "change": change,
             "change_pct": change_pct,
             "previous_close": prev_close,
-            "day_high": round(float(getattr(fast, "day_high", 0.0) or price * 1.015), 2),
-            "day_low": round(float(getattr(fast, "day_low", 0.0) or price * 0.985), 2),
-            "fifty_two_week_high": round(float(getattr(fast, "year_high", 0.0) or price * 1.25), 2),
-            "fifty_two_week_low": round(float(getattr(fast, "year_low", 0.0) or price * 0.80), 2),
-            "market_cap": getattr(fast, "market_cap", 500000000000),
+            "day_high": round(float(day_high or (price * 1.015)), 2),
+            "day_low": round(float(day_low or (price * 0.985)), 2),
+            "fifty_two_week_high": round(float(year_high or (price * 1.25)), 2),
+            "fifty_two_week_low": round(float(year_low or (price * 0.80)), 2),
+            "market_cap": int(market_cap) if market_cap else 500000000000,
             "pe_ratio": 24.5,
             "pb_ratio": 3.2,
             "dividend_yield": 1.1,
-            "volume": getattr(fast, "last_volume", 1000000),
+            "volume": int(volume) if volume else 1000000,
             "sector": sector
         }
         set_cached(cache_key, data, ttl=60)
         return data
     except Exception:
-        if matched:
-            data = {
-                "symbol": formatted_symbol,
-                "name": matched["name"],
-                "asset_type": "STOCK",
-                "price": matched["price"],
-                "change": matched["change"],
-                "change_pct": matched["change_pct"],
-                "previous_close": round(matched["price"] - matched["change"], 2),
-                "day_high": round(matched["price"] * 1.015, 2),
-                "day_low": round(matched["price"] * 0.985, 2),
-                "fifty_two_week_high": round(matched["price"] * 1.25, 2),
-                "fifty_two_week_low": round(matched["price"] * 0.80, 2),
-                "market_cap": 500000000000,
-                "pe_ratio": 24.5,
-                "pb_ratio": 3.2,
-                "dividend_yield": 1.1,
-                "volume": 1200000,
-                "sector": matched["sector"]
-            }
-            set_cached(cache_key, data, ttl=60)
-            return data
-        return _CACHE.get(cache_key, {"symbol": formatted_symbol, "name": formatted_symbol, "asset_type": "STOCK", "price": 1000.0, "change": 10.0, "change_pct": 1.0, "previous_close": 990.0, "day_high": 1015.0, "day_low": 985.0, "fifty_two_week_high": 1250.0, "fifty_two_week_low": 800.0, "market_cap": 500000000000, "pe_ratio": 24.5, "pb_ratio": 3.2, "dividend_yield": 1.1, "volume": 1000000, "sector": "NSE Equities"})
+        # Fallback to stale cache if available
+        stale = _CACHE.get(cache_key)
+        if stale:
+            return stale
+        # If no previous cache, generate a fallback based on ticker format
+        fallback = {
+            "symbol": formatted_symbol,
+            "name": name,
+            "asset_type": "STOCK",
+            "price": 100.0,
+            "change": 0.0,
+            "change_pct": 0.0,
+            "previous_close": 100.0,
+            "day_high": 101.5,
+            "day_low": 98.5,
+            "fifty_two_week_high": 125.0,
+            "fifty_two_week_low": 80.0,
+            "market_cap": 50000000000,
+            "pe_ratio": 20.0,
+            "pb_ratio": 2.5,
+            "dividend_yield": 1.0,
+            "volume": 500000,
+            "sector": sector
+        }
+        set_cached(cache_key, fallback, ttl=30)
+        return fallback
 
 def get_mutual_fund_quote(code: str) -> Dict[str, Any]:
-    cache_key = f"mf_{code}"
+    code_str = str(code).strip()
+    cache_key = f"mf_{code_str}"
     cached = get_cached(cache_key)
     if cached:
         return cached
 
-    matched = next((mf for mf in MUTUAL_FUND_MASTER if mf["code"] == str(code)), None)
-    if matched:
-        data = {
-            "symbol": str(code),
-            "name": matched["name"],
-            "asset_type": "MUTUAL_FUND",
-            "price": matched["price"],
-            "change": matched["change"],
-            "change_pct": matched["change_pct"],
-            "previous_close": round(matched["price"] - matched["change"], 2),
-            "category": matched["category"],
-            "fund_house": matched["fund_house"],
-            "rating": matched["rating"],
-            "return_1y": matched["return_1y"],
-            "nav_date": "Today"
-        }
-        set_cached(cache_key, data, ttl=300)
-        return data
+    matched = next((mf for mf in MUTUAL_FUND_MASTER if mf["code"] == code_str), None)
+    name = matched["name"] if matched else f"Mutual Fund {code_str}"
+    category = matched["category"] if matched else "Equity"
+    fund_house = matched["fund_house"] if matched else "AMC"
+    rating = matched["rating"] if matched else 5
+
+    try:
+        url = f"https://api.mfapi.in/mf/{code_str}"
+        resp = requests.get(url, timeout=3.5)
+        if resp.status_code == 200:
+            res_json = resp.json()
+            data_list = res_json.get("data", [])
+            meta = res_json.get("meta", {})
+            if meta.get("scheme_name"):
+                name = meta["scheme_name"]
+            if meta.get("fund_house"):
+                fund_house = meta["fund_house"]
+            if meta.get("scheme_category"):
+                category = meta["scheme_category"]
+
+            if data_list:
+                latest = data_list[0]
+                price = round(float(latest["nav"]), 2)
+                prev_price = round(float(data_list[1]["nav"]), 2) if len(data_list) > 1 else price
+                change = round(price - prev_price, 2)
+                change_pct = round((change / prev_price) * 100, 2) if prev_price else 0.0
+
+                # 1Y return estimate based on historical NAV if available
+                return_1y = 21.4
+                if len(data_list) >= 240:
+                    nav_1y_ago = float(data_list[240]["nav"])
+                    if nav_1y_ago > 0:
+                        return_1y = round(((price - nav_1y_ago) / nav_1y_ago) * 100, 2)
+
+                mf_data = {
+                    "symbol": code_str,
+                    "name": name,
+                    "asset_type": "MUTUAL_FUND",
+                    "price": price,
+                    "change": change,
+                    "change_pct": change_pct,
+                    "previous_close": prev_price,
+                    "category": category,
+                    "fund_house": fund_house,
+                    "rating": rating,
+                    "return_1y": return_1y,
+                    "nav_date": latest.get("date", "Today")
+                }
+                set_cached(cache_key, mf_data, ttl=300)
+                return mf_data
+    except Exception:
+        pass
+
+    stale = _CACHE.get(cache_key)
+    if stale:
+        return stale
 
     fallback = {
-        "symbol": str(code),
-        "name": f"Mutual Fund {code}",
+        "symbol": code_str,
+        "name": name,
         "asset_type": "MUTUAL_FUND",
         "price": 95.0,
         "change": 0.65,
         "change_pct": 0.69,
         "previous_close": 94.35,
-        "category": "Equity",
-        "fund_house": "AMC",
-        "rating": 5,
+        "category": category,
+        "fund_house": fund_house,
+        "rating": rating,
         "return_1y": 22.5,
         "nav_date": "Today"
     }
-    set_cached(cache_key, fallback, ttl=300)
+    set_cached(cache_key, fallback, ttl=120)
     return fallback
 
 def get_explore_data() -> Dict[str, Any]:
-    """
-    Returns instantly (< 5ms) from pre-populated in-memory cache!
-    Zero lag, instant UI render.
-    """
+    cached = get_cached("explore_data_v3")
+    if cached:
+        return cached
+
+    # Fetch top 20 stocks in parallel
+    top_symbols = [s["symbol"] for s in STOCK_MASTER[:20]]
     all_stocks = []
-    for s in STOCK_MASTER:
-        cached = _CACHE.get(f"quote_{s['symbol']}")
-        if cached:
-            all_stocks.append(cached)
 
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        stock_results = list(executor.map(get_stock_quote, top_symbols))
+        for q in stock_results:
+            if q and q.get("price"):
+                all_stocks.append(q)
+
+    # Fetch top 8 mutual funds in parallel
+    top_mf_codes = [mf["code"] for mf in MUTUAL_FUND_MASTER[:8]]
     all_mfs = []
-    for mf in MUTUAL_FUND_MASTER:
-        cached = _CACHE.get(f"mf_{mf['code']}")
-        if cached:
-            all_mfs.append(cached)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        mf_results = list(executor.map(get_mutual_fund_quote, top_mf_codes))
+        for q in mf_results:
+            if q and q.get("price"):
+                all_mfs.append(q)
 
+    # Rank gainers and losers
     gainers = sorted([s for s in all_stocks if s["change"] >= 0], key=lambda x: x["change_pct"], reverse=True)[:6]
     losers = sorted([s for s in all_stocks if s["change"] < 0], key=lambda x: x["change_pct"])[:6]
     most_bought = all_stocks[:8]
 
-    return {
+    result = {
         "most_bought": most_bought,
         "gainers": gainers,
         "losers": losers,
         "all_stocks": all_stocks,
         "mutual_funds": all_mfs
     }
+    set_cached("explore_data_v3", result, ttl=60)
+    return result
 
 def get_stock_chart(symbol: str, timeframe: str = "1D") -> List[Dict[str, Any]]:
     formatted_symbol = symbol.strip().upper()
@@ -304,7 +322,7 @@ def get_stock_chart(symbol: str, timeframe: str = "1D") -> List[Dict[str, Any]]:
     except Exception:
         pass
 
-    # Smooth curve fallback
+    # Smooth curve fallback anchored on actual real-time price
     quote = get_stock_quote(symbol)
     base_price = quote["price"]
     points = []
@@ -324,17 +342,18 @@ def get_stock_chart(symbol: str, timeframe: str = "1D") -> List[Dict[str, Any]]:
     return points
 
 def get_mf_chart(code: str, timeframe: str = "1M") -> List[Dict[str, Any]]:
-    cache_key = f"mf_chart_{code}_{timeframe}"
+    code_str = str(code).strip()
+    cache_key = f"mf_chart_{code_str}_{timeframe}"
     cached = get_cached(cache_key)
     if cached:
         return cached
 
-    url = f"https://api.mfapi.in/mf/{code}"
+    url = f"https://api.mfapi.in/mf/{code_str}"
     limit_map = {"1D": 7, "1W": 14, "1M": 30, "1Y": 240, "5Y": 1200, "ALL": 2400}
     limit = limit_map.get(timeframe.upper(), 30)
 
     try:
-        resp = requests.get(url, timeout=3)
+        resp = requests.get(url, timeout=3.5)
         if resp.status_code == 200:
             res_json = resp.json()
             data = res_json.get("data", [])
@@ -352,7 +371,9 @@ def get_mf_chart(code: str, timeframe: str = "1M") -> List[Dict[str, Any]]:
     except Exception:
         pass
 
-    points = [{"time": f"Day {i}", "value": round(85.0 + (i * 0.25), 2)} for i in range(20)]
+    mf_q = get_mutual_fund_quote(code_str)
+    base_nav = mf_q["price"]
+    points = [{"time": f"Day {i}", "value": round(base_nav * (0.95 + (i * 0.003)), 2)} for i in range(20)]
     return points
 
 def search_market(query: str) -> List[Dict[str, Any]]:
