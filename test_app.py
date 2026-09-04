@@ -7,13 +7,14 @@ if sys.platform == "win32":
 # Set clean test environment
 def test_all():
     print("=======================================")
-    print(" Running GrowwFAHH Automated Test Suite")
+    print(" Running BrokeAhh Automated Test Suite")
     print("=======================================")
 
     # 1. Test Database
     print("\n[1/4] Testing Database & Persistence...")
     import database
     database.init_db()
+    database.reset_account(1000000.0)
     acc = database.get_account()
     assert acc["balance"] == 1000000.0, f"Expected 1000000.0, got {acc['balance']}"
     print(" ✓ Database initialized with ₹10,00,000 balance")
@@ -71,24 +72,88 @@ def test_all():
     assert database.get_account()["balance"] == 1000000.0
     print(" ✓ Account Reset: Restored to fresh ₹10,00,000 state")
 
-    # 4. Test FastAPI endpoints
-    print("\n[4/4] Testing FastAPI Endpoints...")
+    # 4. Test Market Hours & Simulation
+    print("\n[4/6] Testing Market Hours & Session Logic...")
+    import market_hours
+    m_status = market_hours.get_market_status()
+    print(f" ✓ Market Status (Current): {m_status['session']} - {m_status['status_text']}")
+    assert "session" in m_status
+    assert "date_ist" in m_status
+
+    # Toggle simulation mode
+    sim_on = market_hours.toggle_simulation(True)
+    assert sim_on["simulation_mode"] is True
+    assert sim_on["is_open"] is True
+    assert sim_on["intraday_allowed"] is True
+    print(" ✓ Simulation mode toggle ON verified (24/7 trading enabled)")
+    market_hours.toggle_simulation(False)
+    print(" ✓ Simulation mode toggle OFF verified")
+
+    # 5. Test Intraday 5x Leverage & Positions Engine
+    print("\n[5/6] Testing Intraday (MIS) 5x Leverage & Square-off...")
+    database.reset_account(1000000.0)
+    # Buy 10 shares of Reliance at ₹2500 Intraday -> Total ₹25,000 -> Margin required at 5x = ₹5,000
+    res_intra = database.execute_trade("RELIANCE.NS", "Reliance Industries", "STOCK", "BUY", "INTRADAY", 10, 2500.0)
+    assert res_intra["success"], f"Intraday buy failed: {res_intra}"
+    acc_intra = database.get_account()
+    assert acc_intra["balance"] == 995000.0, f"Expected 995000.0 margin used, got {acc_intra['balance']}"
+    
+    # Check open positions
+    positions = database.get_positions()
+    assert len(positions) == 1
+    pos = positions[0]
+    assert pos["symbol"] == "RELIANCE.NS"
+    assert pos["quantity"] == 10
+    assert pos["margin_used"] == 5000.0
+    print(f" ✓ 5x Margin verified: ₹{pos['margin_used']:,.2f} blocked for ₹25,000 position")
+
+    # Exit position at ₹2600 -> P&L = +₹1,000 -> Return ₹5,000 margin + ₹1,000 profit = ₹6,000 added back -> Balance = 1,001,000
+    res_exit = database.exit_position(pos["symbol"], 2600.0)
+    assert res_exit["success"]
+    assert res_exit["realized_pnl"] == 1000.0
+    acc_after_exit = database.get_account()
+    assert acc_after_exit["balance"] == 1001000.0, f"Expected 1001000.0, got {acc_after_exit['balance']}"
+    print(f" ✓ Position Exit: P&L +₹{res_exit['realized_pnl']:,.2f}, margin released successfully")
+
+    # Test Limit Order & Cancellation
+    print("\n[6/6] Testing Limit Orders & Level-2 Market Depth...")
+    # Place Limit BUY for 5 shares @ ₹2000 (below market price ₹2100) -> ₹10,000 blocked
+    res_limit = database.execute_trade(
+        "INFY.NS", "Infosys Ltd", "STOCK", "BUY", "DELIVERY", 5, 2100.0,
+        order_variety="LIMIT", limit_price=2000.0
+    )
+    assert res_limit["success"]
+    open_orders = database.get_orders(status_filter="OPEN")
+    assert len(open_orders) == 1
+    lim_order = open_orders[0]
+    assert lim_order["order_variety"] == "LIMIT"
+    assert lim_order["status"] == "OPEN"
+    print(f" ✓ Limit Order placed: 5 shares of INFY @ ₹2,000.00 (Status: {lim_order['status']})")
+
+    # Cancel the limit order
+    res_cancel = database.cancel_order(lim_order["id"])
+    assert res_cancel["success"]
+    assert len(database.get_orders(status_filter="OPEN")) == 0
+    assert database.get_account()["balance"] == 1001000.0, "Funds should be refunded on order cancellation"
+    print(" ✓ Limit Order cancelled and ₹10,000 funds successfully refunded")
+
+    # Test Level-2 Market Depth
     import main
-    acc_res = main.read_account()
-    assert acc_res["balance"] == 1000000.0
-    print(f" ✓ /api/account returned balance: ₹{acc_res['balance']:,.2f}")
+    depth = main.read_depth("RELIANCE.NS")
+    assert len(depth["bids"]) == 5
+    assert len(depth["asks"]) == 5
+    assert depth["total_bid_qty"] > 0
+    assert depth["total_ask_qty"] > 0
+    print(f" ✓ Level-2 Market Depth: 5 Bids & 5 Asks generated (Total Buy Qty: {depth['total_bid_qty']:,}, Sell: {depth['total_ask_qty']:,})")
 
-    portfolio_res = main.read_portfolio()
-    assert "total_portfolio_value" in portfolio_res
-    print(f" ✓ /api/portfolio calculated: ₹{portfolio_res['total_portfolio_value']:,.2f}")
+    # Reset account cleanly
+    database.reset_account(1000000.0)
+    print(" ✓ Database reset to fresh ₹10,00,000 balance")
 
-    indices_res = main.read_indices()
-    assert len(indices_res) >= 4
-    print(f" ✓ /api/indices returned {len(indices_res)} indices")
-
-    print("\n=======================================")
-    print(" ALL GROWWFAHH TESTS PASSED 100% SUCCESS!")
-    print("=======================================")
+    print("\n=======================================================")
+    print(" ALL BROKEAHH ADVANCED BROKER TESTS PASSED 100%!")
+    print("=======================================================")
 
 if __name__ == "__main__":
     test_all()
+

@@ -1,7 +1,7 @@
 {
-  "name": "growwfahh",
+  "name": "brokeahh",
   "version": "1.0.0",
-  "description": "GrowwFAHH - Stock & Mutual Fund Trading Platform",
+  "description": "BrokeAhh - Stock & Mutual Fund Broker Platform (For traders too broke to lose real money on Zerodha)",
   "main": "run.py",
   "scripts": {
     "dev": "py run.py",

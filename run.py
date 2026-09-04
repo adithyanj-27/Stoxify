@@ -14,13 +14,14 @@ if sys.platform == "win32":
 def open_browser():
     time.sleep(1.2)
     url = "http://127.0.0.1:8000"
-    print(f"\nLaunching GrowwFAHH in your browser: {url}")
+    print(f"\nLaunching BrokeAhh in your browser: {url}")
     webbrowser.open(url)
 
 def main():
     print("""
 =========================================================
-  GROWWFAHH - STOCK & MUTUAL FUND TRADING PLATFORM
+  BROKEAHH - STOCK & MUTUAL FUND BROKER PLATFORM
+  "For traders too broke to lose real money on Zerodha"
 =========================================================
   Status: Online & Ready
   Starting Account Balance: Rs. 10,00,000

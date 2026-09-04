@@ -11,8 +11,12 @@ node_modules/
 npm-debug.log*
 
 # Database & Vercel local build
+*.db
+*.db-journal
 growwfahh.db
 growwfahh.db-journal
+brokeahh.db
+brokeahh.db-journal
 .vercel/
 
 # OS / IDE

@@ -1,4 +1,6 @@
-# GrowwFAHH — Stock & Mutual Fund Trading Platform
+# BrokeAhh — Stock & Mutual Fund Broker Platform
+
+> *"For traders too broke to lose real money on Zerodha."*
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.13-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.13" />
@@ -8,73 +10,65 @@
   <img src="https://img.shields.io/badge/NSE%20%26%20BSE-Live%20Market-00D09C?style=for-the-badge" alt="NSE Market" />
 </p>
 
-GrowwFAHH is a modern, responsive trading and investment web application inspired by Groww, featuring an **authentic broker experience**, **₹10,00,000 available balance**, live Indian stock prices (NSE/BSE), and official Mutual Fund NAVs (AMFI).
+BrokeAhh is a modern, broker-grade trading and investment platform inspired by Groww and Upstox, featuring **authentic Indian brokerage mechanics**, **₹10,00,000 available balance**, live Indian equities (NSE/BSE), official Mutual Fund NAVs (AMFI), strict IST market hours, and 5x intraday leverage.
 
 ---
 
-## ⚡ Highlights & Key Features
+## ⚡ Highlights & Broker Features
 
-- **Starting Capital:** **₹10,00,000** available balance to invest.
-- **Zero Simulation Terminology:** Designed with authentic brokerage terms (*Available Balance*, *Invested*, *Current Value*, *Total Returns*, *Holdings*, *Orders*, *Watchlist*, *Market Order*, *Delivery / Intraday*).
-- **Live Market Data:**
-  - **NSE & BSE Stocks:** Real-time Last Traded Price (LTP), 52-week High/Low, Day High/Low, P/E ratios, and Market Cap via `yfinance`.
-  - **Indian Mutual Funds:** Official NAVs, fund house info, and 1-year returns via the open AMFI API.
-- **Sticky Indices Strip:** Real-time tickers for **NIFTY 50**, **SENSEX**, **BANK NIFTY**, and **NIFTY IT**.
-- **3-Tier Deep Search:**
-  - Search 150+ curated Indian equities across 12 sectors with colloquial aliases (*"Zomato"*, *"Tata Motors"*, *"SBI"*, *"L&T"*, *"Suzlon"*, *"Mazdock"*, *"IREDA"*, *"HAL"*).
-  - Dynamic fallback to live NSE/BSE stock search for all 2,000+ Indian companies.
-  - Live search across all 10,000+ AMFI mutual fund schemes.
-- **Interactive Financial Charts:** Timeframe support (`1D`, `1W`, `1M`, `1Y`, `5Y`, `ALL`) with responsive gradient charts powered by Chart.js.
-- **Order Execution Engine:**
-  - Instant BUY and SELL orders with Delivery and Intraday options.
-  - Live margin calculation and portfolio protection against over-budget orders.
-  - Weighted average buy price computation across multiple buys.
-  - Realized profit and loss (P&L) tracking on sells.
-- **Dark / Light Mode:** Groww-signature deep charcoal dark theme and clean light theme.
-- **Sub-10ms Instant Response:** Pre-seeded in-memory caching with asynchronous background refresh.
-- **Persistence:** Local SQLite database (`growwfahh.db`) ensuring data is never lost.
+- **Starting Capital:** **₹10,00,000** available capital to learn and trade without risking real savings.
+- **Strict Market Hours Enforcement:**
+  - Active trading between **09:15 AM – 03:30 PM IST** (Monday–Friday).
+  - Intraday (MIS) trades restricted outside market hours with standard broker alerts.
+  - Off-market Delivery orders accepted as **AMO (After-Market Orders)**.
+  - Built-in **24/7 Simulation Toggle** to practice anytime on weekends or evenings.
+- **5x Intraday Leverage (20% Margin):**
+  - Trade intraday with genuine 5x margin efficiency (e.g. ₹5,000 blocks a ₹25,000 position).
+- **Dedicated Positions Tab:**
+  - Track open MIS trades in real time with individual **Exit Position (Square Off)** and **Square Off All**.
+- **Market & Limit Orders:**
+  - Place Limit BUY/SELL orders. Margin is locked while open and refunded immediately upon cancellation.
+- **Level-2 Market Depth:**
+  - Live 5-tier Bid/Ask ladder with order quantities, counts, and Buyer vs Seller sentiment bar.
+- **SEBI & Brokerage Fee Breakdown:**
+  - Real-time transparent charge sheet calculating Brokerage, STT, Exchange fees, SEBI charges, Stamp Duty, and 18% GST.
+- **Mobile First UX:**
+  - Bottom app navigation bar on mobile browsers.
+  - Slide-up bottom sheet trading drawer with quick quantity chips (+1, +5, +10, +25, +50).
+- **Persistence:** Local SQLite database (`brokeahh.db`) ensuring all trades, holdings, and watchlists are preserved.
 
 ---
 
 ## 🚀 One-Click Deploy to Vercel
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/adithyanj-27/GrowwFAHH)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/adithyanj-27/BrokeAhh)
 
-1. Fork or push this repository to GitHub.
+1. Push this repository to your GitHub account: `https://github.com/adithyanj-27/BrokeAhh`.
 2. Link your GitHub repository in your [Vercel Dashboard](https://vercel.com).
-3. Vercel automatically detects `vercel.json` and `api/index.py` and deploys your serverless website instantly!
+3. Vercel deploys your site serverless with custom domain/subdomain like `https://brokeahh.vercel.app`.
 
 ---
 
 ## 💻 Local Development Setup
 
-### Prerequisites
-- **Python 3.10+** (or Python 3.13)
-- **Node.js** (optional, for `npm run dev`)
-
-### Quick Start with npm:
+### Quick Start:
 ```bash
 # Clone the repository
-git clone https://github.com/adithyanj-27/GrowwFAHH.git
-cd GrowwFAHH
+git clone https://github.com/adithyanj-27/BrokeAhh.git
+cd BrokeAhh
 
-# Run development server (automatically launches browser at http://127.0.0.1:8000)
-npm run dev
-```
-
-### Or Start with Python directly:
-```bash
 # Install dependencies
 pip install -r requirements.txt
 
-# Run application
+# Run application (automatically opens http://127.0.0.1:8000)
 py run.py
 ```
 
+### Windows Double-Click Launcher:
+Double-click `start_brokeahh.bat` to launch the platform.
+
 ### Running Automated Verification Tests:
 ```bash
-npm test
-# OR
 py test_app.py
 ```
 
@@ -83,20 +77,21 @@ py test_app.py
 ## 📂 Project Structure
 
 ```
-GrowwFAHH/
+BrokeAhh/
 ├── api/
 │   └── index.py            # Vercel serverless entrypoint
 ├── static/
-│   ├── index.html          # Single-page web dashboard
-│   ├── style.css           # Groww design system (Emerald Teal + Sunset Orange)
+│   ├── index.html          # Responsive single-page web app
+│   ├── style.css           # Modern brokerage design system
 │   └── app.js              # Client-side reactivity, Chart.js, orders
-├── database.py             # SQLite schema, trade engine, Vercel /tmp fallback
+├── market_hours.py         # IST calendar, sessions, and simulation toggle
+├── database.py             # SQLite schema (brokeahh.db), 5x leverage, square-off engine
 ├── market_service.py       # High-performance market data & 3-tier search
 ├── stock_master.py         # Curated 150+ stocks, aliases, & AMFI funds
 ├── main.py                 # FastAPI backend REST API
 ├── run.py                  # One-click launcher
-├── start_growwfahh.bat     # Windows double-click runner
-├── package.json            # npm run dev / npm test scripts
+├── start_brokeahh.bat      # Windows launcher
+├── package.json            # npm scripts
 ├── requirements.txt        # Python backend dependencies
 ├── vercel.json             # Vercel serverless routing configuration
 └── README.md
@@ -106,3 +101,4 @@ GrowwFAHH/
 
 ## 📄 License
 MIT License. Built for educational and investment practice purposes.
+
