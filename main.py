@@ -25,13 +25,18 @@ if os.path.exists(PUBLIC_DIR):
 
 @app.middleware("http")
 async def normalize_vercel_path(request, call_next):
-    path = request.scope.get("path", "")
-    if path.startswith("/api/index.py"):
-        sub = path.replace("/api/index.py", "", 1)
-        request.scope["path"] = sub if sub.startswith("/") else ("/" + sub)
-    elif path.startswith("/index.py"):
-        sub = path.replace("/index.py", "", 1)
-        request.scope["path"] = sub if sub.startswith("/") else ("/" + sub)
+    orig = request.headers.get("x-vercel-original-url")
+    if orig:
+        clean_path = orig.split("?")[0]
+        request.scope["path"] = clean_path
+    else:
+        path = request.scope.get("path", "")
+        if path.startswith("/api/index.py"):
+            sub = path.replace("/api/index.py", "", 1)
+            request.scope["path"] = sub if sub.startswith("/") else ("/" + sub)
+        elif path.startswith("/index.py"):
+            sub = path.replace("/index.py", "", 1)
+            request.scope["path"] = sub if sub.startswith("/") else ("/" + sub)
     return await call_next(request)
 
 @app.on_event("startup")
