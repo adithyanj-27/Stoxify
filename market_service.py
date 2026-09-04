@@ -455,3 +455,8 @@ def search_market(query: str) -> List[Dict[str, Any]]:
             pass
 
     return results[:15]
+
+# Backward compatibility aliases
+get_stock_history = get_stock_chart
+get_mf_history = get_mf_chart
+

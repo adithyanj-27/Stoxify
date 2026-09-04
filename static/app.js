@@ -1991,15 +1991,27 @@ async function loadPageChartTimeframe(range, btnEl = null) {
   if (!currentPageAsset) return;
 
   try {
-    const res = await fetch(`/api/history?symbol=${encodeURIComponent(currentPageAsset.symbol)}&range=${range}`);
-    const data = await res.json();
-    const ctx = document.getElementById('pageAssetChartCanvas').getContext('2d');
+    const assetType = currentPageAsset.asset_type || 'STOCK';
+    const res = await fetch(`/api/history?symbol=${encodeURIComponent(currentPageAsset.symbol)}&asset_type=${encodeURIComponent(assetType)}&range=${range}&timeframe=${range}`);
+    const raw = await res.json();
+    const points = Array.isArray(raw) ? raw : (raw.points || []);
+
+    const canvas = document.getElementById('pageAssetChartCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
 
     if (pageChartInstance) {
       pageChartInstance.destroy();
+      pageChartInstance = null;
     }
 
-    const isPos = (data.points[data.points.length - 1]?.price || 0) >= (data.points[0]?.price || 0);
+    if (!points || points.length === 0) {
+      return;
+    }
+
+    const firstVal = (points[0].price !== undefined) ? points[0].price : (points[0].value || 0);
+    const lastVal = (points[points.length - 1].price !== undefined) ? points[points.length - 1].price : (points[points.length - 1].value || 0);
+    const isPos = lastVal >= firstVal;
     const strokeColor = isPos ? '#10B981' : '#F43F5E';
     const gradient = ctx.createLinearGradient(0, 0, 0, 350);
     gradient.addColorStop(0, isPos ? 'rgba(16, 185, 129, 0.28)' : 'rgba(244, 63, 94, 0.28)');
@@ -2008,9 +2020,9 @@ async function loadPageChartTimeframe(range, btnEl = null) {
     pageChartInstance = new Chart(ctx, {
       type: 'line',
       data: {
-        labels: data.points.map(p => p.time),
+        labels: points.map(p => p.time),
         datasets: [{
-          data: data.points.map(p => p.price),
+          data: points.map(p => (p.price !== undefined ? p.price : p.value)),
           borderColor: strokeColor,
           borderWidth: 2.2,
           backgroundColor: gradient,
@@ -2043,7 +2055,15 @@ async function loadPageChartTimeframe(range, btnEl = null) {
           }
         },
         scales: {
-          x: { display: false },
+          x: { 
+            display: true,
+            grid: { display: false },
+            ticks: {
+              color: '#64748B',
+              font: { family: 'Sora', size: 10 },
+              maxTicksLimit: 6
+            }
+          },
           y: {
             display: true,
             position: 'right',

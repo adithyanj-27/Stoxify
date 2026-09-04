@@ -245,8 +245,26 @@ def read_depth(symbol: str):
 
 @app.get("/api/history")
 @app.get("/history")
-def read_history(symbol: str, range: str = "1M"):
-    return market_service.get_stock_history(symbol, range)
+def read_history(symbol: str, range: str = "1M", asset_type: str = "STOCK", timeframe: Optional[str] = None):
+    tf = timeframe or range
+    if asset_type.upper() == "MUTUAL_FUND" or symbol.isdigit():
+        pts = market_service.get_mf_chart(symbol, tf)
+    else:
+        pts = market_service.get_stock_chart(symbol, tf)
+
+    normalized = []
+    for p in pts:
+        val = p.get("value") or p.get("price") or 0.0
+        normalized.append({
+            "time": p.get("time", ""),
+            "value": val,
+            "price": val,
+            "open": p.get("open", val),
+            "high": p.get("high", val),
+            "low": p.get("low", val),
+            "volume": p.get("volume", 0)
+        })
+    return normalized
 
 @app.get("/api/portfolio")
 @app.get("/portfolio")
