@@ -280,29 +280,37 @@ function getCleanInitial(name, symbol) {
 
 function renderAssetAvatar(item, assetType) {
   const isMF = assetType === 'MUTUAL_FUND' || item.asset_type === 'MUTUAL_FUND';
-  if (isMF) {
-    return `<div class="card-avatar avatar-mf" title="Mutual Fund">
-      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
-        <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
-      </svg>
-    </div>`;
-  }
-
+  const cleanSym = (item.symbol || '').replace('.NS', '').replace('.BO', '');
   const initial = getCleanInitial(item.name, item.symbol);
-  // Branded vibrant color palettes based on initial
+  const logoUrl = `/static/logos/${cleanSym}.png`;
+
   const palettes = [
-    { bg: 'rgba(14, 165, 233, 0.15)', text: '#38BDF8', border: 'rgba(14, 165, 233, 0.35)' }, // Cyan
-    { bg: 'rgba(16, 185, 129, 0.15)', text: '#34D399', border: 'rgba(16, 185, 129, 0.35)' }, // Emerald
-    { bg: 'rgba(99, 102, 241, 0.15)', text: '#818CF8', border: 'rgba(99, 102, 241, 0.35)' }, // Indigo
-    { bg: 'rgba(236, 72, 153, 0.15)', text: '#F472B6', border: 'rgba(236, 72, 153, 0.35)' }, // Pink
-    { bg: 'rgba(245, 158, 11, 0.15)', text: '#FBBF24', border: 'rgba(245, 158, 11, 0.35)' }, // Amber
-    { bg: 'rgba(168, 85, 247, 0.15)', text: '#C084FC', border: 'rgba(168, 85, 247, 0.35)' }, // Purple
+    { bg: 'rgba(14, 165, 233, 0.12)', text: '#38BDF8', border: 'rgba(14, 165, 233, 0.3)' },
+    { bg: 'rgba(16, 185, 129, 0.12)', text: '#34D399', border: 'rgba(16, 185, 129, 0.3)' },
+    { bg: 'rgba(99, 102, 241, 0.12)', text: '#818CF8', border: 'rgba(99, 102, 241, 0.3)' },
+    { bg: 'rgba(236, 72, 153, 0.12)', text: '#F472B6', border: 'rgba(236, 72, 153, 0.3)' },
+    { bg: 'rgba(245, 158, 11, 0.12)', text: '#FBBF24', border: 'rgba(245, 158, 11, 0.3)' },
+    { bg: 'rgba(168, 85, 247, 0.12)', text: '#C084FC', border: 'rgba(168, 85, 247, 0.3)' },
   ];
   const idx = (initial.charCodeAt(0) || 0) % palettes.length;
   const p = palettes[idx];
 
-  return `<div class="card-avatar" style="background: ${p.bg}; color: ${p.text}; border-color: ${p.border};">${initial}</div>`;
+  const fallbackHtml = isMF
+    ? `<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>`
+    : initial;
+
+  return `
+    <div class="card-avatar ${isMF ? 'avatar-mf' : ''}" style="background: ${p.bg}; color: ${p.text}; border-color: ${p.border};">
+      <img src="${logoUrl}" 
+           alt="${item.name || cleanSym}" 
+           loading="lazy"
+           onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+           style="width: 26px; height: 26px; object-fit: contain; border-radius: 4px;">
+      <span style="display: none; align-items: center; justify-content: center; width: 100%; height: 100%; font-weight: 800;">
+        ${fallbackHtml}
+      </span>
+    </div>
+  `;
 }
 
 function renderCardStarBtn(symbol, name, assetType) {
@@ -900,10 +908,13 @@ searchInput.addEventListener('input', (e) => {
         searchDropdown.innerHTML = `<div style="padding: 1rem; color: var(--text-muted); font-size: 0.85rem;">No securities found matching "${query}"</div>`;
       } else {
         searchDropdown.innerHTML = results.map(r => `
-          <div class="search-result-item" onclick="selectSearchResult('${r.symbol}', '${r.asset_type}')">
-            <div>
-              <div class="search-item-title">${r.name}</div>
-              <div class="search-item-sub">${r.subtext}</div>
+          <div class="search-item" onclick="selectSearchResult('${r.symbol}', '${r.asset_type}')">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+              ${renderAssetAvatar(r, r.asset_type)}
+              <div>
+                <div class="search-item-title" style="font-weight: 700; font-size: 0.9rem;">${r.name}</div>
+                <div class="search-item-sub" style="font-size: 0.75rem; color: var(--text-muted);">${r.subtext}</div>
+              </div>
             </div>
             <span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;">
               ${r.asset_type === 'MUTUAL_FUND' ? 'Mutual Fund' : 'Stock'}
@@ -943,7 +954,25 @@ async function openAssetModal(symbol, assetType = 'STOCK', preselectAction = 'BU
     const data = await res.json();
     state.currentModalAsset = data;
 
-    document.getElementById('modalAvatar').innerText = (data.symbol || 'S').charAt(0).toUpperCase();
+    const cleanSym = (data.symbol || '').replace('.NS', '').replace('.BO', '');
+    const isMF = data.asset_type === 'MUTUAL_FUND';
+    const initial = getCleanInitial(data.name, data.symbol);
+    const logoUrl = `/static/logos/${cleanSym}.png`;
+    const fallbackHtml = isMF
+      ? `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>`
+      : initial;
+
+    const modalAvatarEl = document.getElementById('modalAvatar');
+    modalAvatarEl.innerHTML = `
+      <img src="${logoUrl}" 
+           alt="${data.name || cleanSym}" 
+           loading="lazy"
+           onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+           style="width: 28px; height: 28px; object-fit: contain; border-radius: 4px;">
+      <span style="display: none; align-items: center; justify-content: center; width: 100%; height: 100%; font-weight: 800;">
+        ${fallbackHtml}
+      </span>
+    `;
     document.getElementById('modalTitle').innerText = data.name;
     document.getElementById('modalSymbol').innerText = data.symbol;
     document.getElementById('modalBadge').innerText = data.asset_type === 'MUTUAL_FUND' ? 'MUTUAL FUND' : 'NSE';
