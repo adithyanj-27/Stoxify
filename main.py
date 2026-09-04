@@ -1,5 +1,5 @@
 import os
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, Query, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
@@ -9,7 +9,7 @@ from database import (
     init_db, get_account, get_holdings, get_positions, execute_trade, 
     exit_position, cancel_order, check_open_limit_orders,
     get_orders, get_watchlist, add_to_watchlist, remove_from_watchlist,
-    deposit_funds, reset_account
+    deposit_funds, reset_account, create_user, get_user, list_users
 )
 import market_service
 import market_hours
@@ -27,7 +27,7 @@ if os.path.exists(PUBLIC_DIR):
     app.mount("/public", StaticFiles(directory=PUBLIC_DIR), name="public")
 
 @app.middleware("http")
-async def normalize_vercel_path(request, call_next):
+async def normalize_vercel_path(request: Request, call_next):
     orig = request.headers.get("x-vercel-original-url")
     if orig:
         clean_path = orig.split("?")[0]
@@ -48,6 +48,9 @@ def startup():
         init_db()
     except Exception:
         pass
+
+def get_user_id(request: Request) -> str:
+    return request.headers.get("x-user-id") or request.query_params.get("user_id") or "default"
 
 @app.get("/favicon.ico")
 def favicon():
@@ -112,6 +115,44 @@ def get_sw():
             return FileResponse(candidate, media_type="application/javascript")
     return Response(content="// sw not found", media_type="application/javascript")
 
+# --- User Profile Endpoints (Simulated Groww Onboarding) ---
+class CreateUserRequest(BaseModel):
+    name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    pan: Optional[str] = None
+    bank_name: Optional[str] = "HDFC Bank"
+    bank_account: Optional[str] = "50100234567890"
+    pin: Optional[str] = "1234"
+
+@app.post("/api/user/create")
+def api_create_user(req: CreateUserRequest):
+    if not req.name or not req.name.strip():
+        raise HTTPException(status_code=400, detail="Legal Name is required")
+    u = create_user(
+        name=req.name.strip(),
+        email=req.email,
+        phone=req.phone,
+        pan=req.pan,
+        bank_name=req.bank_name or "HDFC Bank",
+        bank_account=req.bank_account or "50100234567890",
+        pin=req.pin or "1234"
+    )
+    return {"success": True, "user": u}
+
+@app.get("/api/user/current")
+def api_get_current_user(request: Request):
+    uid = get_user_id(request)
+    u = get_user(uid)
+    if not u:
+        u = get_user("default")
+    return u
+
+@app.get("/api/user/list")
+def api_list_users():
+    return list_users()
+
+# --- Market Status & Simulation Controls ---
 @app.get("/api/market-status")
 @app.get("/market-status")
 def read_market_status():
@@ -126,10 +167,12 @@ def toggle_simulation(req: SimulationToggleRequest):
     market_hours.set_simulation_mode(req.enabled)
     return market_hours.get_market_status()
 
+# --- Financial Data & Quote Endpoints ---
 @app.get("/api/account")
 @app.get("/account")
-def read_account():
-    return get_account()
+def read_account(request: Request):
+    uid = get_user_id(request)
+    return get_account(uid)
 
 @app.get("/api/indices")
 @app.get("/indices")
@@ -137,7 +180,6 @@ def read_indices():
     return market_service.get_indices()
 
 @app.get("/api/explore")
-@app.get("/explore")
 def read_explore():
     return market_service.get_explore_data()
 
@@ -178,133 +220,121 @@ def read_depth(symbol: str):
         asks.append({"price": ap, "quantity": aq, "orders": ao})
 
     tot = tot_bid + tot_ask
-    buy_pct = round((tot_bid / tot) * 100, 1) if tot else 50.0
-    sell_pct = round(100.0 - buy_pct, 1)
+    b_pct = round((tot_bid / tot) * 100, 1) if tot > 0 else 50.0
+    a_pct = round(100.0 - b_pct, 1)
 
     return {
-        "symbol": quote["symbol"],
-        "price": ltp,
+        "symbol": symbol,
+        "ltp": ltp,
         "bids": bids,
         "asks": asks,
         "total_bid_qty": tot_bid,
         "total_ask_qty": tot_ask,
-        "buy_pct": buy_pct,
-        "sell_pct": sell_pct
+        "total_buy_qty": tot_bid,
+        "total_sell_qty": tot_ask,
+        "buy_pct": b_pct,
+        "sell_pct": a_pct
     }
 
 @app.get("/api/history")
 @app.get("/history")
-def read_history(symbol: str, asset_type: str = "STOCK", timeframe: str = "1D"):
-    if asset_type.upper() == "MUTUAL_FUND":
-        return market_service.get_mf_chart(symbol, timeframe)
-    return market_service.get_stock_chart(symbol, timeframe)
+def read_history(symbol: str, range: str = "1M"):
+    return market_service.get_stock_history(symbol, range)
 
 @app.get("/api/portfolio")
 @app.get("/portfolio")
-def read_portfolio():
-    account = get_account()
-    raw_holdings = get_holdings()
+def read_portfolio(request: Request):
+    uid = get_user_id(request)
+    account = get_account(uid)
+    raw_holdings = get_holdings(uid)
 
-    total_invested = 0.0
-    total_current = 0.0
-    day_returns = 0.0
     holdings_detail = []
+    total_current_val = 0.0
+    total_invested_val = 0.0
+    total_day_pnl = 0.0
 
     for h in raw_holdings:
-        symbol = h["symbol"]
-        asset_type = h["asset_type"]
-        qty = h["quantity"]
-        avg_price = h["avg_price"]
-        invested_amt = round(qty * avg_price, 2)
-        total_invested += invested_amt
-
-        if asset_type == "MUTUAL_FUND":
-            quote = market_service.get_mutual_fund_quote(symbol)
+        if h["asset_type"] == "MUTUAL_FUND":
+            quote = market_service.get_mutual_fund_quote(h["symbol"])
         else:
-            quote = market_service.get_stock_quote(symbol)
+            quote = market_service.get_stock_quote(h["symbol"])
 
-        current_price = quote["price"]
-        change = quote["change"]
-        change_pct = quote["change_pct"]
+        cur_price = quote.get("price", h["avg_price"])
+        chg = quote.get("change", 0.0)
+        chg_pct = quote.get("change_pct", 0.0)
 
-        current_val = round(qty * current_price, 2)
-        total_current += current_val
+        inv_val = round(h["quantity"] * h["avg_price"], 2)
+        cur_val = round(h["quantity"] * cur_price, 2)
+        pnl = round(cur_val - inv_val, 2)
+        pnl_pct = round((pnl / inv_val) * 100, 2) if inv_val > 0 else 0.0
+        day_pnl = round(h["quantity"] * chg, 2)
 
-        total_pnl = round(current_val - invested_amt, 2)
-        total_pnl_pct = round((total_pnl / invested_amt) * 100, 2) if invested_amt > 0 else 0.0
-
-        today_pnl = round(qty * change, 2)
-        day_returns += today_pnl
+        total_invested_val += inv_val
+        total_current_val += cur_val
+        total_day_pnl += day_pnl
 
         holdings_detail.append({
-            "symbol": symbol,
-            "name": h["name"] or quote["name"],
-            "asset_type": asset_type,
-            "quantity": qty,
-            "avg_price": avg_price,
-            "current_price": current_price,
-            "invested_amount": invested_amt,
-            "current_value": current_val,
-            "total_pnl": total_pnl,
-            "total_pnl_pct": total_pnl_pct,
-            "today_pnl": today_pnl,
-            "change_pct": change_pct
+            "symbol": h["symbol"],
+            "name": h["name"],
+            "asset_type": h["asset_type"],
+            "quantity": h["quantity"],
+            "avg_price": h["avg_price"],
+            "current_price": cur_price,
+            "invested_value": inv_val,
+            "current_value": cur_val,
+            "total_pnl": pnl,
+            "total_pnl_pct": pnl_pct,
+            "today_pnl": day_pnl,
+            "today_pnl_pct": chg_pct,
+            "updated_at": h["updated_at"]
         })
 
-    total_invested = round(total_invested, 2)
-    total_current = round(total_current, 2)
-    day_returns = round(day_returns, 2)
-    total_returns = round(total_current - total_invested, 2)
-    total_returns_pct = round((total_returns / total_invested) * 100, 2) if total_invested > 0 else 0.0
-
-    prev_val = total_current - day_returns
-    day_returns_pct = round((day_returns / prev_val) * 100, 2) if prev_val > 0 else 0.0
-    total_portfolio_value = round(account["balance"] + total_current, 2)
+    net_worth = round(account["balance"] + total_current_val, 2)
+    total_pnl = round(total_current_val - total_invested_val, 2)
+    total_pnl_pct = round((total_pnl / total_invested_val) * 100, 2) if total_invested_val > 0 else 0.0
+    day_pnl_pct = round((total_day_pnl / total_current_val) * 100, 2) if total_current_val > 0 else 0.0
 
     return {
         "balance": account["balance"],
-        "total_portfolio_value": total_portfolio_value,
-        "invested_amount": total_invested,
-        "current_value": total_current,
-        "total_returns": total_returns,
-        "total_returns_pct": total_returns_pct,
-        "day_returns": day_returns,
-        "day_returns_pct": day_returns_pct,
+        "invested_value": round(total_invested_val, 2),
+        "current_value": round(total_current_val, 2),
+        "total_pnl": round(total_pnl, 2),
+        "total_pnl_pct": round(total_pnl_pct, 2),
+        "today_pnl": round(total_day_pnl, 2),
+        "today_pnl_pct": round(day_pnl_pct, 2),
+        "net_worth": net_worth,
         "holdings": holdings_detail
     }
 
 @app.get("/api/positions")
-@app.get("/positions")
-def read_positions():
-    raw_positions = get_positions()
+def read_positions(request: Request):
+    uid = get_user_id(request)
+    raw_positions = get_positions(uid)
     positions_detail = []
     total_unrealized_pnl = 0.0
     total_margin_used = 0.0
 
-    for pos in raw_positions:
-        symbol = pos["symbol"]
-        quote = market_service.get_stock_quote(symbol)
-        curr_p = quote["price"]
-        qty = pos["quantity"]
-        avg_p = pos["avg_price"]
-        margin = pos["margin_used"]
-        total_margin_used += margin
+    for p in raw_positions:
+        quote = market_service.get_stock_quote(p["symbol"])
+        cur_price = quote.get("price", p["avg_price"])
+        unrealized = round((cur_price - p["avg_price"]) * p["quantity"], 2)
+        unrealized_pct = round(((cur_price - p["avg_price"]) / p["avg_price"]) * 100, 2) if p["avg_price"] > 0 else 0.0
 
-        unrealized_pnl = round((curr_p - avg_p) * qty, 2)
-        total_unrealized_pnl += unrealized_pnl
-        unrealized_pnl_pct = round(((curr_p - avg_p) / avg_p) * 100, 2) if avg_p else 0.0
+        total_unrealized_pnl += unrealized
+        total_margin_used += p["margin_used"]
 
         positions_detail.append({
-            "symbol": symbol,
-            "name": pos["name"] or quote["name"],
-            "asset_type": pos["asset_type"],
-            "quantity": qty,
-            "avg_price": avg_p,
-            "current_price": curr_p,
-            "margin_used": margin,
-            "product_type": "INTRADAY",
-            "unrealized_pnl": unrealized_pnl,
-            "unrealized_pnl_pct": unrealized_pnl_pct
+            "symbol": p["symbol"],
+            "name": p["name"],
+            "asset_type": p["asset_type"],
+            "quantity": p["quantity"],
+            "avg_price": p["avg_price"],
+            "current_price": cur_price,
+            "margin_used": p["margin_used"],
+            "product_type": p["product_type"],
+            "unrealized_pnl": unrealized,
+            "unrealized_pnl_pct": unrealized_pct,
+            "updated_at": p["updated_at"]
         })
 
     return {
@@ -318,21 +348,23 @@ class ExitPositionRequest(BaseModel):
 
 @app.post("/api/position/exit")
 @app.post("/position/exit")
-def exit_single_position(req: ExitPositionRequest):
+def exit_single_position(req: ExitPositionRequest, request: Request):
+    uid = get_user_id(request)
     quote = market_service.get_stock_quote(req.symbol)
-    res = exit_position(req.symbol, quote["price"])
+    res = exit_position(req.symbol, quote["price"], user_id=uid)
     if not res.get("success"):
         raise HTTPException(status_code=400, detail=res.get("error", "Failed to exit position"))
     return res
 
 @app.post("/api/position/exit-all")
 @app.post("/position/exit-all")
-def exit_all_positions():
-    raw_positions = get_positions()
+def exit_all_positions(request: Request):
+    uid = get_user_id(request)
+    raw_positions = get_positions(uid)
     exited = []
     for pos in raw_positions:
         quote = market_service.get_stock_quote(pos["symbol"])
-        r = exit_position(pos["symbol"], quote["price"])
+        r = exit_position(pos["symbol"], quote["price"], user_id=uid)
         if r.get("success"):
             exited.append(pos["symbol"])
     return {"status": "success", "exited_count": len(exited), "symbols": exited}
@@ -350,16 +382,15 @@ class OrderRequest(BaseModel):
 
 @app.post("/api/order")
 @app.post("/order")
-def place_order(order: OrderRequest):
+def place_order(order: OrderRequest, request: Request):
+    uid = get_user_id(request)
     if order.quantity <= 0 or order.price <= 0:
         raise HTTPException(status_code=400, detail="Invalid quantity or price")
 
-    # Validate market timing rules (Intraday restricted to market hours, Delivery allowed as AMO)
     is_allowed, order_tag, timing_msg = market_hours.validate_order_timing(order.product_type)
     if not is_allowed:
         raise HTTPException(status_code=400, detail=timing_msg)
 
-    # For market orders on stocks, use the latest real live quote
     exec_price = order.price
     if order.order_variety.upper() == "MARKET" and order.asset_type.upper() == "STOCK":
         try:
@@ -379,14 +410,14 @@ def place_order(order: OrderRequest):
         price=exec_price,
         order_variety=order.order_variety,
         limit_price=order.limit_price,
-        order_tag=order_tag
+        order_tag=order_tag,
+        user_id=uid
     )
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "Transaction failed"))
 
-    # Also evaluate any pending open limit orders for this symbol
     try:
-        check_open_limit_orders(order.symbol, exec_price)
+        check_open_limit_orders(order.symbol, exec_price, user_id=uid)
     except Exception:
         pass
 
@@ -397,21 +428,22 @@ class CancelOrderRequest(BaseModel):
 
 @app.post("/api/order/cancel")
 @app.post("/order/cancel")
-def cancel_single_order(req: CancelOrderRequest):
-    res = cancel_order(req.order_id)
+def cancel_single_order(req: CancelOrderRequest, request: Request):
+    uid = get_user_id(request)
+    res = cancel_order(req.order_id, user_id=uid)
     if not res.get("success"):
         raise HTTPException(status_code=400, detail=res.get("error", "Failed to cancel order"))
     return res
 
 @app.get("/api/orders")
-@app.get("/orders")
-def read_orders(limit: int = 100, status: Optional[str] = None):
-    return get_orders(limit=limit, status_filter=status)
+def read_orders(request: Request, limit: int = 100, status: Optional[str] = None):
+    uid = get_user_id(request)
+    return get_orders(limit=limit, status_filter=status, user_id=uid)
 
 @app.get("/api/watchlist")
-@app.get("/watchlist")
-def read_watchlist():
-    items = get_watchlist()
+def read_watchlist(request: Request):
+    uid = get_user_id(request)
+    items = get_watchlist(uid)
     results = []
     for item in items:
         if item["asset_type"] == "MUTUAL_FUND":
@@ -436,14 +468,16 @@ class WatchlistRequest(BaseModel):
 
 @app.post("/api/watchlist")
 @app.post("/watchlist")
-def add_watchlist(item: WatchlistRequest):
-    add_to_watchlist(item.symbol, item.name, item.asset_type)
+def add_watchlist(item: WatchlistRequest, request: Request):
+    uid = get_user_id(request)
+    add_to_watchlist(item.symbol, item.name, item.asset_type, user_id=uid)
     return {"status": "success"}
 
 @app.delete("/api/watchlist/{symbol}")
 @app.delete("/watchlist/{symbol}")
-def delete_watchlist(symbol: str):
-    remove_from_watchlist(symbol)
+def delete_watchlist(symbol: str, request: Request):
+    uid = get_user_id(request)
+    remove_from_watchlist(symbol, user_id=uid)
     return {"status": "success"}
 
 class DepositRequest(BaseModel):
@@ -451,14 +485,36 @@ class DepositRequest(BaseModel):
 
 @app.post("/api/account/deposit")
 @app.post("/account/deposit")
-def deposit(req: DepositRequest):
+def deposit(req: DepositRequest, request: Request):
+    uid = get_user_id(request)
     if req.amount <= 0:
         raise HTTPException(status_code=400, detail="Deposit amount must be positive")
-    new_balance = deposit_funds(req.amount)
+    new_balance = deposit_funds(req.amount, user_id=uid)
     return {"status": "success", "new_balance": new_balance}
 
 @app.post("/api/account/reset")
 @app.post("/account/reset")
-def reset():
-    reset_account(1000000.0)
+def reset(request: Request):
+    uid = get_user_id(request)
+    reset_account(1000000.0, user_id=uid)
     return {"status": "success", "message": "Account balance reset to ₹10,00,000"}
+
+# --- Single Page Application (SPA) Deep-Linking Browser Routes ---
+@app.get("/explore")
+@app.get("/holdings")
+@app.get("/positions")
+@app.get("/orders")
+@app.get("/watchlist")
+@app.get("/onboarding")
+@app.get("/login")
+@app.get("/stock/{symbol}")
+@app.get("/mf/{symbol}")
+def get_spa_page(symbol: Optional[str] = None):
+    return read_root()
+
+# Catch-all fallback for any other deep link (so browser refreshes never 404)
+@app.get("/{full_path:path}")
+def catch_all_spa(full_path: str):
+    if full_path.startswith("api/") or full_path.startswith("static/"):
+        raise HTTPException(status_code=404, detail="Not Found")
+    return read_root()

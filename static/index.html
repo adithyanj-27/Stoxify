@@ -18,7 +18,7 @@
 
   <!-- Top Navigation Bar -->
   <header class="navbar">
-    <div class="brand-container" onclick="switchTab('explore')">
+    <div class="brand-container" onclick="navigateTo('/explore')">
       <div class="brand-logo">
         <svg width="26" height="26" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <defs>
@@ -62,15 +62,15 @@
 
     <!-- Nav Links (Desktop) -->
     <nav class="nav-links desktop-only">
-      <button class="nav-btn active" id="nav-explore" onclick="switchTab('explore')">Explore</button>
-      <button class="nav-btn" id="nav-holdings" onclick="switchTab('holdings')">Holdings</button>
-      <button class="nav-btn" id="nav-positions" onclick="switchTab('positions')">
+      <button class="nav-btn active" id="nav-explore" onclick="navigateTo('/explore')">Explore</button>
+      <button class="nav-btn" id="nav-holdings" onclick="navigateTo('/holdings')">Holdings</button>
+      <button class="nav-btn" id="nav-positions" onclick="navigateTo('/positions')">
         Positions <span class="badge-count" id="navPositionsBadge" style="display: none;">0</span>
       </button>
-      <button class="nav-btn" id="nav-orders" onclick="switchTab('orders')">
+      <button class="nav-btn" id="nav-orders" onclick="navigateTo('/orders')">
         Orders <span class="badge-count" id="navOrdersBadge" style="display: none;">0</span>
       </button>
-      <button class="nav-btn" id="nav-watchlist" onclick="switchTab('watchlist')">Watchlist</button>
+      <button class="nav-btn" id="nav-watchlist" onclick="navigateTo('/watchlist')">Watchlist</button>
     </nav>
 
     <!-- Nav Right Controls -->
@@ -85,7 +85,52 @@
         <span>Install App</span>
       </button>
 
-      <div class="balance-chip" onclick="openFundsModal()" title="Manage Account Balance">
+      <!-- Open Free Demat Account Button (Visible in Guest mode) -->
+      <button class="btn-open-account" id="navOpenAccountBtn" onclick="navigateTo('/onboarding')">
+        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-green);"></span>
+        <span>Open Free Account</span>
+      </button>
+
+      <!-- User Profile Avatar & Dropdown -->
+      <div class="user-profile-wrapper" id="navProfileWrapper" style="position: relative;">
+        <button class="user-avatar-btn" id="navUserAvatarBtn" onclick="toggleProfileDropdown()" title="User Profile">
+          <span id="navUserInitials">DT</span>
+        </button>
+        <div class="user-dropdown-menu" id="userDropdownMenu" style="display: none;">
+          <div class="dropdown-user-info">
+            <div class="user-avatar-large" id="menuUserAvatar">DT</div>
+            <div class="user-details">
+              <div class="user-name" id="menuUserName">Default Trader</div>
+              <div class="user-email" id="menuUserEmail">trader@stoxify.com</div>
+              <div class="user-badge" id="menuUserDemat">Demat: STOX-782910</div>
+            </div>
+          </div>
+          <div class="dropdown-divider"></div>
+          <div class="dropdown-bank-row">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <span id="menuUserBank">HDFC Bank •••• 5678 (Verified ✓)</span>
+          </div>
+          <div class="dropdown-balance-row">
+            <span>Virtual Cash</span>
+            <strong id="menuUserBalance">₹10,00,000.00</strong>
+          </div>
+          <div class="dropdown-divider"></div>
+          <button class="dropdown-item" onclick="openSwitchAccountModal()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg>
+            <span>Switch Account</span>
+          </button>
+          <button class="dropdown-item" onclick="navigateTo('/onboarding')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            <span>Create New Account</span>
+          </button>
+          <button class="dropdown-item text-danger" onclick="resetUserPortfolio()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><polyline points="3 3 3 8 8 8"></polyline></svg>
+            <span>Reset to ₹10,00,000</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="balance-chip" onclick="openFundsModal()"  title="Manage Account Balance">
         <span class="label">Balance:</span>
         <span class="amount" id="navBalanceDisplay">₹10,00,000.00</span>
       </div>
@@ -386,6 +431,429 @@
       </div>
 
       <div class="cards-grid" id="watchlistGrid"></div>
+    </section>
+
+
+    <!-- 6. DEDICATED FULL-PAGE ASSET VIEW (STOCKS & MUTUAL FUNDS) -->
+    <section id="pane-asset-detail" class="tab-pane">
+      <div class="asset-page-header-nav">
+        <button class="back-link-btn" onclick="navigateTo('/explore')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+          <span>Back to Explore</span>
+        </button>
+        <div class="breadcrumb-trail">
+          <span style="cursor: pointer;" onclick="navigateTo('/explore')">Stoxify</span>
+          <span>/</span>
+          <span id="assetBreadcrumbCategory">Stocks</span>
+          <span>/</span>
+          <span id="assetBreadcrumbName" class="active-crumb">Reliance Industries</span>
+        </div>
+      </div>
+
+      <div class="asset-page-grid">
+        <!-- Left 65% Column: Hero, Chart, Performance, Depth, Fundamentals -->
+        <div class="asset-main-col">
+          <!-- Top Info Card -->
+          <div class="asset-hero-card">
+            <div class="asset-hero-left">
+              <div class="asset-hero-avatar" id="pageAssetAvatar"></div>
+              <div>
+                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                  <h1 class="asset-hero-title" id="pageAssetTitle">Asset Name</h1>
+                  <button class="card-star-btn" id="pageAssetStarBtn" title="Toggle Watchlist">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                  </button>
+                </div>
+                <div class="asset-hero-sub">
+                  <span class="asset-ticker" id="pageAssetSymbol">SYMBOL</span>
+                  <span class="pill-btn" id="pageAssetBadge">NSE</span>
+                  <span class="sub-sep">•</span>
+                  <span id="pageAssetSector" style="color: var(--text-muted); font-size: 0.85rem;">Equities</span>
+                </div>
+              </div>
+            </div>
+            <div class="asset-hero-right">
+              <div class="asset-hero-price" id="pageAssetPrice">₹0.00</div>
+              <div class="badge-positive" id="pageAssetChangeBadge">+0.00 (0.00%)</div>
+            </div>
+          </div>
+
+          <!-- Chart Card -->
+          <div class="asset-chart-card">
+            <div class="chart-controls" style="margin-bottom: 1rem;">
+              <div class="chart-timeframes">
+                <button class="tf-btn" onclick="loadPageChartTimeframe('1D', this)">1D</button>
+                <button class="tf-btn" onclick="loadPageChartTimeframe('1W', this)">1W</button>
+                <button class="tf-btn active" onclick="loadPageChartTimeframe('1M', this)">1M</button>
+                <button class="tf-btn" onclick="loadPageChartTimeframe('1Y', this)">1Y</button>
+                <button class="tf-btn" onclick="loadPageChartTimeframe('3Y', this)">3Y</button>
+                <button class="tf-btn" onclick="loadPageChartTimeframe('5Y', this)">5Y</button>
+                <button class="tf-btn" onclick="loadPageChartTimeframe('ALL', this)">ALL</button>
+              </div>
+            </div>
+            <div class="chart-wrapper" style="height: 380px; position: relative;">
+              <canvas id="pageAssetChartCanvas"></canvas>
+            </div>
+          </div>
+
+          <!-- Performance Sliders Card -->
+          <div class="asset-section-card" id="pagePerformanceSection">
+            <h3 class="section-heading">Performance</h3>
+            <div class="performance-bars-grid">
+              <div class="range-bar-item">
+                <div class="range-labels">
+                  <div>
+                    <span class="label-sub">Today's Low</span>
+                    <strong class="val" id="perfTodayLow">₹0.00</strong>
+                  </div>
+                  <div>
+                    <span class="label-sub">Today's High</span>
+                    <strong class="val" id="perfTodayHigh">₹0.00</strong>
+                  </div>
+                </div>
+                <div class="range-track">
+                  <div class="range-fill" id="perfTodayFill" style="left: 0%; width: 100%;"></div>
+                  <div class="range-marker" id="perfTodayMarker" style="left: 50%;"></div>
+                </div>
+              </div>
+              <div class="range-bar-item">
+                <div class="range-labels">
+                  <div>
+                    <span class="label-sub">52-Week Low</span>
+                    <strong class="val" id="perf52wLow">₹0.00</strong>
+                  </div>
+                  <div>
+                    <span class="label-sub">52-Week High</span>
+                    <strong class="val" id="perf52wHigh">₹0.00</strong>
+                  </div>
+                </div>
+                <div class="range-track">
+                  <div class="range-fill" id="perf52wFill" style="left: 0%; width: 100%;"></div>
+                  <div class="range-marker" id="perf52wMarker" style="left: 50%;"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="stats-key-val-grid">
+              <div class="stat-kv"><span class="k">Open</span><strong class="v" id="perfOpen">₹0.00</strong></div>
+              <div class="stat-kv"><span class="k">Prev Close</span><strong class="v" id="perfPrevClose">₹0.00</strong></div>
+              <div class="stat-kv"><span class="k">Volume</span><strong class="v" id="perfVolume">--</strong></div>
+              <div class="stat-kv"><span class="k">Lower Circuit</span><strong class="v" id="perfLowerCircuit">₹0.00</strong></div>
+              <div class="stat-kv"><span class="k">Upper Circuit</span><strong class="v" id="perfUpperCircuit">₹0.00</strong></div>
+            </div>
+          </div>
+
+          <!-- Level-2 Market Depth Card -->
+          <div class="asset-section-card" id="pageMarketDepthSection">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <h3 class="section-heading" style="margin-bottom: 0;">Market Depth (Level-2 Order Book)</h3>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">Real-time Bids & Asks</div>
+            </div>
+            <div class="depth-ratio-bar">
+              <div class="depth-ratio-buy" id="pageDepthBuyBar" style="width: 50%;">50% Buyers</div>
+              <div class="depth-ratio-sell" id="pageDepthSellBar" style="width: 50%;">50% Sellers</div>
+            </div>
+            <div class="depth-columns">
+              <div class="depth-col">
+                <div class="depth-col-head"><span>Orders</span><span>Qty</span><span>Bid Price</span></div>
+                <div id="pageDepthBids"></div>
+              </div>
+              <div class="depth-col">
+                <div class="depth-col-head"><span>Ask Price</span><span>Qty</span><span>Orders</span></div>
+                <div id="pageDepthAsks"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Fundamentals Card -->
+          <div class="asset-section-card" id="pageFundamentalsSection">
+            <h3 class="section-heading">Fundamentals & Key Ratios</h3>
+            <div class="fundamentals-grid" id="pageFundamentalsGrid"></div>
+          </div>
+
+          <!-- About Card -->
+          <div class="asset-section-card" id="pageAboutSection">
+            <h3 class="section-heading">About <span id="pageAboutTitle">Company</span></h3>
+            <p id="pageAboutText" style="color: var(--text-secondary); line-height: 1.6; font-size: 0.92rem;">
+              Description and overview.
+            </p>
+          </div>
+        </div>
+
+        <!-- Right 35% Sticky Column: Groww Order Execution Terminal -->
+        <div class="asset-sidebar-col">
+          <div class="groww-order-card">
+            <!-- BUY / SELL Toggle -->
+            <div class="trade-action-toggle">
+              <button class="trade-tab-btn active buy" id="pageBtnBuy" onclick="setPageOrderAction('BUY')">BUY</button>
+              <button class="trade-tab-btn sell" id="pageBtnSell" onclick="setPageOrderAction('SELL')">SELL</button>
+            </div>
+
+            <div class="trade-form-body">
+              <!-- Order Type (Delivery vs Intraday) -->
+              <div class="trade-field-group">
+                <label class="field-label">Product Type</label>
+                <div class="segmented-pills">
+                  <button class="seg-btn active" id="pageProdDelivery" onclick="setPageProductType('DELIVERY')">Delivery (CNC)</button>
+                  <button class="seg-btn" id="pageProdIntraday" onclick="setPageProductType('INTRADAY')">
+                    Intraday <span class="badge-leverage">5x MIS</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Variety (Market vs Limit) -->
+              <div class="trade-field-group">
+                <label class="field-label">Order Variety</label>
+                <div class="segmented-pills">
+                  <button class="seg-btn active" id="pageVarietyMarket" onclick="setPageOrderVariety('MARKET')">Market</button>
+                  <button class="seg-btn" id="pageVarietyLimit" onclick="setPageOrderVariety('LIMIT')">Limit</button>
+                </div>
+              </div>
+
+              <!-- Quantity Input with Stepper & Quick Chips -->
+              <div class="trade-field-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                  <label class="field-label" style="margin-bottom: 0;">Quantity</label>
+                  <span style="font-size: 0.75rem; color: var(--text-muted);" id="pageAvailableHoldingQty">0 shares owned</span>
+                </div>
+                <div class="stepper-input">
+                  <button class="step-btn" onclick="stepPageQuantity(-1)">−</button>
+                  <input type="number" id="pageOrderQuantity" min="1" step="1" value="1" oninput="recalcPageMargin()">
+                  <button class="step-btn" onclick="stepPageQuantity(1)">+</button>
+                </div>
+                <div class="quick-qty-chips">
+                  <button class="qty-chip" onclick="setPageQuickQuantity(1)">1</button>
+                  <button class="qty-chip" onclick="setPageQuickQuantity(5)">5</button>
+                  <button class="qty-chip" onclick="setPageQuickQuantity(10)">10</button>
+                  <button class="qty-chip" onclick="setPageQuickQuantity(25)">25</button>
+                  <button class="qty-chip" onclick="setPageQuickQuantity(50)">50</button>
+                  <button class="qty-chip" onclick="setPageQuickQuantity(100)">100</button>
+                </div>
+              </div>
+
+              <!-- Limit Price Input -->
+              <div class="trade-field-group" id="pageLimitPriceGroup" style="display: none;">
+                <label class="field-label">Limit Price (₹)</label>
+                <input type="number" class="trade-text-input" id="pageOrderLimitPrice" step="0.05" oninput="recalcPageMargin()">
+              </div>
+
+              <!-- Margin Calculation Box -->
+              <div class="margin-calc-box">
+                <div class="calc-row">
+                  <span class="calc-label">Required Margin</span>
+                  <strong class="calc-val" id="pageRequiredMargin">₹0.00</strong>
+                </div>
+                <div class="calc-row">
+                  <span class="calc-label">Available Balance</span>
+                  <span class="calc-sub" id="pageAvailableCash">₹10,00,000.00</span>
+                </div>
+                <div class="calc-row" id="pageLeverageHint" style="display: none;">
+                  <span style="color: var(--brand-cyan); font-size: 0.75rem;">⚡ 5x Intraday Leverage Applied (Only 20% margin blocked)</span>
+                </div>
+              </div>
+
+              <!-- Execution CTA Button -->
+              <button class="btn-trade-execute buy" id="pageOrderExecuteBtn" onclick="executePageTrade()">
+                BUY
+              </button>
+
+              <div style="margin-top: 0.5rem; text-align: center; font-size: 0.75rem; color: var(--text-muted);">
+                Zero brokerage • Simulated instant execution
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7. GROWW-STYLE SIMULATED ACCOUNT ONBOARDING WIZARD -->
+    <section id="pane-onboarding" class="tab-pane">
+      <div class="onboarding-container">
+        <!-- Progress Steps Header -->
+        <div class="onboarding-progress-bar">
+          <div class="progress-step active" id="obStepIndicator-1">
+            <span class="step-num">1</span>
+            <span class="step-label">Contact</span>
+          </div>
+          <div class="step-connector" id="obConnector-1"></div>
+          <div class="progress-step" id="obStepIndicator-2">
+            <span class="step-num">2</span>
+            <span class="step-label">OTP</span>
+          </div>
+          <div class="step-connector" id="obConnector-2"></div>
+          <div class="progress-step" id="obStepIndicator-3">
+            <span class="step-num">3</span>
+            <span class="step-label">PAN</span>
+          </div>
+          <div class="step-connector" id="obConnector-3"></div>
+          <div class="progress-step" id="obStepIndicator-4">
+            <span class="step-num">4</span>
+            <span class="step-label">Bank</span>
+          </div>
+          <div class="step-connector" id="obConnector-4"></div>
+          <div class="progress-step" id="obStepIndicator-5">
+            <span class="step-num">5</span>
+            <span class="step-label">PIN</span>
+          </div>
+        </div>
+
+        <div class="onboarding-card">
+          <!-- Step 1: Mobile / Email -->
+          <div class="onboarding-step-content active" id="obStep-1">
+            <div class="onboarding-badge">Paperless & Instant</div>
+            <h2 class="ob-title">Open Your Demat Account</h2>
+            <p class="ob-sub">Enter your mobile number to begin simulated zero-brokerage trading.</p>
+            <div class="ob-form-group">
+              <label class="ob-label">Mobile Number</label>
+              <div class="ob-phone-input">
+                <span class="phone-prefix">+91</span>
+                <input type="tel" id="obInputPhone" placeholder="98765 43210" maxlength="10" value="9876543210">
+              </div>
+            </div>
+            <div class="ob-form-group">
+              <label class="ob-label">Email Address (Optional)</label>
+              <input type="email" class="ob-input" id="obInputEmail" placeholder="trader@example.com" value="trader@stoxify.com">
+            </div>
+            <button class="ob-btn-primary" onclick="submitObStep1()">Continue</button>
+            <div class="ob-footer-note">By continuing, you agree to Stoxify Simulated Trading T&C.</div>
+          </div>
+
+          <!-- Step 2: Simulated OTP -->
+          <div class="onboarding-step-content" id="obStep-2">
+            <div class="onboarding-badge">Verification</div>
+            <h2 class="ob-title">Enter 4-Digit OTP</h2>
+            <p class="ob-sub">Code sent to <strong id="obDisplayPhone">+91 9876543210</strong></p>
+            
+            <div class="mock-otp-helper" onclick="autofillMockOtp()">
+              <span>💡 Mock OTP: <strong>4321</strong> (Click to auto-fill)</span>
+            </div>
+
+            <div class="otp-inputs-grid">
+              <input type="text" maxlength="1" class="otp-digit" id="otp-1" autofocus oninput="moveOtp(1, event)">
+              <input type="text" maxlength="1" class="otp-digit" id="otp-2" oninput="moveOtp(2, event)">
+              <input type="text" maxlength="1" class="otp-digit" id="otp-3" oninput="moveOtp(3, event)">
+              <input type="text" maxlength="1" class="otp-digit" id="otp-4" oninput="moveOtp(4, event)">
+            </div>
+
+            <button class="ob-btn-primary" onclick="submitObStep2()">Verify & Proceed</button>
+            <button class="ob-btn-link" onclick="goToObStep(1)">Change Mobile Number</button>
+          </div>
+
+          <!-- Step 3: PAN Card & Identity -->
+          <div class="onboarding-step-content" id="obStep-3">
+            <div class="onboarding-badge">SEBI KYC Verification</div>
+            <h2 class="ob-title">Verify PAN Details</h2>
+            <p class="ob-sub">Enter your PAN details to set up your simulated Demat account.</p>
+
+            <div class="ob-form-group">
+              <label class="ob-label">Full Legal Name (as per PAN)</label>
+              <input type="text" class="ob-input" id="obInputName" placeholder="e.g. Adithya N" value="Adithya N">
+            </div>
+
+            <div class="ob-form-group">
+              <label class="ob-label">PAN Number</label>
+              <input type="text" class="ob-input" id="obInputPan" placeholder="ABCDE1234F" maxlength="10" value="ABCDE1234F" style="text-transform: uppercase;">
+              <div class="pan-verified-pill">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                <span>Verified with Income Tax Department</span>
+              </div>
+            </div>
+
+            <div class="ob-row-2">
+              <div class="ob-form-group">
+                <label class="ob-label">Date of Birth</label>
+                <input type="date" class="ob-input" id="obInputDob" value="2000-01-01">
+              </div>
+              <div class="ob-form-group">
+                <label class="ob-label">Gender</label>
+                <select class="ob-input" id="obInputGender">
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            </div>
+
+            <button class="ob-btn-primary" onclick="submitObStep3()">Confirm PAN</button>
+          </div>
+
+          <!-- Step 4: Bank Account & Penny Drop -->
+          <div class="onboarding-step-content" id="obStep-4">
+            <div class="onboarding-badge">Bank Verification</div>
+            <h2 class="ob-title">Link Bank Account</h2>
+            <p class="ob-sub">We verify your account with a simulated ₹1 deposit (Penny Drop).</p>
+
+            <div class="bank-chips-grid">
+              <button class="bank-chip active" onclick="selectBank('HDFC Bank', this)">HDFC Bank</button>
+              <button class="bank-chip" onclick="selectBank('ICICI Bank', this)">ICICI Bank</button>
+              <button class="bank-chip" onclick="selectBank('State Bank of India', this)">SBI</button>
+              <button class="bank-chip" onclick="selectBank('Axis Bank', this)">Axis Bank</button>
+              <button class="bank-chip" onclick="selectBank('Kotak Mahindra', this)">Kotak Bank</button>
+              <button class="bank-chip" onclick="selectBank('Federal Bank', this)">Federal Bank</button>
+            </div>
+
+            <div class="ob-form-group">
+              <label class="ob-label">Bank Account Number</label>
+              <input type="password" class="ob-input" id="obInputAccount" placeholder="50100492817281" value="50100492817281">
+            </div>
+
+            <div class="ob-form-group">
+              <label class="ob-label">IFSC Code</label>
+              <input type="text" class="ob-input" id="obInputIfsc" placeholder="HDFC0001234" value="HDFC0001234" style="text-transform: uppercase;">
+            </div>
+
+            <div class="penny-drop-container" id="pennyDropLoader" style="display: none;">
+              <div class="penny-spinner"></div>
+              <div class="penny-text" id="pennyDropText">Depositing ₹1 into account to verify...</div>
+            </div>
+
+            <button class="ob-btn-primary" id="btnVerifyBank" onclick="submitObStep4()">Verify & Link Bank</button>
+          </div>
+
+          <!-- Step 5: 4-Digit Security PIN -->
+          <div class="onboarding-step-content" id="obStep-5">
+            <div class="onboarding-badge">Security</div>
+            <h2 class="ob-title">Set 4-Digit Trading PIN</h2>
+            <p class="ob-sub">Authorize your trades securely with your custom PIN.</p>
+
+            <div class="ob-form-group">
+              <label class="ob-label">Enter 4-Digit PIN</label>
+              <input type="password" maxlength="4" class="ob-input" id="obInputPin" placeholder="••••" value="1234" style="font-size: 1.5rem; letter-spacing: 0.5rem; text-align: center;">
+            </div>
+
+            <div class="ob-form-group">
+              <label class="ob-label">Confirm 4-Digit PIN</label>
+              <input type="password" maxlength="4" class="ob-input" id="obInputPinConfirm" placeholder="••••" value="1234" style="font-size: 1.5rem; letter-spacing: 0.5rem; text-align: center;">
+            </div>
+
+            <button class="ob-btn-primary" onclick="submitObStep5()">Activate Demat Account</button>
+          </div>
+
+          <!-- Step 6: Congratulations Screen -->
+          <div class="onboarding-step-content" id="obStep-6">
+            <div class="celebration-circle">🎉</div>
+            <h2 class="ob-title">Account Activated!</h2>
+            <p class="ob-sub">Welcome to Stoxify, <strong id="obWelcomeName">Trader</strong>! Your virtual trading setup is complete.</p>
+
+            <div class="account-summary-card">
+              <div class="summary-row">
+                <span>Demat Account ID</span>
+                <strong id="obCreatedDemat">STOX-892140</strong>
+              </div>
+              <div class="summary-row">
+                <span>Linked Bank</span>
+                <strong id="obCreatedBank">HDFC Bank (Verified ✓)</strong>
+              </div>
+              <div class="summary-row highlight">
+                <span>Virtual Trading Capital</span>
+                <strong class="text-positive" style="font-size: 1.25rem;">₹10,00,000.00</strong>
+              </div>
+            </div>
+
+            <button class="ob-btn-primary" onclick="finishOnboarding()">Start Investing Now →</button>
+          </div>
+        </div>
+      </div>
     </section>
 
   </main>
@@ -722,21 +1190,21 @@
 
   <!-- Mobile Bottom App Bar (Only on Screens < 768px) -->
   <nav class="mobile-bottom-bar mobile-only">
-    <button class="mobile-nav-item active" id="mob-nav-explore" onclick="switchTab('explore')">
+    <button class="mobile-nav-item active" id="mob-nav-explore" onclick="navigateTo('/explore')">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="10"></circle>
         <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
       </svg>
       <span>Explore</span>
     </button>
-    <button class="mobile-nav-item" id="mob-nav-holdings" onclick="switchTab('holdings')">
+    <button class="mobile-nav-item" id="mob-nav-holdings" onclick="navigateTo('/holdings')">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
         <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
       </svg>
       <span>Holdings</span>
     </button>
-    <button class="mobile-nav-item" id="mob-nav-positions" onclick="switchTab('positions')">
+    <button class="mobile-nav-item" id="mob-nav-positions" onclick="navigateTo('/positions')">
       <div style="position: relative; display: inline-flex;">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
@@ -745,7 +1213,7 @@
       </div>
       <span>Positions</span>
     </button>
-    <button class="mobile-nav-item" id="mob-nav-orders" onclick="switchTab('orders')">
+    <button class="mobile-nav-item" id="mob-nav-orders" onclick="navigateTo('/orders')">
       <div style="position: relative; display: inline-flex;">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -758,7 +1226,7 @@
       </div>
       <span>Orders</span>
     </button>
-    <button class="mobile-nav-item" id="mob-nav-watchlist" onclick="switchTab('watchlist')">
+    <button class="mobile-nav-item" id="mob-nav-watchlist" onclick="navigateTo('/watchlist')">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
       </svg>
@@ -770,5 +1238,27 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <script src="/static/app.js" onerror="this.onerror=null;this.src='/app.js';"></script>
+
+  <!-- Switch Account Modal -->
+  <div class="modal-overlay" id="switchAccountModalOverlay">
+    <div class="modal-container" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.15rem; font-weight: 800;">Switch Trader Account</h3>
+        <button class="modal-close-btn" onclick="closeSwitchAccountModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
+          Select an active profile or create a new simulated account with ₹10,00,000 balance.
+        </p>
+        <div id="accountsListContainer" style="display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.25rem;">
+          <!-- Injected dynamically -->
+        </div>
+        <button class="btn-primary" style="width: 100%; justify-content: center;" onclick="closeSwitchAccountModal(); navigateTo('/onboarding');">
+          + Create Another Account
+        </button>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>

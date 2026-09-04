@@ -1,5 +1,29 @@
 // Stoxify — Core Client Application Logic & Feature Engine
 
+// --- Active User Session & X-User-Id HTTP Interceptor ---
+let currentUser = {
+  id: localStorage.getItem('stoxify_user_id') || 'default',
+  name: 'Default Trader',
+  email: 'trader@stoxify.com',
+  phone: '9876543210',
+  bank_name: 'HDFC Bank',
+  balance: 1000000.0,
+  avatar_color: '#0EA5E9'
+};
+
+const _nativeFetch = window.fetch;
+window.fetch = function(input, init = {}) {
+  init = init || {};
+  init.headers = init.headers || {};
+  if (init.headers instanceof Headers) {
+    init.headers.set('X-User-Id', currentUser.id);
+  } else {
+    init.headers['X-User-Id'] = currentUser.id;
+  }
+  return _nativeFetch(input, init);
+};
+
+
 const state = {
   currentTab: 'explore',
   exploreSubnav: 'stocks',
@@ -155,7 +179,13 @@ async function toggleSimulationMode(enabled) {
 }
 
 // --- Navigation Tabs (Desktop & Mobile Synchronized) ---
-function switchTab(tabId) {
+function switchTab(tabId, updateUrl = true) {
+  if (updateUrl) {
+    const targetUrl = tabId === 'explore' ? '/explore' : `/${tabId}`;
+    if (window.location.pathname !== targetUrl) {
+      history.pushState(null, '', targetUrl);
+    }
+  }
   state.currentTab = tabId;
 
   // Desktop links
@@ -942,7 +972,16 @@ function selectSearchResult(symbol, assetType) {
 }
 
 // --- Asset Detail & Trade Modal ---
-async function openAssetModal(symbol, assetType = 'STOCK', preselectAction = 'BUY') {
+function openAssetModal(symbol, assetType = 'STOCK', preselectAction = 'BUY') {
+  const cleanSym = (symbol || '').replace('.NS', '').replace('.BO', '');
+  if (assetType === 'MUTUAL_FUND' || symbol.match(/^\d+$/)) {
+    navigateTo('/mf/' + cleanSym);
+  } else {
+    navigateTo('/stock/' + cleanSym);
+  }
+}
+
+async function legacyOpenAssetModal(symbol, assetType = 'STOCK', preselectAction = 'BUY') {
   document.getElementById('tradeModalOverlay').classList.add('active');
   setOrderAction(preselectAction);
   setProductType('DELIVERY');
@@ -1482,6 +1521,9 @@ window.addEventListener('DOMContentLoaded', () => {
     if (btn) btn.style.display = 'none';
   }
 
+  fetchCurrentUser();
+  handleRoute();
+
   Promise.all([
     fetchMarketStatus(),
     fetchAccount(),
@@ -1500,3 +1542,721 @@ window.addEventListener('DOMContentLoaded', () => {
   }, 20000);
 });
 
+
+
+/* =======================================================
+   CLIENT-SIDE ROUTER ENGINE (HTML5 History API)
+   ======================================================= */
+function navigateTo(path, pushState = true) {
+  if (pushState && window.location.pathname !== path) {
+    history.pushState(null, '', path);
+  }
+  handleRoute();
+}
+
+function handleRoute() {
+  const path = window.location.pathname;
+  const userMenu = document.getElementById('userDropdownMenu');
+  if (userMenu) userMenu.style.display = 'none';
+
+  if (path.startsWith('/stock/')) {
+    const sym = decodeURIComponent(path.replace('/stock/', '')).trim();
+    showAssetPage(sym, 'STOCK');
+  } else if (path.startsWith('/mf/')) {
+    const sym = decodeURIComponent(path.replace('/mf/', '')).trim();
+    showAssetPage(sym, 'MUTUAL_FUND');
+  } else if (path === '/onboarding') {
+    showOnboardingPage();
+  } else if (path === '/holdings') {
+    switchTab('holdings', false);
+  } else if (path === '/positions') {
+    switchTab('positions', false);
+  } else if (path === '/orders') {
+    switchTab('orders', false);
+  } else if (path === '/watchlist') {
+    switchTab('watchlist', false);
+  } else {
+    switchTab('explore', false);
+  }
+}
+
+window.addEventListener('popstate', () => handleRoute());
+
+/* =======================================================
+   USER SESSION & NAVBAR PROFILE ENGINE
+   ======================================================= */
+async function fetchCurrentUser() {
+  try {
+    const res = await fetch('/api/user/current');
+    const u = await res.json();
+    if (u && u.id) {
+      currentUser = u;
+      localStorage.setItem('stoxify_user_id', u.id);
+    }
+    updateNavbarProfile();
+  } catch (err) {
+    console.error('Failed to fetch user:', err);
+  }
+}
+
+function updateNavbarProfile() {
+  const openBtn = document.getElementById('navOpenAccountBtn');
+  const initialsEl = document.getElementById('navUserInitials');
+  const menuAvatarEl = document.getElementById('menuUserAvatar');
+  const menuNameEl = document.getElementById('menuUserName');
+  const menuEmailEl = document.getElementById('menuUserEmail');
+  const menuBankEl = document.getElementById('menuUserBank');
+  const menuBalEl = document.getElementById('menuUserBalance');
+
+  const initials = currentUser.name ? currentUser.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'DT';
+  if (initialsEl) initialsEl.innerText = initials;
+  if (menuAvatarEl) menuAvatarEl.innerText = initials;
+  if (menuNameEl) menuNameEl.innerText = currentUser.name;
+  if (menuEmailEl) menuEmailEl.innerText = currentUser.email || 'trader@stoxify.com';
+  const last4 = (currentUser.bank_account || '5678').slice(-4);
+  if (menuBankEl) menuBankEl.innerText = `${currentUser.bank_name || 'HDFC Bank'} •••• ${last4} (Verified ✓)`;
+  if (menuBalEl) menuBalEl.innerText = formatINR(currentUser.balance || 1000000.0);
+
+  if (currentUser.id === 'default') {
+    if (openBtn) openBtn.style.display = 'inline-flex';
+  } else {
+    if (openBtn) openBtn.style.display = 'none';
+  }
+}
+
+function toggleProfileDropdown() {
+  const menu = document.getElementById('userDropdownMenu');
+  if (!menu) return;
+  menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+document.addEventListener('click', (e) => {
+  const wrapper = document.getElementById('navProfileWrapper');
+  const menu = document.getElementById('userDropdownMenu');
+  if (wrapper && menu && !wrapper.contains(e.target)) {
+    menu.style.display = 'none';
+  }
+});
+
+async function openSwitchAccountModal() {
+  toggleProfileDropdown();
+  const overlay = document.getElementById('switchAccountModalOverlay');
+  const container = document.getElementById('accountsListContainer');
+  overlay.classList.add('active');
+
+  try {
+    const res = await fetch('/api/user/list');
+    const users = await res.json();
+    container.innerHTML = users.map(u => {
+      const isCurrent = u.id === currentUser.id;
+      const initials = u.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+      return `
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.85rem; border-radius: 12px; background: var(--bg-main); border: 1px solid ${isCurrent ? 'var(--brand-cyan)' : 'var(--border-subtle)'}; cursor: pointer;"
+             onclick="activateUserAccount('${u.id}')">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div style="width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(135deg, #0EA5E9, #10B981); color: #080D14; font-weight: 800; display: flex; align-items: center; justify-content: center;">
+              ${initials}
+            </div>
+            <div>
+              <div style="font-weight: 800; font-size: 0.95rem;">${u.name} ${isCurrent ? '<span style="color: var(--accent-green); font-size: 0.75rem;">(Active)</span>' : ''}</div>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">${u.bank_name || 'Bank'} • ${formatINR(u.balance)}</div>
+            </div>
+          </div>
+          ${isCurrent ? '<span style="color: var(--brand-cyan); font-weight: 800;">✓</span>' : '<button class="pill-btn" style="padding: 0.2rem 0.6rem; font-size: 0.75rem;">Switch</button>'}
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    container.innerHTML = '<div style="color: var(--text-muted);">Failed to load accounts.</div>';
+  }
+}
+
+function closeSwitchAccountModal() {
+  const overlay = document.getElementById('switchAccountModalOverlay');
+  if (overlay) overlay.classList.remove('active');
+}
+
+async function activateUserAccount(userId) {
+  localStorage.setItem('stoxify_user_id', userId);
+  currentUser.id = userId;
+  closeSwitchAccountModal();
+  await fetchCurrentUser();
+  fetchAccount();
+  if (state.currentTab === 'holdings') fetchPortfolio();
+  if (state.currentTab === 'positions') fetchPositions();
+  if (state.currentTab === 'orders') fetchOrders();
+  showToast(`Switched account to ${currentUser.name}!`);
+}
+
+async function resetUserPortfolio() {
+  if (!confirm(`Are you sure you want to reset ${currentUser.name}'s portfolio back to fresh ₹10,00,000?`)) return;
+  try {
+    const res = await fetch('/api/account/reset', { method: 'POST' });
+    const result = await res.json();
+    showToast(result.message || 'Portfolio reset successfully!');
+    fetchCurrentUser();
+    fetchAccount();
+    if (state.currentTab === 'holdings') fetchPortfolio();
+    if (state.currentTab === 'positions') fetchPositions();
+    if (state.currentTab === 'orders') fetchOrders();
+  } catch (err) {
+    showToast('Failed to reset account', true);
+  }
+}
+
+/* =======================================================
+   DEDICATED FULL-PAGE ASSET VIEW ENGINE
+   ======================================================= */
+let pageChartInstance = null;
+let currentPageAsset = null;
+let pageOrderState = {
+  action: 'BUY',
+  product: 'DELIVERY',
+  variety: 'MARKET',
+  quantity: 1,
+  limitPrice: 0.0
+};
+
+async function showAssetPage(symbol, assetType = 'STOCK') {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-links .nav-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.mobile-nav-item').forEach(btn => btn.classList.remove('active'));
+  
+  const pagePane = document.getElementById('pane-asset-detail');
+  if (pagePane) pagePane.classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  try {
+    const res = await fetch(`/api/quote?symbol=${encodeURIComponent(symbol)}&asset_type=${encodeURIComponent(assetType)}`);
+    const data = await res.json();
+    currentPageAsset = data;
+    state.currentModalAsset = data;
+
+    const cleanSym = (data.symbol || '').replace('.NS', '').replace('.BO', '');
+    const isMF = data.asset_type === 'MUTUAL_FUND';
+    
+    document.getElementById('assetBreadcrumbCategory').innerText = isMF ? 'Mutual Funds' : 'Stocks';
+    document.getElementById('assetBreadcrumbName').innerText = data.name;
+
+    document.getElementById('pageAssetAvatar').innerHTML = renderAssetAvatar(data, data.asset_type);
+    document.getElementById('pageAssetTitle').innerText = data.name;
+    document.getElementById('pageAssetSymbol').innerText = cleanSym;
+    document.getElementById('pageAssetBadge').innerText = isMF ? 'Mutual Fund' : (data.exchange || 'NSE');
+    document.getElementById('pageAssetSector').innerText = data.sector || (isMF ? data.category || 'Direct Plan' : 'Equities');
+    document.getElementById('pageAssetPrice').innerText = formatINR(data.price);
+
+    const isPos = data.change >= 0;
+    const badgeEl = document.getElementById('pageAssetChangeBadge');
+    badgeEl.className = isPos ? 'badge-positive' : 'badge-negative';
+    badgeEl.innerText = formatChange(data.change, data.change_pct);
+
+    updatePageAssetStar(data.symbol);
+    const starBtn = document.getElementById('pageAssetStarBtn');
+    starBtn.onclick = () => {
+      toggleWatchlist(data.symbol, data.name, data.asset_type);
+      setTimeout(() => updatePageAssetStar(data.symbol), 150);
+    };
+
+    const low = data.low || data.price * 0.985;
+    const high = data.high || data.price * 1.015;
+    const w52Low = data.low_52w || data.price * 0.75;
+    const w52High = data.high_52w || data.price * 1.35;
+
+    document.getElementById('perfTodayLow').innerText = formatINR(low);
+    document.getElementById('perfTodayHigh').innerText = formatINR(high);
+    document.getElementById('perf52wLow').innerText = formatINR(w52Low);
+    document.getElementById('perf52wHigh').innerText = formatINR(w52High);
+    document.getElementById('perfOpen').innerText = formatINR(data.open || data.price * 0.99);
+    document.getElementById('perfPrevClose').innerText = formatINR(data.prev_close || data.price - data.change);
+    document.getElementById('perfVolume').innerText = data.volume ? Number(data.volume).toLocaleString('en-IN') : '34.2L';
+    document.getElementById('perfLowerCircuit').innerText = formatINR(data.price * 0.9);
+    document.getElementById('perfUpperCircuit').innerText = formatINR(data.price * 1.1);
+
+    const todayPct = high > low ? Math.max(5, Math.min(95, ((data.price - low) / (high - low)) * 100)) : 50;
+    document.getElementById('perfTodayMarker').style.left = `${todayPct}%`;
+    const w52Pct = w52High > w52Low ? Math.max(5, Math.min(95, ((data.price - w52Low) / (w52High - w52Low)) * 100)) : 50;
+    document.getElementById('perf52wMarker').style.left = `${w52Pct}%`;
+
+    fetchPageMarketDepth(data.symbol);
+    renderPageFundamentals(data);
+
+    document.getElementById('pageAboutTitle').innerText = data.name;
+    document.getElementById('pageAboutText').innerText = data.description || `${data.name} is a leading Indian security actively traded on the National Stock Exchange (NSE).`;
+
+    pageOrderState.quantity = 1;
+    document.getElementById('pageOrderQuantity').value = 1;
+    document.getElementById('pageOrderLimitPrice').value = data.price;
+    setPageOrderAction('BUY');
+    setPageProductType('DELIVERY');
+    setPageOrderVariety('MARKET');
+    updatePageAvailableHolding(data.symbol);
+    recalcPageMargin();
+
+    loadPageChartTimeframe('1M');
+
+  } catch (err) {
+    console.error('Failed to load asset page:', err);
+    showToast('Failed to load asset details', true);
+  }
+}
+
+function updatePageAssetStar(symbol) {
+  const btn = document.getElementById('pageAssetStarBtn');
+  if (!btn) return;
+  const inWatchlist = state.watchlist && state.watchlist.has(symbol);
+  if (inWatchlist) {
+    btn.classList.add('active');
+    btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>';
+  } else {
+    btn.classList.remove('active');
+    btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>';
+  }
+}
+
+async function fetchPageMarketDepth(symbol) {
+  try {
+    const res = await fetch(`/api/depth?symbol=${encodeURIComponent(symbol)}`);
+    const d = await res.json();
+    const buyBar = document.getElementById('pageDepthBuyBar');
+    const sellBar = document.getElementById('pageDepthSellBar');
+    if (buyBar && sellBar) {
+      buyBar.style.width = `${d.buy_pct}%`;
+      buyBar.innerText = `${d.buy_pct}% Buyers`;
+      sellBar.style.width = `${d.sell_pct}%`;
+      sellBar.innerText = `${d.sell_pct}% Sellers`;
+    }
+
+    const bidsEl = document.getElementById('pageDepthBids');
+    const asksEl = document.getElementById('pageDepthAsks');
+    if (bidsEl) {
+      bidsEl.innerHTML = (d.bids || []).map(b => `
+        <div class="depth-row bid">
+          <span>${b.orders}</span><span>${b.quantity}</span><strong class="price">${formatINR(b.price)}</strong>
+        </div>
+      `).join('');
+    }
+    if (asksEl) {
+      asksEl.innerHTML = (d.asks || []).map(a => `
+        <div class="depth-row ask">
+          <strong class="price">${formatINR(a.price)}</strong><span>${a.quantity}</span><span>${a.orders}</span>
+        </div>
+      `).join('');
+    }
+  } catch (err) {
+    console.error('Failed to load depth:', err);
+  }
+}
+
+function renderPageFundamentals(data) {
+  const grid = document.getElementById('pageFundamentalsGrid');
+  if (!grid) return;
+  if (data.asset_type === 'MUTUAL_FUND') {
+    grid.innerHTML = `
+      <div class="fundamental-item"><span class="f-name">NAV</span><strong class="f-val">${formatINR(data.price)}</strong></div>
+      <div class="fundamental-item"><span class="f-name">Fund Category</span><strong class="f-val">${data.category || 'Flexi Cap'}</strong></div>
+      <div class="fundamental-item"><span class="f-name">AUM (Fund Size)</span><strong class="f-val">${data.aum || '₹72,400 Cr'}</strong></div>
+      <div class="fundamental-item"><span class="f-name">Expense Ratio</span><strong class="f-val">${data.expense_ratio || '0.62%'}</strong></div>
+      <div class="fundamental-item"><span class="f-name">1Y Return</span><strong class="f-val text-positive">${data.return_1y || '+18.4%'}</strong></div>
+      <div class="fundamental-item"><span class="f-name">3Y Return (CAGR)</span><strong class="f-val text-positive">${data.return_3y || '+24.1%'}</strong></div>
+      <div class="fundamental-item"><span class="f-name">Risk Rating</span><strong class="f-val">Very High</strong></div>
+      <div class="fundamental-item"><span class="f-name">Fund Manager</span><strong class="f-val">${data.fund_manager || 'Rajeev Thakkar'}</strong></div>
+    `;
+  } else {
+    grid.innerHTML = `
+      <div class="fundamental-item"><span class="f-name">Market Cap</span><strong class="f-val">${data.market_cap ? '₹' + Number(data.market_cap).toLocaleString('en-IN') + ' Cr' : '₹18.4L Cr'}</strong></div>
+      <div class="fundamental-item"><span class="f-name">P/E Ratio</span><strong class="f-val">${data.pe_ratio || '24.8'}</strong></div>
+      <div class="fundamental-item"><span class="f-name">P/B Ratio</span><strong class="f-val">${data.pb_ratio || '3.12'}</strong></div>
+      <div class="fundamental-item"><span class="f-name">Industry P/E</span><strong class="f-val">${data.industry_pe || '22.4'}</strong></div>
+      <div class="fundamental-item"><span class="f-name">Debt to Equity</span><strong class="f-val">${data.debt_to_equity || '0.42'}</strong></div>
+      <div class="fundamental-item"><span class="f-name">ROE</span><strong class="f-val">${data.roe ? data.roe + '%' : '14.8%'}</strong></div>
+      <div class="fundamental-item"><span class="f-name">EPS (TTM)</span><strong class="f-val">${data.eps ? '₹' + data.eps : '₹54.20'}</strong></div>
+      <div class="fundamental-item"><span class="f-name">Dividend Yield</span><strong class="f-val">${data.div_yield ? data.div_yield + '%' : '0.45%'}</strong></div>
+    `;
+  }
+}
+
+async function loadPageChartTimeframe(range, btnEl = null) {
+  if (btnEl) {
+    document.querySelectorAll('.asset-chart-card .tf-btn').forEach(b => b.classList.remove('active'));
+    btnEl.classList.add('active');
+  }
+  if (!currentPageAsset) return;
+
+  try {
+    const res = await fetch(`/api/history?symbol=${encodeURIComponent(currentPageAsset.symbol)}&range=${range}`);
+    const data = await res.json();
+    const ctx = document.getElementById('pageAssetChartCanvas').getContext('2d');
+
+    if (pageChartInstance) {
+      pageChartInstance.destroy();
+    }
+
+    const isPos = (data.points[data.points.length - 1]?.price || 0) >= (data.points[0]?.price || 0);
+    const strokeColor = isPos ? '#10B981' : '#F43F5E';
+    const gradient = ctx.createLinearGradient(0, 0, 0, 350);
+    gradient.addColorStop(0, isPos ? 'rgba(16, 185, 129, 0.28)' : 'rgba(244, 63, 94, 0.28)');
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+    pageChartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: data.points.map(p => p.time),
+        datasets: [{
+          data: data.points.map(p => p.price),
+          borderColor: strokeColor,
+          borderWidth: 2.2,
+          backgroundColor: gradient,
+          fill: true,
+          tension: 0.2,
+          pointRadius: 0,
+          pointHoverRadius: 6,
+          pointHoverBackgroundColor: strokeColor,
+          pointHoverBorderColor: '#ffffff',
+          pointHoverBorderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+            backgroundColor: '#0F172A',
+            titleColor: '#94A3B8',
+            bodyColor: '#F8FAFC',
+            bodyFont: { weight: '800', size: 14, family: 'Sora' },
+            padding: 10,
+            displayColors: false,
+            callbacks: {
+              label: (item) => formatINR(item.parsed.y)
+            }
+          }
+        },
+        scales: {
+          x: { display: false },
+          y: {
+            display: true,
+            position: 'right',
+            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+            ticks: {
+              color: '#64748B',
+              font: { family: 'Sora', size: 11 },
+              callback: (val) => formatINR(val)
+            }
+          }
+        }
+      }
+    });
+  } catch (err) {
+    console.error('Failed to load chart:', err);
+  }
+}
+
+function setPageOrderAction(action) {
+  pageOrderState.action = action;
+  const buyBtn = document.getElementById('pageBtnBuy');
+  const sellBtn = document.getElementById('pageBtnSell');
+  const execBtn = document.getElementById('pageOrderExecuteBtn');
+  const cleanSym = currentPageAsset ? currentPageAsset.symbol.replace('.NS', '') : 'ASSET';
+
+  if (action === 'BUY') {
+    buyBtn.className = 'trade-tab-btn active buy';
+    sellBtn.className = 'trade-tab-btn sell';
+    execBtn.className = 'btn-trade-execute buy';
+    execBtn.innerText = `BUY ${cleanSym}`;
+  } else {
+    buyBtn.className = 'trade-tab-btn buy';
+    sellBtn.className = 'trade-tab-btn active sell';
+    execBtn.className = 'btn-trade-execute sell';
+    execBtn.innerText = `SELL ${cleanSym}`;
+  }
+  recalcPageMargin();
+}
+
+function setPageProductType(prod) {
+  pageOrderState.product = prod;
+  document.getElementById('pageProdDelivery').className = `seg-btn ${prod === 'DELIVERY' ? 'active' : ''}`;
+  document.getElementById('pageProdIntraday').className = `seg-btn ${prod === 'INTRADAY' ? 'active' : ''}`;
+  document.getElementById('pageLeverageHint').style.display = prod === 'INTRADAY' ? 'flex' : 'none';
+  recalcPageMargin();
+}
+
+function setPageOrderVariety(varType) {
+  pageOrderState.variety = varType;
+  document.getElementById('pageVarietyMarket').className = `seg-btn ${varType === 'MARKET' ? 'active' : ''}`;
+  document.getElementById('pageVarietyLimit').className = `seg-btn ${varType === 'LIMIT' ? 'active' : ''}`;
+  document.getElementById('pageLimitPriceGroup').style.display = varType === 'LIMIT' ? 'block' : 'none';
+  recalcPageMargin();
+}
+
+function stepPageQuantity(delta) {
+  const input = document.getElementById('pageOrderQuantity');
+  let val = parseInt(input.value || '1', 10) + delta;
+  if (val < 1) val = 1;
+  input.value = val;
+  pageOrderState.quantity = val;
+  recalcPageMargin();
+}
+
+function setPageQuickQuantity(qty) {
+  document.getElementById('pageOrderQuantity').value = qty;
+  pageOrderState.quantity = qty;
+  recalcPageMargin();
+}
+
+function recalcPageMargin() {
+  if (!currentPageAsset) return;
+  const qty = parseInt(document.getElementById('pageOrderQuantity').value || '1', 10);
+  const effectivePrice = pageOrderState.variety === 'LIMIT' 
+    ? parseFloat(document.getElementById('pageOrderLimitPrice').value || currentPageAsset.price)
+    : currentPageAsset.price;
+
+  const total = qty * effectivePrice;
+  const margin = pageOrderState.product === 'INTRADAY' ? total * 0.20 : total;
+
+  document.getElementById('pageRequiredMargin').innerText = formatINR(margin);
+  const availCash = state.account ? state.account.balance : 1000000.0;
+  document.getElementById('pageAvailableCash').innerText = formatINR(availCash);
+}
+
+async function updatePageAvailableHolding(symbol) {
+  try {
+    const res = await fetch('/api/portfolio');
+    const data = await res.json();
+    const holding = (data.holdings || []).find(h => h.symbol === symbol);
+    const qty = holding ? holding.quantity : 0;
+    const label = document.getElementById('pageAvailableHoldingQty');
+    if (label) label.innerText = `${qty} shares owned`;
+  } catch (err) {}
+}
+
+async function executePageTrade() {
+  if (!currentPageAsset) return;
+  const qty = parseInt(document.getElementById('pageOrderQuantity').value || '1', 10);
+  const limitPrice = pageOrderState.variety === 'LIMIT' 
+    ? parseFloat(document.getElementById('pageOrderLimitPrice').value || currentPageAsset.price)
+    : null;
+
+  try {
+    const res = await fetch('/api/order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        symbol: currentPageAsset.symbol,
+        name: currentPageAsset.name,
+        asset_type: currentPageAsset.asset_type || 'STOCK',
+        order_type: pageOrderState.action,
+        product_type: pageOrderState.product,
+        quantity: qty,
+        price: currentPageAsset.price,
+        order_variety: pageOrderState.variety,
+        limit_price: limitPrice
+      })
+    });
+
+    const result = await res.json();
+    if (!res.ok || !result.success) {
+      showToast(result.detail || result.error || 'Trade execution failed', true);
+      return;
+    }
+
+    showToast(result.message || `${pageOrderState.action} order executed successfully!`);
+    fetchAccount();
+    updatePageAvailableHolding(currentPageAsset.symbol);
+    recalcPageMargin();
+
+  } catch (err) {
+    showToast('Failed to connect to trade server', true);
+  }
+}
+
+/* =======================================================
+   GROWW-STYLE ACCOUNT ONBOARDING WIZARD ENGINE
+   ======================================================= */
+let obCurrentStep = 1;
+let obUserData = {
+  phone: '9876543210',
+  email: 'trader@stoxify.com',
+  name: 'Adithya N',
+  pan: 'ABCDE1234F',
+  dob: '2000-01-01',
+  gender: 'Male',
+  bank_name: 'HDFC Bank',
+  bank_account: '50100492817281',
+  ifsc: 'HDFC0001234',
+  pin: '1234'
+};
+
+function showOnboardingPage() {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-links .nav-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.mobile-nav-item').forEach(btn => btn.classList.remove('active'));
+  const obPane = document.getElementById('pane-onboarding');
+  if (obPane) obPane.classList.add('active');
+  goToObStep(1);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function goToObStep(stepNum) {
+  obCurrentStep = stepNum;
+  for (let i = 1; i <= 6; i++) {
+    const el = document.getElementById(`obStep-${i}`);
+    if (el) el.classList.remove('active');
+    const ind = document.getElementById(`obStepIndicator-${i}`);
+    if (ind) {
+      ind.classList.remove('active');
+      if (i < stepNum) ind.classList.add('completed');
+      else ind.classList.remove('completed');
+      if (i === stepNum) ind.classList.add('active');
+    }
+    const conn = document.getElementById(`obConnector-${i}`);
+    if (conn) {
+      if (i < stepNum) conn.classList.add('completed');
+      else conn.classList.remove('completed');
+    }
+  }
+  const activeContent = document.getElementById(`obStep-${stepNum}`);
+  if (activeContent) activeContent.classList.add('active');
+}
+
+function submitObStep1() {
+  const phone = document.getElementById('obInputPhone').value.trim();
+  const email = document.getElementById('obInputEmail').value.trim();
+  if (phone.length < 10) {
+    showToast('Please enter a valid 10-digit mobile number', true);
+    return;
+  }
+  obUserData.phone = phone;
+  obUserData.email = email;
+  document.getElementById('obDisplayPhone').innerText = `+91 ${phone}`;
+  goToObStep(2);
+  autofillMockOtp();
+}
+
+function autofillMockOtp() {
+  document.getElementById('otp-1').value = '4';
+  document.getElementById('otp-2').value = '3';
+  document.getElementById('otp-3').value = '2';
+  document.getElementById('otp-4').value = '1';
+}
+
+function moveOtp(idx, e) {
+  if (e.target.value.length === 1 && idx < 4) {
+    const next = document.getElementById(`otp-${idx + 1}`);
+    if (next) next.focus();
+  }
+}
+
+function submitObStep2() {
+  const otp = [1, 2, 3, 4].map(i => document.getElementById(`otp-${i}`).value).join('');
+  if (otp.length < 4) {
+    showToast('Please enter the 4-digit code', true);
+    return;
+  }
+  showToast('Mobile number verified successfully! ✓');
+  goToObStep(3);
+}
+
+function submitObStep3() {
+  const name = document.getElementById('obInputName').value.trim();
+  const pan = document.getElementById('obInputPan').value.trim().toUpperCase();
+  if (!name) {
+    showToast('Please enter your full legal name', true);
+    return;
+  }
+  if (pan.length !== 10) {
+    showToast('Please enter a valid 10-digit PAN (e.g. ABCDE1234F)', true);
+    return;
+  }
+  obUserData.name = name;
+  obUserData.pan = pan;
+  obUserData.dob = document.getElementById('obInputDob').value;
+  obUserData.gender = document.getElementById('obInputGender').value;
+  showToast('PAN verified with Income Tax Department! ✓');
+  goToObStep(4);
+}
+
+function selectBank(name, el) {
+  obUserData.bank_name = name;
+  document.querySelectorAll('.bank-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function submitObStep4() {
+  const acc = document.getElementById('obInputAccount').value.trim();
+  const ifsc = document.getElementById('obInputIfsc').value.trim();
+  if (!acc || !ifsc) {
+    showToast('Please enter your bank account and IFSC', true);
+    return;
+  }
+  obUserData.bank_account = acc;
+  obUserData.ifsc = ifsc;
+
+  const loader = document.getElementById('pennyDropLoader');
+  const btn = document.getElementById('btnVerifyBank');
+  loader.style.display = 'flex';
+  btn.disabled = true;
+
+  setTimeout(() => {
+    document.getElementById('pennyDropText').innerText = `₹1 deposited. Verified: ${obUserData.name} ✓`;
+    setTimeout(() => {
+      loader.style.display = 'none';
+      btn.disabled = false;
+      showToast('Bank Account linked & verified via Penny Drop! ✓');
+      goToObStep(5);
+    }, 1000);
+  }, 1200);
+}
+
+async function submitObStep5() {
+  const pin = document.getElementById('obInputPin').value.trim();
+  const confirmPin = document.getElementById('obInputPinConfirm').value.trim();
+  if (pin.length !== 4 || pin !== confirmPin) {
+    showToast('PINs must match and be 4 digits', true);
+    return;
+  }
+  obUserData.pin = pin;
+
+  try {
+    const res = await fetch('/api/user/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: obUserData.name,
+        email: obUserData.email,
+        phone: obUserData.phone,
+        pan: obUserData.pan,
+        bank_name: obUserData.bank_name,
+        bank_account: obUserData.bank_account,
+        pin: obUserData.pin
+      })
+    });
+    const result = await res.json();
+    if (!res.ok || !result.success) {
+      showToast(result.detail || 'Failed to create user account', true);
+      return;
+    }
+
+    currentUser = result.user;
+    localStorage.setItem('stoxify_user_id', currentUser.id);
+
+    document.getElementById('obWelcomeName').innerText = currentUser.name;
+    document.getElementById('obCreatedDemat').innerText = `STOX-${Math.floor(100000 + Math.random() * 900000)}`;
+    const last4 = (currentUser.bank_account || '5678').slice(-4);
+    document.getElementById('obCreatedBank').innerText = `${currentUser.bank_name} •••• ${last4} (Verified ✓)`;
+
+    updateNavbarProfile();
+    fetchAccount();
+    goToObStep(6);
+
+  } catch (err) {
+    showToast('Error connecting to onboarding server', true);
+  }
+}
+
+function finishOnboarding() {
+  navigateTo('/explore');
+  showToast(`Welcome to Stoxify, ${currentUser.name}! ₹10,00,000 virtual cash credited!`);
+}
