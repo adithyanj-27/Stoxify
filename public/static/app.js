@@ -331,7 +331,7 @@ function renderExploreMutualFunds() {
       <div class="stock-card" onclick="openAssetModal('${mf.symbol}', 'MUTUAL_FUND')">
         <div class="card-top">
           <div style="display: flex; gap: 0.75rem; align-items: center; overflow: hidden;">
-            <div class="card-avatar" style="background: var(--brand-orange-bg); color: var(--brand-orange); border-color: rgba(255,107,0,0.3);">
+            <div class="card-avatar" style="background: var(--accent-gold-bg); color: var(--accent-gold); border-color: rgba(255,107,0,0.3);">
               MF
             </div>
             <div class="card-info">
@@ -513,7 +513,7 @@ async function fetchPositions() {
             <div style="font-weight: 700;">${p.name}</div>
             <div style="font-size: 0.75rem; color: var(--text-muted);">${p.symbol}</div>
           </td>
-          <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem; background: var(--brand-orange-bg); color: var(--brand-orange); border-color: rgba(255,107,0,0.3);">Intraday 5x</span></td>
+          <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem; background: var(--accent-gold-bg); color: var(--accent-gold); border-color: rgba(255,107,0,0.3);">Intraday 5x</span></td>
           <td style="font-weight: 700;">${p.quantity}</td>
           <td>${formatINR(p.avg_price)}</td>
           <td style="font-weight: 700;">${formatINR(p.current_price)}</td>
@@ -536,7 +536,7 @@ async function fetchPositions() {
         <div class="mobile-card-item">
           <div class="mobile-card-top">
             <div>
-              <div class="mobile-card-symbol">${p.symbol} <span class="pill-btn" style="padding: 1px 5px; font-size: 0.65rem; background: var(--brand-orange-bg); color: var(--brand-orange);">MIS 5x</span></div>
+              <div class="mobile-card-symbol">${p.symbol} <span class="pill-btn" style="padding: 1px 5px; font-size: 0.65rem; background: var(--accent-gold-bg); color: var(--accent-gold);">MIS 5x</span></div>
               <div class="mobile-card-name">${p.name}</div>
             </div>
             <div class="mobile-card-price">
@@ -650,7 +650,7 @@ async function fetchOrders() {
             <td class="${isPnlPos ? 'text-positive' : 'text-negative'}" style="font-weight: 700;">
               ${o.realized_pnl ? (isPnlPos ? '+' : '') + formatINR(o.realized_pnl) : '—'}
             </td>
-            <td><span class="pill-btn" style="padding: 0.15rem 0.45rem; font-size: 0.7rem; color: ${o.status.includes('CANCELLED') ? 'var(--danger-red)' : 'var(--brand-green)'};">${o.status}</span></td>
+            <td><span class="pill-btn" style="padding: 0.15rem 0.45rem; font-size: 0.7rem; color: ${o.status.includes('CANCELLED') ? 'var(--danger-red)' : 'var(--accent-green)'};">${o.status}</span></td>
           </tr>
         `;
       }).join('');
@@ -697,10 +697,10 @@ async function fetchOrders() {
             <td><span class="badge-${isBuy ? 'positive' : 'negative'}">${o.order_type}</span></td>
             <td>${o.product_type}</td>
             <td style="font-weight: 600;">${o.quantity}</td>
-            <td style="font-weight: 700; color: var(--brand-orange);">${formatINR(o.limit_price || o.price)}</td>
+            <td style="font-weight: 700; color: var(--accent-gold);">${formatINR(o.limit_price || o.price)}</td>
             <td>${formatINR(o.total_amount)}</td>
             <td style="font-size: 0.75rem; color: var(--text-muted);">${o.timestamp || 'Today'}</td>
-            <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem; color: var(--brand-orange);">OPEN</span></td>
+            <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem; color: var(--accent-gold);">OPEN</span></td>
             <td style="text-align: right;">
               <button class="btn-danger" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" onclick="cancelOrder(${o.id})">Cancel</button>
             </td>
@@ -711,14 +711,14 @@ async function fetchOrders() {
       openMobileList.innerHTML = openOrders.map(o => {
         const isBuy = o.order_type === 'BUY';
         return `
-          <div class="mobile-card-item" style="border-left: 4px solid var(--brand-orange);">
+          <div class="mobile-card-item" style="border-left: 4px solid var(--accent-gold);">
             <div class="mobile-card-top">
               <div>
                 <div class="mobile-card-symbol">${o.symbol} <span class="badge-${isBuy ? 'positive' : 'negative'}">${o.order_type} LIMIT</span></div>
                 <div class="mobile-card-name">Order #${o.id} • ${o.product_type}</div>
               </div>
               <div class="mobile-card-price">
-                <span style="color: var(--brand-orange);">${formatINR(o.limit_price || o.price)}</span>
+                <span style="color: var(--accent-gold);">${formatINR(o.limit_price || o.price)}</span>
                 <div style="font-size: 0.75rem; color: var(--text-muted);">Pending Execution</div>
               </div>
             </div>

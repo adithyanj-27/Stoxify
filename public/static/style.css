@@ -1,26 +1,27 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
 :root {
-  --bg-main: #0c0f15;
-  --bg-card: #151922;
-  --bg-card-hover: #1c2230;
-  --bg-elevated: #202736;
-  --border-subtle: #242c3d;
-  --border-active: #3a465f;
-  --text-primary: #f0f4f8;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --brand-green: #00d09c;
-  --brand-green-hover: #00b889;
-  --brand-green-bg: rgba(0, 208, 156, 0.12);
-  --brand-orange: #ff6b00;
-  --brand-orange-hover: #e55e00;
-  --brand-orange-bg: rgba(255, 107, 0, 0.14);
-  --danger-red: #eb5b3c;
-  --danger-red-bg: rgba(235, 91, 60, 0.12);
-  --accent-gradient: linear-gradient(135deg, #00d09c 0%, #ff6b00 100%);
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.25);
-  --shadow-lg: 0 12px 30px rgba(0, 0, 0, 0.45);
+  --bg-main: #0B0F19;
+  --bg-card: #151D2E;
+  --bg-card-hover: #1A2438;
+  --bg-elevated: #1E2A3F;
+  --border-subtle: #243044;
+  --border-active: #344B6B;
+  --text-primary: #F1F5F9;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --accent-gold: #F59E0B;
+  --accent-gold-hover: #D97706;
+  --accent-gold-bg: rgba(245, 158, 11, 0.12);
+  --accent-green: #059669;
+  --accent-green-hover: #047857;
+  --accent-green-bg: rgba(5, 150, 105, 0.12);
+  --accent-secondary: #F59E0B;
+  --danger-red: #EF4444;
+  --danger-red-bg: rgba(239, 68, 68, 0.12);
+  --accent-gradient: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 12px 30px rgba(0, 0, 0, 0.5);
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
@@ -29,18 +30,18 @@
 }
 
 [data-theme="light"] {
-  --bg-main: #f5f7fb;
-  --bg-card: #ffffff;
-  --bg-card-hover: #f9fafc;
-  --bg-elevated: #eef2f8;
-  --border-subtle: #e2e8f0;
-  --border-active: #cbd5e1;
-  --text-primary: #0f172a;
+  --bg-main: #F8FAFC;
+  --bg-card: #FFFFFF;
+  --bg-card-hover: #FEF9F0;
+  --bg-elevated: #F1F5F9;
+  --border-subtle: #E2E8F0;
+  --border-active: #CBD5E1;
+  --text-primary: #0F172A;
   --text-secondary: #475569;
-  --text-muted: #94a3b8;
-  --brand-green-bg: rgba(0, 208, 156, 0.1);
-  --brand-orange-bg: rgba(255, 107, 0, 0.1);
-  --danger-red-bg: rgba(235, 91, 60, 0.1);
+  --text-muted: #94A3B8;
+  --accent-gold-bg: rgba(245, 158, 11, 0.1);
+  --accent-green-bg: rgba(5, 150, 105, 0.1);
+  --danger-red-bg: rgba(239, 68, 68, 0.1);
   --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.06);
   --shadow-lg: 0 12px 30px rgba(15, 23, 42, 0.12);
 }
@@ -49,7 +50,7 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -109,9 +110,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, rgba(0,208,156,0.15) 0%, rgba(255,107,0,0.15) 100%);
-  border: 1px solid rgba(0, 208, 156, 0.3);
-  box-shadow: 0 0 16px rgba(0, 208, 156, 0.2);
+  background: linear-gradient(135deg, rgba(245,158,11,0.15) 0%, rgba(217,119,6,0.15) 100%);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.2);
 }
 
 .brand-name {
@@ -122,11 +123,11 @@ body {
 }
 
 .brand-name span.groww {
-  color: var(--brand-green);
+  color: var(--accent-gold);
 }
 
 .brand-name span.fahh {
-  color: var(--brand-orange);
+  color: var(--text-primary);
   position: relative;
 }
 
@@ -148,7 +149,7 @@ body {
 }
 
 .search-input-box:focus-within {
-  border-color: var(--brand-green);
+  border-color: var(--accent-gold);
   box-shadow: 0 0 0 2px rgba(0, 208, 156, 0.2);
 }
 
@@ -222,8 +223,8 @@ body {
 }
 
 .nav-btn.active {
-  color: var(--brand-green);
-  background: var(--brand-green-bg);
+  color: var(--accent-gold);
+  background: var(--accent-gold-bg);
 }
 
 .nav-actions {
@@ -247,7 +248,7 @@ body {
 }
 
 .balance-chip:hover {
-  border-color: var(--brand-green);
+  border-color: var(--accent-gold);
   transform: translateY(-1px);
 }
 
@@ -257,7 +258,7 @@ body {
 }
 
 .balance-chip .amount {
-  color: var(--brand-green);
+  color: var(--accent-gold);
   font-weight: 700;
 }
 
@@ -321,7 +322,7 @@ body {
 }
 
 .text-positive {
-  color: var(--brand-green) !important;
+  color: var(--accent-green) !important;
 }
 
 .text-negative {
@@ -329,8 +330,8 @@ body {
 }
 
 .badge-positive {
-  color: var(--brand-green);
-  background: var(--brand-green-bg);
+  color: var(--accent-green);
+  background: var(--accent-green-bg);
   padding: 0.2rem 0.5rem;
   border-radius: var(--radius-sm);
   font-weight: 600;
@@ -416,7 +417,7 @@ body {
 }
 
 .sub-nav-btn.active {
-  color: var(--brand-green);
+  color: var(--accent-gold);
 }
 
 .sub-nav-btn.active::after {
@@ -456,9 +457,9 @@ body {
 }
 
 .pill-btn.active {
-  background: var(--brand-orange-bg);
-  border-color: var(--brand-orange);
-  color: var(--brand-orange);
+  background: var(--accent-gold-bg);
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
 }
 
 /* Cards Grid */
@@ -656,8 +657,8 @@ body {
 
 /* Action Buttons */
 .btn-primary {
-  background: var(--brand-green);
-  color: #0b1e16;
+  background: var(--accent-gold);
+  color: #1a0f00;
   font-weight: 700;
   border: none;
   padding: 0.6rem 1.2rem;
@@ -670,12 +671,12 @@ body {
 }
 
 .btn-primary:hover {
-  background: var(--brand-green-hover);
-  box-shadow: 0 0 15px rgba(0, 208, 156, 0.4);
+  background: var(--accent-gold-hover);
+  box-shadow: 0 0 15px rgba(245, 158, 11, 0.4);
 }
 
 .btn-orange {
-  background: var(--brand-orange);
+  background: var(--accent-gold);
   color: #fff;
   font-weight: 700;
   border: none;
@@ -689,7 +690,7 @@ body {
 }
 
 .btn-orange:hover {
-  background: var(--brand-orange-hover);
+  background: var(--accent-gold-hover);
   box-shadow: 0 0 15px rgba(255, 107, 0, 0.4);
 }
 
@@ -732,7 +733,7 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(10, 13, 19, 0.75);
+  background: rgba(8, 12, 20, 0.8);
   backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
@@ -820,7 +821,7 @@ body {
 }
 
 .trade-toggle-btn.active.buy {
-  background: var(--brand-green);
+  background: var(--accent-green);
   color: #0b1e16;
 }
 
@@ -892,9 +893,9 @@ body {
 }
 
 .tf-btn.active {
-  background: var(--brand-green-bg);
-  border-color: var(--brand-green);
-  color: var(--brand-green);
+  background: var(--accent-gold-bg);
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
 }
 
 /* Toast Notifications */
@@ -911,7 +912,7 @@ body {
 .toast {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
-  border-left: 4px solid var(--brand-green);
+  border-left: 4px solid var(--accent-gold);
   color: var(--text-primary);
   padding: 0.9rem 1.25rem;
   border-radius: var(--radius-sm);
@@ -970,14 +971,14 @@ body {
 }
 
 .pulse-dot.green {
-  background-color: var(--brand-green);
-  box-shadow: 0 0 0 0 rgba(0, 208, 156, 0.7);
+  background-color: var(--accent-green);
+  box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.7);
   animation: pulseGreen 1.8s infinite;
 }
 
 .pulse-dot.orange {
-  background-color: var(--brand-orange);
-  box-shadow: 0 0 0 0 rgba(255, 107, 0, 0.7);
+  background-color: var(--accent-gold);
+  box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
   animation: pulseOrange 2s infinite;
 }
 
@@ -986,13 +987,13 @@ body {
 }
 
 @keyframes pulseGreen {
-  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 208, 156, 0.7); }
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.7); }
   70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(0, 208, 156, 0); }
   100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 208, 156, 0); }
 }
 
 @keyframes pulseOrange {
-  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 107, 0, 0.7); }
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
   70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(255, 107, 0, 0); }
   100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 107, 0, 0); }
 }
@@ -1002,7 +1003,7 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--brand-orange);
+  background: var(--accent-gold);
   color: #fff;
   font-size: 0.65rem;
   font-weight: 800;
@@ -1015,7 +1016,7 @@ body {
   position: absolute;
   top: -4px;
   right: -8px;
-  background: var(--brand-orange);
+  background: var(--accent-gold);
   color: #fff;
   font-size: 0.6rem;
   font-weight: 800;
@@ -1050,15 +1051,15 @@ body {
 
 .quick-chip:hover {
   background: var(--bg-elevated);
-  border-color: var(--brand-green);
-  color: var(--brand-green);
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
 }
 
 /* --- Leverage Info Banner --- */
 .leverage-info-banner {
   background: rgba(255, 107, 0, 0.1);
   border: 1px solid rgba(255, 107, 0, 0.3);
-  color: var(--brand-orange);
+  color: var(--accent-gold);
   padding: 0.6rem 0.8rem;
   border-radius: var(--radius-sm);
   font-size: 0.78rem;
@@ -1088,12 +1089,12 @@ body {
   display: flex;
   justify-content: space-between;
   font-size: 0.75rem;
-  font-family: 'Inter', monospace;
+  font-family: 'Plus Jakarta Sans', monospace;
   padding: 0.15rem 0;
 }
 
 .depth-row.bid .price {
-  color: var(--brand-green);
+  color: var(--accent-green);
   font-weight: 700;
 }
 
@@ -1111,7 +1112,7 @@ body {
 }
 
 .depth-progress-buy {
-  background: var(--brand-green);
+  background: var(--accent-green);
   transition: width 0.3s ease;
 }
 
@@ -1141,7 +1142,7 @@ body {
 }
 
 .charges-link:hover {
-  color: var(--brand-green);
+  color: var(--accent-gold);
 }
 
 /* --- Timings Info Row --- */
@@ -1188,7 +1189,7 @@ body {
 }
 
 .toggle-switch input:checked + .toggle-slider {
-  background-color: var(--brand-green);
+  background-color: var(--accent-gold);
 }
 
 .toggle-switch input:checked + .toggle-slider:before {
@@ -1301,11 +1302,11 @@ body {
 }
 
 .mobile-nav-item.active {
-  color: var(--brand-green);
+  color: var(--accent-gold);
 }
 
 .mobile-nav-item.active svg {
-  stroke: var(--brand-green);
+  stroke: var(--accent-gold);
 }
 
 /* ========================================================= */
@@ -1461,3 +1462,12 @@ body {
   }
 }
 
+
+
+/* --- Additions for Polish --- */
+.card-price, .banner-metric-val, .balance-chip .amount, .mobile-card-price, .depth-row {
+  font-variant-numeric: tabular-nums;
+}
+.brand-name {
+  letter-spacing: -0.02em;
+}

@@ -51,7 +51,7 @@ def startup():
 
 @app.get("/favicon.ico")
 def favicon():
-    svg_icon = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#00D09C"/><stop offset="100%" stop-color="#FF6B00"/></linearGradient></defs><rect width="32" height="32" rx="8" fill="#151922"/><path d="M6 22L14 14L19 19L26 8" stroke="url(#g)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>"""
+    svg_icon = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#0B0F19"/><defs><linearGradient id="gGold" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#FBBF24"/><stop offset="100%" stop-color="#D97706"/></linearGradient><linearGradient id="gJade" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#10B981"/><stop offset="100%" stop-color="#059669"/></linearGradient></defs><line x1="9" y1="3" x2="9" y2="7" stroke="url(#gGold)" stroke-width="2" stroke-linecap="round"/><line x1="9" y1="25" x2="9" y2="29" stroke="url(#gGold)" stroke-width="2" stroke-linecap="round"/><rect x="7" y="7" width="4" height="18" rx="2" fill="url(#gGold)"/><path d="M9 8.5H15.5C19 8.5 22 10.2 22 13C22 15.8 19 16.5 15.5 16.5H9" stroke="url(#gGold)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 16.5H16.5C20.5 16.5 24 18.2 24 21C24 23.8 20.5 24.5 16.5 24.5H9" stroke="url(#gGold)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="22" cy="13" r="1.8" fill="url(#gJade)"/><circle cx="24" cy="21" r="1.8" fill="url(#gJade)"/></svg>"""
     return Response(content=svg_icon, media_type="image/svg+xml")
 
 @app.get("/")
