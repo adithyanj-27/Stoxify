@@ -1,0 +1,20 @@
+{
+  "name": "growwfahh",
+  "version": "1.0.0",
+  "description": "GrowwFAHH - Stock & Mutual Fund Trading Platform",
+  "main": "run.py",
+  "scripts": {
+    "dev": "py run.py",
+    "start": "py run.py",
+    "test": "py test_app.py"
+  },
+  "keywords": [
+    "trading",
+    "stocks",
+    "mutual-funds",
+    "nse",
+    "groww"
+  ],
+  "author": "",
+  "license": "MIT"
+}

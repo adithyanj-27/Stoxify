@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+*.so
+.Python
+.venv/
+venv/
+ENV/
+
+# Node & dependencies
+node_modules/
+npm-debug.log*
+
+# Database & Vercel local build
+growwfahh.db
+growwfahh.db-journal
+.vercel/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
