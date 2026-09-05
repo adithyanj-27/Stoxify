@@ -1663,8 +1663,7 @@ let deferredInstallPrompt = null;
 
 function isAppInstalled() {
   return window.matchMedia('(display-mode: standalone)').matches || 
-         window.navigator.standalone === true ||
-         document.referrer.includes('android-app://');
+         window.navigator.standalone === true;
 }
 
 function dismissMobileInstallBanner() {
@@ -1730,34 +1729,38 @@ function closePwaGuideModal() {
 
 async function triggerNativeInstallPrompt() {
   if (deferredInstallPrompt) {
-    deferredInstallPrompt.prompt();
-    const { outcome } = await deferredInstallPrompt.userChoice;
-    if (outcome === 'accepted') {
-      localStorage.setItem('stoxify_app_installed', '1');
-      updateInstallButtonsVisibility();
-      closePwaGuideModal();
-      showToast('Stoxify installed successfully!');
+    try {
+      deferredInstallPrompt.prompt();
+      const { outcome } = await deferredInstallPrompt.userChoice;
+      if (outcome === 'accepted') {
+        localStorage.setItem('stoxify_app_installed', '1');
+        updateInstallButtonsVisibility();
+        closePwaGuideModal();
+        showToast('Stoxify installed successfully!');
+      }
+      deferredInstallPrompt = null;
+    } catch (err) {
+      console.warn('Native prompt error:', err);
     }
-    deferredInstallPrompt = null;
   }
 }
 
 async function installPWA() {
-  if (isAppInstalled()) {
-    showToast('Stoxify is already installed on your device!');
-    return;
-  }
   if (deferredInstallPrompt) {
-    deferredInstallPrompt.prompt();
-    const { outcome } = await deferredInstallPrompt.userChoice;
-    if (outcome === 'accepted') {
-      localStorage.setItem('stoxify_app_installed', '1');
-      updateInstallButtonsVisibility();
-      closePwaGuideModal();
-      showToast('Stoxify installed successfully!');
+    try {
+      deferredInstallPrompt.prompt();
+      const { outcome } = await deferredInstallPrompt.userChoice;
+      if (outcome === 'accepted') {
+        localStorage.setItem('stoxify_app_installed', '1');
+        updateInstallButtonsVisibility();
+        closePwaGuideModal();
+        showToast('Stoxify installed successfully!');
+      }
+      deferredInstallPrompt = null;
+      return;
+    } catch (err) {
+      console.warn('Direct install prompt error:', err);
     }
-    deferredInstallPrompt = null;
-    return;
   }
   openPwaGuideModal();
 }
