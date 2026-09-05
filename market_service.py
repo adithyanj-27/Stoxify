@@ -245,16 +245,16 @@ def get_mutual_fund_quote(code: str) -> Dict[str, Any]:
     return fallback
 
 def get_explore_data() -> Dict[str, Any]:
-    cached = get_cached("explore_data_v3")
+    cached = get_cached("explore_data_v4")
     if cached:
         return cached
 
-    # Fetch top 20 stocks in parallel
-    top_symbols = [s["symbol"] for s in STOCK_MASTER[:20]]
+    # Fetch all stocks across all sectors (Defense, Railways, Auto, Energy, Banking, IT, etc.)
+    all_symbols = [s["symbol"] for s in STOCK_MASTER]
     all_stocks = []
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        stock_results = list(executor.map(get_stock_quote, top_symbols))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+        stock_results = list(executor.map(get_stock_quote, all_symbols))
         for q in stock_results:
             if q and q.get("price"):
                 all_stocks.append(q)
@@ -269,8 +269,8 @@ def get_explore_data() -> Dict[str, Any]:
                 all_mfs.append(q)
 
     # Rank gainers and losers
-    gainers = sorted([s for s in all_stocks if s["change"] >= 0], key=lambda x: x["change_pct"], reverse=True)[:6]
-    losers = sorted([s for s in all_stocks if s["change"] < 0], key=lambda x: x["change_pct"])[:6]
+    gainers = sorted([s for s in all_stocks if s["change"] >= 0], key=lambda x: x["change_pct"], reverse=True)[:8]
+    losers = sorted([s for s in all_stocks if s["change"] < 0], key=lambda x: x["change_pct"])[:8]
     most_bought = all_stocks[:8]
 
     result = {
@@ -280,7 +280,7 @@ def get_explore_data() -> Dict[str, Any]:
         "all_stocks": all_stocks,
         "mutual_funds": all_mfs
     }
-    set_cached("explore_data_v3", result, ttl=60)
+    set_cached("explore_data_v4", result, ttl=60)
     return result
 
 def get_stock_chart(symbol: str, timeframe: str = "1D") -> List[Dict[str, Any]]:

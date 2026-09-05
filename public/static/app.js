@@ -463,14 +463,27 @@ function renderExploreStocks() {
     if (desc) desc.innerText = 'Live market quotes directly from National Stock Exchange (NSE)';
   } else if (state.exploreStockFilter === 'gainers') {
     list = state.exploreData.gainers;
-    title.innerText = 'Top Gainers Today (NSE)';
+    title.innerText = `Top Gainers Today (${list.length})`;
+    if (desc) desc.innerText = 'Stocks with the highest daily percentage gain on NSE';
   } else if (state.exploreStockFilter === 'losers') {
     list = state.exploreData.losers;
-    title.innerText = 'Top Losers Today (NSE)';
+    title.innerText = `Top Losers Today (${list.length})`;
+    if (desc) desc.innerText = 'Stocks with the highest daily percentage loss on NSE';
   } else {
-    list = state.exploreData.all_stocks.filter(s => s.sector && s.sector.toLowerCase().includes(state.exploreStockFilter.toLowerCase()));
+    const filterKey = state.exploreStockFilter.toLowerCase();
+    list = state.exploreData.all_stocks.filter(s => {
+      const sec = (s.sector || '').toLowerCase();
+      const sym = (s.symbol || '').toLowerCase();
+      const nm = (s.name || '').toLowerCase();
+      return sec.includes(filterKey) || sym.includes(filterKey) || nm.includes(filterKey);
+    });
     title.innerText = `${state.exploreStockFilter} Equities (${list.length})`;
-    if (list.length === 0) list = state.exploreData.all_stocks;
+    if (desc) desc.innerText = `Track top listed companies in the Indian ${state.exploreStockFilter} sector`;
+  }
+
+  if (list.length === 0) {
+    grid.innerHTML = '<div style="color: var(--text-muted); font-size: 0.9rem; padding: 3rem; text-align: center;">No stocks found in this category.</div>';
+    return;
   }
 
   grid.innerHTML = list.map(s => {
