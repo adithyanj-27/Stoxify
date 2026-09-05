@@ -2631,6 +2631,17 @@ async function loadPageChartTimeframe(range, btnEl = null) {
   }
 }
 
+let chartResizeTimeout = null;
+window.addEventListener('resize', () => {
+  if (chartResizeTimeout) clearTimeout(chartResizeTimeout);
+  chartResizeTimeout = setTimeout(() => {
+    const detailPane = document.getElementById('pane-asset-detail');
+    if (detailPane && detailPane.classList.contains('active')) {
+      renderCurrentChart();
+    }
+  }, 120);
+});
+
 function openMobileTradeDrawer(action = 'BUY') {
   if (isGuest()) {
     showToast('Please create your free account to unlock ₹10,00,000 virtual balance and start trading.', false);

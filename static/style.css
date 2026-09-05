@@ -2703,6 +2703,10 @@ body.pwa-installed #mobileInstallBanner {
     font-weight: 600 !important;
   }
 
+  .range-labels > div:last-child {
+    text-align: right !important;
+  }
+
   .range-track {
     width: 100% !important;
     max-width: 100% !important;
