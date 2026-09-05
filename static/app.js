@@ -3349,7 +3349,7 @@ async function submitObStep5() {
 
     // Update Confirmation screen with user's actual entered details
     document.getElementById('obWelcomeName').innerText = currentUser.name;
-    document.getElementById('obCreatedDemat').innerText = `STOX-${Math.floor(100000 + Math.random() * 900000)}`;
+    document.getElementById('obCreatedDemat').innerText = currentUser.id || `STOX-${Math.floor(100000 + Math.random() * 900000)}`;
     const emailEl = document.getElementById('obCreatedEmail');
     if (emailEl) emailEl.innerText = currentUser.email || obUserData.email || '';
     const last4 = (currentUser.bank_account || '5678').slice(-4);

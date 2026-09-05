@@ -12,7 +12,7 @@
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-dark.png" id="dynamicFavicon">
   <link rel="apple-touch-icon" href="/static/icon-192.png">
-  <link rel="stylesheet" href="/static/style.css?v=5.1" onerror="this.onerror=null;this.href='/style.css?v=5.1';">
+  <link rel="stylesheet" href="/static/style.css?v=5.2" onerror="this.onerror=null;this.href='/style.css?v=5.2';">
   <!-- Chart.js for high performance financial line & area charts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -1195,12 +1195,12 @@
               <label class="ob-label">Mobile Number</label>
               <div class="ob-phone-input">
                 <span class="phone-prefix">+91</span>
-                <input type="tel" id="obInputPhone" placeholder="Enter 10-digit mobile number" maxlength="10" autocomplete="tel">
+                <input type="tel" id="obInputPhone" placeholder="10-digit mobile number" maxlength="10" autocomplete="tel">
               </div>
             </div>
             <div class="ob-form-group">
               <label class="ob-label">Email Address <span style="color: var(--brand-cyan); font-size: 0.8rem;">*</span></label>
-              <input type="email" class="ob-input" id="obInputEmail" placeholder="Enter your email (fake or real, e.g. trader@mail.com)" autocomplete="email">
+              <input type="email" class="ob-input" id="obInputEmail" placeholder="trader@mail.com" autocomplete="email">
             </div>
             <button class="ob-btn-primary" onclick="submitObStep1()">Continue →</button>
             <div class="ob-footer-note">By continuing, you agree to Stoxify Simulated Trading T&C.</div>
@@ -1235,7 +1235,7 @@
 
             <div class="ob-form-group">
               <label class="ob-label">PAN Number</label>
-              <input type="text" class="ob-input" id="obInputPan" placeholder="e.g. ABCDE1234F" maxlength="10" style="text-transform: uppercase; font-family: monospace; font-size: 1.1rem; letter-spacing: 0.1em;" oninput="onPanInput(this)">
+              <input type="text" class="ob-input" id="obInputPan" placeholder="ABCDE1234F" maxlength="10" style="text-transform: uppercase; font-family: monospace; font-size: 1.1rem; letter-spacing: 0.1em;" oninput="onPanInput(this)">
               <div class="pan-verified-pill" id="panVerifiedPill" style="display: none;">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
                 <span>Verified with Income Tax Department</span>
@@ -1244,7 +1244,7 @@
 
             <div class="ob-form-group">
               <label class="ob-label">Full Name (as per PAN)</label>
-              <input type="text" class="ob-input" id="obInputName" placeholder="Enter your full legal name">
+              <input type="text" class="ob-input" id="obInputName" placeholder="Legal name as per PAN">
             </div>
 
             <div class="ob-row-2">
@@ -1310,12 +1310,12 @@
 
             <div class="ob-form-group">
               <label class="ob-label">Bank Account Number</label>
-              <input type="text" class="ob-input" id="obInputAccount" placeholder="Enter bank account number" autocomplete="off">
+              <input type="text" class="ob-input" id="obInputAccount" placeholder="Account number" autocomplete="off">
             </div>
 
             <div class="ob-form-group">
               <label class="ob-label">Re-enter Bank Account Number</label>
-              <input type="password" class="ob-input" id="obInputAccountConfirm" placeholder="Re-enter bank account number" autocomplete="off">
+              <input type="password" class="ob-input" id="obInputAccountConfirm" placeholder="Re-enter account number" autocomplete="off">
             </div>
 
             <div class="ob-form-group">
@@ -1340,14 +1340,14 @@
             <div class="ob-form-group">
               <label class="ob-label">Enter 4-Digit PIN</label>
               <div style="position: relative;">
-                <input type="password" maxlength="4" class="ob-input" id="obInputPin" placeholder="Enter 4 digits" style="font-size: 1.4rem; letter-spacing: 0.35rem; text-align: center;">
+                <input type="password" maxlength="4" class="ob-input" id="obInputPin" placeholder="••••" style="font-size: 1.4rem; letter-spacing: 0.35rem; text-align: center;">
               </div>
             </div>
 
             <div class="ob-form-group">
               <label class="ob-label">Confirm 4-Digit PIN</label>
               <div style="position: relative;">
-                <input type="password" maxlength="4" class="ob-input" id="obInputPinConfirm" placeholder="Re-enter 4 digits" style="font-size: 1.4rem; letter-spacing: 0.35rem; text-align: center;">
+                <input type="password" maxlength="4" class="ob-input" id="obInputPinConfirm" placeholder="••••" style="font-size: 1.4rem; letter-spacing: 0.35rem; text-align: center;">
               </div>
             </div>
 

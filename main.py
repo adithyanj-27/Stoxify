@@ -171,6 +171,7 @@ class CreateUserRequest(BaseModel):
     bank_name: Optional[str] = "HDFC Bank"
     bank_account: Optional[str] = "50100234567890"
     pin: Optional[str] = "1234"
+    id: Optional[str] = None
 
 @app.post("/api/user/create")
 def api_create_user(req: CreateUserRequest):
@@ -185,7 +186,8 @@ def api_create_user(req: CreateUserRequest):
         pan=req.pan,
         bank_name=req.bank_name or "HDFC Bank",
         bank_account=req.bank_account or "50100234567890",
-        pin=req.pin or "1234"
+        pin=req.pin or "1234",
+        user_id=req.id
     )
     return {"success": True, "user": u}
 

@@ -3,6 +3,7 @@ import shutil
 import sqlite3
 import json
 import uuid
+import random
 import urllib.request
 import urllib.parse
 from datetime import datetime
@@ -21,10 +22,46 @@ if os.path.exists(ENV_FILE):
     except Exception:
         pass
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
+DEFAULT_SUPABASE_URL = "https://pqyjxpaqbjeelewcjwmd.supabase.co"
+DEFAULT_SUPABASE_KEY = "sb_publishable__ywLDIS3oh2MnKdoXcnkYg_rNjN_tHw"
+
+SUPABASE_URL = (os.environ.get("SUPABASE_URL") or DEFAULT_SUPABASE_URL).rstrip("/")
 if SUPABASE_URL.endswith("/rest/v1"):
     SUPABASE_URL = SUPABASE_URL[:-8].rstrip("/")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_ANON_KEY")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_ANON_KEY") or DEFAULT_SUPABASE_KEY
+
+def supabase_api(method: str, table_or_endpoint: str, payload: Optional[Any] = None, params: Optional[Dict[str, str]] = None) -> Optional[Any]:
+    if not is_supabase_enabled():
+        return None
+    try:
+        clean_endpoint = table_or_endpoint.lstrip("/")
+        url = f"{SUPABASE_URL}/rest/v1/{clean_endpoint}"
+        if params:
+            url += "?" + urllib.parse.urlencode(params)
+        
+        headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type": "application/json",
+            "Prefer": "resolution=merge-duplicates,return=representation"
+        }
+        data_bytes = json.dumps(payload).encode("utf-8") if payload is not None else None
+        req = urllib.request.Request(url, data=data_bytes, headers=headers, method=method.upper())
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            content = resp.read().decode("utf-8")
+            if content:
+                try:
+                    return json.loads(content)
+                except Exception:
+                    return content
+            return True
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode("utf-8", errors="ignore")
+        print(f"[Supabase API Error] {method} {table_or_endpoint} -> HTTP {e.code}: {err_body}")
+        return None
+    except Exception as e:
+        print(f"[Supabase Connection Error] {method} {table_or_endpoint} -> {e}")
+        return None
 
 
 if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
@@ -330,16 +367,19 @@ def create_user(
     pan: Optional[str] = None,
     bank_name: str = "HDFC Bank",
     bank_account: str = "50100234567890",
-    pin: str = "1234"
+    pin: str = "1234",
+    user_id: Optional[str] = None
 ) -> Dict[str, Any]:
-    user_id = "user_" + str(uuid.uuid4())[:8]
+    if not user_id:
+        user_id = f"STOX-{random.randint(100000, 999999)}"
     palettes = ["#0EA5E9", "#10B981", "#6366F1", "#EC4899", "#F59E0B", "#8B5CF6"]
     avatar_color = palettes[len(name) % len(palettes)]
 
+    # 1. Insert into local SQLite
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO users (id, name, email, phone, pan, bank_name, bank_account, pin, balance, total_deposited, avatar_color)
+        INSERT OR REPLACE INTO users (id, name, email, phone, pan, bank_name, bank_account, pin, balance, total_deposited, avatar_color)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1000000.0, 1000000.0, ?)
     """, (user_id, name, (email or "").strip(), phone or "", pan or "ABCDE1234F", bank_name, bank_account, pin, avatar_color))
 
@@ -358,9 +398,69 @@ def create_user(
     row = cursor.fetchone()
     user_data = dict(row) if row else {}
     conn.close()
+
+    # 2. Sync directly to Supabase cloud dashboard
+    if is_supabase_enabled():
+        sb_user_payload = {
+            "id": user_id,
+            "name": name,
+            "email": (email or "").strip(),
+            "phone": phone or "",
+            "pan": pan or "ABCDE1234F",
+            "bank_name": bank_name,
+            "bank_account": bank_account,
+            "pin": pin,
+            "balance": 1000000.0,
+            "total_deposited": 1000000.0,
+            "avatar_color": avatar_color
+        }
+        sb_res = supabase_api("POST", "users", payload=sb_user_payload)
+        if sb_res is not None:
+            print(f"[Supabase] User {user_id} ({name}) successfully saved to Supabase dashboard")
+            # Seed default watchlist items to Supabase
+            sb_wl_items = [
+                {"user_id": user_id, "symbol": item[1], "name": item[2], "asset_type": item[3]}
+                for item in default_items
+            ]
+            supabase_api("POST", "watchlist", payload=sb_wl_items)
+        else:
+            print(f"[Supabase] Warning: could not sync user {user_id} to Supabase")
+
     return user_data
 
 def get_user(user_id: str = "default") -> Optional[Dict[str, Any]]:
+    # 1. Try Supabase first if available
+    if is_supabase_enabled() and user_id and user_id != "guest":
+        res = supabase_api("GET", "users", params={"id": f"eq.{user_id}", "select": "*"})
+        if res and isinstance(res, list) and len(res) > 0:
+            sb_u = res[0]
+            # Ensure local SQLite cache is populated
+            try:
+                conn = get_connection()
+                cur = conn.cursor()
+                cur.execute("""
+                    INSERT OR REPLACE INTO users (id, name, email, phone, pan, bank_name, bank_account, pin, balance, total_deposited, avatar_color)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    sb_u.get("id"),
+                    sb_u.get("name"),
+                    sb_u.get("email"),
+                    sb_u.get("phone"),
+                    sb_u.get("pan"),
+                    sb_u.get("bank_name"),
+                    sb_u.get("bank_account"),
+                    sb_u.get("pin"),
+                    float(sb_u.get("balance", 1000000.0)),
+                    float(sb_u.get("total_deposited", 1000000.0)),
+                    sb_u.get("avatar_color", "#0EA5E9")
+                ))
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
+            return sb_u
+
+    # 2. Local SQLite fallback
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
@@ -385,6 +485,13 @@ def get_user(user_id: str = "default") -> Optional[Dict[str, Any]]:
     return None
 
 def list_users() -> List[Dict[str, Any]]:
+    # 1. Try Supabase first
+    if is_supabase_enabled():
+        res = supabase_api("GET", "users", params={"select": "id,name,email,phone,bank_name,balance,avatar_color,created_at", "order": "created_at.desc"})
+        if res and isinstance(res, list) and len(res) > 0:
+            return res
+
+    # 2. Local SQLite fallback
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT id, name, email, phone, bank_name, balance, avatar_color, created_at FROM users ORDER BY created_at DESC")
@@ -394,6 +501,13 @@ def list_users() -> List[Dict[str, Any]]:
 
 # --- Account & Balances ---
 def get_account(user_id: str = "default") -> Dict[str, Any]:
+    # 1. Try Supabase first
+    if is_supabase_enabled() and user_id and user_id != "guest":
+        res = supabase_api("GET", "users", params={"id": f"eq.{user_id}", "select": "balance,total_deposited"})
+        if res and isinstance(res, list) and len(res) > 0:
+            return {"balance": float(res[0].get("balance", 1000000.0)), "total_deposited": float(res[0].get("total_deposited", 1000000.0))}
+
+    # 2. SQLite fallback
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT balance, total_deposited FROM users WHERE id = ?", (user_id,))
@@ -407,6 +521,13 @@ def get_account(user_id: str = "default") -> Dict[str, Any]:
     return {"balance": 1000000.0, "total_deposited": 1000000.0}
 
 def get_holdings(user_id: str = "default") -> List[Dict[str, Any]]:
+    # 1. Try Supabase first
+    if is_supabase_enabled() and user_id and user_id != "guest":
+        res = supabase_api("GET", "holdings", params={"user_id": f"eq.{user_id}", "quantity": "gt.0", "select": "symbol,name,asset_type,quantity,avg_price,updated_at"})
+        if res is not None and isinstance(res, list) and len(res) > 0:
+            return res
+
+    # 2. SQLite fallback
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -418,6 +539,13 @@ def get_holdings(user_id: str = "default") -> List[Dict[str, Any]]:
     return [dict(r) for r in rows]
 
 def get_positions(user_id: str = "default") -> List[Dict[str, Any]]:
+    # 1. Try Supabase first
+    if is_supabase_enabled() and user_id and user_id != "guest":
+        res = supabase_api("GET", "positions", params={"user_id": f"eq.{user_id}", "quantity": "gt.0", "select": "symbol,name,asset_type,quantity,avg_price,margin_used,product_type,updated_at"})
+        if res is not None and isinstance(res, list) and len(res) > 0:
+            return res
+
+    # 2. SQLite fallback
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -613,6 +741,34 @@ def execute_trade(
             conn.commit()
             conn.close()
 
+            # Sync to Supabase
+            if is_supabase_enabled() and user_id != "guest":
+                try:
+                    supabase_api("PATCH", f"users?id=eq.{user_id}", payload={"balance": new_balance, "updated_at": datetime.utcnow().isoformat()})
+                    if product_type == "INTRADAY":
+                        sb_qty = new_qty if pos else quantity
+                        sb_avg = new_avg if pos else effective_price
+                        sb_margin = new_margin_used if pos else required_margin
+                        supabase_api("POST", "positions?on_conflict=user_id,symbol", payload={
+                            "user_id": user_id, "symbol": symbol, "name": name, "asset_type": asset_type,
+                            "quantity": sb_qty, "avg_price": sb_avg, "margin_used": sb_margin, "product_type": "INTRADAY"
+                        })
+                    else:
+                        sb_qty = new_qty if existing else quantity
+                        sb_avg = new_avg if existing else effective_price
+                        supabase_api("POST", "holdings?on_conflict=user_id,symbol", payload={
+                            "user_id": user_id, "symbol": symbol, "name": name, "asset_type": asset_type,
+                            "quantity": sb_qty, "avg_price": sb_avg
+                        })
+                    supabase_api("POST", "orders", payload={
+                        "user_id": user_id, "symbol": symbol, "name": name, "asset_type": asset_type,
+                        "order_type": order_type, "product_type": product_type, "quantity": quantity,
+                        "price": effective_price, "total_amount": total_amount, "order_variety": order_variety,
+                        "status": order_status, "realized_pnl": 0.0
+                    })
+                except Exception as sb_e:
+                    print(f"[Supabase Trade Sync Warning] {sb_e}")
+
             tag_msg = " as After-Market Order (AMO)" if order_tag == "AMO" else ""
             return {"success": True, "order_id": order_id, "status": order_status, "message": f"Successfully purchased {quantity} {symbol} at ₹{effective_price:,.2f}{tag_msg}"}
 
@@ -673,6 +829,35 @@ def execute_trade(
             order_id = cursor.lastrowid
             conn.commit()
             conn.close()
+
+            # Sync to Supabase
+            if is_supabase_enabled() and user_id != "guest":
+                try:
+                    supabase_api("PATCH", f"users?id=eq.{user_id}", payload={"balance": new_balance, "updated_at": datetime.utcnow().isoformat()})
+                    if product_type == "INTRADAY":
+                        if rem_qty <= 0.0001:
+                            supabase_api("DELETE", f"positions?user_id=eq.{user_id}&symbol=eq.{urllib.parse.quote(symbol)}")
+                        else:
+                            supabase_api("POST", "positions?on_conflict=user_id,symbol", payload={
+                                "user_id": user_id, "symbol": symbol, "name": name, "asset_type": asset_type,
+                                "quantity": rem_qty, "avg_price": avg_price, "margin_used": new_margin, "product_type": "INTRADAY"
+                            })
+                    else:
+                        if rem_qty <= 0.0001:
+                            supabase_api("DELETE", f"holdings?user_id=eq.{user_id}&symbol=eq.{urllib.parse.quote(symbol)}")
+                        else:
+                            supabase_api("POST", "holdings?on_conflict=user_id,symbol", payload={
+                                "user_id": user_id, "symbol": symbol, "name": name, "asset_type": asset_type,
+                                "quantity": rem_qty, "avg_price": avg_price
+                            })
+                    supabase_api("POST", "orders", payload={
+                        "user_id": user_id, "symbol": symbol, "name": name, "asset_type": asset_type,
+                        "order_type": order_type, "product_type": product_type, "quantity": quantity,
+                        "price": effective_price, "total_amount": total_amount, "order_variety": order_variety,
+                        "status": order_status, "realized_pnl": realized_pnl
+                    })
+                except Exception as sb_e:
+                    print(f"[Supabase Trade Sync Warning] {sb_e}")
 
             tag_msg = " as After-Market Order (AMO)" if order_tag == "AMO" else ""
             return {"success": True, "order_id": order_id, "status": order_status, "realized_pnl": realized_pnl, "message": f"Successfully sold {quantity} {symbol} at ₹{effective_price:,.2f}{tag_msg}"}
@@ -787,6 +972,16 @@ def check_open_limit_orders(symbol: str, current_price: float, user_id: Optional
             )
 
 def get_orders(limit: int = 100, status_filter: Optional[str] = None, user_id: str = "default") -> List[Dict[str, Any]]:
+    # 1. Try Supabase first
+    if is_supabase_enabled() and user_id and user_id != "guest":
+        params = {"user_id": f"eq.{user_id}", "order": "id.desc", "limit": str(limit)}
+        if status_filter:
+            params["status"] = f"eq.{status_filter}"
+        res = supabase_api("GET", "orders", params=params)
+        if res is not None and isinstance(res, list) and len(res) > 0:
+            return res
+
+    # 2. SQLite fallback
     conn = get_connection()
     cursor = conn.cursor()
     if status_filter:
@@ -804,6 +999,13 @@ def get_orders(limit: int = 100, status_filter: Optional[str] = None, user_id: s
     return [dict(r) for r in rows]
 
 def get_watchlist(user_id: str = "default") -> List[Dict[str, Any]]:
+    # 1. Try Supabase first
+    if is_supabase_enabled() and user_id and user_id != "guest":
+        res = supabase_api("GET", "watchlist", params={"user_id": f"eq.{user_id}", "order": "added_at.desc", "select": "symbol,name,asset_type,added_at"})
+        if res is not None and isinstance(res, list) and len(res) > 0:
+            return res
+
+    # 2. SQLite fallback
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT symbol, name, asset_type, added_at FROM watchlist WHERE user_id = ? ORDER BY added_at DESC", (user_id,))
@@ -820,6 +1022,14 @@ def add_to_watchlist(symbol: str, name: str, asset_type: str, user_id: str = "de
     """, (user_id, symbol, name, asset_type))
     conn.commit()
     conn.close()
+
+    if is_supabase_enabled() and user_id and user_id != "guest":
+        supabase_api("POST", "watchlist", payload={
+            "user_id": user_id,
+            "symbol": symbol,
+            "name": name,
+            "asset_type": asset_type
+        })
     return True
 
 def remove_from_watchlist(symbol: str, user_id: str = "default") -> bool:
@@ -828,6 +1038,9 @@ def remove_from_watchlist(symbol: str, user_id: str = "default") -> bool:
     cursor.execute("DELETE FROM watchlist WHERE user_id = ? AND symbol = ?", (user_id, symbol))
     conn.commit()
     conn.close()
+
+    if is_supabase_enabled() and user_id and user_id != "guest":
+        supabase_api("DELETE", f"watchlist?user_id=eq.{user_id}&symbol=eq.{urllib.parse.quote(symbol)}")
     return True
 
 def deposit_funds(amount: float, user_id: str = "default") -> float:
@@ -852,6 +1065,14 @@ def deposit_funds(amount: float, user_id: str = "default") -> float:
         cursor.execute("UPDATE account SET balance = ?, total_deposited = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (new_balance, new_deposited))
     conn.commit()
     conn.close()
+
+    # Sync to Supabase
+    if is_supabase_enabled() and user_id and user_id != "guest":
+        supabase_api("PATCH", f"users?id=eq.{user_id}", payload={
+            "balance": new_balance,
+            "total_deposited": new_deposited,
+            "updated_at": datetime.utcnow().isoformat()
+        })
     return new_balance
 
 def reset_account(initial_balance: float = 1000000.0, user_id: str = "default"):
@@ -871,6 +1092,17 @@ def reset_account(initial_balance: float = 1000000.0, user_id: str = "default"):
     cursor.execute("DELETE FROM ipo_bids WHERE user_id = ?", (user_id,))
     conn.commit()
     conn.close()
+
+    # Sync to Supabase
+    if is_supabase_enabled() and user_id and user_id != "guest":
+        supabase_api("PATCH", f"users?id=eq.{user_id}", payload={
+            "balance": initial_balance,
+            "total_deposited": initial_balance,
+            "updated_at": datetime.utcnow().isoformat()
+        })
+        supabase_api("DELETE", f"holdings?user_id=eq.{user_id}")
+        supabase_api("DELETE", f"positions?user_id=eq.{user_id}")
+        supabase_api("DELETE", f"orders?user_id=eq.{user_id}")
 
 # --- GTT (Good Till Triggered) Orders ---
 def place_gtt_order(
