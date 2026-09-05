@@ -1,5 +1,5 @@
 // Stoxify PWA Service Worker
-const CACHE_NAME = 'stoxify-v1';
+const CACHE_NAME = 'stoxify-v2';
 const STATIC_ASSETS = [
   '/',
   '/static/style.css',

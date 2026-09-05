@@ -58,13 +58,14 @@
     <!-- Nav Right Controls -->
     <div class="nav-actions">
       <!-- PWA Install App Button -->
-      <button class="btn-install-app" id="btnInstallApp" onclick="installPWA()" title="Install Stoxify App" style="display: none;">
+      <button class="btn-install-app" id="btnInstallApp" onclick="installPWA()" title="Install Stoxify App">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
           <polyline points="7 10 12 15 17 10"></polyline>
           <line x1="12" y1="15" x2="12" y2="3"></line>
         </svg>
-        <span>Install App</span>
+        <span class="btn-install-text-desktop">Install App</span>
+        <span class="btn-install-text-mobile">Install</span>
       </button>
 
       <!-- Get Started Button (Visible in Guest mode) -->
@@ -132,6 +133,10 @@
           <button class="dropdown-item" onclick="openFundsModal()">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path><path d="M12 18V6"></path></svg>
             <span>Trading Capital & Timings</span>
+          </button>
+          <button class="dropdown-item" id="dropdownInstallItem" onclick="installPWA()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            <span>Install Stoxify App</span>
           </button>
           <button class="dropdown-item" onclick="openSwitchAccountModal()">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg>
@@ -1313,6 +1318,133 @@
         </button>
       </div>
     </div>
+  </div>
+
+  <!-- PWA Mobile & Desktop Install Guide Modal -->
+  <div class="modal-overlay" id="pwaInstallGuideModalOverlay" style="display: none;">
+    <div class="modal-container pwa-guide-modal-container" style="max-width: 460px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 0.65rem;">
+          <div class="pwa-guide-app-icon">
+            <img src="/static/icon-192.png" alt="Stoxify" style="width: 26px; height: 26px; border-radius: 6px;">
+          </div>
+          <div>
+            <h3 style="font-size: 1.15rem; font-weight: 800; margin: 0; line-height: 1.2;">Install Stoxify</h3>
+            <span style="font-size: 0.725rem; color: var(--text-muted);">Stock & Mutual Fund App</span>
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="closePwaGuideModal()">✕</button>
+      </div>
+      <div class="modal-body" style="padding-top: 0.6rem;">
+        <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.45; margin-bottom: 1rem;">
+          Add Stoxify to your home screen for instant full-screen trading, live price updates, and zero app store clutter.
+        </p>
+
+        <!-- Dynamic Platform Selector Tabs -->
+        <div class="pwa-platform-tabs">
+          <button class="pwa-tab-btn active" id="pwaTabBtnIos" onclick="switchPwaTab('ios')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20.94c1.5 0 2.75 1.06 4 1.06 3 0 6-8 6-12.22A4.91 4.91 0 0 0 17 5c-2.22 0-4 1.44-5 2-1-.56-2.78-2-5-2a4.9 4.9 0 0 0-5 4.78C2 14 5 22 8 22c1.25 0 2.5-1.06 4-1.06Z"/><path d="M10 2c1 .5 2 2 2 5"/></svg>
+            <span>iPhone (iOS)</span>
+          </button>
+          <button class="pwa-tab-btn" id="pwaTabBtnAndroid" onclick="switchPwaTab('android')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m4 10 0 6"/><path d="m20 10 0 6"/><path d="M7 15a5 5 0 0 1 10 0"/><path d="M7 8a5 5 0 0 1 10 0v7H7Z"/><path d="m9 4-1 2"/><path d="m15 4 1 2"/></svg>
+            <span>Android</span>
+          </button>
+          <button class="pwa-tab-btn" id="pwaTabBtnDesktop" onclick="switchPwaTab('desktop')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            <span>Desktop</span>
+          </button>
+        </div>
+
+        <!-- iOS Instructions -->
+        <div class="pwa-guide-content" id="pwaContentIos">
+          <div class="pwa-step-item">
+            <div class="pwa-step-num">1</div>
+            <div class="pwa-step-info">
+              <div><strong>Tap the Share icon</strong> in Safari</div>
+              <div class="pwa-icon-hint">
+                Look at the bottom toolbar for <span class="pwa-key-pill"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg> Share</span>.
+              </div>
+            </div>
+          </div>
+          <div class="pwa-step-item">
+            <div class="pwa-step-num">2</div>
+            <div class="pwa-step-info">
+              <div><strong>Scroll down & tap "Add to Home Screen"</strong></div>
+              <div class="pwa-icon-hint">
+                Select <span class="pwa-key-pill"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="4"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg> Add to Home Screen</span>.
+              </div>
+            </div>
+          </div>
+          <div class="pwa-step-item">
+            <div class="pwa-step-num">3</div>
+            <div class="pwa-step-info">
+              <div><strong>Tap "Add" in top-right</strong></div>
+              <div class="pwa-icon-hint">
+                Stoxify will appear on your iPhone home screen!
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Android Instructions -->
+        <div class="pwa-guide-content" id="pwaContentAndroid" style="display: none;">
+          <div id="androidDirectPromptWrap" style="margin-bottom: 0.85rem; display: none;">
+            <button class="btn-primary" style="width: 100%; justify-content: center; gap: 0.5rem;" onclick="triggerNativeInstallPrompt()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              <span>Tap Here to Install Now</span>
+            </button>
+            <div style="text-align: center; margin: 0.6rem 0; font-size: 0.75rem; color: var(--text-muted);">— OR FOLLOW THESE 2 STEPS —</div>
+          </div>
+          <div class="pwa-step-item">
+            <div class="pwa-step-num">1</div>
+            <div class="pwa-step-info">
+              <div><strong>Tap Chrome's menu icon</strong></div>
+              <div class="pwa-icon-hint">
+                Tap <span class="pwa-key-pill"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg> Three Dots (⋮)</span> in the top right.
+              </div>
+            </div>
+          </div>
+          <div class="pwa-step-item">
+            <div class="pwa-step-num">2</div>
+            <div class="pwa-step-info">
+              <div><strong>Select "Install app" or "Add to Home screen"</strong></div>
+              <div class="pwa-icon-hint">
+                Choose <span class="pwa-key-pill"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Install app</span> and confirm.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Desktop Instructions -->
+        <div class="pwa-guide-content" id="pwaContentDesktop" style="display: none;">
+          <div class="pwa-step-item">
+            <div class="pwa-step-num">1</div>
+            <div class="pwa-step-info">
+              <div><strong>Look for Install icon in address bar</strong></div>
+              <div class="pwa-icon-hint">
+                In Chrome / Edge, click <span class="pwa-key-pill">⤓</span> or <span class="pwa-key-pill">⊕</span> in the URL bar.
+              </div>
+            </div>
+          </div>
+          <div class="pwa-step-item">
+            <div class="pwa-step-num">2</div>
+            <div class="pwa-step-info">
+              <div><strong>Click "Install"</strong></div>
+              <div class="pwa-icon-hint">
+                Stoxify launches in a standalone window with ultra-fast responsiveness!
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn-subtle" style="width: 100%; justify-content: center; margin-top: 1.25rem;" onclick="closePwaGuideModal()">
+          Got It, Thanks!
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Order Execution Success Confirmation Modal -->
   <div class="modal-overlay" id="orderSuccessModal">
     <div class="modal-container order-success-container" style="max-width: 440px; text-align: center;">

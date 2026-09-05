@@ -1565,40 +1565,99 @@ function isAppInstalled() {
          document.referrer.includes('android-app://');
 }
 
+function updateInstallButtonsVisibility() {
+  const installed = isAppInstalled();
+  const topBtn = document.getElementById('btnInstallApp');
+  const dropdownItem = document.getElementById('dropdownInstallItem');
+  if (topBtn) topBtn.style.display = installed ? 'none' : 'inline-flex';
+  if (dropdownItem) dropdownItem.style.display = installed ? 'none' : 'flex';
+}
+
+function detectPlatform() {
+  const ua = navigator.userAgent || navigator.vendor || window.opera || '';
+  if (/iPad|iPhone|iPod/.test(ua) && !window.MSStream) return 'ios';
+  if (/android/i.test(ua)) return 'android';
+  return 'desktop';
+}
+
+function switchPwaTab(platform) {
+  ['ios', 'android', 'desktop'].forEach(p => {
+    const tabKey = p.charAt(0).toUpperCase() + p.slice(1);
+    const tabBtn = document.getElementById(`pwaTabBtn${tabKey}`);
+    const content = document.getElementById(`pwaContent${tabKey}`);
+    if (tabBtn) tabBtn.classList.toggle('active', p === platform);
+    if (content) content.style.display = (p === platform) ? 'block' : 'none';
+  });
+}
+
+function openPwaGuideModal(defaultPlatform) {
+  const plat = defaultPlatform || detectPlatform();
+  switchPwaTab(plat);
+  const promptWrap = document.getElementById('androidDirectPromptWrap');
+  if (promptWrap) {
+    promptWrap.style.display = deferredInstallPrompt ? 'block' : 'none';
+  }
+  const modal = document.getElementById('pwaInstallGuideModalOverlay');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closePwaGuideModal() {
+  const modal = document.getElementById('pwaInstallGuideModalOverlay');
+  if (modal) modal.style.display = 'none';
+}
+
+async function triggerNativeInstallPrompt() {
+  if (deferredInstallPrompt) {
+    deferredInstallPrompt.prompt();
+    const { outcome } = await deferredInstallPrompt.userChoice;
+    if (outcome === 'accepted') {
+      updateInstallButtonsVisibility();
+      closePwaGuideModal();
+      showToast('Stoxify installed successfully!');
+    }
+    deferredInstallPrompt = null;
+  }
+}
+
+async function installPWA() {
+  if (isAppInstalled()) {
+    showToast('Stoxify is already installed on your device!');
+    return;
+  }
+  if (deferredInstallPrompt) {
+    deferredInstallPrompt.prompt();
+    const { outcome } = await deferredInstallPrompt.userChoice;
+    if (outcome === 'accepted') {
+      updateInstallButtonsVisibility();
+      showToast('Stoxify installed successfully!');
+    }
+    deferredInstallPrompt = null;
+    return;
+  }
+  // If native prompt is not primed (iOS Safari, mobile browsers without direct prompt),
+  // open the step-by-step interactive install guide modal
+  openPwaGuideModal();
+}
+
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredInstallPrompt = e;
-  if (!isAppInstalled()) {
-    const btn = document.getElementById('btnInstallApp');
-    if (btn) btn.style.display = 'inline-flex';
-  }
+  updateInstallButtonsVisibility();
+  const promptWrap = document.getElementById('androidDirectPromptWrap');
+  if (promptWrap) promptWrap.style.display = 'block';
 });
-
-async function installPWA() {
-  if (!deferredInstallPrompt) {
-    showToast('To install: click the Install icon (⤓) in your browser address bar');
-    return;
-  }
-  deferredInstallPrompt.prompt();
-  const { outcome } = await deferredInstallPrompt.userChoice;
-  if (outcome === 'accepted') {
-    const btn = document.getElementById('btnInstallApp');
-    if (btn) btn.style.display = 'none';
-  }
-  deferredInstallPrompt = null;
-}
 
 window.addEventListener('appinstalled', () => {
   deferredInstallPrompt = null;
-  const btn = document.getElementById('btnInstallApp');
-  if (btn) btn.style.display = 'none';
+  updateInstallButtonsVisibility();
+  closePwaGuideModal();
   showToast('Stoxify installed successfully!');
 });
 
 // Register Service Worker
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').then((reg) => {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' }).then((reg) => {
       console.log('Stoxify PWA Service Worker registered:', reg.scope);
     }).catch((err) => {
       console.warn('Service Worker registration skipped:', err);
@@ -1610,10 +1669,15 @@ if ('serviceWorker' in navigator) {
 window.addEventListener('DOMContentLoaded', () => {
   initTheme();
   
-  // Hide install button immediately if already running in standalone/installed mode
-  if (isAppInstalled()) {
-    const btn = document.getElementById('btnInstallApp');
-    if (btn) btn.style.display = 'none';
+  // Set install buttons visibility based on whether running in standalone mode
+  updateInstallButtonsVisibility();
+
+  // Close PWA guide modal on clicking backdrop
+  const pwaModal = document.getElementById('pwaInstallGuideModalOverlay');
+  if (pwaModal) {
+    pwaModal.addEventListener('click', (e) => {
+      if (e.target === pwaModal) closePwaGuideModal();
+    });
   }
 
   fetchCurrentUser();
