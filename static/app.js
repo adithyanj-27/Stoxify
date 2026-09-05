@@ -2415,7 +2415,7 @@ function renderCandlestickCanvas(canvas, points, hoveredIdx = -1, crosshairY = -
   const parentW = canvas.parentElement ? canvas.parentElement.clientWidth : 0;
   const fallbackW = isMobile ? Math.min(window.innerWidth - 30, 420) : 800;
   const cssWidth = parentW > 50 ? parentW : fallbackW;
-  const cssHeight = isMobile ? 230 : 380;
+  const cssHeight = isMobile ? 255 : 380;
   const dpr = window.devicePixelRatio || 1;
 
   canvas.width = Math.round(cssWidth * dpr);
@@ -2435,7 +2435,7 @@ function renderCandlestickCanvas(canvas, points, hoveredIdx = -1, crosshairY = -
   const paddingLeft = isMobile ? 8 : 16;
   const paddingRight = isMobile ? 56 : 72;
   const paddingTop = 15;
-  const paddingBottom = 26;
+  const paddingBottom = isMobile ? 6 : 26;
   const chartWidth = cssWidth - paddingLeft - paddingRight;
   const chartHeight = cssHeight - paddingTop - paddingBottom;
 
@@ -2567,22 +2567,24 @@ function renderCandlestickCanvas(canvas, points, hoveredIdx = -1, crosshairY = -
     ctx.stroke();
   }
 
-  // Time Axis Labels (Evenly spaced without left clipping)
-  ctx.fillStyle = '#64748B';
-  ctx.font = isMobile ? '9px Sora, sans-serif' : '10px Sora, sans-serif';
-  const labelCount = isMobile ? 4 : 6;
-  const step = Math.max(1, Math.floor(n / labelCount));
-  for (let i = 0; i < n; i += step) {
-    const x = paddingLeft + i * candleSlot + candleSlot / 2;
-    if (i === 0) {
-      ctx.textAlign = 'left';
-      ctx.fillText(ohlc[i].time, paddingLeft, cssHeight - 8);
-    } else if (i + step >= n) {
-      ctx.textAlign = 'right';
-      ctx.fillText(ohlc[i].time, paddingLeft + chartWidth, cssHeight - 8);
-    } else {
-      ctx.textAlign = 'center';
-      ctx.fillText(ohlc[i].time, x, cssHeight - 8);
+  // Time Axis Labels (Evenly spaced on desktop, hidden on mobile for clean full-height chart)
+  if (!isMobile) {
+    ctx.fillStyle = '#64748B';
+    ctx.font = '10px Sora, sans-serif';
+    const labelCount = 6;
+    const step = Math.max(1, Math.floor(n / labelCount));
+    for (let i = 0; i < n; i += step) {
+      const x = paddingLeft + i * candleSlot + candleSlot / 2;
+      if (i === 0) {
+        ctx.textAlign = 'left';
+        ctx.fillText(ohlc[i].time, paddingLeft, cssHeight - 8);
+      } else if (i + step >= n) {
+        ctx.textAlign = 'right';
+        ctx.fillText(ohlc[i].time, paddingLeft + chartWidth, cssHeight - 8);
+      } else {
+        ctx.textAlign = 'center';
+        ctx.fillText(ohlc[i].time, x, cssHeight - 8);
+      }
     }
   }
 
@@ -2703,8 +2705,9 @@ function renderLineChartWithChartJs(canvas, points) {
     isPos = lastVal >= firstVal;
   }
 
+  const isMobile = window.innerWidth <= 768;
   const strokeColor = isPos ? '#10B981' : '#F43F5E';
-  const chartHeight = canvas.clientHeight || (window.innerWidth <= 768 ? 230 : 380);
+  const chartHeight = canvas.clientHeight || (isMobile ? 255 : 380);
   const gradient = ctx.createLinearGradient(0, 0, 0, chartHeight);
   gradient.addColorStop(0, isPos ? 'rgba(16, 185, 129, 0.25)' : 'rgba(244, 63, 94, 0.25)');
   gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
@@ -2797,9 +2800,10 @@ function renderLineChartWithChartJs(canvas, points) {
       },
       scales: {
         x: { 
-          display: true,
+          display: !isMobile,
           grid: { display: false },
           ticks: {
+            display: !isMobile,
             color: '#64748B',
             font: { family: 'Sora', size: 10 },
             maxTicksLimit: 6

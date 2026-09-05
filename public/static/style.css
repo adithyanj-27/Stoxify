@@ -2620,7 +2620,7 @@ body.pwa-installed #mobileInstallBanner {
   .chart-wrapper {
     width: 100% !important;
     max-width: 100% !important;
-    height: 230px !important;
+    height: 255px !important;
     position: relative !important;
     box-sizing: border-box !important;
     overflow: hidden !important;
