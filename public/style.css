@@ -1984,8 +1984,13 @@ body.pwa-installed #mobileInstallBanner {
 
   .sub-nav-btn {
     padding: 0.55rem 0.15rem !important;
-    font-size: 0.9rem !important;
+    font-size: 0.85rem !important;
+    font-weight: 500 !important;
     flex-shrink: 0 !important;
+  }
+
+  .sub-nav-btn.active {
+    font-weight: 600 !important;
   }
 
   /* Indices Bar on Mobile: Compact Single-Row Ticker */
@@ -2044,20 +2049,33 @@ body.pwa-installed #mobileInstallBanner {
 
   .pill-btn {
     border-radius: 20px;
-    padding: 0.3rem 0.75rem;
-    font-size: 0.74rem;
-    font-weight: 600;
+    padding: 0.28rem 0.65rem;
+    font-size: 0.72rem;
+    font-weight: 500;
     flex-shrink: 0;
     white-space: nowrap;
   }
 
   .section-title {
-    font-size: 1.05rem;
-    font-weight: 700;
+    font-size: 1.0rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
   }
 
   .section-desc {
-    font-size: 0.7rem;
+    font-size: 0.70rem;
+    font-weight: 400;
+  }
+
+  .groww-section-title {
+    font-size: 1.02rem !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.01em !important;
+  }
+
+  .groww-section-sub {
+    font-size: 0.70rem !important;
+    font-weight: 400 !important;
   }
 
   /* Groww/Zerodha-Style Full-Width Clean List Rows on Mobile */
@@ -2077,7 +2095,7 @@ body.pwa-installed #mobileInstallBanner {
     box-sizing: border-box !important;
     overflow: hidden !important;
     border-radius: 12px !important;
-    padding: 0.75rem 0.9rem !important;
+    padding: 0.7rem 0.85rem !important;
     border: 1px solid var(--border-subtle) !important;
     background: var(--bg-card) !important;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
@@ -2085,7 +2103,7 @@ body.pwa-installed #mobileInstallBanner {
     flex-direction: row !important;
     align-items: center !important;
     justify-content: space-between !important;
-    min-height: 56px !important;
+    min-height: 54px !important;
     gap: 0.75rem !important;
     cursor: pointer !important;
     transition: background 0.15s ease, transform 0.12s ease !important;
@@ -2114,11 +2132,11 @@ body.pwa-installed #mobileInstallBanner {
   }
 
   .stock-card .card-avatar {
-    width: 36px !important;
-    height: 36px !important;
+    width: 34px !important;
+    height: 34px !important;
     border-radius: 10px !important;
-    font-size: 0.8rem !important;
-    font-weight: 800 !important;
+    font-size: 0.78rem !important;
+    font-weight: 600 !important;
     flex-shrink: 0 !important;
   }
 
@@ -2128,8 +2146,8 @@ body.pwa-installed #mobileInstallBanner {
   }
 
   .stock-card .card-title {
-    font-size: 0.9rem !important;
-    font-weight: 700 !important;
+    font-size: 0.86rem !important;
+    font-weight: 500 !important;
     line-height: 1.25 !important;
     white-space: nowrap !important;
     overflow: hidden !important;
@@ -2139,9 +2157,10 @@ body.pwa-installed #mobileInstallBanner {
   }
 
   .stock-card .card-subtitle {
-    font-size: 0.72rem !important;
+    font-size: 0.70rem !important;
+    font-weight: 400 !important;
     color: var(--text-muted) !important;
-    margin-top: 2px !important;
+    margin-top: 1px !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
@@ -2159,12 +2178,12 @@ body.pwa-installed #mobileInstallBanner {
     align-items: flex-end !important;
     text-align: right !important;
     flex-shrink: 0 !important;
-    gap: 0.2rem !important;
+    gap: 0.15rem !important;
   }
 
   .stock-card .card-price {
-    font-size: 0.95rem !important;
-    font-weight: 800 !important;
+    font-size: 0.90rem !important;
+    font-weight: 600 !important;
     color: var(--text-primary) !important;
     font-variant-numeric: tabular-nums !important;
     line-height: 1.2 !important;
@@ -2172,13 +2191,13 @@ body.pwa-installed #mobileInstallBanner {
 
   .stock-card .badge-positive,
   .stock-card .badge-negative {
-    font-size: 0.75rem !important;
-    font-weight: 700 !important;
-    padding: 2px 7px !important;
-    border-radius: 6px !important;
+    font-size: 0.72rem !important;
+    font-weight: 500 !important;
+    padding: 1px 6px !important;
+    border-radius: 5px !important;
     display: inline-flex !important;
     align-items: center !important;
-    line-height: 1 !important;
+    line-height: 1.1 !important;
   }
 
   .stock-card .badge-positive {
@@ -2208,11 +2227,31 @@ body.pwa-installed #mobileInstallBanner {
     min-width: 135px !important;
     max-width: 150px !important;
     flex: 0 0 auto !important;
-    border-radius: 16px !important;
-    padding: 0.8rem 0.75rem !important;
+    border-radius: 14px !important;
+    padding: 0.75rem 0.70rem !important;
     border: 1px solid var(--border-subtle) !important;
     background: var(--bg-card) !important;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+  }
+
+  .most-bought-card .mb-sym-pill {
+    font-size: 0.65rem !important;
+    font-weight: 500 !important;
+  }
+
+  .most-bought-card .mb-name {
+    font-size: 0.78rem !important;
+    font-weight: 500 !important;
+  }
+
+  .most-bought-card .mb-price {
+    font-size: 0.86rem !important;
+    font-weight: 600 !important;
+  }
+
+  .most-bought-card .mb-badge {
+    font-size: 0.68rem !important;
+    font-weight: 500 !important;
   }
 
   /* Portfolio Summary Banner on Mobile */
@@ -2220,11 +2259,57 @@ body.pwa-installed #mobileInstallBanner {
     grid-template-columns: repeat(2, 1fr);
     gap: 0.65rem;
     padding: 0.85rem;
-    border-radius: 16px;
+    border-radius: 14px;
+  }
+
+  .banner-metric-label {
+    font-size: 0.68rem !important;
+    font-weight: 400 !important;
+    color: var(--text-muted) !important;
   }
 
   .banner-metric-val {
-    font-size: 1.1rem;
+    font-size: 1.05rem !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.01em !important;
+  }
+
+  /* Mobile Holdings & Orders Cards */
+  .mobile-card {
+    padding: 0.8rem 0.9rem !important;
+    border-radius: 12px !important;
+  }
+
+  .mobile-card-symbol {
+    font-size: 0.86rem !important;
+    font-weight: 600 !important;
+  }
+
+  .mobile-card-name {
+    font-size: 0.70rem !important;
+    font-weight: 400 !important;
+    color: var(--text-muted) !important;
+  }
+
+  .mobile-card-price {
+    font-size: 0.88rem !important;
+    font-weight: 600 !important;
+    font-variant-numeric: tabular-nums !important;
+  }
+
+  .mobile-card-grid {
+    font-size: 0.72rem !important;
+    padding: 0.45rem 0 !important;
+  }
+
+  .mobile-card-grid div {
+    font-weight: 500 !important;
+  }
+
+  .mobile-card-grid div span {
+    font-weight: 400 !important;
+    color: var(--text-muted) !important;
+    font-size: 0.68rem !important;
   }
 
   /* Hide overflowing desktop tables, show mobile cards */
@@ -2271,19 +2356,32 @@ body.pwa-installed #mobileInstallBanner {
   }
 
   .asset-hero-avatar {
-    width: 44px !important;
-    height: 44px !important;
-    min-width: 44px !important;
-    font-size: 1.1rem !important;
+    width: 42px !important;
+    height: 42px !important;
+    min-width: 42px !important;
+    font-size: 1.05rem !important;
+    font-weight: 600 !important;
     border-radius: 12px !important;
   }
 
   .asset-hero-title {
     font-size: 1.05rem !important;
+    font-weight: 600 !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     max-width: 100% !important;
+  }
+
+  .asset-ticker {
+    font-size: 0.78rem !important;
+    font-weight: 500 !important;
+  }
+
+  .asset-hero-sub .pill-btn {
+    font-size: 0.70rem !important;
+    font-weight: 500 !important;
+    padding: 2px 7px !important;
   }
 
   .asset-hero-right {
@@ -2294,16 +2392,69 @@ body.pwa-installed #mobileInstallBanner {
   }
 
   .asset-hero-price {
-    font-size: 1.25rem !important;
+    font-size: 1.22rem !important;
+    font-weight: 600 !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
   }
 
+  .asset-hero-right .badge-positive,
+  .asset-hero-right .badge-negative {
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+    border-radius: 5px !important;
+  }
+
   .asset-chart-card,
   .asset-section-card {
     padding: 0.9rem !important;
-    border-radius: 16px !important;
+    border-radius: 14px !important;
+  }
+
+  .section-heading {
+    font-size: 0.95rem !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.01em !important;
+    margin-bottom: 0.85rem !important;
+  }
+
+  .range-labels .label-sub {
+    font-size: 0.70rem !important;
+    font-weight: 400 !important;
+  }
+
+  .range-labels .val {
+    font-size: 0.85rem !important;
+    font-weight: 600 !important;
+  }
+
+  .stat-kv .k {
+    font-size: 0.70rem !important;
+    font-weight: 400 !important;
+    color: var(--text-muted) !important;
+  }
+
+  .stat-kv .v {
+    font-size: 0.85rem !important;
+    font-weight: 500 !important;
+  }
+
+  .fundamental-item .f-name {
+    font-size: 0.70rem !important;
+    font-weight: 400 !important;
+    color: var(--text-muted) !important;
+  }
+
+  .fundamental-item .f-val {
+    font-size: 0.85rem !important;
+    font-weight: 600 !important;
+  }
+
+  .depth-ratio-bar {
+    font-weight: 600 !important;
+    font-size: 0.72rem !important;
+    height: 22px !important;
   }
 
   .chart-wrapper {
@@ -2330,7 +2481,12 @@ body.pwa-installed #mobileInstallBanner {
   .asset-tab-btn {
     flex-shrink: 0 !important;
     font-size: 0.82rem !important;
-    padding: 0.45rem 0.8rem !important;
+    font-weight: 500 !important;
+    padding: 0.42rem 0.75rem !important;
+  }
+
+  .asset-tab-btn.active {
+    font-weight: 600 !important;
   }
 
   /* Level-2 Order Book Depth on Mobile */
@@ -2351,8 +2507,10 @@ body.pwa-installed #mobileInstallBanner {
   .depth-col-head {
     display: grid !important;
     grid-template-columns: 1fr 1fr 1.2fr !important;
-    font-size: 0.68rem !important;
-    font-weight: 700 !important;
+    font-size: 0.65rem !important;
+    font-weight: 500 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.02em !important;
     color: var(--text-muted) !important;
     padding: 0.2rem 0.3rem !important;
     border-bottom: 1px solid var(--border-subtle) !important;
@@ -2366,7 +2524,7 @@ body.pwa-installed #mobileInstallBanner {
   .depth-row {
     display: grid !important;
     grid-template-columns: 1fr 1fr 1.2fr !important;
-    font-size: 0.7rem !important;
+    font-size: 0.68rem !important;
     padding: 0.2rem 0.3rem !important;
     border-radius: 4px !important;
     overflow: hidden !important;
@@ -2377,6 +2535,12 @@ body.pwa-installed #mobileInstallBanner {
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     white-space: nowrap !important;
+    font-weight: 500 !important;
+  }
+
+  .depth-row.bid .price,
+  .depth-row.ask .price {
+    font-weight: 600 !important;
   }
 
   .depth-row.ask {
@@ -2407,6 +2571,11 @@ body.pwa-installed #mobileInstallBanner {
     justify-content: center !important;
   }
 
+  .fo-idx-btn span {
+    font-size: 0.82rem !important;
+    font-weight: 600 !important;
+  }
+
   .fo-stats-row {
     display: flex !important;
     overflow-x: auto !important;
@@ -2424,8 +2593,51 @@ body.pwa-installed #mobileInstallBanner {
 
   .fo-stat-pill {
     flex-shrink: 0 !important;
-    padding: 0.35rem 0.6rem !important;
+    padding: 0.32rem 0.55rem !important;
+    font-size: 0.72rem !important;
+    font-weight: 500 !important;
+  }
+
+  .fo-strike-col {
     font-size: 0.75rem !important;
+    font-weight: 600 !important;
+  }
+
+  .atm-badge {
+    font-size: 0.62rem !important;
+    font-weight: 600 !important;
+  }
+
+  .opt-trade-btn.call strong,
+  .opt-trade-btn.put strong {
+    font-size: 0.80rem !important;
+    font-weight: 500 !important;
+  }
+
+  .ipo-card-title {
+    font-size: 0.92rem !important;
+    font-weight: 600 !important;
+  }
+
+  .ipo-metric-item strong {
+    font-size: 0.80rem !important;
+    font-weight: 600 !important;
+  }
+
+  .ipo-metric-item .label {
+    font-size: 0.68rem !important;
+    font-weight: 400 !important;
+  }
+
+  .sip-val-badge,
+  .sip-res-val {
+    font-size: 0.88rem !important;
+    font-weight: 600 !important;
+  }
+
+  .news-title {
+    font-size: 0.86rem !important;
+    font-weight: 600 !important;
   }
 
   /* Onboarding Wizard Mobile Tweaks */
@@ -2759,10 +2971,10 @@ body.pwa-installed #mobileInstallBanner {
 
   .mob-trade-btn {
     flex: 1;
-    height: 48px;
-    font-size: 1.05rem;
-    font-weight: 800;
-    letter-spacing: 0.03em;
+    height: 46px;
+    font-size: 0.92rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
     border-radius: 12px;
     border: none;
     cursor: pointer;
@@ -2859,22 +3071,22 @@ body.pwa-installed #mobileInstallBanner {
 }
 
 .drawer-avatar {
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   border-radius: 10px;
   background: var(--bg-elevated);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 800;
-  font-size: 0.9rem;
+  font-weight: 600;
+  font-size: 0.85rem;
   color: var(--brand-cyan);
   flex-shrink: 0;
 }
 
 .drawer-title {
-  font-size: 1.05rem;
-  font-weight: 750;
+  font-size: 0.98rem;
+  font-weight: 600;
   margin: 0;
   color: var(--text-primary);
   white-space: nowrap;
@@ -2884,7 +3096,8 @@ body.pwa-installed #mobileInstallBanner {
 }
 
 .drawer-sub {
-  font-size: 0.78rem;
+  font-size: 0.74rem;
+  font-weight: 400;
   color: var(--text-muted);
   display: flex;
   align-items: center;
@@ -2929,8 +3142,9 @@ body.pwa-installed #mobileInstallBanner {
 .mob-action-toggle .trade-tab-btn {
   border-radius: 8px;
   border-bottom: none !important;
-  padding: 0.65rem 0.5rem;
-  font-size: 0.95rem;
+  padding: 0.55rem 0.5rem;
+  font-size: 0.88rem;
+  font-weight: 600;
 }
 
 .mob-action-toggle .trade-tab-btn.active.buy {
@@ -2957,7 +3171,29 @@ body.pwa-installed #mobileInstallBanner {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.85rem;
+  font-size: 0.80rem;
+}
+
+.mobile-drawer-body .field-label {
+  font-size: 0.74rem;
+  font-weight: 500;
+}
+
+.mobile-drawer-body .stepper-input input,
+.mobile-drawer-body .trade-text-input {
+  font-size: 1.02rem;
+  font-weight: 600;
+}
+
+.mobile-drawer-body .qty-chip {
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.mobile-drawer-body .btn-trade-execute {
+  font-size: 0.92rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 [data-theme="light"] .mobile-drawer-card {
@@ -5321,8 +5557,8 @@ body.pwa-installed #mobileInstallBanner {
 }
 
 .mob-install-title {
-  font-size: 0.92rem;
-  font-weight: 800;
+  font-size: 0.88rem;
+  font-weight: 600;
   color: var(--text-primary);
   line-height: 1.2;
 }
@@ -5337,9 +5573,9 @@ body.pwa-installed #mobileInstallBanner {
   background: linear-gradient(135deg, #0ea5e9 0%, #10b981 100%);
   color: #031520;
   font-family: inherit;
-  font-weight: 800;
-  font-size: 0.82rem;
-  padding: 0.45rem 0.95rem;
+  font-weight: 600;
+  font-size: 0.78rem;
+  padding: 0.42rem 0.85rem;
   border-radius: 8px;
   border: none;
   cursor: pointer;
