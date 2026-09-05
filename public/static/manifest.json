@@ -1,7 +1,7 @@
 {
   "name": "Stoxify — Stock & Mutual Fund Broker",
   "short_name": "Stoxify",
-  "start_url": "/",
+  "start_url": "/?source=pwa",
   "scope": "/",
   "id": "/",
   "display": "standalone",

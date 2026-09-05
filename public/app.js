@@ -1662,8 +1662,14 @@ async function submitDeposit() {
 let deferredInstallPrompt = null;
 
 function isAppInstalled() {
-  return window.matchMedia('(display-mode: standalone)').matches || 
-         window.navigator.standalone === true;
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
+                       window.matchMedia('(display-mode: minimal-ui)').matches ||
+                       window.matchMedia('(display-mode: fullscreen)').matches ||
+                       window.matchMedia('(display-mode: window-controls-overlay)').matches ||
+                       window.navigator.standalone === true;
+  const isInstalledFlag = localStorage.getItem('stoxify_app_installed') === '1' ||
+                          window.location.search.includes('source=pwa');
+  return isStandalone || isInstalledFlag;
 }
 
 function dismissMobileInstallBanner() {
@@ -1674,16 +1680,22 @@ function dismissMobileInstallBanner() {
 
 function updateInstallButtonsVisibility() {
   const installed = isAppInstalled();
+  if (installed) {
+    document.body.classList.add('pwa-installed');
+  } else {
+    document.body.classList.remove('pwa-installed');
+  }
+
   const topBtn = document.getElementById('btnInstallApp');
   const dropdownItem = document.getElementById('dropdownInstallItem');
   const mobBanner = document.getElementById('mobileInstallBanner');
   const mobDismissed = sessionStorage.getItem('stoxify_mob_install_dismissed') === '1';
 
-  // Desktop/header button is visible unless running as installed standalone PWA
+  // Desktop/header button is visible unless running as installed standalone PWA or marked installed
   if (topBtn) topBtn.style.display = installed ? 'none' : 'inline-flex';
   if (dropdownItem) dropdownItem.style.display = installed ? 'none' : 'flex';
 
-  // Mobile banner is visible on mobile browsers unless running in standalone PWA
+  // Mobile banner is visible on mobile browsers unless running in standalone PWA or marked installed
   if (mobBanner) {
     if (installed || mobDismissed) {
       mobBanner.style.display = 'none';
@@ -1692,6 +1704,16 @@ function updateInstallButtonsVisibility() {
       mobBanner.style.display = isMobile ? 'flex' : 'none';
     }
   }
+}
+
+// Check getInstalledRelatedApps if supported by modern browser
+if ('getInstalledRelatedApps' in navigator) {
+  navigator.getInstalledRelatedApps().then(apps => {
+    if (apps && apps.length > 0) {
+      localStorage.setItem('stoxify_app_installed', '1');
+      updateInstallButtonsVisibility();
+    }
+  }).catch(() => {});
 }
 
 function detectPlatform() {
@@ -1734,6 +1756,7 @@ async function triggerNativeInstallPrompt() {
       const { outcome } = await deferredInstallPrompt.userChoice;
       if (outcome === 'accepted') {
         localStorage.setItem('stoxify_app_installed', '1');
+        document.body.classList.add('pwa-installed');
         updateInstallButtonsVisibility();
         closePwaGuideModal();
         showToast('Stoxify installed successfully!');
@@ -1746,18 +1769,25 @@ async function triggerNativeInstallPrompt() {
 }
 
 async function installPWA() {
+  if (isAppInstalled()) {
+    updateInstallButtonsVisibility();
+    showToast('Stoxify is already installed on your device!');
+    return;
+  }
   if (deferredInstallPrompt) {
     try {
       deferredInstallPrompt.prompt();
       const { outcome } = await deferredInstallPrompt.userChoice;
       if (outcome === 'accepted') {
         localStorage.setItem('stoxify_app_installed', '1');
+        document.body.classList.add('pwa-installed');
         updateInstallButtonsVisibility();
         closePwaGuideModal();
         showToast('Stoxify installed successfully!');
+        deferredInstallPrompt = null;
+        return;
       }
       deferredInstallPrompt = null;
-      return;
     } catch (err) {
       console.warn('Direct install prompt error:', err);
     }
@@ -1776,6 +1806,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
 window.addEventListener('appinstalled', () => {
   deferredInstallPrompt = null;
   localStorage.setItem('stoxify_app_installed', '1');
+  document.body.classList.add('pwa-installed');
   updateInstallButtonsVisibility();
   closePwaGuideModal();
   showToast('Stoxify installed successfully!');
@@ -1796,7 +1827,11 @@ if ('serviceWorker' in navigator) {
 window.addEventListener('DOMContentLoaded', () => {
   initTheme();
   
-  // Set install buttons visibility based on whether running in standalone mode
+  if (window.location.search.includes('source=pwa')) {
+    localStorage.setItem('stoxify_app_installed', '1');
+  }
+
+  // Set install buttons visibility based on whether running in standalone mode or already installed
   updateInstallButtonsVisibility();
 
   // Close PWA guide modal on clicking backdrop

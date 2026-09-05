@@ -1228,6 +1228,25 @@ body {
   }
 }
 
+/* Hide install buttons & banners when installed or running in standalone mode */
+body.pwa-installed .btn-install-app,
+body.pwa-installed #btnInstallApp,
+body.pwa-installed #dropdownInstallItem,
+body.pwa-installed .mobile-install-banner,
+body.pwa-installed #mobileInstallBanner {
+  display: none !important;
+}
+
+@media (display-mode: standalone), (display-mode: minimal-ui), (display-mode: fullscreen), (display-mode: window-controls-overlay) {
+  .btn-install-app,
+  #btnInstallApp,
+  #dropdownInstallItem,
+  .mobile-install-banner,
+  #mobileInstallBanner {
+    display: none !important;
+  }
+}
+
 /* --- PWA Install App Button --- */
 .btn-install-app {
   display: inline-flex;
