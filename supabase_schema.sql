@@ -1,4 +1,4 @@
-﻿-- =======================================================
+-- =======================================================
 -- STOXIFY: SUPABASE POSTGRESQL SCHEMA
 -- Paste this entire script into Supabase SQL Editor and click RUN
 -- =======================================================
@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS public.users (
     email TEXT,
     phone TEXT,
     pan TEXT,
+    dob DATE,
     bank_name TEXT DEFAULT 'HDFC Bank',
     bank_account TEXT DEFAULT '50100234567890',
     pin TEXT DEFAULT '1234',
@@ -18,6 +19,9 @@ CREATE TABLE IF NOT EXISTS public.users (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Ensure dob column exists if table was already created earlier:
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS dob DATE;
 
 INSERT INTO public.users (id, name, email, phone, pan, bank_name, bank_account, pin, balance, total_deposited)
 VALUES (

@@ -200,7 +200,8 @@ def api_create_user(req: CreateUserRequest):
         bank_name=req.bank_name or "HDFC Bank",
         bank_account=req.bank_account or "50100234567890",
         pin=req.pin or "1234",
-        user_id=req.id
+        user_id=req.id,
+        dob=(req.dob or "").strip()
     )
     return {"success": True, "user": u}
 

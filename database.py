@@ -110,6 +110,7 @@ def init_db():
             email TEXT,
             phone TEXT,
             pan TEXT,
+            dob TEXT,
             bank_name TEXT DEFAULT 'HDFC Bank',
             bank_account TEXT DEFAULT '50100234567890',
             pin TEXT DEFAULT '1234',
@@ -120,6 +121,11 @@ def init_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN dob TEXT")
+        conn.commit()
+    except Exception:
+        pass
 
     # Ensure default user exists
     cursor.execute("SELECT COUNT(*) FROM users WHERE id = 'default'")
@@ -368,7 +374,8 @@ def create_user(
     bank_name: str = "HDFC Bank",
     bank_account: str = "50100234567890",
     pin: str = "1234",
-    user_id: Optional[str] = None
+    user_id: Optional[str] = None,
+    dob: Optional[str] = None
 ) -> Dict[str, Any]:
     if not user_id:
         user_id = f"STOX-{random.randint(100000, 999999)}"
@@ -379,9 +386,9 @@ def create_user(
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT OR REPLACE INTO users (id, name, email, phone, pan, bank_name, bank_account, pin, balance, total_deposited, avatar_color)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1000000.0, 1000000.0, ?)
-    """, (user_id, name, (email or "").strip(), phone or "", pan or "ABCDE1234F", bank_name, bank_account, pin, avatar_color))
+        INSERT OR REPLACE INTO users (id, name, email, phone, pan, dob, bank_name, bank_account, pin, balance, total_deposited, avatar_color)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1000000.0, 1000000.0, ?)
+    """, (user_id, name, (email or "").strip(), phone or "", pan or "ABCDE1234F", dob or "", bank_name, bank_account, pin, avatar_color))
 
     # Seed default watchlist for this new user
     default_items = [
@@ -414,7 +421,16 @@ def create_user(
             "total_deposited": 1000000.0,
             "avatar_color": avatar_color
         }
+        if dob:
+            sb_user_payload["dob"] = dob.strip()
+
         sb_res = supabase_api("POST", "users", payload=sb_user_payload)
+        if sb_res is None and "dob" in sb_user_payload:
+            # Graceful fallback if dob column hasn't been added yet in Supabase
+            fallback_payload = dict(sb_user_payload)
+            del fallback_payload["dob"]
+            sb_res = supabase_api("POST", "users", payload=fallback_payload)
+
         if sb_res is not None:
             print(f"[Supabase] User {user_id} ({name}) successfully saved to Supabase dashboard")
             # Seed default watchlist items to Supabase
