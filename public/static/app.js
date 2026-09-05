@@ -2529,7 +2529,7 @@ function selectLoginAccount(id, name, email) {
   if (identInput) identInput.value = id || email;
   if (pinInput) {
     pinInput.focus();
-    pinInput.placeholder = 'Enter 4-digit PIN (default 1234)';
+    pinInput.placeholder = 'Enter Password or 4-digit PIN (default 1234)';
   }
 }
 
@@ -2542,7 +2542,7 @@ async function submitLogin() {
   const pin = pinInput ? pinInput.value.trim() : '';
 
   if (!identifier) {
-    showToast('Please enter your Mobile, Email, or Demat ID', true);
+    showToast('Please enter your Email Address or Phone Number', true);
     if (identInput) identInput.focus();
     return;
   }
@@ -2556,7 +2556,7 @@ async function submitLogin() {
     const res = await fetch('/api/user/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identifier, pin: pin || '1234' })
+      body: JSON.stringify({ identifier, pin: pin || '1234', password: pin || '1234' })
     });
     const data = await res.json();
 

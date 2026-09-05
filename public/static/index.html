@@ -12,7 +12,7 @@
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-dark.png" id="dynamicFavicon">
   <link rel="apple-touch-icon" href="/static/icon-192.png">
-  <link rel="stylesheet" href="/static/style.css?v=6.6" onerror="this.onerror=null;this.href='/style.css?v=6.6';">
+  <link rel="stylesheet" href="/static/style.css?v=6.7" onerror="this.onerror=null;this.href='/style.css?v=6.7';">
   <!-- Chart.js for high performance financial line & area charts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Pre-render synchronous auth & theme hydration to completely eliminate cold-boot flash of 'Invest' button -->
@@ -93,17 +93,11 @@
         <span class="btn-install-text-mobile">Install</span>
       </button>
 
-      <!-- Guest Auth Buttons (Log In + Invest - Visible in Guest mode) -->
-      <div class="guest-auth-buttons" id="navGuestButtons" style="display: inline-flex; align-items: center; gap: 0.4rem;">
-        <button class="btn-subtle" id="navLoginBtn" onclick="openLoginModal()" style="font-weight: 700; padding: 0.45rem 0.85rem; font-size: 0.82rem; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-primary);">
-          Log In
-        </button>
-        <button class="btn-get-started" id="navGetStartedBtn" onclick="navigateTo('/onboarding')">
-          <span class="btn-invest-text-desktop">Start Investing</span>
-          <span class="btn-invest-text-mobile">Invest</span>
-          <svg class="desktop-only" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
-        </button>
-      </div>
+      <!-- Auth Button (Login / Register - Visible in Guest mode) -->
+      <button class="btn-get-started" id="navAuthBtn" onclick="openLoginModal()" title="Login or Register to Stoxify">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
+        <span class="btn-auth-text">Login / Register</span>
+      </button>
 
       <!-- Theme Toggle Button -->
       <button class="icon-btn" onclick="toggleTheme()" title="Toggle Dark/Light Mode">
@@ -1990,8 +1984,8 @@
     <div class="modal-card" style="max-width: 480px; max-height: 90vh; overflow-y: auto;">
       <div class="modal-header">
         <div>
-          <h3 style="font-size: 1.2rem; font-weight: 800;">Log In to Stoxify</h3>
-          <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">Access your virtual portfolio & ₹10,00,000 capital</div>
+          <h3 style="font-size: 1.2rem; font-weight: 800;">Login / Register</h3>
+          <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">Enter your Email or Phone and Password or PIN</div>
         </div>
         <button class="icon-btn" onclick="closeLoginModal()">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2012,7 +2006,7 @@
           </div>
           <div style="display: flex; align-items: center; gap: 0.75rem; margin: 1rem 0 0.5rem 0;">
             <div style="flex: 1; height: 1px; background: var(--border-subtle);"></div>
-            <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Or log in manually</span>
+            <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Or log in with Email / Phone</span>
             <div style="flex: 1; height: 1px; background: var(--border-subtle);"></div>
           </div>
         </div>
@@ -2020,16 +2014,16 @@
         <!-- Manual Credentials Form -->
         <div>
           <div class="ob-form-group" style="margin-bottom: 0.85rem;">
-            <label class="ob-label" for="loginIdentifierInput">Mobile Number, Email or Demat ID</label>
-            <input type="text" class="ob-input" id="loginIdentifierInput" placeholder="e.g. 9876543210 or your@email.com or STOX-335684" autocomplete="username" onkeydown="if(event.key==='Enter') submitLogin()">
+            <label class="ob-label" for="loginIdentifierInput">Email Address or Phone Number</label>
+            <input type="text" class="ob-input" id="loginIdentifierInput" placeholder="e.g. your@email.com or 9876543210 (or Demat ID)" autocomplete="username" onkeydown="if(event.key==='Enter') submitLogin()">
           </div>
 
           <div class="ob-form-group" style="margin-bottom: 0.85rem;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-              <label class="ob-label" for="loginPinInput" style="margin-bottom: 0;">4-Digit Security PIN</label>
-              <span style="font-size: 0.75rem; color: var(--text-muted);">Default: 1234</span>
+              <label class="ob-label" for="loginPinInput" style="margin-bottom: 0;">Password or PIN</label>
+              <span style="font-size: 0.75rem; color: var(--text-muted);">Default PIN: 1234</span>
             </div>
-            <input type="password" class="ob-input" id="loginPinInput" placeholder="••••" maxlength="4" style="letter-spacing: 0.25rem;" autocomplete="current-password" onkeydown="if(event.key==='Enter') submitLogin()">
+            <input type="password" class="ob-input" id="loginPinInput" placeholder="Enter password or 4-digit PIN" style="letter-spacing: 0.1rem;" autocomplete="current-password" onkeydown="if(event.key==='Enter') submitLogin()">
           </div>
 
           <button class="btn-primary" id="btnLoginSubmit" style="width: 100%; justify-content: center; padding: 0.85rem 1rem; font-size: 0.95rem; font-weight: 700; margin-top: 0.5rem;" onclick="submitLogin()">
@@ -2454,6 +2448,6 @@
     </button>
   </nav>
 
-  <script src="/static/app.js?v=6.6" onerror="this.onerror=null;this.src='/app.js?v=6.6';"></script>
+  <script src="/static/app.js?v=6.7" onerror="this.onerror=null;this.src='/app.js?v=6.7';"></script>
 </body>
 </html>

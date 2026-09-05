@@ -615,6 +615,7 @@ def find_user_by_identifier(identifier: str) -> Optional[Dict[str, Any]]:
            OR LOWER(email) = ? 
            OR phone = ? 
            OR UPPER(pan) = ?
+        ORDER BY CASE WHEN id = 'default' THEN 1 ELSE 0 END, created_at DESC
         LIMIT 1
     """, (clean, clean, clean_raw, clean_raw.upper()))
     row = cursor.fetchone()

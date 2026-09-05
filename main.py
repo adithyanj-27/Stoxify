@@ -276,20 +276,25 @@ def api_update_user_profile(req: UpdateProfileRequest, request: Request):
 class LoginRequest(BaseModel):
     identifier: str
     pin: Optional[str] = None
+    password: Optional[str] = None
 
 @app.post("/api/user/login")
 def api_login_user(req: LoginRequest):
     if not req.identifier or not req.identifier.strip():
-        raise HTTPException(status_code=400, detail="Please enter your Mobile Number, Email, or Demat ID")
+        raise HTTPException(status_code=400, detail="Please enter your Email Address or Phone Number")
 
     user = find_user_by_identifier(req.identifier.strip())
     if not user:
-        raise HTTPException(status_code=404, detail="No registered account found matching this Mobile, Email, or Demat ID")
+        raise HTTPException(status_code=404, detail="No registered account found matching this Email or Phone Number")
 
+    # Verify credentials via PIN or Password
+    entered_secret = (req.password or req.pin or "").strip()
     user_pin = (user.get("pin") or "1234").strip()
-    if req.pin and req.pin.strip():
-        if req.pin.strip() != user_pin:
-            raise HTTPException(status_code=401, detail="Incorrect 4-digit PIN. Please try again.")
+    user_password = (user.get("password") or user_pin).strip()
+
+    if entered_secret:
+        if entered_secret != user_pin and entered_secret != user_password:
+            raise HTTPException(status_code=401, detail="Incorrect PIN or Password. Please try again.")
 
     return {
         "success": True,
