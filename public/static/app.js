@@ -78,23 +78,22 @@ function formatChange(change, changePct) {
 // --- Toast Notifications ---
 function showToast(message, isError = false) {
   const container = document.getElementById('toastContainer');
+  if (!container) return;
   const toast = document.createElement('div');
   toast.className = `toast ${isError ? 'error' : ''}`;
   toast.innerHTML = `
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${isError ? '#eb5b3c' : '#00d09c'}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${isError ? '#eb5b3c' : '#00d09c'}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;">
       ${isError 
         ? '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>' 
         : '<polyline points="20 6 9 17 4 12"></polyline>'}
     </svg>
-    <span>${message}</span>
+    <span style="flex: 1; min-width: 0; word-break: break-word;">${message}</span>
   `;
   container.appendChild(toast);
   setTimeout(() => {
-    toast.style.opacity = '0';
-    toast.style.transform = 'translateX(100%)';
-    toast.style.transition = 'all 0.3s ease';
-    setTimeout(() => toast.remove(), 300);
-  }, 4500);
+    toast.classList.add('toast-exit');
+    setTimeout(() => toast.remove(), 320);
+  }, 4200);
 }
 
 // --- Theme Management ---
