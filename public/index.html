@@ -2,7 +2,7 @@
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Stoxify — Stock & Mutual Fund Broker Platform</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#080D14">
@@ -78,8 +78,9 @@
 
       <!-- Start Investing Button (Visible in Guest mode) -->
       <button class="btn-get-started" id="navGetStartedBtn" onclick="navigateTo('/onboarding')">
-        <span>Start Investing</span>
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+        <span class="btn-invest-text-desktop">Start Investing</span>
+        <span class="btn-invest-text-mobile">Invest</span>
+        <svg class="desktop-only" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
       </button>
 
       <!-- Theme Toggle Button -->

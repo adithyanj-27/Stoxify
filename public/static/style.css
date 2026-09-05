@@ -253,14 +253,28 @@
   -webkit-font-smoothing: antialiased;
 }
 
+html {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   background-color: var(--bg-main);
   color: var(--text-primary);
   min-height: 100vh;
+  width: 100%;
+  max-width: 100vw;
   display: flex;
   flex-direction: column;
   overflow-x: hidden;
   transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+.btn-invest-text-mobile {
+  display: none;
 }
 
 /* Custom Scrollbar */
@@ -1760,9 +1774,13 @@ body {
 
   /* Navbar (Groww-Style Sleek Mobile Top Bar) */
   .navbar {
-    padding: 0.5rem 0.9rem;
-    height: 54px;
-    gap: 0.5rem;
+    padding: 0.5rem 0.65rem;
+    height: 52px;
+    width: 100%;
+    max-width: 100vw;
+    box-sizing: border-box;
+    overflow: hidden;
+    gap: 0.25rem;
     flex-wrap: nowrap;
     align-items: center;
     justify-content: space-between;
@@ -1771,18 +1789,27 @@ body {
     z-index: 1100;
   }
 
+  .brand-container {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-shrink: 0;
+    min-width: 0;
+  }
+
   .brand-logo {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
   }
 
   .brand-name {
     font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif !important;
-    font-size: 1.25rem !important;
+    font-size: 1.15rem !important;
     font-weight: 700 !important;
     letter-spacing: -0.02em !important;
     color: var(--text-primary);
@@ -1792,13 +1819,14 @@ body {
   .search-wrapper {
     display: none;
     position: absolute;
-    top: 54px;
+    top: 52px;
     left: 0;
     right: 0;
     width: 100%;
-    max-width: 100%;
+    max-width: 100vw;
+    box-sizing: border-box;
     margin-top: 0;
-    padding: 0.6rem 0.9rem;
+    padding: 0.5rem 0.75rem;
     background: var(--bg-card);
     border-bottom: 1px solid var(--border-subtle);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
@@ -1811,48 +1839,74 @@ body {
   }
 
   .nav-actions {
-    gap: 0.35rem;
+    gap: 0.25rem;
     align-items: center;
+    flex-shrink: 0;
   }
 
   .btn-install-app {
-    padding: 0.25rem 0.55rem;
+    padding: 0.25rem 0.45rem;
     font-size: 0.7rem;
-    border-radius: 6px;
+    border-radius: 20px;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
-  .market-status-pill {
-    padding: 0.2rem 0.45rem;
-    font-size: 0.68rem;
+  .btn-invest-text-desktop {
+    display: none !important;
   }
 
-  .balance-chip {
-    padding: 0.2rem 0.5rem;
-    font-size: 0.72rem;
+  .btn-invest-text-mobile {
+    display: inline !important;
   }
 
   /* Compact Start Investing button on mobile */
   .btn-get-started {
-    padding: 0.32rem 0.65rem !important;
-    font-size: 0.74rem !important;
-    gap: 0.25rem !important;
+    padding: 0.25rem 0.5rem !important;
+    font-size: 0.72rem !important;
+    gap: 0.2rem !important;
     border-radius: 20px !important;
     white-space: nowrap !important;
+    flex-shrink: 0 !important;
   }
 
   .btn-get-started svg {
     display: none !important;
   }
 
+  .icon-btn {
+    width: 30px !important;
+    height: 30px !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
+  }
+
+  .market-status-pill {
+    padding: 0.2rem 0.4rem;
+    font-size: 0.65rem;
+  }
+
+  .balance-chip {
+    padding: 0.2rem 0.45rem;
+    font-size: 0.7rem;
+  }
+
   /* Sleek Underline Sub-nav on mobile (Stocks, Mutual Funds, F&O, IPOs) */
   .sub-nav {
     display: flex !important;
     align-items: center;
+    width: 100% !important;
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
     overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
     scrollbar-width: none !important;
     white-space: nowrap !important;
     gap: 1.15rem !important;
-    padding: 0 0.9rem !important;
+    padding: 0 0.75rem !important;
     margin-bottom: 0.85rem !important;
     border-bottom: 1px solid var(--border-subtle) !important;
     background: var(--bg-main);
@@ -1863,17 +1917,21 @@ body {
   }
 
   .sub-nav-btn {
-    padding: 0.6rem 0.15rem !important;
-    font-size: 0.92rem !important;
+    padding: 0.55rem 0.15rem !important;
+    font-size: 0.9rem !important;
     flex-shrink: 0 !important;
   }
 
   /* Indices Bar on Mobile: Compact Single-Row Ticker */
   .indices-bar {
     height: 36px;
-    padding: 0.2rem 0.75rem;
-    gap: 0.4rem;
+    width: 100%;
+    max-width: 100vw;
+    box-sizing: border-box;
+    padding: 0.2rem 0.65rem;
+    gap: 0.35rem;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     white-space: nowrap;
     flex-wrap: nowrap;
@@ -1885,21 +1943,29 @@ body {
   }
 
   .index-pill {
-    padding: 0.2rem 0.55rem;
-    font-size: 0.72rem;
+    padding: 0.18rem 0.5rem;
+    font-size: 0.7rem;
     border-radius: 6px;
     flex-shrink: 0;
-    gap: 0.35rem;
+    gap: 0.3rem;
   }
 
   /* Main Container */
   .main-content {
-    padding: 0.75rem 0.85rem;
+    width: 100% !important;
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+    padding: 0.65rem 0.65rem !important;
   }
 
   .filter-pills {
     display: flex;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     flex-wrap: nowrap;
     gap: 0.35rem;
@@ -1912,39 +1978,46 @@ body {
 
   .pill-btn {
     border-radius: 20px;
-    padding: 0.32rem 0.8rem;
-    font-size: 0.75rem;
+    padding: 0.3rem 0.75rem;
+    font-size: 0.74rem;
     font-weight: 600;
     flex-shrink: 0;
     white-space: nowrap;
   }
 
   .section-title {
-    font-size: 1.1rem;
+    font-size: 1.05rem;
     font-weight: 700;
   }
 
   .section-desc {
-    font-size: 0.72rem;
+    font-size: 0.7rem;
   }
 
-  /* Groww-Style 2-Column Cards Grid on Mobile */
+  /* Groww-Style 2-Column Cards Grid on Mobile (Guaranteed fit without overflow) */
   .cards-grid {
     display: grid !important;
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 0.65rem !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.55rem !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
   }
 
   .stock-card {
-    border-radius: 16px !important;
-    padding: 0.85rem 0.8rem !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    border-radius: 14px !important;
+    padding: 0.75rem 0.7rem !important;
     border: 1px solid var(--border-subtle) !important;
     background: var(--bg-card) !important;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
     display: flex !important;
     flex-direction: column !important;
     justify-content: space-between !important;
-    min-height: 120px !important;
+    min-height: 115px !important;
     transition: transform 0.15s ease !important;
   }
 
@@ -1953,57 +2026,73 @@ body {
   }
 
   .stock-card .card-top {
-    margin-bottom: 0.35rem !important;
-    gap: 0.35rem !important;
+    margin-bottom: 0.3rem !important;
+    gap: 0.3rem !important;
     align-items: flex-start !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .stock-card .card-header-left {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    gap: 0.4rem !important;
   }
 
   .stock-card .card-avatar {
-    width: 34px !important;
-    height: 34px !important;
-    border-radius: 10px !important;
-    font-size: 0.72rem !important;
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 8px !important;
+    font-size: 0.7rem !important;
     font-weight: 700 !important;
     flex-shrink: 0 !important;
   }
 
+  .stock-card .card-info {
+    min-width: 0 !important;
+    overflow: hidden !important;
+    flex: 1 !important;
+  }
+
   .stock-card .card-title {
-    font-size: 0.82rem !important;
+    font-size: 0.8rem !important;
     font-weight: 600 !important;
     line-height: 1.25 !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
-    max-width: 95px !important;
+    max-width: 100% !important;
   }
 
   .stock-card .card-subtitle {
-    font-size: 0.68rem !important;
+    font-size: 0.65rem !important;
     color: var(--text-muted) !important;
     margin-top: 1px !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
-    max-width: 95px !important;
+    max-width: 100% !important;
   }
 
   .stock-card .card-bottom {
-    margin-top: 0.45rem !important;
+    margin-top: 0.4rem !important;
     display: flex !important;
     flex-direction: column !important;
     align-items: flex-start !important;
-    gap: 0.15rem !important;
+    gap: 0.1rem !important;
   }
 
   .stock-card .card-price {
-    font-size: 0.92rem !important;
+    font-size: 0.88rem !important;
     font-weight: 700 !important;
     color: var(--text-primary) !important;
   }
 
   .stock-card .badge-positive,
   .stock-card .badge-negative {
-    font-size: 0.72rem !important;
+    font-size: 0.7rem !important;
     font-weight: 600 !important;
     padding: 0 !important;
     background: transparent !important;
