@@ -369,16 +369,92 @@ async function fetchIndices() {
   }
 }
 
+const DEFAULT_EXPLORE_DATA = {
+  all_stocks: [
+    { symbol: 'RELIANCE.NS', name: 'Reliance Industries Ltd', price: 1322.00, change: 19.50, change_pct: 1.50, sector: 'Energy', asset_type: 'STOCK' },
+    { symbol: 'TCS.NS', name: 'Tata Consultancy Services Ltd', price: 2304.00, change: -16.10, change_pct: -0.69, sector: 'IT', asset_type: 'STOCK' },
+    { symbol: 'HDFCBANK.NS', name: 'HDFC Bank Ltd', price: 1684.50, change: 12.30, change_pct: 0.74, sector: 'Banking', asset_type: 'STOCK' },
+    { symbol: 'INFY.NS', name: 'Infosys Ltd', price: 1820.00, change: -8.50, change_pct: -0.46, sector: 'IT', asset_type: 'STOCK' },
+    { symbol: 'ICICIBANK.NS', name: 'ICICI Bank Ltd', price: 1248.00, change: 14.20, change_pct: 1.15, sector: 'Banking', asset_type: 'STOCK' },
+    { symbol: 'SBIN.NS', name: 'State Bank of India', price: 1016.10, change: -7.25, change_pct: -0.71, sector: 'Banking', asset_type: 'STOCK' },
+    { symbol: 'BHARTIARTL.NS', name: 'Bharti Airtel Ltd', price: 1635.00, change: 22.40, change_pct: 1.39, sector: 'Telecom', asset_type: 'STOCK' },
+    { symbol: 'ITC.NS', name: 'ITC Ltd', price: 482.00, change: -2.10, change_pct: -0.43, sector: 'Consumer', asset_type: 'STOCK' },
+    { symbol: 'HAL.NS', name: 'Hindustan Aeronautics Ltd', price: 4856.00, change: 90.50, change_pct: 1.90, sector: 'Defense', asset_type: 'STOCK' },
+    { symbol: 'BEL.NS', name: 'Bharat Electronics Ltd', price: 304.00, change: 4.50, change_pct: 1.50, sector: 'Defense', asset_type: 'STOCK' },
+    { symbol: 'IRFC.NS', name: 'Indian Railway Finance Corp', price: 156.00, change: 2.40, change_pct: 1.56, sector: 'Railways', asset_type: 'STOCK' },
+    { symbol: 'RVNL.NS', name: 'Rail Vikas Nigam Ltd', price: 525.00, change: 14.00, change_pct: 2.74, sector: 'Railways', asset_type: 'STOCK' },
+    { symbol: 'TATAPOWER.NS', name: 'Tata Power Company Ltd', price: 418.00, change: 5.80, change_pct: 1.41, sector: 'Energy', asset_type: 'STOCK' },
+    { symbol: 'SUZLON.NS', name: 'Suzlon Energy Ltd', price: 66.50, change: 1.20, change_pct: 1.84, sector: 'Energy', asset_type: 'STOCK' },
+    { symbol: 'ETERNAL.NS', name: 'Zomato Ltd (Eternal Ltd)', price: 262.00, change: 5.40, change_pct: 2.10, sector: 'Consumer', asset_type: 'STOCK' },
+    { symbol: 'JIOFIN.NS', name: 'Jio Financial Services Ltd', price: 324.50, change: 3.80, change_pct: 1.18, sector: 'Finance', asset_type: 'STOCK' }
+  ],
+  gainers: [
+    { symbol: 'RVNL.NS', name: 'Rail Vikas Nigam Ltd', price: 525.00, change: 14.00, change_pct: 2.74, sector: 'Railways', asset_type: 'STOCK' },
+    { symbol: 'ETERNAL.NS', name: 'Zomato Ltd (Eternal Ltd)', price: 262.00, change: 5.40, change_pct: 2.10, sector: 'Consumer', asset_type: 'STOCK' },
+    { symbol: 'HAL.NS', name: 'Hindustan Aeronautics Ltd', price: 4856.00, change: 90.50, change_pct: 1.90, sector: 'Defense', asset_type: 'STOCK' },
+    { symbol: 'SUZLON.NS', name: 'Suzlon Energy Ltd', price: 66.50, change: 1.20, change_pct: 1.84, sector: 'Energy', asset_type: 'STOCK' }
+  ],
+  losers: [
+    { symbol: 'TCS.NS', name: 'Tata Consultancy Services Ltd', price: 2304.00, change: -16.10, change_pct: -0.69, sector: 'IT', asset_type: 'STOCK' },
+    { symbol: 'SBIN.NS', name: 'State Bank of India', price: 1016.10, change: -7.25, change_pct: -0.71, sector: 'Banking', asset_type: 'STOCK' },
+    { symbol: 'ITC.NS', name: 'ITC Ltd', price: 482.00, change: -2.10, change_pct: -0.43, sector: 'Consumer', asset_type: 'STOCK' },
+    { symbol: 'INFY.NS', name: 'Infosys Ltd', price: 1820.00, change: -8.50, change_pct: -0.46, sector: 'IT', asset_type: 'STOCK' }
+  ],
+  mutual_funds: [
+    { symbol: '120503', name: 'Axis Small Cap Fund Direct Growth', price: 96.40, change: 0.85, change_pct: 0.89, category: 'Small Cap Equity', return_1y: 28.4, rating: 5, asset_type: 'MUTUAL_FUND' },
+    { symbol: '118989', name: 'Mirae Asset Large Cap Fund Direct Growth', price: 114.20, change: 0.60, change_pct: 0.53, category: 'Large Cap Equity', return_1y: 21.2, rating: 5, asset_type: 'MUTUAL_FUND' },
+    { symbol: '120716', name: 'UTI Nifty 50 Index Fund Direct Growth', price: 172.50, change: 1.10, change_pct: 0.64, category: 'Index Fund', return_1y: 23.5, rating: 5, asset_type: 'MUTUAL_FUND' },
+    { symbol: '125354', name: 'Parag Parikh Flexi Cap Fund Direct Growth', price: 78.90, change: 0.70, change_pct: 0.90, category: 'Flexi Cap Equity', return_1y: 26.1, rating: 5, asset_type: 'MUTUAL_FUND' }
+  ]
+};
+
+function loadStoredExploreData() {
+  try {
+    const raw = localStorage.getItem('stoxify_explore_cache');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.all_stocks && parsed.all_stocks.length > 0) return parsed;
+    }
+  } catch (e) {}
+  return DEFAULT_EXPLORE_DATA;
+}
+
+function saveStoredExploreData(data) {
+  try {
+    localStorage.setItem('stoxify_explore_cache', JSON.stringify(data));
+  } catch (e) {}
+}
+
 // --- Explore View ---
 async function fetchExploreData() {
-  try {
-    const res = await fetch('/api/explore');
-    const data = await res.json();
-    state.exploreData = data;
+  // 1. Immediately render cached or bundled data so user never waits for an eternity
+  if (!state.exploreData || !state.exploreData.all_stocks || state.exploreData.all_stocks.length === 0) {
+    state.exploreData = loadStoredExploreData();
     renderExploreStocks();
     renderExploreMutualFunds();
+  }
+
+  // 2. Fetch fresh live quotes in background with timeout
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 9000);
+    const res = await fetch('/api/explore', { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data && data.all_stocks && data.all_stocks.length > 0) {
+      state.exploreData = data;
+      saveStoredExploreData(data);
+      renderExploreStocks();
+      renderExploreMutualFunds();
+    }
   } catch (err) {
-    console.error('Failed to fetch explore data:', err);
+    console.warn('Explore live fetch error (using cached/fallback):', err);
+    if (!state.exploreData || !state.exploreData.all_stocks || state.exploreData.all_stocks.length === 0) {
+      state.exploreData = loadStoredExploreData();
+      renderExploreStocks();
+      renderExploreMutualFunds();
+    }
   }
 }
 
@@ -1841,6 +1917,11 @@ window.addEventListener('DOMContentLoaded', () => {
       if (e.target === pwaModal) closePwaGuideModal();
     });
   }
+
+  // Instant render of explore data so user never waits for a loading state
+  state.exploreData = loadStoredExploreData();
+  renderExploreStocks();
+  renderExploreMutualFunds();
 
   fetchCurrentUser();
   handleRoute();
