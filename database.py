@@ -601,6 +601,55 @@ def list_users() -> List[Dict[str, Any]]:
     conn.close()
     return [dict(r) for r in rows]
 
+def find_user_by_identifier(identifier: str) -> Optional[Dict[str, Any]]:
+    if not identifier:
+        return None
+    clean = identifier.strip().lower()
+    clean_raw = identifier.strip()
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT * FROM users 
+        WHERE LOWER(id) = ? 
+           OR LOWER(email) = ? 
+           OR phone = ? 
+           OR UPPER(pan) = ?
+        LIMIT 1
+    """, (clean, clean, clean_raw, clean_raw.upper()))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return dict(row)
+
+    if is_supabase_enabled():
+        for query_field, query_val in [("email", clean), ("phone", clean_raw), ("id", clean_raw)]:
+            try:
+                res = supabase_api("GET", "users", params={query_field: f"eq.{query_val}", "select": "*"})
+                if res and isinstance(res, list) and len(res) > 0:
+                    sb_u = res[0]
+                    try:
+                        conn = get_connection()
+                        cur = conn.cursor()
+                        cur.execute("""
+                            INSERT OR REPLACE INTO users (id, name, email, phone, pan, bank_name, bank_account, pin, balance, total_deposited, avatar_color)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            sb_u.get("id"), sb_u.get("name"), sb_u.get("email"), sb_u.get("phone"),
+                            sb_u.get("pan"), sb_u.get("bank_name"), sb_u.get("bank_account"), sb_u.get("pin"),
+                            float(sb_u.get("balance", 1000000.0)), float(sb_u.get("total_deposited", 1000000.0)),
+                            sb_u.get("avatar_color", "#0EA5E9")
+                        ))
+                        conn.commit()
+                        conn.close()
+                    except Exception:
+                        pass
+                    return sb_u
+            except Exception:
+                pass
+
+    return None
+
 # --- Account & Balances ---
 def get_account(user_id: str = "default") -> Dict[str, Any]:
     # 1. Try Supabase first

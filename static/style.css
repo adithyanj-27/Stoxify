@@ -4893,7 +4893,8 @@ body.pwa-installed #mobileInstallBanner {
 }
 
 /* Instant synchronous hydration styles to eliminate cold-boot flash of 'Invest' button */
-html.user-logged-in #navGetStartedBtn {
+html.user-logged-in #navGetStartedBtn,
+html.user-logged-in #navGuestButtons {
   display: none !important;
 }
 
@@ -4901,12 +4902,33 @@ html.user-logged-in #navProfileWrapper {
   display: inline-flex !important;
 }
 
-html.user-guest #navGetStartedBtn {
+html.user-guest #navGetStartedBtn,
+html.user-guest #navGuestButtons {
   display: inline-flex !important;
 }
 
 html.user-guest #navProfileWrapper {
   display: none !important;
+}
+
+.login-account-card {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.85rem 1rem;
+  background: var(--bg-main);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: var(--transition);
+  text-align: left;
+  width: 100%;
+}
+
+.login-account-card:hover {
+  border-color: var(--brand-cyan);
+  background: var(--bg-elevated);
+  transform: translateY(-1px);
 }
 
 .btn-subtle {

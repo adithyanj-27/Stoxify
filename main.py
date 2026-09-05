@@ -9,7 +9,7 @@ from database import (
     init_db, get_account, get_holdings, get_positions, execute_trade, 
     exit_position, cancel_order, check_open_limit_orders,
     get_orders, get_watchlist, add_to_watchlist, remove_from_watchlist,
-    deposit_funds, reset_account, restore_balance, delete_user, create_user, update_user, get_user, list_users,
+    deposit_funds, reset_account, restore_balance, delete_user, create_user, update_user, get_user, list_users, find_user_by_identifier,
     place_gtt_order, get_gtt_orders, cancel_gtt_order,
     create_sip, get_user_sips, cancel_sip,
     apply_ipo, get_ipo_bids, cancel_ipo_bid,
@@ -272,6 +272,30 @@ def api_update_user_profile(req: UpdateProfileRequest, request: Request):
     if not updated:
         raise HTTPException(status_code=404, detail="User not found")
     return {"success": True, "user": updated, "message": "Profile updated successfully"}
+
+class LoginRequest(BaseModel):
+    identifier: str
+    pin: Optional[str] = None
+
+@app.post("/api/user/login")
+def api_login_user(req: LoginRequest):
+    if not req.identifier or not req.identifier.strip():
+        raise HTTPException(status_code=400, detail="Please enter your Mobile Number, Email, or Demat ID")
+
+    user = find_user_by_identifier(req.identifier.strip())
+    if not user:
+        raise HTTPException(status_code=404, detail="No registered account found matching this Mobile, Email, or Demat ID")
+
+    user_pin = (user.get("pin") or "1234").strip()
+    if req.pin and req.pin.strip():
+        if req.pin.strip() != user_pin:
+            raise HTTPException(status_code=401, detail="Incorrect 4-digit PIN. Please try again.")
+
+    return {
+        "success": True,
+        "user": user,
+        "message": f"Welcome back, {user.get('name', 'Trader')}!"
+    }
 
 @app.get("/api/user/current")
 def api_get_current_user(request: Request):

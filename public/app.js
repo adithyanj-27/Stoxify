@@ -2135,6 +2135,9 @@ function handleRoute() {
     showAssetPage(sym, 'MUTUAL_FUND');
   } else if (path === '/onboarding') {
     showOnboardingPage();
+  } else if (path === '/login') {
+    switchTab('explore', false);
+    openLoginModal();
   } else if (path === '/holdings') {
     switchTab('holdings', false);
   } else if (path === '/positions') {
@@ -2269,6 +2272,10 @@ document.addEventListener('click', (e) => {
   const fundsOverlay = document.getElementById('fundsModalOverlay');
   if (fundsOverlay && e.target === fundsOverlay) {
     closeFundsModal();
+  }
+  const loginOverlay = document.getElementById('loginModalOverlay');
+  if (loginOverlay && e.target === loginOverlay) {
+    closeLoginModal();
   }
 });
 
@@ -2440,6 +2447,151 @@ async function saveUserProfile() {
     if (saveBtn) {
       saveBtn.disabled = false;
       saveBtn.innerText = 'Save Changes';
+    }
+  }
+}
+
+// --- User Authentication & Login Modal ---
+async function openLoginModal(prefilledIdentifier) {
+  const overlay = document.getElementById('loginModalOverlay');
+  if (!overlay) return;
+
+  const identInput = document.getElementById('loginIdentifierInput');
+  const pinInput = document.getElementById('loginPinInput');
+  if (identInput) identInput.value = prefilledIdentifier || '';
+  if (pinInput) pinInput.value = '';
+
+  overlay.classList.add('active');
+
+  loadSavedLoginAccounts();
+
+  setTimeout(() => {
+    if (identInput && !identInput.value) {
+      identInput.focus();
+    } else if (pinInput) {
+      pinInput.focus();
+    }
+  }, 120);
+}
+
+function closeLoginModal() {
+  const overlay = document.getElementById('loginModalOverlay');
+  if (overlay) overlay.classList.remove('active');
+}
+
+async function loadSavedLoginAccounts() {
+  const section = document.getElementById('loginSavedAccountsSection');
+  const list = document.getElementById('loginSavedAccountsList');
+  if (!section || !list) return;
+
+  try {
+    const res = await fetch('/api/user/list');
+    const users = await res.json();
+    const validUsers = (users || []).filter(u => u.id && u.id !== 'default' && u.name);
+
+    if (validUsers.length === 0) {
+      section.style.display = 'none';
+      return;
+    }
+
+    section.style.display = 'block';
+    list.innerHTML = validUsers.map(u => {
+      const inits = (u.name || 'Trader').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+      const col = u.avatar_color || '#0EA5E9';
+      const demat = (u.id || '').replace('STOX-', '').slice(-6).toUpperCase();
+      const email = u.email || u.phone || '';
+      return `
+        <div class="login-account-card" onclick="selectLoginAccount('${u.id}', '${(u.name || '').replace(/'/g, "\\'")}', '${email}')">
+          <div style="width: 38px; height: 38px; border-radius: 50%; background: ${col}; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.95rem; flex-shrink: 0;">
+            ${inits}
+          </div>
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-weight: 800; font-size: 0.92rem; color: var(--text-primary);">${u.name}</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              ${email} • Demat: STOX-${demat}
+            </div>
+          </div>
+          <div style="color: var(--brand-cyan); font-weight: 700; font-size: 0.78rem; display: flex; align-items: center; gap: 3px; flex-shrink: 0;">
+            Log In →
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    console.error('Failed to load login accounts:', err);
+    section.style.display = 'none';
+  }
+}
+
+function selectLoginAccount(id, name, email) {
+  const identInput = document.getElementById('loginIdentifierInput');
+  const pinInput = document.getElementById('loginPinInput');
+  if (identInput) identInput.value = id || email;
+  if (pinInput) {
+    pinInput.focus();
+    pinInput.placeholder = 'Enter 4-digit PIN (default 1234)';
+  }
+}
+
+async function submitLogin() {
+  const identInput = document.getElementById('loginIdentifierInput');
+  const pinInput = document.getElementById('loginPinInput');
+  const btn = document.getElementById('btnLoginSubmit');
+
+  const identifier = identInput ? identInput.value.trim() : '';
+  const pin = pinInput ? pinInput.value.trim() : '';
+
+  if (!identifier) {
+    showToast('Please enter your Mobile, Email, or Demat ID', true);
+    if (identInput) identInput.focus();
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = 'Logging in...';
+  }
+
+  try {
+    const res = await fetch('/api/user/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier, pin: pin || '1234' })
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      showToast(data.detail || 'Login failed. Please check your credentials.', true);
+      return;
+    }
+
+    currentUser = data.user;
+    localStorage.removeItem('stoxify_guest_mode');
+    localStorage.setItem('stoxify_user_id', currentUser.id);
+    localStorage.setItem('stoxify_cached_user', JSON.stringify(currentUser));
+    document.documentElement.classList.add('user-logged-in');
+    document.documentElement.classList.remove('user-guest');
+
+    updateNavbarProfile();
+    closeLoginModal();
+    showToast(`Welcome back, ${currentUser.name}!`);
+
+    await fetchAccount();
+    await fetchWatchlist();
+    if (state.currentTab === 'holdings') fetchPortfolio();
+    if (state.currentTab === 'positions') fetchPositions();
+    if (state.currentTab === 'orders') fetchOrders();
+
+    if (window.location.pathname === '/onboarding' || window.location.pathname === '/login') {
+      navigateTo('/explore');
+    }
+  } catch (err) {
+    console.error('Login error:', err);
+    showToast('Failed to connect during login', true);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = 'Log In →';
     }
   }
 }
@@ -3694,7 +3846,7 @@ function goToObStep(stepNum) {
   if (activeContent) activeContent.classList.add('active');
 }
 
-function submitObStep1() {
+async function submitObStep1() {
   const phone = document.getElementById('obInputPhone').value.trim();
   const email = document.getElementById('obInputEmail').value.trim();
   if (phone.length < 10) {
@@ -3708,6 +3860,22 @@ function submitObStep1() {
     document.getElementById('obInputEmail').focus();
     return;
   }
+
+  // Check if account already exists with this email or phone
+  try {
+    const chk = await fetch('/api/user/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier: email })
+    });
+    const chkData = await chk.json();
+    if (chk.ok && chkData.success) {
+      showToast(`Account found for ${chkData.user.name}! Please enter your PIN to log in.`, false);
+      openLoginModal(email);
+      return;
+    }
+  } catch (_) {}
+
   obUserData.phone = phone;
   obUserData.email = email;
   document.getElementById('obDisplayPhone').innerText = `+91 ${phone}`;
