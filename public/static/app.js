@@ -6,8 +6,11 @@ if (localStorage.getItem('stoxify_user_id') === 'default') {
 }
 
 function isGuest() {
+  if (localStorage.getItem('stoxify_guest_mode') === 'true') {
+    return true;
+  }
   const uid = localStorage.getItem('stoxify_user_id');
-  return !uid || uid === 'default' || uid === 'guest';
+  return (!uid || uid === 'default' || uid === 'guest') && (!currentUser || currentUser.is_guest);
 }
 
 let currentUser = null;
@@ -2016,7 +2019,7 @@ window.addEventListener('popstate', () => handleRoute());
    USER SESSION & NAVBAR PROFILE ENGINE
    ======================================================= */
 async function fetchCurrentUser() {
-  if (isGuest()) {
+  if (localStorage.getItem('stoxify_guest_mode') === 'true') {
     currentUser = null;
     updateNavbarProfile();
     return;
@@ -2027,8 +2030,8 @@ async function fetchCurrentUser() {
     if (u && u.id && !u.is_guest) {
       currentUser = u;
       localStorage.setItem('stoxify_user_id', u.id);
+      localStorage.removeItem('stoxify_guest_mode');
     } else {
-      localStorage.removeItem('stoxify_user_id');
       currentUser = null;
     }
   } catch (err) {
@@ -2077,10 +2080,11 @@ function updateNavbarProfile() {
 }
 
 function logoutUser() {
+  localStorage.setItem('stoxify_guest_mode', 'true');
   localStorage.removeItem('stoxify_user_id');
   currentUser = null;
   updateNavbarProfile();
-  showToast('Switched to Guest Mode.');
+  showToast('Logged out successfully.');
   if (state.currentTab === 'holdings') fetchPortfolio();
   if (state.currentTab === 'positions') fetchPositions();
   if (state.currentTab === 'orders') fetchOrders();
@@ -2100,57 +2104,6 @@ document.addEventListener('click', (e) => {
     menu.style.display = 'none';
   }
 });
-
-async function openSwitchAccountModal() {
-  const menu = document.getElementById('userDropdownMenu');
-  if (menu) menu.style.display = 'none';
-  const overlay = document.getElementById('switchAccountModalOverlay');
-  const container = document.getElementById('accountsListContainer');
-  if (overlay) overlay.classList.add('active');
-
-  try {
-    const res = await fetch('/api/user/list');
-    const users = await res.json();
-    const currentId = currentUser ? currentUser.id : localStorage.getItem('stoxify_user_id');
-    container.innerHTML = users.map(u => {
-      const isCurrent = currentId && u.id === currentId;
-      const initials = u.name ? u.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'ST';
-      return `
-        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.85rem; border-radius: 12px; background: var(--bg-main); border: 1px solid ${isCurrent ? 'var(--brand-cyan)' : 'var(--border-subtle)'}; cursor: pointer;"
-             onclick="activateUserAccount('${u.id}')">
-          <div style="display: flex; align-items: center; gap: 0.75rem;">
-            <div style="width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(135deg, #0EA5E9, #10B981); color: #080D14; font-weight: 800; display: flex; align-items: center; justify-content: center;">
-              ${initials}
-            </div>
-            <div>
-              <div style="font-weight: 800; font-size: 0.95rem;">${u.name} ${isCurrent ? '<span style="color: var(--accent-green); font-size: 0.75rem;">(Active)</span>' : ''}</div>
-              <div style="font-size: 0.75rem; color: var(--text-muted);">${u.bank_name || 'Bank'} • ${formatINR(u.balance)} • ${u.id}</div>
-            </div>
-          </div>
-          ${isCurrent ? '<span style="color: var(--brand-cyan); font-weight: 800;">✓ Active</span>' : '<button class="pill-btn" style="padding: 0.25rem 0.7rem; font-size: 0.75rem;">Sign In</button>'}
-        </div>
-      `;
-    }).join('');
-  } catch (err) {
-    container.innerHTML = '<div style="color: var(--text-muted);">Failed to load accounts from cloud.</div>';
-  }
-}
-
-function closeSwitchAccountModal() {
-  const overlay = document.getElementById('switchAccountModalOverlay');
-  if (overlay) overlay.classList.remove('active');
-}
-
-async function activateUserAccount(userId) {
-  localStorage.setItem('stoxify_user_id', userId);
-  closeSwitchAccountModal();
-  await fetchCurrentUser();
-  fetchAccount();
-  if (state.currentTab === 'holdings') fetchPortfolio();
-  if (state.currentTab === 'positions') fetchPositions();
-  if (state.currentTab === 'orders') fetchOrders();
-  showToast(`Signed into cloud account: ${currentUser ? currentUser.name : userId}!`);
-}
 
 
 /* =======================================================
@@ -3389,6 +3342,7 @@ async function submitObStep5() {
     }
 
     currentUser = result.user;
+    localStorage.removeItem('stoxify_guest_mode');
     localStorage.setItem('stoxify_user_id', currentUser.id);
 
     // Update Confirmation screen with user's actual entered details

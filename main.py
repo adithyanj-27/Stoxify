@@ -208,12 +208,21 @@ def api_create_user(req: CreateUserRequest):
 @app.get("/api/user/current")
 def api_get_current_user(request: Request):
     uid = get_user_id(request)
-    if not uid:
-        return {"is_guest": True, "id": None, "name": "Guest", "balance": 0.0}
-    u = get_user(uid)
-    if not u:
-        return {"is_guest": True, "id": None, "name": "Guest", "balance": 0.0}
-    return u
+    if uid:
+        u = get_user(uid)
+        if u:
+            return u
+    # Single-user mode: auto-connect to the registered user if one exists
+    try:
+        users = list_users()
+        real_users = [u for u in users if u.get("id") and u.get("id") != "default"]
+        if real_users:
+            u = get_user(real_users[0]["id"])
+            if u:
+                return u
+    except Exception:
+        pass
+    return {"is_guest": True, "id": None, "name": "Guest", "balance": 0.0}
 
 @app.get("/api/user/list")
 def api_list_users():
