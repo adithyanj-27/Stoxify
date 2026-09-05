@@ -12,7 +12,7 @@
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-dark.png" id="dynamicFavicon">
   <link rel="apple-touch-icon" href="/static/icon-192.png">
-  <link rel="stylesheet" href="/static/style.css?v=5.3" onerror="this.onerror=null;this.href='/style.css?v=5.3';">
+  <link rel="stylesheet" href="/static/style.css?v=5.4" onerror="this.onerror=null;this.href='/style.css?v=5.4';">
   <!-- Chart.js for high performance financial line & area charts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -76,12 +76,17 @@
         <span class="btn-install-text-mobile">Install</span>
       </button>
 
-      <!-- Start Investing Button (Visible in Guest mode) -->
-      <button class="btn-get-started" id="navGetStartedBtn" onclick="navigateTo('/onboarding')">
-        <span class="btn-invest-text-desktop">Start Investing</span>
-        <span class="btn-invest-text-mobile">Invest</span>
-        <svg class="desktop-only" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
-      </button>
+      <!-- Start Investing & Sign In Buttons (Visible in Guest mode) -->
+      <div id="navGuestButtons" style="display: flex; align-items: center; gap: 0.4rem;">
+        <button class="btn-subtle" id="navSignInBtn" onclick="openSwitchAccountModal()" style="font-size: 0.8rem; padding: 0.42rem 0.75rem; border-radius: 8px;" title="Sign in to your Supabase Cloud Account">
+          Sign In
+        </button>
+        <button class="btn-get-started" id="navGetStartedBtn" onclick="navigateTo('/onboarding')">
+          <span class="btn-invest-text-desktop">Start Investing</span>
+          <span class="btn-invest-text-mobile">Invest</span>
+          <svg class="desktop-only" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+        </button>
+      </div>
 
       <!-- Theme Toggle Button -->
       <button class="icon-btn" onclick="toggleTheme()" title="Toggle Dark/Light Mode">
@@ -1203,6 +1208,12 @@
               <input type="email" class="ob-input" id="obInputEmail" placeholder="trader@mail.com" autocomplete="email">
             </div>
             <button class="ob-btn-primary" onclick="submitObStep1()">Continue →</button>
+            <div style="text-align: center; margin-top: 0.85rem; font-size: 0.82rem; color: var(--text-secondary);">
+              Already registered? 
+              <button type="button" onclick="openSwitchAccountModal()" style="background: none; border: none; color: var(--brand-cyan); font-weight: 700; cursor: pointer; text-decoration: underline; font-size: 0.82rem; padding: 0 4px;">
+                Sign In from Cloud
+              </button>
+            </div>
             <div class="ob-footer-note">By continuing, you agree to Stoxify Simulated Trading T&C.</div>
           </div>
 
@@ -1810,18 +1821,18 @@
   <div class="modal-overlay" id="switchAccountModalOverlay">
     <div class="modal-container" style="max-width: 440px;">
       <div class="modal-header">
-        <h3 style="font-size: 1.15rem; font-weight: 800;">Switch Trader Account</h3>
+        <h3 style="font-size: 1.15rem; font-weight: 800;">Sign In / Switch Cloud Account</h3>
         <button class="modal-close-btn" onclick="closeSwitchAccountModal()">✕</button>
       </div>
       <div class="modal-body">
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
-          Select an active profile or create a new simulated account with ₹10,00,000 balance.
+          Select your profile saved in <strong>Supabase Cloud Storage</strong> or register a new demat account.
         </p>
         <div id="accountsListContainer" style="display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.25rem;">
           <!-- Injected dynamically -->
         </div>
         <button class="btn-primary" style="width: 100%; justify-content: center;" onclick="closeSwitchAccountModal(); navigateTo('/onboarding');">
-          + Create Another Account
+          + Create New Account
         </button>
       </div>
     </div>
@@ -2226,6 +2237,6 @@
     </button>
   </nav>
 
-  <script src="/static/app.js?v=5.3" onerror="this.onerror=null;this.src='/app.js?v=5.3';"></script>
+  <script src="/static/app.js?v=5.4" onerror="this.onerror=null;this.src='/app.js?v=5.4';"></script>
 </body>
 </html>
