@@ -2562,16 +2562,6 @@ function setPageOrderAction(action) {
   recalcPageMargin();
 }
 
-function quickMobileTrade(action) {
-  setPageOrderAction(action);
-  const terminal = document.querySelector('.asset-sidebar-col');
-  if (terminal) {
-    terminal.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    terminal.classList.add('pulse-highlight');
-    setTimeout(() => terminal.classList.remove('pulse-highlight'), 1200);
-  }
-}
-
 function setPageProductType(prod) {
   pageOrderState.product = prod;
   document.getElementById('pageProdDelivery').className = `seg-btn ${prod === 'DELIVERY' ? 'active' : ''}`;
