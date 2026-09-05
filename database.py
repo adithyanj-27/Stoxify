@@ -444,6 +444,92 @@ def create_user(
 
     return user_data
 
+def update_user(
+    user_id: str,
+    name: Optional[str] = None,
+    email: Optional[str] = None,
+    phone: Optional[str] = None,
+    pan: Optional[str] = None,
+    dob: Optional[str] = None,
+    bank_name: Optional[str] = None,
+    bank_account: Optional[str] = None,
+    pin: Optional[str] = None,
+    avatar_color: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
+    if not user_id or user_id == "guest":
+        return None
+
+    fields = []
+    params = []
+    sb_payload = {}
+
+    if name is not None:
+        fields.append("name = ?")
+        params.append(name.strip())
+        sb_payload["name"] = name.strip()
+    if email is not None:
+        fields.append("email = ?")
+        params.append(email.strip())
+        sb_payload["email"] = email.strip()
+    if phone is not None:
+        fields.append("phone = ?")
+        params.append(phone.strip())
+        sb_payload["phone"] = phone.strip()
+    if pan is not None:
+        fields.append("pan = ?")
+        params.append(pan.strip().upper())
+        sb_payload["pan"] = pan.strip().upper()
+    if dob is not None:
+        fields.append("dob = ?")
+        params.append(dob.strip())
+        sb_payload["dob"] = dob.strip()
+    if bank_name is not None:
+        fields.append("bank_name = ?")
+        params.append(bank_name.strip())
+        sb_payload["bank_name"] = bank_name.strip()
+    if bank_account is not None:
+        fields.append("bank_account = ?")
+        params.append(bank_account.strip())
+        sb_payload["bank_account"] = bank_account.strip()
+    if pin is not None:
+        fields.append("pin = ?")
+        params.append(pin.strip())
+        sb_payload["pin"] = pin.strip()
+    if avatar_color is not None:
+        fields.append("avatar_color = ?")
+        params.append(avatar_color.strip())
+        sb_payload["avatar_color"] = avatar_color.strip()
+
+    if not fields:
+        return get_user(user_id)
+
+    fields.append("updated_at = CURRENT_TIMESTAMP")
+    params.append(user_id)
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(f"UPDATE users SET {', '.join(fields)} WHERE id = ?", params)
+    conn.commit()
+
+    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    row = cursor.fetchone()
+    updated = dict(row) if row else None
+    conn.close()
+
+    # Sync to Supabase
+    if is_supabase_enabled() and user_id != "default":
+        try:
+            sb_payload["updated_at"] = datetime.utcnow().isoformat()
+            res = supabase_api("PATCH", f"users?id=eq.{user_id}", payload=sb_payload)
+            if res is None and "dob" in sb_payload:
+                sb_fallback = dict(sb_payload)
+                del sb_fallback["dob"]
+                supabase_api("PATCH", f"users?id=eq.{user_id}", payload=sb_fallback)
+        except Exception:
+            pass
+
+    return updated
+
 def get_user(user_id: str = "default") -> Optional[Dict[str, Any]]:
     # 1. Try Supabase first if available
     if is_supabase_enabled() and user_id and user_id != "guest":

@@ -12,7 +12,7 @@
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-dark.png" id="dynamicFavicon">
   <link rel="apple-touch-icon" href="/static/icon-192.png">
-  <link rel="stylesheet" href="/static/style.css?v=6.4" onerror="this.onerror=null;this.href='/style.css?v=6.4';">
+  <link rel="stylesheet" href="/static/style.css?v=6.5" onerror="this.onerror=null;this.href='/style.css?v=6.5';">
   <!-- Chart.js for high performance financial line & area charts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Pre-render synchronous auth & theme hydration to completely eliminate cold-boot flash of 'Invest' button -->
@@ -124,7 +124,13 @@
           <div class="dropdown-user-info">
             <div class="user-avatar-large" id="menuUserAvatar">ST</div>
             <div class="user-details">
-              <div class="user-name" id="menuUserName">Trader</div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
+                <div class="user-name" id="menuUserName">Trader</div>
+                <button class="badge-tag" style="background: rgba(14, 165, 233, 0.12); color: var(--brand-cyan); border: 1px solid rgba(14, 165, 233, 0.3); padding: 2px 8px; border-radius: var(--radius-full); font-size: 0.7rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 3px;" onclick="openEditProfileModal()">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                  Edit
+                </button>
+              </div>
               <div class="user-email" id="menuUserEmail"></div>
               <div class="user-badge" id="menuUserDemat">Demat: STOX-782910</div>
             </div>
@@ -156,6 +162,10 @@
 
           <div class="dropdown-divider"></div>
 
+          <button class="dropdown-item" onclick="openEditProfileModal()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+            <span>Edit Profile</span>
+          </button>
           <button class="dropdown-item" onclick="openFundsModal()">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path><path d="M12 18V6"></path></svg>
             <span>Trading Capital & Timings</span>
@@ -1840,6 +1850,133 @@
     </div>
   </div>
 
+  <!-- Edit Profile Modal -->
+  <div class="modal-overlay" id="editProfileModalOverlay">
+    <div class="modal-card" style="max-width: 520px; max-height: 90vh; overflow-y: auto;">
+      <div class="modal-header">
+        <div>
+          <h3 style="font-size: 1.15rem; font-weight: 800;">Edit Profile</h3>
+          <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">Update your personal, KYC & bank details</div>
+        </div>
+        <button class="icon-btn" onclick="closeEditProfileModal()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 1.15rem;">
+        <!-- Avatar Preview & Demat Tag -->
+        <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-main); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 0.9rem 1rem;">
+          <div style="display: flex; align-items: center; gap: 0.85rem;">
+            <div id="editProfileAvatarPreview" style="width: 44px; height: 44px; border-radius: 50%; background: var(--brand-cyan); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.15rem; font-weight: 800; flex-shrink: 0; box-shadow: var(--shadow-sm);">
+              ST
+            </div>
+            <div>
+              <div id="editProfilePreviewName" style="font-size: 0.92rem; font-weight: 800; color: var(--text-primary);">Trader</div>
+              <div id="editProfileDematDisplay" style="font-size: 0.75rem; color: var(--text-muted);">Demat: STOX-782910</div>
+            </div>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.35rem;">
+            <span style="font-size: 0.7rem; padding: 0.2rem 0.55rem; border-radius: var(--radius-full); background: rgba(16, 185, 129, 0.12); color: var(--brand-green); font-weight: 700; border: 1px solid rgba(16, 185, 129, 0.25);">
+              Verified ✓
+            </span>
+            <!-- Avatar Color Picker Palette -->
+            <div style="display: flex; gap: 4px; margin-top: 2px;">
+              <div class="avatar-color-dot" data-color="#0EA5E9" onclick="selectEditAvatarColor('#0EA5E9')" style="width: 14px; height: 14px; border-radius: 50%; background: #0EA5E9; cursor: pointer; transition: transform 0.15s ease;" title="Cyan"></div>
+              <div class="avatar-color-dot" data-color="#10B981" onclick="selectEditAvatarColor('#10B981')" style="width: 14px; height: 14px; border-radius: 50%; background: #10B981; cursor: pointer; transition: transform 0.15s ease;" title="Emerald"></div>
+              <div class="avatar-color-dot" data-color="#6366F1" onclick="selectEditAvatarColor('#6366F1')" style="width: 14px; height: 14px; border-radius: 50%; background: #6366F1; cursor: pointer; transition: transform 0.15s ease;" title="Indigo"></div>
+              <div class="avatar-color-dot" data-color="#EC4899" onclick="selectEditAvatarColor('#EC4899')" style="width: 14px; height: 14px; border-radius: 50%; background: #EC4899; cursor: pointer; transition: transform 0.15s ease;" title="Pink"></div>
+              <div class="avatar-color-dot" data-color="#F59E0B" onclick="selectEditAvatarColor('#F59E0B')" style="width: 14px; height: 14px; border-radius: 50%; background: #F59E0B; cursor: pointer; transition: transform 0.15s ease;" title="Amber"></div>
+              <div class="avatar-color-dot" data-color="#8B5CF6" onclick="selectEditAvatarColor('#8B5CF6')" style="width: 14px; height: 14px; border-radius: 50%; background: #8B5CF6; cursor: pointer; transition: transform 0.15s ease;" title="Purple"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Personal Details -->
+        <div>
+          <div style="font-size: 0.78rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.65rem;">
+            Personal Information
+          </div>
+
+          <div class="ob-form-group" style="margin-bottom: 0.85rem;">
+            <label class="ob-label" for="editProfileName">Full Legal Name *</label>
+            <input type="text" class="ob-input" id="editProfileName" placeholder="Full Legal Name" oninput="updateEditAvatarPreview()">
+          </div>
+
+          <div class="ob-form-group" style="margin-bottom: 0.85rem;">
+            <label class="ob-label" for="editProfileEmail">Email Address *</label>
+            <input type="email" class="ob-input" id="editProfileEmail" placeholder="name@example.com">
+          </div>
+
+          <div class="ob-row-2" style="margin-bottom: 0.85rem;">
+            <div class="ob-form-group" style="margin-bottom: 0;">
+              <label class="ob-label" for="editProfilePhone">Mobile Number</label>
+              <input type="tel" class="ob-input" id="editProfilePhone" placeholder="10-digit mobile" maxlength="10">
+            </div>
+            <div class="ob-form-group" style="margin-bottom: 0;">
+              <label class="ob-label" for="editProfileDob">Date of Birth</label>
+              <input type="date" class="ob-input" id="editProfileDob">
+            </div>
+          </div>
+
+          <div class="ob-form-group" style="margin-bottom: 0.85rem;">
+            <label class="ob-label" for="editProfilePan">PAN Card Number</label>
+            <input type="text" class="ob-input" id="editProfilePan" placeholder="ABCDE1234F" maxlength="10" style="text-transform: uppercase;">
+          </div>
+        </div>
+
+        <div class="dropdown-divider" style="margin: 0.2rem 0;"></div>
+
+        <!-- Bank & Trading Security -->
+        <div>
+          <div style="font-size: 0.78rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.65rem;">
+            Bank & Trading Security
+          </div>
+
+          <div class="ob-row-2" style="margin-bottom: 0.85rem;">
+            <div class="ob-form-group" style="margin-bottom: 0;">
+              <label class="ob-label" for="editProfileBankName">Linked Bank</label>
+              <select class="ob-input" id="editProfileBankName" style="cursor: pointer;">
+                <option value="HDFC Bank">HDFC Bank</option>
+                <option value="State Bank of India">State Bank of India</option>
+                <option value="ICICI Bank">ICICI Bank</option>
+                <option value="Axis Bank">Axis Bank</option>
+                <option value="Kotak Mahindra Bank">Kotak Mahindra Bank</option>
+                <option value="Punjab National Bank">Punjab National Bank</option>
+                <option value="Bank of Baroda">Bank of Baroda</option>
+                <option value="IndusInd Bank">IndusInd Bank</option>
+                <option value="Canara Bank">Canara Bank</option>
+                <option value="Federal Bank">Federal Bank</option>
+              </select>
+            </div>
+            <div class="ob-form-group" style="margin-bottom: 0;">
+              <label class="ob-label" for="editProfileBankAccount">Account Number</label>
+              <input type="text" class="ob-input" id="editProfileBankAccount" placeholder="50100234567890" maxlength="18">
+            </div>
+          </div>
+
+          <div class="ob-form-group" style="margin-bottom: 0.5rem;">
+            <label class="ob-label" for="editProfilePin">4-Digit Security PIN</label>
+            <input type="password" class="ob-input" id="editProfilePin" placeholder="••••" maxlength="4" style="letter-spacing: 0.25rem;">
+            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem;">Used to verify trading sessions and sensitive actions</div>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div style="display: flex; gap: 0.75rem; margin-top: 0.5rem;">
+          <button class="btn-subtle" style="flex: 1; justify-content: center; padding: 0.75rem 1rem;" onclick="closeEditProfileModal()">
+            Cancel
+          </button>
+          <button class="btn-primary" id="btnSaveProfile" style="flex: 2; justify-content: center; padding: 0.75rem 1rem; font-weight: 700;" onclick="saveUserProfile()">
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toastContainer"></div>
 
@@ -2244,6 +2381,6 @@
     </button>
   </nav>
 
-  <script src="/static/app.js?v=6.4" onerror="this.onerror=null;this.src='/app.js?v=6.4';"></script>
+  <script src="/static/app.js?v=6.5" onerror="this.onerror=null;this.src='/app.js?v=6.5';"></script>
 </body>
 </html>

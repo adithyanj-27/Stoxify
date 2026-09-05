@@ -2214,8 +2214,16 @@ function updateNavbarProfile() {
   if (profileWrapper) profileWrapper.style.display = 'inline-flex';
 
   const initials = currentUser.name ? currentUser.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'ST';
-  if (initialsEl) initialsEl.innerText = initials;
-  if (menuAvatarEl) menuAvatarEl.innerText = initials;
+  const avatarColor = currentUser.avatar_color || '#0EA5E9';
+  if (initialsEl) {
+    initialsEl.innerText = initials;
+    const avatarBtn = document.getElementById('navUserAvatarBtn');
+    if (avatarBtn) avatarBtn.style.background = avatarColor;
+  }
+  if (menuAvatarEl) {
+    menuAvatarEl.innerText = initials;
+    menuAvatarEl.style.background = avatarColor;
+  }
   if (menuNameEl) menuNameEl.innerText = currentUser.name;
   if (menuEmailEl) menuEmailEl.innerText = currentUser.email || '';
   if (menuDematEl) menuDematEl.innerText = `Demat: STOX-${(currentUser.id || '9876').slice(-6).toUpperCase()}`;
@@ -2253,7 +2261,188 @@ document.addEventListener('click', (e) => {
   if (wrapper && menu && !wrapper.contains(e.target)) {
     menu.style.display = 'none';
   }
+
+  const editOverlay = document.getElementById('editProfileModalOverlay');
+  if (editOverlay && e.target === editOverlay) {
+    closeEditProfileModal();
+  }
+  const fundsOverlay = document.getElementById('fundsModalOverlay');
+  if (fundsOverlay && e.target === fundsOverlay) {
+    closeFundsModal();
+  }
 });
+
+// --- Edit Profile Management ---
+let selectedEditAvatarColor = '#0EA5E9';
+
+function openEditProfileModal() {
+  const menu = document.getElementById('userDropdownMenu');
+  if (menu) menu.style.display = 'none';
+
+  if (!currentUser || isGuest()) {
+    showToast('Please create or log into your account to edit profile.', true);
+    navigateTo('/onboarding');
+    return;
+  }
+
+  const nameInput = document.getElementById('editProfileName');
+  const emailInput = document.getElementById('editProfileEmail');
+  const phoneInput = document.getElementById('editProfilePhone');
+  const dobInput = document.getElementById('editProfileDob');
+  const panInput = document.getElementById('editProfilePan');
+  const bankNameInput = document.getElementById('editProfileBankName');
+  const bankAccInput = document.getElementById('editProfileBankAccount');
+  const pinInput = document.getElementById('editProfilePin');
+  const dematDisplay = document.getElementById('editProfileDematDisplay');
+
+  if (nameInput) nameInput.value = currentUser.name || '';
+  if (emailInput) emailInput.value = currentUser.email || '';
+  if (phoneInput) phoneInput.value = currentUser.phone || '';
+  if (dobInput) dobInput.value = currentUser.dob || '';
+  if (panInput) panInput.value = currentUser.pan || '';
+  if (bankNameInput) bankNameInput.value = currentUser.bank_name || 'HDFC Bank';
+  if (bankAccInput) bankAccInput.value = currentUser.bank_account || '';
+  if (pinInput) pinInput.value = currentUser.pin || '1234';
+
+  selectedEditAvatarColor = currentUser.avatar_color || '#0EA5E9';
+  highlightSelectedAvatarColor(selectedEditAvatarColor);
+
+  if (dematDisplay) {
+    const dematId = currentUser.id ? `STOX-${currentUser.id.replace('STOX-', '').slice(-6).toUpperCase()}` : 'STOX-782910';
+    dematDisplay.innerText = `Demat: ${dematId}`;
+  }
+
+  updateEditAvatarPreview();
+  const overlay = document.getElementById('editProfileModalOverlay');
+  if (overlay) overlay.classList.add('active');
+}
+
+function closeEditProfileModal() {
+  const overlay = document.getElementById('editProfileModalOverlay');
+  if (overlay) overlay.classList.remove('active');
+}
+
+function selectEditAvatarColor(color) {
+  selectedEditAvatarColor = color;
+  highlightSelectedAvatarColor(color);
+  updateEditAvatarPreview();
+}
+
+function highlightSelectedAvatarColor(color) {
+  document.querySelectorAll('.avatar-color-dot').forEach(dot => {
+    if (dot.getAttribute('data-color') === color) {
+      dot.style.outline = '2px solid var(--text-primary)';
+      dot.style.transform = 'scale(1.22)';
+    } else {
+      dot.style.outline = 'none';
+      dot.style.transform = 'scale(1)';
+    }
+  });
+}
+
+function updateEditAvatarPreview() {
+  const nameInput = document.getElementById('editProfileName');
+  const previewAvatar = document.getElementById('editProfileAvatarPreview');
+  const previewName = document.getElementById('editProfilePreviewName');
+
+  const nameVal = (nameInput ? nameInput.value.trim() : '') || (currentUser ? currentUser.name : 'Trader');
+  const initials = nameVal ? nameVal.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'ST';
+
+  if (previewAvatar) {
+    previewAvatar.innerText = initials;
+    previewAvatar.style.background = selectedEditAvatarColor;
+  }
+  if (previewName) {
+    previewName.innerText = nameVal || 'Trader';
+  }
+}
+
+async function saveUserProfile() {
+  if (!currentUser || isGuest()) {
+    showToast('No active account to update.', true);
+    return;
+  }
+
+  const name = document.getElementById('editProfileName').value.trim();
+  const email = document.getElementById('editProfileEmail').value.trim();
+  const phone = document.getElementById('editProfilePhone').value.trim();
+  const dob = document.getElementById('editProfileDob').value.trim();
+  const pan = document.getElementById('editProfilePan').value.trim().toUpperCase();
+  const bank_name = document.getElementById('editProfileBankName').value.trim();
+  const bank_account = document.getElementById('editProfileBankAccount').value.trim();
+  const pin = document.getElementById('editProfilePin').value.trim();
+
+  if (!name) {
+    showToast('Legal Name is required', true);
+    document.getElementById('editProfileName').focus();
+    return;
+  }
+  if (!email || !email.includes('@')) {
+    showToast('Please enter a valid email address', true);
+    document.getElementById('editProfileEmail').focus();
+    return;
+  }
+  if (pin && (pin.length !== 4 || !/^\d{4}$/.test(pin))) {
+    showToast('Security PIN must be exactly 4 digits', true);
+    document.getElementById('editProfilePin').focus();
+    return;
+  }
+  if (dob) {
+    const birthDate = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+    if (age < 10) {
+      showToast('You must be at least 10 years of age', true);
+      document.getElementById('editProfileDob').focus();
+      return;
+    }
+  }
+
+  const saveBtn = document.getElementById('btnSaveProfile');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerText = 'Saving...';
+  }
+
+  try {
+    const res = await fetch('/api/user/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: currentUser.id,
+        name,
+        email,
+        phone,
+        dob,
+        pan,
+        bank_name,
+        bank_account,
+        pin,
+        avatar_color: selectedEditAvatarColor
+      })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      currentUser = data.user;
+      localStorage.setItem('stoxify_cached_user', JSON.stringify(currentUser));
+      updateNavbarProfile();
+      closeEditProfileModal();
+      showToast('Profile updated successfully!');
+    } else {
+      showToast(data.detail || 'Failed to update profile', true);
+    }
+  } catch (err) {
+    console.error('Failed to save profile:', err);
+    showToast('Error saving profile changes', true);
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerText = 'Save Changes';
+    }
+  }
+}
 
 
 /* =======================================================

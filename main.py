@@ -9,7 +9,7 @@ from database import (
     init_db, get_account, get_holdings, get_positions, execute_trade, 
     exit_position, cancel_order, check_open_limit_orders,
     get_orders, get_watchlist, add_to_watchlist, remove_from_watchlist,
-    deposit_funds, reset_account, restore_balance, delete_user, create_user, get_user, list_users,
+    deposit_funds, reset_account, restore_balance, delete_user, create_user, update_user, get_user, list_users,
     place_gtt_order, get_gtt_orders, cancel_gtt_order,
     create_sip, get_user_sips, cancel_sip,
     apply_ipo, get_ipo_bids, cancel_ipo_bid,
@@ -204,6 +204,74 @@ def api_create_user(req: CreateUserRequest):
         dob=(req.dob or "").strip()
     )
     return {"success": True, "user": u}
+
+class UpdateProfileRequest(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    pan: Optional[str] = None
+    dob: Optional[str] = None
+    bank_name: Optional[str] = None
+    bank_account: Optional[str] = None
+    pin: Optional[str] = None
+    avatar_color: Optional[str] = None
+
+@app.post("/api/user/update")
+@app.put("/api/user/update")
+@app.patch("/api/user/update")
+@app.post("/api/user/profile")
+@app.put("/api/user/profile")
+def api_update_user_profile(req: UpdateProfileRequest, request: Request):
+    uid = req.id or get_user_id(request)
+    if not uid:
+        try:
+            users = list_users()
+            real_users = [u for u in users if u.get("id") and u.get("id") != "default"]
+            if real_users:
+                uid = real_users[0]["id"]
+        except Exception:
+            pass
+
+    if not uid or uid == "guest":
+        raise HTTPException(status_code=401, detail="Account required to edit profile")
+
+    if req.name is not None and not req.name.strip():
+        raise HTTPException(status_code=400, detail="Name cannot be empty")
+    if req.email is not None and not req.email.strip():
+        raise HTTPException(status_code=400, detail="Email cannot be empty")
+    if req.dob and req.dob.strip():
+        try:
+            from datetime import date, datetime
+            birth_d = datetime.strptime(req.dob.strip(), "%Y-%m-%d").date()
+            today = date.today()
+            age = today.year - birth_d.year - ((today.month, today.day) < (birth_d.month, birth_d.day))
+            if age < 10:
+                raise HTTPException(status_code=400, detail="You must be at least 10 years of age to register")
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+    if req.pin is not None:
+        clean_pin = req.pin.strip()
+        if clean_pin and (len(clean_pin) != 4 or not clean_pin.isdigit()):
+            raise HTTPException(status_code=400, detail="PIN must be exactly 4 digits")
+
+    updated = update_user(
+        user_id=uid,
+        name=req.name.strip() if req.name else None,
+        email=req.email.strip() if req.email else None,
+        phone=req.phone.strip() if req.phone else None,
+        pan=req.pan.strip().upper() if req.pan else None,
+        dob=req.dob.strip() if req.dob else None,
+        bank_name=req.bank_name.strip() if req.bank_name else None,
+        bank_account=req.bank_account.strip() if req.bank_account else None,
+        pin=req.pin.strip() if req.pin else None,
+        avatar_color=req.avatar_color
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"success": True, "user": updated, "message": "Profile updated successfully"}
 
 @app.get("/api/user/current")
 def api_get_current_user(request: Request):
