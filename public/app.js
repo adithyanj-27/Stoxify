@@ -198,6 +198,9 @@ async function toggleSimulationMode(enabled) {
 
 // --- Navigation Tabs (Desktop & Mobile Synchronized) ---
 function switchTab(tabId, updateUrl = true) {
+  document.body.classList.remove('viewing-asset-detail');
+  closeMobileTradeDrawer();
+
   if (updateUrl) {
     const targetUrl = tabId === 'explore' ? '/explore' : `/${tabId}`;
     if (window.location.pathname !== targetUrl) {
@@ -588,6 +591,8 @@ function renderExploreStocks() {
 
   grid.innerHTML = list.map(s => {
     const cleanSym = (s.symbol || '').replace('.NS', '').replace('.BO', '');
+    const isPos = (s.change || 0) >= 0;
+    const badgeClass = isPos ? 'badge-positive' : 'badge-negative';
     return `
       <div class="stock-card" onclick="openAssetModal('${s.symbol}', 'STOCK')">
         <div class="card-top">
@@ -1222,6 +1227,9 @@ function selectSearchResult(symbol, assetType) {
 // --- Asset Detail & Trade Modal ---
 function openAssetModal(symbol, assetType = 'STOCK', preselectAction = 'BUY') {
   const cleanSym = (symbol || '').replace('.NS', '').replace('.BO', '');
+  if (preselectAction && preselectAction !== 'BUY') {
+    sessionStorage.setItem('stoxify_preselect_action', preselectAction);
+  }
   if (assetType === 'MUTUAL_FUND' || symbol.match(/^\d+$/)) {
     navigateTo('/mf/' + cleanSym);
   } else {
@@ -1892,6 +1900,7 @@ window.addEventListener('appinstalled', () => {
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js', { scope: '/' }).then((reg) => {
+      reg.update();
       console.log('Stoxify PWA Service Worker registered:', reg.scope);
     }).catch((err) => {
       console.warn('Service Worker registration skipped:', err);
@@ -1900,7 +1909,10 @@ if ('serviceWorker' in navigator) {
 }
 
 // --- Initialization ---
-window.addEventListener('DOMContentLoaded', () => {
+function bootApp() {
+  if (window.__stoxify_booted) return;
+  window.__stoxify_booted = true;
+
   initTheme();
   
   if (window.location.search.includes('source=pwa')) {
@@ -1919,20 +1931,31 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   // Instant render of explore data so user never waits for a loading state
-  state.exploreData = loadStoredExploreData();
-  renderExploreStocks();
-  renderExploreMutualFunds();
+  try {
+    state.exploreData = loadStoredExploreData();
+    renderExploreStocks();
+    renderExploreMutualFunds();
+  } catch (e) {
+    console.warn('Initial explore render skipped:', e);
+  }
 
-  fetchCurrentUser();
-  handleRoute();
+  try {
+    fetchCurrentUser();
+  } catch (e) {}
+
+  try {
+    handleRoute();
+  } catch (e) {
+    console.error('Initial route failed:', e);
+  }
 
   Promise.all([
-    fetchMarketStatus(),
-    fetchAccount(),
-    fetchIndices(),
-    fetchExploreData(),
-    fetchWatchlist(),
-    fetchPositions()
+    fetchMarketStatus().catch(e => console.warn(e)),
+    fetchAccount().catch(e => console.warn(e)),
+    fetchIndices().catch(e => console.warn(e)),
+    fetchExploreData().catch(e => console.warn(e)),
+    fetchWatchlist().catch(e => console.warn(e)),
+    fetchPositions().catch(e => console.warn(e))
   ]);
 
   // Polling intervals
@@ -1942,7 +1965,13 @@ window.addEventListener('DOMContentLoaded', () => {
     if (state.currentTab === 'holdings') fetchPortfolio();
     if (state.currentTab === 'positions') fetchPositions();
   }, 20000);
-});
+}
+
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', bootApp);
+} else {
+  bootApp();
+}
 
 
 
@@ -2142,6 +2171,7 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
   
   const pagePane = document.getElementById('pane-asset-detail');
   if (pagePane) pagePane.classList.add('active');
+  document.body.classList.add('viewing-asset-detail');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
   try {
@@ -2167,6 +2197,21 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
     const badgeEl = document.getElementById('pageAssetChangeBadge');
     badgeEl.className = isPos ? 'badge-positive' : 'badge-negative';
     badgeEl.innerText = formatChange(data.change, data.change_pct);
+
+    // Sync mobile slide-up drawer header
+    const dAvatar = document.getElementById('drawerAssetAvatar');
+    if (dAvatar) dAvatar.innerHTML = renderAssetAvatar(data, data.asset_type);
+    const dTitle = document.getElementById('drawerAssetTitle');
+    if (dTitle) dTitle.innerText = data.name;
+    const dSym = document.getElementById('drawerAssetSymbol');
+    if (dSym) dSym.innerText = cleanSym;
+    const dPrice = document.getElementById('drawerAssetPrice');
+    if (dPrice) dPrice.innerText = formatINR(data.price);
+    const dChg = document.getElementById('drawerAssetChange');
+    if (dChg) {
+      dChg.className = isPos ? 'badge-positive' : 'badge-negative';
+      dChg.innerText = formatChange(data.change, data.change_pct);
+    }
 
     updatePageAssetStar(data.symbol);
     const starBtn = document.getElementById('pageAssetStarBtn');
@@ -2209,6 +2254,16 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
     setPageOrderVariety('MARKET');
     updatePageAvailableHolding(data.symbol);
     recalcPageMargin();
+
+    // Check if preselect action was requested (e.g. from Sell button on Holdings)
+    const preselect = sessionStorage.getItem('stoxify_preselect_action');
+    if (preselect) {
+      sessionStorage.removeItem('stoxify_preselect_action');
+      setPageOrderAction(preselect);
+      if (window.innerWidth <= 768) {
+        setTimeout(() => openMobileTradeDrawer(preselect), 200);
+      }
+    }
 
     // Configure Mutual Fund SIP calculator vs Stock fundamentals tabs
     const sipSec = document.getElementById('pageSipCalcSection');
@@ -2618,26 +2673,77 @@ async function loadPageChartTimeframe(range, btnEl = null) {
   }
 }
 
+function openMobileTradeDrawer(action = 'BUY') {
+  if (isGuest()) {
+    showToast('Please create your free account to unlock ₹10,00,000 virtual balance and start trading.', false);
+    navigateTo('/onboarding');
+    return;
+  }
+  setPageOrderAction(action);
+  const drawer = document.getElementById('mobileTradingDrawerOverlay');
+  if (drawer) {
+    drawer.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+}
+
+function closeMobileTradeDrawer() {
+  const drawer = document.getElementById('mobileTradingDrawerOverlay');
+  if (drawer) {
+    drawer.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+}
+
+function syncDrawerQuantity(val) {
+  const q = parseInt(val || '1', 10);
+  const mainInput = document.getElementById('pageOrderQuantity');
+  if (mainInput) mainInput.value = isNaN(q) || q < 1 ? 1 : q;
+  pageOrderState.quantity = isNaN(q) || q < 1 ? 1 : q;
+  recalcPageMargin();
+}
+
+function syncDrawerLimit(val) {
+  const mainInput = document.getElementById('pageOrderLimitPrice');
+  if (mainInput) mainInput.value = val;
+  recalcPageMargin();
+}
+
 function setPageOrderAction(action) {
   pageOrderState.action = action;
   const buyBtn = document.getElementById('pageBtnBuy');
   const sellBtn = document.getElementById('pageBtnSell');
   const execBtn = document.getElementById('pageOrderExecuteBtn');
+  const drawerBuy = document.getElementById('drawerBtnBuy');
+  const drawerSell = document.getElementById('drawerBtnSell');
+  const drawerExec = document.getElementById('drawerOrderExecuteBtn');
   const cleanSym = currentPageAsset ? currentPageAsset.symbol.replace('.NS', '') : 'ASSET';
 
   if (action === 'BUY') {
     if (buyBtn) buyBtn.className = 'trade-tab-btn active buy';
     if (sellBtn) sellBtn.className = 'trade-tab-btn sell';
+    if (drawerBuy) drawerBuy.className = 'trade-tab-btn active buy';
+    if (drawerSell) drawerSell.className = 'trade-tab-btn sell';
     if (execBtn) {
       execBtn.className = 'btn-trade-execute buy';
       execBtn.innerText = `BUY ${cleanSym}`;
     }
+    if (drawerExec) {
+      drawerExec.className = 'btn-trade-execute buy';
+      drawerExec.innerText = `BUY ${cleanSym}`;
+    }
   } else {
     if (buyBtn) buyBtn.className = 'trade-tab-btn buy';
     if (sellBtn) sellBtn.className = 'trade-tab-btn active sell';
+    if (drawerBuy) drawerBuy.className = 'trade-tab-btn buy';
+    if (drawerSell) drawerSell.className = 'trade-tab-btn active sell';
     if (execBtn) {
       execBtn.className = 'btn-trade-execute sell';
       execBtn.innerText = `SELL ${cleanSym}`;
+    }
+    if (drawerExec) {
+      drawerExec.className = 'btn-trade-execute sell';
+      drawerExec.innerText = `SELL ${cleanSym}`;
     }
   }
   recalcPageMargin();
@@ -2645,9 +2751,20 @@ function setPageOrderAction(action) {
 
 function setPageProductType(prod) {
   pageOrderState.product = prod;
-  document.getElementById('pageProdDelivery').className = `seg-btn ${prod === 'DELIVERY' ? 'active' : ''}`;
-  document.getElementById('pageProdIntraday').className = `seg-btn ${prod === 'INTRADAY' ? 'active' : ''}`;
-  document.getElementById('pageLeverageHint').style.display = prod === 'INTRADAY' ? 'flex' : 'none';
+  const dProd = document.getElementById('pageProdDelivery');
+  const iProd = document.getElementById('pageProdIntraday');
+  const dDrw = document.getElementById('drawerProdDelivery');
+  const iDrw = document.getElementById('drawerProdIntraday');
+  if (dProd) dProd.className = `seg-btn ${prod === 'DELIVERY' ? 'active' : ''}`;
+  if (iProd) iProd.className = `seg-btn ${prod === 'INTRADAY' ? 'active' : ''}`;
+  if (dDrw) dDrw.className = `seg-btn ${prod === 'DELIVERY' ? 'active' : ''}`;
+  if (iDrw) iDrw.className = `seg-btn ${prod === 'INTRADAY' ? 'active' : ''}`;
+
+  const levHint = document.getElementById('pageLeverageHint');
+  if (levHint) levHint.style.display = prod === 'INTRADAY' ? 'flex' : 'none';
+  const dLevHint = document.getElementById('drawerLeverageHint');
+  if (dLevHint) dLevHint.style.display = prod === 'INTRADAY' ? 'flex' : 'none';
+
   recalcPageMargin();
 }
 
@@ -2662,10 +2779,21 @@ function setPageOrderVariety(varType) {
   if (slBtn) slBtn.className = `seg-btn ${varType === 'STOP_LOSS' ? 'active' : ''}`;
   if (gttBtn) gttBtn.className = `seg-btn ${varType === 'GTT' ? 'active' : ''}`;
 
+  const dmktBtn = document.getElementById('drawerVarietyMarket');
+  const dlimBtn = document.getElementById('drawerVarietyLimit');
+  const dslBtn = document.getElementById('drawerVarietySL');
+  const dgttBtn = document.getElementById('drawerVarietyGTT');
+  if (dmktBtn) dmktBtn.className = `seg-btn ${varType === 'MARKET' ? 'active' : ''}`;
+  if (dlimBtn) dlimBtn.className = `seg-btn ${varType === 'LIMIT' ? 'active' : ''}`;
+  if (dslBtn) dslBtn.className = `seg-btn ${varType === 'STOP_LOSS' ? 'active' : ''}`;
+  if (dgttBtn) dgttBtn.className = `seg-btn ${varType === 'GTT' ? 'active' : ''}`;
+
   const limitGroup = document.getElementById('pageLimitPriceGroup');
   const trigGroup = document.getElementById('pageTriggerPriceGroup');
+  const dLimitGroup = document.getElementById('drawerLimitGroup');
   if (limitGroup) limitGroup.style.display = (varType === 'LIMIT' || varType === 'STOP_LOSS' || varType === 'GTT') ? 'block' : 'none';
   if (trigGroup) trigGroup.style.display = (varType === 'STOP_LOSS' || varType === 'GTT') ? 'block' : 'none';
+  if (dLimitGroup) dLimitGroup.style.display = (varType === 'LIMIT' || varType === 'STOP_LOSS' || varType === 'GTT') ? 'block' : 'none';
 
   const trigHint = document.getElementById('pageTriggerHint');
   if (trigHint) {
@@ -2674,15 +2802,16 @@ function setPageOrderVariety(varType) {
       : 'Order activates when market hits this stop-loss trigger';
   }
 
+  const cleanSym = currentPageAsset ? (currentPageAsset.symbol || '').replace('.NS', '') : '';
   const execBtn = document.getElementById('pageOrderExecuteBtn');
-  if (execBtn && !isGuest()) {
-    if (varType === 'STOP_LOSS') {
-      execBtn.innerText = `PLACE STOP-LOSS (${pageOrderState.action})`;
-    } else if (varType === 'GTT') {
-      execBtn.innerText = `CREATE GTT TRIGGER (${pageOrderState.action})`;
-    } else {
-      execBtn.innerText = `${pageOrderState.action} ${currentPageAsset ? (currentPageAsset.symbol || '').replace('.NS', '') : ''}`;
-    }
+  const drawerExec = document.getElementById('drawerOrderExecuteBtn');
+
+  if (!isGuest()) {
+    let btnText = `${pageOrderState.action} ${cleanSym}`;
+    if (varType === 'STOP_LOSS') btnText = `PLACE STOP-LOSS (${pageOrderState.action})`;
+    if (varType === 'GTT') btnText = `CREATE GTT TRIGGER (${pageOrderState.action})`;
+    if (execBtn) execBtn.innerText = btnText;
+    if (drawerExec) drawerExec.innerText = btnText;
   }
 
   recalcPageMargin();
@@ -2690,50 +2819,74 @@ function setPageOrderVariety(varType) {
 
 function stepPageQuantity(delta) {
   const input = document.getElementById('pageOrderQuantity');
-  let val = parseInt(input.value || '1', 10) + delta;
+  const dInput = document.getElementById('drawerOrderQuantity');
+  let val = parseInt((input ? input.value : '1') || '1', 10) + delta;
   if (val < 1) val = 1;
-  input.value = val;
+  if (input) input.value = val;
+  if (dInput) dInput.value = val;
   pageOrderState.quantity = val;
   recalcPageMargin();
 }
 
 function setPageQuickQuantity(qty) {
-  document.getElementById('pageOrderQuantity').value = qty;
+  const input = document.getElementById('pageOrderQuantity');
+  const dInput = document.getElementById('drawerOrderQuantity');
+  if (input) input.value = qty;
+  if (dInput) dInput.value = qty;
   pageOrderState.quantity = qty;
   recalcPageMargin();
 }
 
 function recalcPageMargin() {
   if (!currentPageAsset) return;
-  const qty = parseInt(document.getElementById('pageOrderQuantity').value || '1', 10);
+  const qtyInput = document.getElementById('pageOrderQuantity');
+  const qty = parseInt((qtyInput ? qtyInput.value : '1') || '1', 10);
+  const limInput = document.getElementById('pageOrderLimitPrice');
   const effectivePrice = (pageOrderState.variety === 'LIMIT' || pageOrderState.variety === 'STOP_LOSS' || pageOrderState.variety === 'GTT')
-    ? parseFloat(document.getElementById('pageOrderLimitPrice').value || currentPageAsset.price)
+    ? parseFloat((limInput ? limInput.value : '') || currentPageAsset.price)
     : currentPageAsset.price;
 
   const total = qty * effectivePrice;
   const margin = pageOrderState.product === 'INTRADAY' ? total * 0.20 : total;
 
-  document.getElementById('pageRequiredMargin').innerText = formatINR(margin);
-  
+  const reqEl = document.getElementById('pageRequiredMargin');
+  if (reqEl) reqEl.innerText = formatINR(margin);
+  const dReqEl = document.getElementById('drawerRequiredMargin');
+  if (dReqEl) dReqEl.innerText = formatINR(margin);
+
+  const availCash = state.account ? state.account.balance : (currentUser ? currentUser.balance : 1000000.0);
+  const cashEl = document.getElementById('pageAvailableCash');
+  if (cashEl) cashEl.innerText = formatINR(availCash);
+  const dCashEl = document.getElementById('drawerAvailableCash');
+  if (dCashEl) dCashEl.innerText = formatINR(availCash);
+
   const execBtn = document.getElementById('pageOrderExecuteBtn');
+  const drawerExec = document.getElementById('drawerOrderExecuteBtn');
+  const cleanSym = currentPageAsset.symbol ? currentPageAsset.symbol.replace('.NS', '') : '';
+
   if (isGuest()) {
-    document.getElementById('pageAvailableCash').innerText = '₹0.00 (Locked)';
+    if (cashEl) cashEl.innerText = '₹0.00 (Locked)';
+    if (dCashEl) dCashEl.innerText = '₹0.00 (Locked)';
     if (execBtn) {
       execBtn.innerText = 'Start Investing to Trade (Unlock ₹10L)';
       execBtn.className = 'btn-trade-execute guest-locked';
     }
+    if (drawerExec) {
+      drawerExec.innerText = 'Start Investing to Trade (Unlock ₹10L)';
+      drawerExec.className = 'btn-trade-execute guest-locked';
+    }
   } else {
-    const availCash = state.account ? state.account.balance : (currentUser ? currentUser.balance : 1000000.0);
-    document.getElementById('pageAvailableCash').innerText = formatINR(availCash);
+    let btnText = `${pageOrderState.action} ${cleanSym}`;
+    if (pageOrderState.variety === 'STOP_LOSS') btnText = `PLACE STOP-LOSS (${pageOrderState.action})`;
+    if (pageOrderState.variety === 'GTT') btnText = `CREATE GTT TRIGGER (${pageOrderState.action})`;
+    
     if (execBtn) {
       execBtn.className = `btn-trade-execute ${pageOrderState.action.toLowerCase()}`;
-      if (pageOrderState.variety === 'STOP_LOSS') {
-        execBtn.innerText = `PLACE STOP-LOSS (${pageOrderState.action})`;
-      } else if (pageOrderState.variety === 'GTT') {
-        execBtn.innerText = `CREATE GTT TRIGGER (${pageOrderState.action})`;
-      } else {
-        execBtn.innerText = `${pageOrderState.action} ${currentPageAsset.symbol || ''}`;
-      }
+      execBtn.innerText = btnText;
+    }
+    if (drawerExec) {
+      drawerExec.className = `btn-trade-execute ${pageOrderState.action.toLowerCase()}`;
+      drawerExec.innerText = btnText;
     }
   }
 }
@@ -2746,6 +2899,8 @@ async function updatePageAvailableHolding(symbol) {
     const qty = holding ? holding.quantity : 0;
     const label = document.getElementById('pageAvailableHoldingQty');
     if (label) label.innerText = `${qty} shares owned`;
+    const dLabel = document.getElementById('drawerHoldingQty');
+    if (dLabel) dLabel.innerText = `${qty} shares owned`;
   } catch (err) {}
 }
 
@@ -2858,6 +3013,7 @@ async function executePageTrade() {
       price: (pageOrderState.variety === 'LIMIT' || pageOrderState.variety === 'STOP_LOSS') ? (limitPrice || currentPageAsset.price) : currentPageAsset.price,
       total: qty * ((pageOrderState.variety === 'LIMIT' || pageOrderState.variety === 'STOP_LOSS') ? (limitPrice || currentPageAsset.price) : currentPageAsset.price)
     });
+    closeMobileTradeDrawer();
 
   } catch (err) {
     console.error('executePageTrade error:', err);

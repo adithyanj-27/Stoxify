@@ -27,10 +27,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 PUBLIC_DIR = os.path.join(BASE_DIR, "public")
 
-if os.path.exists(STATIC_DIR):
-    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-if os.path.exists(PUBLIC_DIR):
-    app.mount("/public", StaticFiles(directory=PUBLIC_DIR), name="public")
 
 @app.middleware("http")
 async def normalize_vercel_path(request: Request, call_next):
@@ -72,16 +68,22 @@ def favicon():
     svg_icon = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="14" fill="#0B0F19" stroke="rgba(14,165,233,0.4)" stroke-width="1.5"/><defs><linearGradient id="stoxG" x1="15%" y1="85%" x2="85%" y2="15%"><stop offset="0%" stop-color="#0284C7"/><stop offset="50%" stop-color="#0EA5E9"/><stop offset="100%" stop-color="#10B981"/></linearGradient></defs><path d="M16 46 L27 31 L32 37 L45 17" stroke="url(#stoxG)" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M36 17 L45 17 L45 26" stroke="#10B981" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>"""
     return Response(content=svg_icon, media_type="image/svg+xml")
 
+NO_CACHE_HEADERS = {
+    "Cache-Control": "no-cache, no-store, must-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0"
+}
+
 @app.get("/")
 def read_root():
     for candidate in [
-        os.path.join(PUBLIC_DIR, "index.html"),
         os.path.join(STATIC_DIR, "index.html"),
+        os.path.join(PUBLIC_DIR, "index.html"),
         os.path.join(BASE_DIR, "index.html")
     ]:
         if os.path.exists(candidate):
-            return FileResponse(candidate)
-    return Response(content="<h1>Stoxify is Online</h1>", media_type="text/html")
+            return FileResponse(candidate, headers=NO_CACHE_HEADERS)
+    return Response(content="<h1>Stoxify is Online</h1>", media_type="text/html", headers=NO_CACHE_HEADERS)
 
 @app.get("/static/style.css")
 @app.get("/style.css")
@@ -92,8 +94,8 @@ def get_style():
         os.path.join(BASE_DIR, "style.css")
     ]:
         if os.path.exists(candidate):
-            return FileResponse(candidate, media_type="text/css")
-    return Response(content="/* style not found */", media_type="text/css")
+            return FileResponse(candidate, media_type="text/css", headers=NO_CACHE_HEADERS)
+    return Response(content="/* style not found */", media_type="text/css", headers=NO_CACHE_HEADERS)
 
 @app.get("/static/app.js")
 @app.get("/app.js")
@@ -104,9 +106,10 @@ def get_script():
         os.path.join(BASE_DIR, "app.js")
     ]:
         if os.path.exists(candidate):
-            return FileResponse(candidate, media_type="application/javascript")
-    return Response(content="// script not found", media_type="application/javascript")
+            return FileResponse(candidate, media_type="application/javascript", headers=NO_CACHE_HEADERS)
+    return Response(content="// script not found", media_type="application/javascript", headers=NO_CACHE_HEADERS)
 
+@app.get("/static/manifest.json")
 @app.get("/manifest.json")
 @app.get("/manifest.webmanifest")
 def get_manifest():
@@ -116,9 +119,10 @@ def get_manifest():
         os.path.join(BASE_DIR, "manifest.json")
     ]:
         if os.path.exists(candidate):
-            return FileResponse(candidate, media_type="application/manifest+json")
-    return Response(content="{}", media_type="application/manifest+json")
+            return FileResponse(candidate, media_type="application/manifest+json", headers=NO_CACHE_HEADERS)
+    return Response(content="{}", media_type="application/manifest+json", headers=NO_CACHE_HEADERS)
 
+@app.get("/static/sw.js")
 @app.get("/sw.js")
 def get_sw():
     for candidate in [
@@ -127,8 +131,8 @@ def get_sw():
         os.path.join(BASE_DIR, "sw.js")
     ]:
         if os.path.exists(candidate):
-            return FileResponse(candidate, media_type="application/javascript")
-    return Response(content="// sw not found", media_type="application/javascript")
+            return FileResponse(candidate, media_type="application/javascript", headers=NO_CACHE_HEADERS)
+    return Response(content="// sw not found", media_type="application/javascript", headers=NO_CACHE_HEADERS)
 
 @app.get("/icon-192.png")
 def get_icon_192():
@@ -151,6 +155,12 @@ def get_icon_512():
         if os.path.exists(candidate):
             return FileResponse(candidate, media_type="image/png")
     return Response(status_code=404)
+
+# Fallback mount for remaining assets (logos, icons, favicons)
+if os.path.exists(STATIC_DIR):
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+if os.path.exists(PUBLIC_DIR):
+    app.mount("/public", StaticFiles(directory=PUBLIC_DIR), name="public")
 
 # --- User Profile Endpoints (Simulated Groww Onboarding) ---
 class CreateUserRequest(BaseModel):

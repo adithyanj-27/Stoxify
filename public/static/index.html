@@ -12,7 +12,7 @@
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-dark.png" id="dynamicFavicon">
   <link rel="apple-touch-icon" href="/static/icon-192.png">
-  <link rel="stylesheet" href="/static/style.css" onerror="this.onerror=null;this.href='/style.css';">
+  <link rel="stylesheet" href="/static/style.css?v=5.1" onerror="this.onerror=null;this.href='/style.css?v=5.1';">
   <!-- Chart.js for high performance financial line & area charts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -468,7 +468,7 @@
             </div>
             <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
               • Short-Term Capital Gains (STCG) on equity/intraday taxed at <strong>20%</strong> (revised from 15%).<br>
-              • Long-Term Capital Gains (LTCG) held $\ge$ 1 year taxed at <strong>12.5%</strong> with <strong>₹1,25,000</strong> annual exemption.
+              • Long-Term Capital Gains (LTCG) held &ge; 1 year taxed at <strong>12.5%</strong> with <strong>₹1,25,000</strong> annual exemption.
             </p>
 
             <div class="portfolio-banner" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 1.5rem;">
@@ -1136,6 +1136,12 @@
         </div>
       </div>
 
+      <!-- Sticky Mobile Bottom Trading Action Bar (BUY & SELL) -->
+      <div class="mobile-asset-action-bar" id="mobileAssetActionBar">
+        <button class="mob-trade-btn sell" onclick="openMobileTradeDrawer('SELL')">SELL</button>
+        <button class="mob-trade-btn buy" onclick="openMobileTradeDrawer('BUY')">BUY</button>
+      </div>
+
     </section>
 
         <!-- 7. GROWW-STYLE SIMULATED ACCOUNT ONBOARDING WIZARD -->
@@ -1378,8 +1384,106 @@
         </div>
       </div>
     </section>
-
   </main>
+
+  <!-- Native Groww/Kite Mobile Slide-Up Trading Drawer -->
+  <div class="mobile-drawer-overlay" id="mobileTradingDrawerOverlay" onclick="if(event.target===this)closeMobileTradeDrawer()">
+    <div class="mobile-drawer-card">
+      <div class="drawer-drag-pill" onclick="closeMobileTradeDrawer()"></div>
+      <div class="mobile-drawer-header">
+        <div class="drawer-asset-info">
+          <div class="drawer-avatar" id="drawerAssetAvatar"></div>
+          <div>
+            <h3 class="drawer-title" id="drawerAssetTitle">Asset Name</h3>
+            <div class="drawer-sub">
+              <span id="drawerAssetSymbol">SYMBOL</span> • 
+              <span id="drawerAssetPrice" style="font-weight: 800; color: var(--text-primary);">₹0.00</span>
+              <span id="drawerAssetChange" class="badge-positive" style="margin-left: 4px;">+0.00%</span>
+            </div>
+          </div>
+        </div>
+        <button class="drawer-close-btn" onclick="closeMobileTradeDrawer()" aria-label="Close">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+
+      <div class="mobile-drawer-body">
+        <!-- Action Segment: BUY vs SELL -->
+        <div class="trade-action-toggle mob-action-toggle">
+          <button class="trade-tab-btn active buy" id="drawerBtnBuy" onclick="setPageOrderAction('BUY')">BUY</button>
+          <button class="trade-tab-btn sell" id="drawerBtnSell" onclick="setPageOrderAction('SELL')">SELL</button>
+        </div>
+
+        <!-- Product: Delivery vs Intraday -->
+        <div class="trade-field-group">
+          <label class="field-label">Product Type</label>
+          <div class="segmented-pills">
+            <button class="seg-btn active" id="drawerProdDelivery" onclick="setPageProductType('DELIVERY')">Delivery (CNC)</button>
+            <button class="seg-btn" id="drawerProdIntraday" onclick="setPageProductType('INTRADAY')">
+              Intraday <span class="badge-leverage">5x MIS</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Variety: Market vs Limit vs SL vs GTT -->
+        <div class="trade-field-group">
+          <label class="field-label">Order Variety</label>
+          <div class="segmented-pills">
+            <button class="seg-btn active" id="drawerVarietyMarket" onclick="setPageOrderVariety('MARKET')">Market</button>
+            <button class="seg-btn" id="drawerVarietyLimit" onclick="setPageOrderVariety('LIMIT')">Limit</button>
+            <button class="seg-btn" id="drawerVarietySL" onclick="setPageOrderVariety('STOP_LOSS')">SL</button>
+            <button class="seg-btn" id="drawerVarietyGTT" onclick="setPageOrderVariety('GTT')">GTT</button>
+          </div>
+        </div>
+
+        <!-- Quantity with Stepper and Quick Chips -->
+        <div class="trade-field-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+            <label class="field-label" style="margin-bottom: 0;">Quantity</label>
+            <span style="font-size: 0.75rem; color: var(--text-muted);" id="drawerHoldingQty">0 shares owned</span>
+          </div>
+          <div class="stepper-input">
+            <button class="step-btn" onclick="stepPageQuantity(-1)">−</button>
+            <input type="number" id="drawerOrderQuantity" min="1" step="1" value="1" oninput="syncDrawerQuantity(this.value)">
+            <button class="step-btn" onclick="stepPageQuantity(1)">+</button>
+          </div>
+          <div class="quick-qty-chips">
+            <button class="qty-chip" onclick="setPageQuickQuantity(1)">+1</button>
+            <button class="qty-chip" onclick="setPageQuickQuantity(5)">+5</button>
+            <button class="qty-chip" onclick="setPageQuickQuantity(10)">+10</button>
+            <button class="qty-chip" onclick="setPageQuickQuantity(25)">+25</button>
+            <button class="qty-chip" onclick="setPageQuickQuantity(50)">+50</button>
+          </div>
+        </div>
+
+        <!-- Limit Price Input -->
+        <div class="trade-field-group" id="drawerLimitGroup" style="display: none;">
+          <label class="field-label">Limit Price (₹)</label>
+          <input type="number" class="stepper-input" style="padding: 0.65rem 1rem; width: 100%; box-sizing: border-box; font-weight: 700;" id="drawerLimitPrice" step="0.05" oninput="syncDrawerLimit(this.value)">
+        </div>
+
+        <!-- Margin & Cash Info Summary -->
+        <div class="order-calc-card" style="margin-top: 0.75rem;">
+          <div class="calc-row">
+            <span>Required Margin</span>
+            <strong class="text-primary" id="drawerRequiredMargin">₹0.00</strong>
+          </div>
+          <div class="calc-row">
+            <span>Available Balance</span>
+            <strong class="text-positive" id="drawerAvailableCash">₹10,00,000.00</strong>
+          </div>
+          <div class="calc-row" id="drawerLeverageHint" style="display: none;">
+            <span style="color: var(--brand-cyan); font-size: 0.75rem;">⚡ 5x Intraday Margin Blocked (Only 20%)</span>
+          </div>
+        </div>
+
+        <!-- Big Drawer CTA -->
+        <button class="btn-trade-execute buy" id="drawerOrderExecuteBtn" style="margin-top: 1rem; height: 50px; font-size: 1.05rem;" onclick="executePageTrade()">
+          BUY
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- Stock & Mutual Fund Detail / Trade Modal (Converts to Bottom Sheet on Mobile!) -->
   <div class="modal-overlay" id="tradeModalOverlay">
@@ -1701,8 +1805,6 @@
 
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toastContainer"></div>
-
-  <script src="/static/app.js" onerror="this.onerror=null;this.src='/app.js';"></script>
 
   <!-- Switch Account Modal -->
   <div class="modal-overlay" id="switchAccountModalOverlay">
@@ -2124,5 +2226,6 @@
     </button>
   </nav>
 
+  <script src="/static/app.js?v=5.1" onerror="this.onerror=null;this.src='/app.js?v=5.1';"></script>
 </body>
 </html>

@@ -1,10 +1,10 @@
 // Stoxify PWA Service Worker
-const CACHE_NAME = 'stoxify-v2';
+const CACHE_NAME = 'stoxify-v6';
 const STATIC_ASSETS = [
-  '/',
-  '/static/style.css',
-  '/static/app.js',
+  '/manifest.json',
   '/static/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png',
   '/static/icon-192.png',
   '/static/icon-512.png'
 ];
@@ -32,7 +32,31 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   if (event.request.url.includes('/api/')) return;
 
+  const url = event.request.url;
+
+  // Always fetch live fresh versions for app shell, scripts, styles, and HTML
+  if (
+    url.includes('app.js') || 
+    url.includes('style.css') || 
+    url.includes('sw.js') ||
+    url.endsWith('/') || 
+    url.includes('index.html') ||
+    url.includes('?v=')
+  ) {
+    event.respondWith(
+      fetch(event.request, { cache: 'no-store' })
+        .then((response) => {
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Cache-first fallback for static icons/images
   event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request))
+    caches.match(event.request).then((cached) => {
+      return cached || fetch(event.request);
+    })
   );
 });

@@ -1281,16 +1281,8 @@ body.pwa-installed #mobileInstallBanner {
 }
 
 @media (max-width: 640px) {
-  .btn-install-text-desktop {
-    display: none;
-  }
-  .btn-install-text-mobile {
-    display: inline;
-  }
   .btn-install-app {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.72rem;
-    gap: 0.3rem;
+    display: none !important;
   }
 }
 
@@ -1752,7 +1744,9 @@ body.pwa-installed #mobileInstallBanner {
 }
 
 @media (min-width: 769px) {
-  .mobile-bottom-bar {
+  .mobile-bottom-bar,
+  .mobile-install-banner,
+  #mobileInstallBanner {
     display: none !important;
   }
 }
@@ -2025,11 +2019,11 @@ body.pwa-installed #mobileInstallBanner {
     font-size: 0.7rem;
   }
 
-  /* Groww-Style 2-Column Cards Grid on Mobile (Guaranteed fit without overflow) */
+  /* Groww/Zerodha-Style Full-Width Clean List Rows on Mobile */
   .cards-grid {
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 0.55rem !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.5rem !important;
     width: 100% !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
@@ -2037,97 +2031,123 @@ body.pwa-installed #mobileInstallBanner {
 
   .stock-card {
     min-width: 0 !important;
+    width: 100% !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
     overflow: hidden !important;
-    border-radius: 14px !important;
-    padding: 0.75rem 0.7rem !important;
+    border-radius: 12px !important;
+    padding: 0.75rem 0.9rem !important;
     border: 1px solid var(--border-subtle) !important;
     background: var(--bg-card) !important;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
     display: flex !important;
-    flex-direction: column !important;
+    flex-direction: row !important;
+    align-items: center !important;
     justify-content: space-between !important;
-    min-height: 115px !important;
-    transition: transform 0.15s ease !important;
+    min-height: 56px !important;
+    gap: 0.75rem !important;
+    cursor: pointer !important;
+    transition: background 0.15s ease, transform 0.12s ease !important;
   }
 
   .stock-card:active {
-    transform: scale(0.98) !important;
+    background: var(--bg-card-hover) !important;
+    transform: scale(0.99) !important;
   }
 
   .stock-card .card-top {
-    margin-bottom: 0.3rem !important;
-    gap: 0.3rem !important;
-    align-items: flex-start !important;
+    margin-bottom: 0 !important;
+    gap: 0.65rem !important;
+    display: flex !important;
+    align-items: center !important;
+    flex: 1 !important;
     min-width: 0 !important;
-    max-width: 100% !important;
-    overflow: hidden !important;
   }
 
   .stock-card .card-header-left {
     min-width: 0 !important;
-    max-width: 100% !important;
-    overflow: hidden !important;
-    gap: 0.4rem !important;
+    flex: 1 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.65rem !important;
   }
 
   .stock-card .card-avatar {
-    width: 32px !important;
-    height: 32px !important;
-    border-radius: 8px !important;
-    font-size: 0.7rem !important;
-    font-weight: 700 !important;
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 10px !important;
+    font-size: 0.8rem !important;
+    font-weight: 800 !important;
     flex-shrink: 0 !important;
   }
 
   .stock-card .card-info {
     min-width: 0 !important;
-    overflow: hidden !important;
     flex: 1 !important;
   }
 
   .stock-card .card-title {
-    font-size: 0.8rem !important;
-    font-weight: 600 !important;
+    font-size: 0.9rem !important;
+    font-weight: 700 !important;
     line-height: 1.25 !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     max-width: 100% !important;
+    color: var(--text-primary) !important;
   }
 
   .stock-card .card-subtitle {
-    font-size: 0.65rem !important;
+    font-size: 0.72rem !important;
     color: var(--text-muted) !important;
-    margin-top: 1px !important;
+    margin-top: 2px !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     max-width: 100% !important;
   }
 
+  .stock-card .card-star-btn {
+    display: none !important;
+  }
+
   .stock-card .card-bottom {
-    margin-top: 0.4rem !important;
+    margin-top: 0 !important;
     display: flex !important;
     flex-direction: column !important;
-    align-items: flex-start !important;
-    gap: 0.1rem !important;
+    align-items: flex-end !important;
+    text-align: right !important;
+    flex-shrink: 0 !important;
+    gap: 0.2rem !important;
   }
 
   .stock-card .card-price {
-    font-size: 0.88rem !important;
-    font-weight: 700 !important;
+    font-size: 0.95rem !important;
+    font-weight: 800 !important;
     color: var(--text-primary) !important;
+    font-variant-numeric: tabular-nums !important;
+    line-height: 1.2 !important;
   }
 
   .stock-card .badge-positive,
   .stock-card .badge-negative {
-    font-size: 0.7rem !important;
-    font-weight: 600 !important;
-    padding: 0 !important;
-    background: transparent !important;
-    border: none !important;
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    padding: 2px 7px !important;
+    border-radius: 6px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    line-height: 1 !important;
+  }
+
+  .stock-card .badge-positive {
+    background: rgba(16, 185, 129, 0.12) !important;
+    color: var(--accent-green) !important;
+  }
+
+  .stock-card .badge-negative {
+    background: rgba(244, 63, 94, 0.12) !important;
+    color: var(--danger-red) !important;
   }
 
   /* Most Bought on Stoxify Horizontal Carousel */
@@ -2175,20 +2195,231 @@ body.pwa-installed #mobileInstallBanner {
     display: flex !important;
   }
 
+  /* Asset Detail View on Mobile */
+  .asset-page-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 1rem !important;
+    width: 100% !important;
+  }
+
+  .asset-sidebar-col {
+    display: none !important; /* Replaced by sticky bottom action bar + slide-up drawer on mobile */
+  }
+
+  body.viewing-asset-detail .mobile-bottom-bar {
+    display: none !important;
+  }
+
+  body.viewing-asset-detail {
+    padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .asset-page-header-nav {
+    margin-bottom: 0.75rem !important;
+  }
+
+  .asset-hero-card {
+    padding: 1rem 1.1rem !important;
+    border-radius: 16px !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+  }
+
+  .asset-hero-avatar {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    font-size: 1.1rem !important;
+    border-radius: 12px !important;
+  }
+
+  .asset-hero-title {
+    font-size: 1.15rem !important;
+  }
+
+  .asset-hero-price {
+    font-size: 1.35rem !important;
+  }
+
+  .asset-chart-card,
+  .asset-section-card {
+    padding: 0.9rem !important;
+    border-radius: 16px !important;
+  }
+
+  .chart-wrapper {
+    height: 240px !important;
+  }
+
+  .asset-tab-strip,
+  .asset-page-nav-tabs {
+    display: flex !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    white-space: nowrap !important;
+    gap: 0.45rem !important;
+    padding-bottom: 0.35rem !important;
+    margin-bottom: 0.85rem !important;
+  }
+
+  .asset-tab-strip::-webkit-scrollbar,
+  .asset-page-nav-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .asset-tab-btn {
+    flex-shrink: 0 !important;
+    font-size: 0.82rem !important;
+    padding: 0.45rem 0.8rem !important;
+  }
+
+  /* Level-2 Order Book Depth on Mobile */
+  .depth-columns {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 0.65rem !important;
+  }
+
+  .depth-col {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.2rem !important;
+  }
+
+  .depth-col-head {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr 1.2fr !important;
+    font-size: 0.68rem !important;
+    font-weight: 700 !important;
+    color: var(--text-muted) !important;
+    padding: 0.2rem 0.3rem !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
+    margin-bottom: 0.2rem !important;
+  }
+
+  .depth-col:last-child .depth-col-head {
+    grid-template-columns: 1.2fr 1fr 1fr !important;
+  }
+
+  .depth-row {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr 1.2fr !important;
+    font-size: 0.74rem !important;
+    padding: 0.2rem 0.3rem !important;
+    border-radius: 4px !important;
+  }
+
+  .depth-row.ask {
+    grid-template-columns: 1.2fr 1fr 1fr !important;
+  }
+
+  .fundamentals-grid,
+  .stats-key-val-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.75rem !important;
+  }
+
+  /* F&O Controls & Switcher on Mobile */
+  .fo-controls-bar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.65rem !important;
+  }
+
+  .fo-index-switcher {
+    width: 100% !important;
+    display: flex !important;
+  }
+
+  .fo-idx-btn {
+    flex: 1 !important;
+    text-align: center !important;
+    justify-content: center !important;
+  }
+
+  .fo-stats-row {
+    display: flex !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    flex-wrap: nowrap !important;
+    gap: 0.45rem !important;
+    padding-bottom: 0.25rem !important;
+    width: 100% !important;
+  }
+
+  .fo-stats-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .fo-stat-pill {
+    flex-shrink: 0 !important;
+    padding: 0.35rem 0.6rem !important;
+    font-size: 0.75rem !important;
+  }
+
+  /* Onboarding Wizard Mobile Tweaks */
+  .onboarding-container {
+    padding: 0 0.5rem !important;
+    margin: 0.75rem auto 2rem auto !important;
+  }
+
+  .onboarding-card {
+    padding: 1.25rem 1rem !important;
+    border-radius: 16px !important;
+  }
+
+  .progress-step .step-num {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 0.75rem !important;
+  }
+
+  .progress-step .step-label {
+    font-size: 0.65rem !important;
+  }
+
+  .step-connector {
+    margin: 0 3px !important;
+  }
+
+  /* Compact Mobile Install Banner */
+  .mobile-install-banner {
+    margin: 0.4rem 0.65rem !important;
+    padding: 0.55rem 0.8rem !important;
+    border-radius: 12px !important;
+  }
+
+  .table-container,
+  .option-chain-table-container {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
   /* --- Bottom Sheet Modal for Mobile --- */
   .modal-overlay {
-    align-items: flex-end;
-    padding: 0;
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+
+  .trade-modal-card,
+  .modal-card,
+  .modal-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 90vh !important;
+    border-radius: 22px 22px 0 0 !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    animation: slideUpSheet 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
   }
 
   .trade-modal-card {
-    width: 100%;
-    max-width: 100%;
-    max-height: 92vh;
-    border-radius: 20px 20px 0 0;
-    margin: 0;
-    padding: 0.5rem 1rem 2rem 1rem;
-    animation: slideUpSheet 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    padding: 0.5rem 1rem 2rem 1rem !important;
   }
 
   .sheet-drag-handle {
@@ -2204,16 +2435,255 @@ body.pwa-installed #mobileInstallBanner {
     gap: 1.25rem;
   }
 
-  .modal-card {
-    border-radius: 16px;
-    margin: 1rem;
-    width: calc(100% - 2rem);
-  }
-
   @keyframes slideUpSheet {
     from { transform: translateY(100%); }
     to { transform: translateY(0); }
   }
+}
+
+/* =======================================================
+   MOBILE STICKY ACTION BAR & SLIDE-UP TRADING DRAWER
+   ======================================================= */
+.mobile-asset-action-bar {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-asset-action-bar {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    z-index: 1050;
+    background: rgba(15, 23, 42, 0.96);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid var(--border-subtle);
+    padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0px)) 1rem;
+    gap: 0.75rem;
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45);
+    box-sizing: border-box;
+  }
+
+  [data-theme="light"] .mobile-asset-action-bar {
+    background: rgba(255, 255, 255, 0.96);
+    border-top: 1px solid #E2E8F0;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+  }
+
+  .mob-trade-btn {
+    flex: 1;
+    height: 48px;
+    font-size: 1.05rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    transition: transform 0.15s ease, filter 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mob-trade-btn:active {
+    transform: scale(0.97);
+  }
+
+  .mob-trade-btn.sell {
+    background: var(--danger-red);
+    color: #ffffff;
+    box-shadow: 0 4px 14px rgba(244, 63, 94, 0.35);
+  }
+
+  .mob-trade-btn.buy {
+    background: var(--accent-green);
+    color: #052e16;
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+  }
+}
+
+/* Mobile Slide-Up Trading Drawer */
+.mobile-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 2000;
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mobile-drawer-overlay.active {
+  display: flex;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mobile-drawer-card {
+  background: var(--bg-card);
+  border-top: 1px solid var(--border-active);
+  border-radius: 24px 24px 0 0;
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.75rem 1.25rem calc(1.5rem + env(safe-area-inset-bottom, 0px)) 1.25rem;
+  box-shadow: 0 -12px 36px rgba(0, 0, 0, 0.6);
+  box-sizing: border-box;
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mobile-drawer-overlay.active .mobile-drawer-card {
+  transform: translateY(0);
+}
+
+.drawer-drag-pill {
+  width: 44px;
+  height: 5px;
+  border-radius: 99px;
+  background: var(--border-active);
+  margin: 0.25rem auto 1rem auto;
+  cursor: pointer;
+}
+
+.mobile-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 1rem;
+}
+
+.drawer-asset-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.drawer-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: var(--brand-cyan);
+  flex-shrink: 0;
+}
+
+.drawer-title {
+  font-size: 1.05rem;
+  font-weight: 750;
+  margin: 0;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.drawer-sub {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 2px;
+}
+
+.drawer-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: var(--transition);
+}
+
+.drawer-close-btn:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.mobile-drawer-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+.mob-action-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-radius: 10px;
+  background: var(--bg-main);
+  padding: 4px;
+  gap: 4px;
+  border: 1px solid var(--border-subtle);
+}
+
+.mob-action-toggle .trade-tab-btn {
+  border-radius: 8px;
+  border-bottom: none !important;
+  padding: 0.65rem 0.5rem;
+  font-size: 0.95rem;
+}
+
+.mob-action-toggle .trade-tab-btn.active.buy {
+  background: var(--accent-green);
+  color: #052e16;
+}
+
+.mob-action-toggle .trade-tab-btn.active.sell {
+  background: var(--danger-red);
+  color: #ffffff;
+}
+
+.order-calc-card {
+  background: var(--bg-main);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.order-calc-card .calc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+[data-theme="light"] .mobile-drawer-card {
+  background: #FFFFFF;
+  border-top-color: #E2E8F0;
+  box-shadow: 0 -12px 36px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .order-calc-card,
+[data-theme="light"] .mob-action-toggle {
+  background: #F8FAFC;
+  border-color: #E2E8F0;
 }
 
 
@@ -2496,6 +2966,33 @@ body.pwa-installed #mobileInstallBanner {
   align-items: center;
   justify-content: flex-end;
   padding-right: 0.6rem;
+}
+
+.depth-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+.depth-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.depth-col-head {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.2fr;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 0.35rem;
+}
+
+.depth-col:last-child .depth-col-head {
+  grid-template-columns: 1.2fr 1fr 1fr;
 }
 
 /* Fundamentals Grid */
@@ -4549,7 +5046,7 @@ body.pwa-installed #mobileInstallBanner {
 }
 
 /* Mobile Header Install App Button Pop */
-@media (max-width: 768px) {
+@media (min-width: 641px) and (max-width: 768px) {
   .btn-install-app {
     display: inline-flex !important;
     background: linear-gradient(135deg, rgba(14, 165, 233, 0.2) 0%, rgba(16, 185, 129, 0.15) 100%);
@@ -4568,6 +5065,12 @@ body.pwa-installed #mobileInstallBanner {
 
   .btn-install-text-mobile {
     display: inline !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .btn-install-app {
+    display: none !important;
   }
 }
 

@@ -28,11 +28,29 @@ def set_cached(key: str, val: Any, ttl: int = 60):
     _CACHE[key] = val
     _CACHE_EXPIRY[key] = time.time() + ttl
 
+_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=16)
+
 def get_indices() -> List[Dict[str, Any]]:
     cached = get_cached("indices")
     if cached:
         return cached
     return _refresh_indices_sync()
+
+def _fetch_single_index(item: Dict[str, str]) -> Dict[str, Any]:
+    ticker = yf.Ticker(item["symbol"])
+    fast = ticker.fast_info
+    price = round(float(fast.last_price or fast.previous_close or 0.0), 2)
+    prev_close = round(float(fast.previous_close or price), 2)
+    change = round(price - prev_close, 2)
+    change_pct = round((change / prev_close) * 100, 2) if prev_close else 0.0
+    return {
+        "symbol": item["symbol"],
+        "name": item["name"],
+        "short": item["short"],
+        "price": price,
+        "change": change,
+        "change_pct": change_pct
+    }
 
 def _refresh_indices_sync():
     indices_meta = [
@@ -42,24 +60,22 @@ def _refresh_indices_sync():
         {"symbol": "^CNXIT", "name": "NIFTY IT", "short": "NIFTY IT"}
     ]
     results = []
-    for item in indices_meta:
+    future_map = {_POOL.submit(_fetch_single_index, item): item for item in indices_meta}
+    done, _ = concurrent.futures.wait(future_map.keys(), timeout=1.8)
+    for f in done:
         try:
-            ticker = yf.Ticker(item["symbol"])
-            fast = ticker.fast_info
-            price = round(float(fast.last_price or fast.previous_close or 0.0), 2)
-            prev_close = round(float(fast.previous_close or price), 2)
-            change = round(price - prev_close, 2)
-            change_pct = round((change / prev_close) * 100, 2) if prev_close else 0.0
-            results.append({
-                "symbol": item["symbol"],
-                "name": item["name"],
-                "short": item["short"],
-                "price": price,
-                "change": change,
-                "change_pct": change_pct
-            })
+            r = f.result()
+            if r and r.get("price"):
+                results.append(r)
         except Exception:
             pass
+
+    # If any failed or timed out, fill from fallback cache
+    seen = {r["symbol"] for r in results}
+    for item in _CACHE.get("indices", []):
+        if item["symbol"] not in seen:
+            results.append(item)
+
     if results:
         set_cached("indices", results, ttl=60)
         return results
@@ -346,20 +362,19 @@ def get_explore_data() -> Dict[str, Any]:
         if c_quote and c_quote.get("price"):
             stock_dict[sym] = c_quote
 
-    # Concurrently fetch any missing stock quotes with a strict 3.5-second cap
+    # Concurrently fetch any missing stock quotes with a strict 1.5-second cap
     missing_syms = [s for s in all_symbols if s not in stock_dict]
     if missing_syms:
         try:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
-                future_map = {executor.submit(get_stock_quote, sym): sym for sym in missing_syms}
-                done, _ = concurrent.futures.wait(future_map.keys(), timeout=3.5)
-                for f in done:
-                    try:
-                        q = f.result()
-                        if q and q.get("price"):
-                            stock_dict[q["symbol"]] = q
-                    except Exception:
-                        pass
+            future_map = {_POOL.submit(get_stock_quote, sym): sym for sym in missing_syms}
+            done, _ = concurrent.futures.wait(future_map.keys(), timeout=1.5)
+            for f in done:
+                try:
+                    q = f.result()
+                    if q and q.get("price"):
+                        stock_dict[q["symbol"]] = q
+                except Exception:
+                    pass
         except Exception as e:
             print("Explore concurrent fetch error:", e)
 
@@ -371,7 +386,7 @@ def get_explore_data() -> Dict[str, Any]:
 
     all_stocks = list(stock_dict.values())
 
-    # Mutual funds with 2.0-second cap
+    # Mutual funds with 1.2-second cap
     mf_dict = {}
     top_mf_codes = [mf["code"] for mf in MUTUAL_FUND_MASTER[:8]]
     for mf in MUTUAL_FUND_MASTER[:8]:
@@ -382,16 +397,15 @@ def get_explore_data() -> Dict[str, Any]:
     missing_mfs = [c for c in top_mf_codes if str(c) not in mf_dict]
     if missing_mfs:
         try:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
-                mf_futures = {executor.submit(get_mutual_fund_quote, code): code for code in missing_mfs}
-                done_mf, _ = concurrent.futures.wait(mf_futures.keys(), timeout=2.0)
-                for f in done_mf:
-                    try:
-                        mq = f.result()
-                        if mq and mq.get("price"):
-                            mf_dict[str(mq["symbol"])] = mq
-                    except Exception:
-                        pass
+            mf_futures = {_POOL.submit(get_mutual_fund_quote, code): code for code in missing_mfs}
+            done_mf, _ = concurrent.futures.wait(mf_futures.keys(), timeout=1.2)
+            for f in done_mf:
+                try:
+                    mq = f.result()
+                    if mq and mq.get("price"):
+                        mf_dict[str(mq["symbol"])] = mq
+                except Exception:
+                    pass
         except Exception:
             pass
 
