@@ -2359,8 +2359,11 @@ function calculateEMA(prices, period) {
 
 function renderCandlestickCanvas(canvas, points) {
   const ctx = canvas.getContext('2d');
-  const width = canvas.parentElement.clientWidth || 800;
-  const height = 380;
+  const parentW = canvas.parentElement ? canvas.parentElement.clientWidth : 0;
+  const isMobile = window.innerWidth <= 768;
+  const fallbackW = isMobile ? Math.min(window.innerWidth - 30, 420) : 800;
+  const width = parentW > 50 ? parentW : fallbackW;
+  const height = isMobile ? 230 : 380;
   canvas.width = width;
   canvas.height = height;
 
