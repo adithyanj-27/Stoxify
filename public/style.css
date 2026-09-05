@@ -2479,14 +2479,39 @@ body.pwa-installed #mobileInstallBanner {
     margin: 0 !important;
   }
 
+  #pageAssetStarBtn,
   .card-star-btn {
     flex-shrink: 0 !important;
-    width: 26px !important;
-    height: 26px !important;
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+    max-width: 28px !important;
+    min-height: 28px !important;
+    max-height: 28px !important;
     padding: 0 !important;
+    border-radius: 50% !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
+    box-sizing: border-box !important;
+    transform: none !important;
+    outline: none !important;
+    margin-left: 0.2rem !important;
+  }
+
+  #pageAssetStarBtn:hover,
+  #pageAssetStarBtn:active,
+  #pageAssetStarBtn:focus,
+  .card-star-btn:hover,
+  .card-star-btn:active,
+  .card-star-btn:focus {
+    transform: none !important;
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+    max-width: 28px !important;
+    border-radius: 50% !important;
+    outline: none !important;
   }
 
   .asset-hero-sub {
@@ -4865,6 +4890,23 @@ body.pwa-installed #mobileInstallBanner {
   transform: translateY(-1px);
   box-shadow: 0 4px 16px rgba(14, 165, 233, 0.45);
   filter: brightness(1.08);
+}
+
+/* Instant synchronous hydration styles to eliminate cold-boot flash of 'Invest' button */
+html.user-logged-in #navGetStartedBtn {
+  display: none !important;
+}
+
+html.user-logged-in #navProfileWrapper {
+  display: inline-flex !important;
+}
+
+html.user-guest #navGetStartedBtn {
+  display: inline-flex !important;
+}
+
+html.user-guest #navProfileWrapper {
+  display: none !important;
 }
 
 .btn-subtle {

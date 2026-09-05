@@ -12,9 +12,26 @@
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-dark.png" id="dynamicFavicon">
   <link rel="apple-touch-icon" href="/static/icon-192.png">
-  <link rel="stylesheet" href="/static/style.css?v=6.2" onerror="this.onerror=null;this.href='/style.css?v=6.2';">
+  <link rel="stylesheet" href="/static/style.css?v=6.3" onerror="this.onerror=null;this.href='/style.css?v=6.3';">
   <!-- Chart.js for high performance financial line & area charts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Pre-render synchronous auth & theme hydration to completely eliminate cold-boot flash of 'Invest' button -->
+  <script>
+    (function() {
+      try {
+        var savedTheme = localStorage.getItem('stoxify_theme');
+        if (savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
+        var uid = localStorage.getItem('stoxify_user_id');
+        var isGuest = localStorage.getItem('stoxify_guest_mode') === 'true';
+        var cachedUser = localStorage.getItem('stoxify_cached_user');
+        if (uid && uid !== 'default' && uid !== 'guest' && !isGuest && cachedUser) {
+          document.documentElement.classList.add('user-logged-in');
+        } else if (isGuest) {
+          document.documentElement.classList.add('user-guest');
+        }
+      } catch(e) {}
+    })();
+  </script>
 </head>
 <body>
 
@@ -153,6 +170,28 @@
           </button>
         </div>
       </div>
+      <script>
+        (function() {
+          try {
+            var cu = localStorage.getItem('stoxify_cached_user');
+            var isG = localStorage.getItem('stoxify_guest_mode') === 'true';
+            if (cu && !isG) {
+              var u = JSON.parse(cu);
+              if (u && u.name) {
+                var inits = u.name.split(' ').map(function(n){ return n[0]; }).join('').toUpperCase().slice(0, 2) || 'ST';
+                var el1 = document.getElementById('navUserInitials');
+                var el2 = document.getElementById('menuUserAvatar');
+                var el3 = document.getElementById('menuUserName');
+                var el4 = document.getElementById('menuUserEmail');
+                if (el1) el1.innerText = inits;
+                if (el2) el2.innerText = inits;
+                if (el3) el3.innerText = u.name;
+                if (el4) el4.innerText = u.email || '';
+              }
+            }
+          } catch(e) {}
+        })();
+      </script>
     </div>
   </header>
 
@@ -2202,6 +2241,6 @@
     </button>
   </nav>
 
-  <script src="/static/app.js?v=6.2" onerror="this.onerror=null;this.src='/app.js?v=6.2';"></script>
+  <script src="/static/app.js?v=6.3" onerror="this.onerror=null;this.src='/app.js?v=6.3';"></script>
 </body>
 </html>

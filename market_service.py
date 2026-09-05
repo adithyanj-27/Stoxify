@@ -94,12 +94,28 @@ def get_stock_quote(symbol: str) -> Dict[str, Any]:
 
     return _refresh_stock_quote_sync(formatted_symbol)
 
+INDEX_META = {
+    "^NSEI": {"name": "NIFTY 50", "short": "NIFTY 50", "sector": "Market Index"},
+    "^BSESN": {"name": "SENSEX", "short": "SENSEX", "sector": "Market Index"},
+    "^NSEBANK": {"name": "BANK NIFTY", "short": "BANK NIFTY", "sector": "Market Index"},
+    "^CNXIT": {"name": "NIFTY IT", "short": "NIFTY IT", "sector": "Market Index"},
+    "^NSEMDCP50": {"name": "NIFTY MIDCAP 50", "short": "NIFTY MIDCAP", "sector": "Market Index"}
+}
+
 def _refresh_stock_quote_sync(formatted_symbol: str) -> Dict[str, Any]:
     cache_key = f"quote_{formatted_symbol}"
     matched = next((s for s in STOCK_MASTER if s["symbol"] == formatted_symbol), None)
 
-    name = matched["name"] if matched else formatted_symbol.replace(".NS", "").replace(".BO", "")
-    sector = matched["sector"] if matched else "NSE Equities"
+    idx_info = INDEX_META.get(formatted_symbol)
+    if idx_info:
+        name = idx_info["name"]
+        sector = idx_info["sector"]
+    elif matched:
+        name = matched["name"]
+        sector = matched.get("sector", "NSE Equities")
+    else:
+        name = formatted_symbol.replace(".NS", "").replace(".BO", "")
+        sector = "NSE Equities"
 
     try:
         t = yf.Ticker(formatted_symbol)

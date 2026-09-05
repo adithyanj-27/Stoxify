@@ -619,18 +619,14 @@ class WatchlistRequest(BaseModel):
 @app.post("/api/watchlist")
 @app.post("/watchlist")
 def add_watchlist(item: WatchlistRequest, request: Request):
-    uid = get_user_id(request)
-    if not uid:
-        raise HTTPException(status_code=401, detail="Account required to customize watchlist")
+    uid = get_user_id(request) or "guest"
     add_to_watchlist(item.symbol, item.name, item.asset_type, user_id=uid)
     return {"status": "success"}
 
 @app.delete("/api/watchlist/{symbol}")
 @app.delete("/watchlist/{symbol}")
 def delete_watchlist(symbol: str, request: Request):
-    uid = get_user_id(request)
-    if not uid:
-        raise HTTPException(status_code=401, detail="Account required")
+    uid = get_user_id(request) or "guest"
     remove_from_watchlist(symbol, user_id=uid)
     return {"status": "success"}
 

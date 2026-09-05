@@ -32,6 +32,33 @@ window.fetch = function(input, init = {}) {
 };
 
 
+const INDEX_NAMES = {
+  '^NSEI': 'NIFTY 50',
+  '^BSESN': 'SENSEX',
+  '^NSEBANK': 'BANK NIFTY',
+  '^CNXIT': 'NIFTY IT',
+  '^NSEMDCP50': 'NIFTY MIDCAP 50'
+};
+
+function getLocalWatchlistSet() {
+  try {
+    const raw = localStorage.getItem('stoxify_watchlist_cache');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return new Set(parsed);
+    }
+  } catch (e) {}
+  return new Set();
+}
+
+function saveLocalWatchlistSet(set) {
+  try {
+    if (set) {
+      localStorage.setItem('stoxify_watchlist_cache', JSON.stringify(Array.from(set)));
+    }
+  } catch (e) {}
+}
+
 const state = {
   currentTab: 'explore',
   exploreSubnav: 'stocks',
@@ -39,7 +66,7 @@ const state = {
   exploreStockFilter: 'all',
   exploreData: null,
   account: { balance: 1000000.0 },
-  watchlist: new Set(),
+  watchlist: getLocalWatchlistSet(),
   currentModalAsset: null,
   currentModalTimeframe: '1D',
   orderAction: 'BUY',
@@ -479,10 +506,12 @@ function getCleanInitial(name, symbol) {
 }
 
 function renderAssetAvatar(item, assetType) {
+  const sym = item.symbol || '';
+  const isIndex = sym.startsWith('^') || assetType === 'INDEX';
   const isMF = assetType === 'MUTUAL_FUND' || item.asset_type === 'MUTUAL_FUND';
-  const cleanSym = (item.symbol || '').replace('.NS', '').replace('.BO', '');
-  const initial = getCleanInitial(item.name, item.symbol);
-  const logoUrl = `/static/logos/${cleanSym}.png`;
+  const cleanSym = sym.replace('.NS', '').replace('.BO', '');
+  const initial = isIndex ? 'IDX' : getCleanInitial(item.name, item.symbol);
+  const logoUrl = isIndex ? '' : `/static/logos/${cleanSym}.png`;
 
   const palettes = [
     { bg: 'rgba(14, 165, 233, 0.12)', text: '#38BDF8', border: 'rgba(14, 165, 233, 0.3)' },
@@ -493,11 +522,25 @@ function renderAssetAvatar(item, assetType) {
     { bg: 'rgba(168, 85, 247, 0.12)', text: '#C084FC', border: 'rgba(168, 85, 247, 0.3)' },
   ];
   const idx = (initial.charCodeAt(0) || 0) % palettes.length;
-  const p = palettes[idx];
+  const p = isIndex
+    ? { bg: 'linear-gradient(135deg, rgba(14, 165, 233, 0.2) 0%, rgba(16, 185, 129, 0.2) 100%)', text: '#38BDF8', border: 'rgba(14, 165, 233, 0.4)' }
+    : palettes[idx];
 
-  const fallbackHtml = isMF
-    ? `<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>`
-    : initial;
+  const fallbackHtml = isIndex
+    ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>`
+    : (isMF
+      ? `<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>`
+      : initial);
+
+  if (isIndex) {
+    return `
+      <div class="card-avatar avatar-index" style="background: ${p.bg}; color: ${p.text}; border-color: ${p.border};">
+        <span style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-weight: 800;">
+          ${fallbackHtml}
+        </span>
+      </div>
+    `;
+  }
 
   return `
     <div class="card-avatar ${isMF ? 'avatar-mf' : ''}" style="background: ${p.bg}; color: ${p.text}; border-color: ${p.border};">
@@ -1109,10 +1152,13 @@ async function fetchWatchlist() {
   try {
     const res = await fetch('/api/watchlist');
     const items = await res.json();
-    state.watchlist = new Set(items.map(i => i.symbol));
+    if (Array.isArray(items)) {
+      items.forEach(i => state.watchlist.add(i.symbol));
+      saveLocalWatchlistSet(state.watchlist);
+    }
 
     const grid = document.getElementById('watchlistGrid');
-    if (items.length === 0) {
+    if (!items || items.length === 0) {
       grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); padding: 3rem;">Your watchlist is empty. Tap ★ on any stock or mutual fund to track it here!</div>`;
       return;
     }
@@ -1151,19 +1197,30 @@ async function fetchWatchlist() {
 }
 
 async function toggleWatchlistItem(symbol, name, assetType) {
-  if (state.watchlist.has(symbol)) {
-    await fetch(`/api/watchlist/${encodeURIComponent(symbol)}`, { method: 'DELETE' });
+  if (!state.watchlist) state.watchlist = getLocalWatchlistSet();
+  const willRemove = state.watchlist.has(symbol);
+  if (willRemove) {
     state.watchlist.delete(symbol);
+    saveLocalWatchlistSet(state.watchlist);
+    updatePageAssetStar(symbol);
     showToast(`Removed ${symbol} from watchlist`);
+    try {
+      await fetch(`/api/watchlist/${encodeURIComponent(symbol)}`, { method: 'DELETE' });
+    } catch (e) {}
   } else {
-    await fetch('/api/watchlist', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ symbol, name, asset_type: assetType })
-    });
     state.watchlist.add(symbol);
+    saveLocalWatchlistSet(state.watchlist);
+    updatePageAssetStar(symbol);
     showToast(`Added ${symbol} to watchlist`);
+    try {
+      await fetch('/api/watchlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol, name: name || symbol, asset_type: assetType || 'STOCK' })
+      });
+    } catch (e) {}
   }
+  updatePageAssetStar(symbol);
   if (state.currentTab === 'watchlist') {
     fetchWatchlist();
   } else if (state.currentTab === 'explore') {
@@ -1172,6 +1229,7 @@ async function toggleWatchlistItem(symbol, name, assetType) {
   }
   if (state.currentModalAsset && state.currentModalAsset.symbol === symbol) renderModalWatchlistBtn(symbol, name, assetType);
 }
+window.toggleWatchlist = toggleWatchlistItem;
 
 // --- Search Auto-Complete ---
 const searchInput = document.getElementById('globalSearchInput');
@@ -1251,13 +1309,17 @@ async function legacyOpenAssetModal(symbol, assetType = 'STOCK', preselectAction
     const data = await res.json();
     state.currentModalAsset = data;
 
-    const cleanSym = (data.symbol || '').replace('.NS', '').replace('.BO', '');
+    const isIndex = (data.symbol || '').startsWith('^') || assetType === 'INDEX';
+    const indexName = isIndex ? (INDEX_NAMES[data.symbol] || data.name || data.symbol.replace('^', '')) : null;
+    const cleanSym = isIndex ? (INDEX_NAMES[data.symbol] || data.symbol.replace('^', '')) : (data.symbol || '').replace('.NS', '').replace('.BO', '');
     const isMF = data.asset_type === 'MUTUAL_FUND';
-    const initial = getCleanInitial(data.name, data.symbol);
-    const logoUrl = `/static/logos/${cleanSym}.png`;
-    const fallbackHtml = isMF
-      ? `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>`
-      : initial;
+    const initial = isIndex ? 'IDX' : getCleanInitial(data.name, data.symbol);
+    const logoUrl = isIndex ? '' : `/static/logos/${cleanSym}.png`;
+    const fallbackHtml = isIndex
+      ? `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>`
+      : (isMF
+        ? `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>`
+        : initial);
 
     const modalAvatarEl = document.getElementById('modalAvatar');
     modalAvatarEl.innerHTML = `
@@ -1266,13 +1328,13 @@ async function legacyOpenAssetModal(symbol, assetType = 'STOCK', preselectAction
            loading="lazy"
            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
            style="width: 28px; height: 28px; object-fit: contain; border-radius: 4px;">
-      <span style="display: none; align-items: center; justify-content: center; width: 100%; height: 100%; font-weight: 800;">
+      <span style="display: ${isIndex ? 'flex' : 'none'}; align-items: center; justify-content: center; width: 100%; height: 100%; font-weight: 800;">
         ${fallbackHtml}
       </span>
     `;
-    document.getElementById('modalTitle').innerText = data.name;
-    document.getElementById('modalSymbol').innerText = data.symbol;
-    document.getElementById('modalBadge').innerText = data.asset_type === 'MUTUAL_FUND' ? 'MUTUAL FUND' : 'NSE';
+    document.getElementById('modalTitle').innerText = isIndex ? indexName : data.name;
+    document.getElementById('modalSymbol').innerText = isIndex ? cleanSym : data.symbol;
+    document.getElementById('modalBadge').innerText = isIndex ? 'INDEX' : (data.asset_type === 'MUTUAL_FUND' ? 'MUTUAL FUND' : 'NSE');
 
     document.getElementById('modalPrice').innerText = formatINR(data.price);
     document.getElementById('tradePriceInput').value = data.price;
@@ -1915,6 +1977,18 @@ function bootApp() {
   if (window.__stoxify_booted) return;
   window.__stoxify_booted = true;
 
+  // Instant synchronous session hydration: 0ms cold-start latency
+  try {
+    const cachedUserStr = localStorage.getItem('stoxify_cached_user');
+    const guestFlag = localStorage.getItem('stoxify_guest_mode') === 'true';
+    if (cachedUserStr && !guestFlag) {
+      currentUser = JSON.parse(cachedUserStr);
+      document.documentElement.classList.add('user-logged-in');
+      document.documentElement.classList.remove('user-guest');
+      updateNavbarProfile();
+    }
+  } catch (e) {}
+
   initTheme();
   
   if (window.location.search.includes('source=pwa')) {
@@ -2021,6 +2095,9 @@ window.addEventListener('popstate', () => handleRoute());
 async function fetchCurrentUser() {
   if (localStorage.getItem('stoxify_guest_mode') === 'true') {
     currentUser = null;
+    localStorage.removeItem('stoxify_cached_user');
+    document.documentElement.classList.remove('user-logged-in');
+    document.documentElement.classList.add('user-guest');
     updateNavbarProfile();
     return;
   }
@@ -2030,13 +2107,18 @@ async function fetchCurrentUser() {
     if (u && u.id && !u.is_guest) {
       currentUser = u;
       localStorage.setItem('stoxify_user_id', u.id);
+      localStorage.setItem('stoxify_cached_user', JSON.stringify(u));
       localStorage.removeItem('stoxify_guest_mode');
+      document.documentElement.classList.add('user-logged-in');
+      document.documentElement.classList.remove('user-guest');
     } else {
       currentUser = null;
+      localStorage.removeItem('stoxify_cached_user');
+      document.documentElement.classList.remove('user-logged-in');
+      document.documentElement.classList.add('user-guest');
     }
   } catch (err) {
     console.error('Failed to fetch user:', err);
-    currentUser = null;
   }
   updateNavbarProfile();
 }
@@ -2055,6 +2137,8 @@ function updateNavbarProfile() {
   const guestBtns = document.getElementById('navGuestButtons') || document.getElementById('navGetStartedBtn');
 
   if (isGuest() || !currentUser) {
+    document.documentElement.classList.remove('user-logged-in');
+    document.documentElement.classList.add('user-guest');
     if (guestBtns) guestBtns.style.display = 'inline-flex';
     if (profileWrapper) profileWrapper.style.display = 'none';
     const navBalEl = document.getElementById('navBalanceDisplay');
@@ -2063,8 +2147,10 @@ function updateNavbarProfile() {
   }
 
   // Authenticated user
+  document.documentElement.classList.add('user-logged-in');
+  document.documentElement.classList.remove('user-guest');
   if (guestBtns) guestBtns.style.display = 'none';
-  if (profileWrapper) profileWrapper.style.display = 'block';
+  if (profileWrapper) profileWrapper.style.display = 'inline-flex';
 
   const initials = currentUser.name ? currentUser.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'ST';
   if (initialsEl) initialsEl.innerText = initials;
@@ -2082,6 +2168,9 @@ function updateNavbarProfile() {
 function logoutUser() {
   localStorage.setItem('stoxify_guest_mode', 'true');
   localStorage.removeItem('stoxify_user_id');
+  localStorage.removeItem('stoxify_cached_user');
+  document.documentElement.classList.remove('user-logged-in');
+  document.documentElement.classList.add('user-guest');
   currentUser = null;
   updateNavbarProfile();
   showToast('Logged out successfully.');
@@ -2135,17 +2224,19 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
     currentPageAsset = data;
     state.currentModalAsset = data;
 
-    const cleanSym = (data.symbol || '').replace('.NS', '').replace('.BO', '');
+    const isIndex = (data.symbol || '').startsWith('^') || assetType === 'INDEX';
+    const indexName = isIndex ? (INDEX_NAMES[data.symbol] || data.name || data.symbol.replace('^', '')) : null;
+    const cleanSym = isIndex ? (INDEX_NAMES[data.symbol] || data.symbol.replace('^', '')) : (data.symbol || '').replace('.NS', '').replace('.BO', '');
     const isMF = data.asset_type === 'MUTUAL_FUND';
     
-    document.getElementById('assetBreadcrumbCategory').innerText = isMF ? 'Mutual Funds' : 'Stocks';
-    document.getElementById('assetBreadcrumbName').innerText = data.name;
+    document.getElementById('assetBreadcrumbCategory').innerText = isIndex ? 'Indices' : (isMF ? 'Mutual Funds' : 'Stocks');
+    document.getElementById('assetBreadcrumbName').innerText = isIndex ? indexName : data.name;
 
-    document.getElementById('pageAssetAvatar').innerHTML = renderAssetAvatar(data, data.asset_type);
-    document.getElementById('pageAssetTitle').innerText = data.name;
-    document.getElementById('pageAssetSymbol').innerText = cleanSym;
-    document.getElementById('pageAssetBadge').innerText = isMF ? 'Mutual Fund' : (data.exchange || 'NSE');
-    document.getElementById('pageAssetSector').innerText = data.sector || (isMF ? data.category || 'Direct Plan' : 'Equities');
+    document.getElementById('pageAssetAvatar').innerHTML = renderAssetAvatar(data, isIndex ? 'INDEX' : data.asset_type);
+    document.getElementById('pageAssetTitle').innerText = isIndex ? indexName : data.name;
+    document.getElementById('pageAssetSymbol').innerText = isIndex ? (INDEX_NAMES[data.symbol] || cleanSym) : cleanSym;
+    document.getElementById('pageAssetBadge').innerText = isIndex ? 'INDEX' : (isMF ? 'Mutual Fund' : (data.exchange || 'NSE'));
+    document.getElementById('pageAssetSector').innerText = isIndex ? 'Market Index' : (data.sector || (isMF ? data.category || 'Direct Plan' : 'Equities'));
     document.getElementById('pageAssetPrice').innerText = formatINR(data.price);
 
     const isPos = data.change >= 0;
@@ -2155,11 +2246,11 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
 
     // Sync mobile slide-up drawer header
     const dAvatar = document.getElementById('drawerAssetAvatar');
-    if (dAvatar) dAvatar.innerHTML = renderAssetAvatar(data, data.asset_type);
+    if (dAvatar) dAvatar.innerHTML = renderAssetAvatar(data, isIndex ? 'INDEX' : data.asset_type);
     const dTitle = document.getElementById('drawerAssetTitle');
-    if (dTitle) dTitle.innerText = data.name;
+    if (dTitle) dTitle.innerText = isIndex ? indexName : data.name;
     const dSym = document.getElementById('drawerAssetSymbol');
-    if (dSym) dSym.innerText = cleanSym;
+    if (dSym) dSym.innerText = isIndex ? (INDEX_NAMES[data.symbol] || cleanSym) : cleanSym;
     const dPrice = document.getElementById('drawerAssetPrice');
     if (dPrice) dPrice.innerText = formatINR(data.price);
     const dChg = document.getElementById('drawerAssetChange');
@@ -2170,10 +2261,12 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
 
     updatePageAssetStar(data.symbol);
     const starBtn = document.getElementById('pageAssetStarBtn');
-    starBtn.onclick = () => {
-      toggleWatchlist(data.symbol, data.name, data.asset_type);
-      setTimeout(() => updatePageAssetStar(data.symbol), 150);
-    };
+    if (starBtn) {
+      starBtn.onclick = async () => {
+        await toggleWatchlistItem(data.symbol, isIndex ? indexName : data.name, isIndex ? 'STOCK' : data.asset_type);
+        updatePageAssetStar(data.symbol);
+      };
+    }
 
     const low = data.low || data.price * 0.985;
     const high = data.high || data.price * 1.015;
@@ -2432,8 +2525,8 @@ function renderCandlestickCanvas(canvas, points, hoveredIdx = -1, crosshairY = -
     return;
   }
 
-  const paddingLeft = isMobile ? 8 : 16;
-  const paddingRight = isMobile ? 56 : 72;
+  const paddingLeft = isMobile ? 4 : 16;
+  const paddingRight = isMobile ? 40 : 72;
   const paddingTop = 15;
   const paddingBottom = isMobile ? 6 : 26;
   const chartWidth = cssWidth - paddingLeft - paddingRight;
@@ -2612,13 +2705,13 @@ function renderCandlestickCanvas(canvas, points, hoveredIdx = -1, crosshairY = -
     ctx.setLineDash([]);
 
     // Price badge on right axis
-    const badgeW = isMobile ? 52 : 62;
+    const badgeW = isMobile ? 42 : 62;
     ctx.fillStyle = '#1E293B';
     ctx.fillRect(cssWidth - paddingRight, targetY - 9, badgeW, 18);
     ctx.strokeStyle = '#38BDF8';
     ctx.strokeRect(cssWidth - paddingRight, targetY - 9, badgeW, 18);
     ctx.fillStyle = '#F8FAFC';
-    ctx.font = isMobile ? '9px Sora, sans-serif' : '10px Sora, sans-serif';
+    ctx.font = isMobile ? '8.5px Sora, sans-serif' : '10px Sora, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(formatINR(target.close), cssWidth - paddingRight + badgeW / 2, targetY + 3.5);
   }
@@ -2815,7 +2908,8 @@ function renderLineChartWithChartJs(canvas, points) {
           grid: { color: 'rgba(255, 255, 255, 0.05)' },
           ticks: {
             color: '#64748B',
-            font: { family: 'Sora', size: 11 },
+            padding: isMobile ? 2 : 6,
+            font: { family: 'Sora', size: isMobile ? 8.5 : 11 },
             callback: (val) => formatINR(val)
           }
         }
@@ -3608,6 +3702,9 @@ async function submitObStep5() {
     currentUser = result.user;
     localStorage.removeItem('stoxify_guest_mode');
     localStorage.setItem('stoxify_user_id', currentUser.id);
+    localStorage.setItem('stoxify_cached_user', JSON.stringify(currentUser));
+    document.documentElement.classList.add('user-logged-in');
+    document.documentElement.classList.remove('user-guest');
 
     // Update Confirmation screen with user's actual entered details
     document.getElementById('obWelcomeName').innerText = currentUser.name;
