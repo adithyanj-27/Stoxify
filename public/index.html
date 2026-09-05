@@ -167,19 +167,6 @@
     <div class="index-pill"><span class="name">NIFTY IT</span><span class="price">--</span></div>
   </div>
 
-  <!-- Groww-Style Mobile Underline Sub-Tabs -->
-  <nav class="mobile-sub-tabs mobile-only" id="mobileSubTabs">
-    <button class="mob-subtab-btn active" id="mob-tab-explore" onclick="navigateTo('/explore')">Explore</button>
-    <button class="mob-subtab-btn" id="mob-tab-holdings" onclick="navigateTo('/holdings')">Holdings</button>
-    <button class="mob-subtab-btn" id="mob-tab-positions" onclick="navigateTo('/positions')">
-      Positions <span class="badge-count" id="mobPositionsBadge" style="display: none;">0</span>
-    </button>
-    <button class="mob-subtab-btn" id="mob-tab-orders" onclick="navigateTo('/orders')">
-      Orders <span class="badge-count" id="mobOrdersBadge" style="display: none;">0</span>
-    </button>
-    <button class="mob-subtab-btn" id="mob-tab-watchlist" onclick="navigateTo('/watchlist')">Watchlist</button>
-  </nav>
-
   <!-- Mobile Browser Install App Floating Banner (Always visible in mobile browser until installed) -->
   <div class="mobile-install-banner" id="mobileInstallBanner">
     <div class="mob-install-left">
@@ -2094,29 +2081,14 @@
     </div>
   </div>
 
-  <!-- Groww-Style Fixed Bottom App Navigation Bar -->
+  <!-- Fixed Bottom App Navigation Bar (Explore, Holdings, Positions, Orders, Watchlist) -->
   <nav class="mobile-bottom-bar mobile-only" id="mobileBottomBar">
-    <button class="mobile-nav-item active" id="mob-nav-stocks" onclick="navigateToExploreTab('stocks')">
+    <button class="mobile-nav-item active" id="mob-nav-explore" onclick="navigateTo('/explore')">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline>
-        <polyline points="16 7 22 7 22 13"></polyline>
+        <circle cx="12" cy="12" r="10"></circle>
+        <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
       </svg>
-      <span>Stocks</span>
-    </button>
-    <button class="mobile-nav-item" id="mob-nav-fo" onclick="navigateToExploreTab('fo')">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="18" y1="20" x2="18" y2="10"></line>
-        <line x1="12" y1="20" x2="12" y2="4"></line>
-        <line x1="6" y1="20" x2="6" y2="14"></line>
-      </svg>
-      <span>F&O</span>
-    </button>
-    <button class="mobile-nav-item" id="mob-nav-mf" onclick="navigateToExploreTab('mf')">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
-        <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
-      </svg>
-      <span>Mutual Funds</span>
+      <span>Explore</span>
     </button>
     <button class="mobile-nav-item" id="mob-nav-holdings" onclick="navigateTo('/holdings')">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -2124,6 +2096,33 @@
         <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
       </svg>
       <span>Holdings</span>
+    </button>
+    <button class="mobile-nav-item" id="mob-nav-positions" onclick="navigateTo('/positions')">
+      <div style="position: relative; display: inline-flex;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+        </svg>
+        <span class="badge-count" id="mobPositionsBadge" style="display: none;">0</span>
+      </div>
+      <span>Positions</span>
+    </button>
+    <button class="mobile-nav-item" id="mob-nav-orders" onclick="navigateTo('/orders')">
+      <div style="position: relative; display: inline-flex;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+        </svg>
+        <span class="badge-count" id="mobOrdersBadge" style="display: none;">0</span>
+      </div>
+      <span>Orders</span>
+    </button>
+    <button class="mobile-nav-item" id="mob-nav-watchlist" onclick="navigateTo('/watchlist')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+      </svg>
+      <span>Watchlist</span>
     </button>
   </nav>
 

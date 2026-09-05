@@ -1844,9 +1844,28 @@ body {
     display: none !important;
   }
 
-  /* Prevent duplicate subnav on mobile (Groww bottom bar handles subviews) */
-  #pane-explore > .sub-nav {
-    display: none !important;
+  /* Sleek Underline Sub-nav on mobile (Stocks, Mutual Funds, F&O, IPOs) */
+  .sub-nav {
+    display: flex !important;
+    align-items: center;
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+    white-space: nowrap !important;
+    gap: 1.15rem !important;
+    padding: 0 0.9rem !important;
+    margin-bottom: 0.85rem !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
+    background: var(--bg-main);
+  }
+
+  .sub-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .sub-nav-btn {
+    padding: 0.6rem 0.15rem !important;
+    font-size: 0.92rem !important;
+    flex-shrink: 0 !important;
   }
 
   /* Indices Bar on Mobile: Compact Single-Row Ticker */
@@ -1871,63 +1890,6 @@ body {
     border-radius: 6px;
     flex-shrink: 0;
     gap: 0.35rem;
-  }
-
-  /* Groww-Style Mobile Underline Sub-Tabs */
-  .mobile-sub-tabs {
-    display: flex !important;
-    align-items: center;
-    gap: 1.15rem;
-    padding: 0 0.9rem;
-    border-bottom: 1px solid var(--border-subtle);
-    background: var(--bg-main);
-    overflow-x: auto;
-    scrollbar-width: none;
-    white-space: nowrap;
-    position: sticky;
-    top: 54px;
-    z-index: 1050;
-  }
-
-  .mobile-sub-tabs::-webkit-scrollbar {
-    display: none;
-  }
-
-  .mob-subtab-btn {
-    background: transparent;
-    border: none;
-    font-family: inherit;
-    font-size: 0.92rem;
-    font-weight: 500;
-    color: var(--text-muted);
-    padding: 0.65rem 0.15rem;
-    cursor: pointer;
-    position: relative;
-    transition: color 0.2s ease;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    flex-shrink: 0;
-  }
-
-  .mob-subtab-btn.active {
-    color: var(--text-primary);
-    font-weight: 700;
-  }
-
-  .mob-subtab-btn.active::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 2.5px;
-    background: var(--brand-cyan, #0ea5e9);
-    border-radius: 3px 3px 0 0;
-  }
-
-  [data-theme="light"] .mob-subtab-btn.active::after {
-    background: #111827;
   }
 
   /* Main Container */

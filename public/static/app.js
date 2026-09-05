@@ -211,21 +211,10 @@ function switchTab(tabId, updateUrl = true) {
   const desktopBtn = document.getElementById(`nav-${tabId}`);
   if (desktopBtn) desktopBtn.classList.add('active');
 
-  // Groww-Style Mobile Underline Sub-Tabs
-  document.querySelectorAll('.mob-subtab-btn').forEach(btn => btn.classList.remove('active'));
-  const mobSubBtn = document.getElementById(`mob-tab-${tabId}`);
-  if (mobSubBtn) mobSubBtn.classList.add('active');
-
-  // Mobile bottom bar items
+  // Mobile bottom bar items (Explore, Holdings, Positions, Orders, Watchlist)
   document.querySelectorAll('.mobile-bottom-bar .mobile-nav-item').forEach(btn => btn.classList.remove('active'));
-  if (tabId === 'holdings') {
-    const mobHoldingsBtn = document.getElementById('mob-nav-holdings');
-    if (mobHoldingsBtn) mobHoldingsBtn.classList.add('active');
-  } else if (tabId === 'explore') {
-    const sub = state.exploreSubnav || 'stocks';
-    const mobSubNav = document.getElementById(`mob-nav-${sub}`);
-    if (mobSubNav) mobSubNav.classList.add('active');
-  }
+  const mobBottomBtn = document.getElementById(`mob-nav-${tabId}`);
+  if (mobBottomBtn) mobBottomBtn.classList.add('active');
 
   // Pane activation
   document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
