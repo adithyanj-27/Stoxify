@@ -1739,14 +1739,16 @@ body.pwa-installed #mobileInstallBanner {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 60px;
+  height: calc(58px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   background: var(--bg-card);
   border-top: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
   justify-content: space-around;
-  z-index: 1000;
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.25);
+  z-index: 9999 !important;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.35);
+  box-sizing: border-box;
 }
 
 .mobile-nav-item {
@@ -1780,7 +1782,7 @@ body.pwa-installed #mobileInstallBanner {
 /* ========================================================= */
 @media (max-width: 768px) {
   body {
-    padding-bottom: 68px; /* Offset for sticky bottom app bar */
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important; /* Offset for sticky bottom app bar */
   }
 
   .desktop-only {
@@ -1788,6 +1790,10 @@ body.pwa-installed #mobileInstallBanner {
   }
 
   .mobile-only {
+    display: flex !important;
+  }
+
+  .mobile-bottom-bar {
     display: flex !important;
   }
 
