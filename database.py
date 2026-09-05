@@ -1120,6 +1120,64 @@ def reset_account(initial_balance: float = 1000000.0, user_id: str = "default"):
         supabase_api("DELETE", f"positions?user_id=eq.{user_id}")
         supabase_api("DELETE", f"orders?user_id=eq.{user_id}")
 
+def restore_balance(user_id: str = "default", target_balance: float = 1000000.0) -> float:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE users SET balance = ?, total_deposited = ?, updated_at = CURRENT_TIMESTAMP 
+        WHERE id = ?
+    """, (target_balance, target_balance, user_id))
+    if user_id == "default":
+        cursor.execute("UPDATE account SET balance = ?, total_deposited = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (target_balance, target_balance))
+    conn.commit()
+    conn.close()
+
+    if is_supabase_enabled() and user_id and user_id != "guest":
+        try:
+            supabase_api("PATCH", f"users?id=eq.{user_id}", payload={
+                "balance": target_balance,
+                "total_deposited": target_balance,
+                "updated_at": datetime.utcnow().isoformat()
+            })
+        except Exception:
+            pass
+    return target_balance
+
+def delete_user(user_id: str) -> bool:
+    if not user_id or user_id == "guest":
+        return False
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM holdings WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM positions WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM orders WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM watchlist WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM gtt_orders WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM sips WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM ipo_bids WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    if user_id == "default":
+        cursor.execute("DELETE FROM holdings")
+        cursor.execute("DELETE FROM positions")
+        cursor.execute("DELETE FROM orders")
+        cursor.execute("UPDATE account SET balance = 1000000.0, total_deposited = 1000000.0 WHERE id = 1")
+    conn.commit()
+    conn.close()
+
+    if is_supabase_enabled() and user_id != "default":
+        try:
+            supabase_api("DELETE", f"holdings?user_id=eq.{user_id}")
+            supabase_api("DELETE", f"positions?user_id=eq.{user_id}")
+            supabase_api("DELETE", f"orders?user_id=eq.{user_id}")
+            supabase_api("DELETE", f"watchlist?user_id=eq.{user_id}")
+            supabase_api("DELETE", f"gtt_orders?user_id=eq.{user_id}")
+            supabase_api("DELETE", f"sips?user_id=eq.{user_id}")
+            supabase_api("DELETE", f"ipo_bids?user_id=eq.{user_id}")
+            supabase_api("DELETE", f"users?id=eq.{user_id}")
+        except Exception:
+            pass
+    return True
+
 # --- GTT (Good Till Triggered) Orders ---
 def place_gtt_order(
     user_id: str,

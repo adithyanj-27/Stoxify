@@ -1747,62 +1747,123 @@ function openFundsModal() {
   if (fundsBal) fundsBal.innerText = formatINR(bal);
 
   const maxNotice = document.getElementById('maxFundsNotice');
-  const depositArea = document.getElementById('depositFormArea');
-  const depositInput = document.getElementById('depositAmountInput');
-  const depositLimitLabel = document.getElementById('depositLimitLabel');
+  const restoreArea = document.getElementById('restoreBalanceArea');
+  const restoreBtn = document.getElementById('btnRestoreFullBalance');
 
   if (bal >= 1000000.0) {
-    if (maxNotice) maxNotice.style.display = 'block';
-    if (depositArea) depositArea.style.display = 'none';
+    if (maxNotice) {
+      maxNotice.style.display = 'block';
+      maxNotice.innerText = '✓ Trading capital is fully funded at ₹10,00,000.00';
+    }
+    if (restoreBtn) {
+      restoreBtn.disabled = true;
+      restoreBtn.style.opacity = '0.6';
+      restoreBtn.style.cursor = 'not-allowed';
+      restoreBtn.innerHTML = '✓ Balance Already Full (₹10,00,000.00)';
+    }
   } else {
-    const deficit = Math.round((1000000.0 - bal) * 100) / 100;
     if (maxNotice) maxNotice.style.display = 'none';
-    if (depositArea) depositArea.style.display = 'block';
-    if (depositLimitLabel) depositLimitLabel.innerText = `Restore Balance (Max Allowed: ${formatINR(deficit)})`;
-    if (depositInput) {
-      depositInput.value = deficit;
-      depositInput.max = deficit;
+    if (restoreBtn) {
+      restoreBtn.disabled = false;
+      restoreBtn.style.opacity = '1';
+      restoreBtn.style.cursor = 'pointer';
+      restoreBtn.innerHTML = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 0.4rem;"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>Restore Full ₹10,00,000 Balance`;
     }
   }
+  if (restoreArea) restoreArea.style.display = 'flex';
 }
 
 function closeFundsModal() {
   document.getElementById('fundsModalOverlay').classList.remove('active');
 }
 
-async function submitDeposit() {
-  const bal = (state.account && state.account.balance !== undefined) ? state.account.balance : (currentUser ? currentUser.balance : 1000000.0);
-  if (bal >= 1000000.0) {
-    showToast('Your balance is already at the maximum limit of ₹10,00,000.', true);
+async function restoreFullBalance() {
+  if (!currentUser || isGuest()) {
+    showToast('Please log in or create an account to manage virtual funds.', true);
     return;
   }
-  const maxAllowed = 1000000.0 - bal;
-  let amount = parseFloat(document.getElementById('depositAmountInput').value);
-  if (!amount || amount <= 0) {
-    showToast('Please enter a valid amount to restore', true);
-    return;
-  }
-  if (amount > maxAllowed) {
-    amount = maxAllowed;
-  }
-
   try {
-    const res = await fetch('/api/account/deposit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount })
-    });
+    const res = await fetch('/api/account/restore', { method: 'POST' });
     const data = await res.json();
-    if (data.status === 'success') {
-      showToast(`Added ${formatINR(amount)} to balance (maximum ₹10L reached)`);
+    if (res.ok && data.status === 'success') {
+      showToast('Trading capital fully restored to ₹10,00,000.00!');
       await fetchAccount();
       closeFundsModal();
-      document.getElementById('depositAmountInput').value = '';
+      if (state.currentTab === 'holdings') fetchPortfolio();
+      if (state.currentTab === 'positions') fetchPositions();
     } else {
-      showToast(data.detail || 'Deposit failed', true);
+      showToast(data.detail || 'Failed to restore capital', true);
     }
   } catch (err) {
-    showToast('Deposit failed', true);
+    console.error('Failed to restore balance:', err);
+    showToast('Error restoring balance', true);
+  }
+}
+
+async function resetEntirePortfolio() {
+  const confirmed = confirm('Are you sure you want to reset your entire portfolio?\n\nThis will clear all holdings, open positions, and order history, and restore your balance to ₹10,00,000.00.');
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch('/api/account/reset', { method: 'POST' });
+    const data = await res.json();
+    if (res.ok && data.status === 'success') {
+      showToast('Portfolio & trading balance completely reset to ₹10,00,000.00!');
+      await fetchAccount();
+      closeFundsModal();
+      if (state.currentTab === 'holdings') fetchPortfolio();
+      if (state.currentTab === 'positions') fetchPositions();
+      if (state.currentTab === 'orders') fetchOrders();
+    } else {
+      showToast(data.detail || 'Failed to reset portfolio', true);
+    }
+  } catch (err) {
+    console.error('Failed to reset portfolio:', err);
+    showToast('Error resetting portfolio', true);
+  }
+}
+
+async function confirmDeleteAccount() {
+  const menu = document.getElementById('userDropdownMenu');
+  if (menu) menu.style.display = 'none';
+
+  if (!currentUser || isGuest()) {
+    showToast('No active account to delete.', true);
+    return;
+  }
+
+  const confirmed = confirm(
+    `Are you sure you want to permanently delete your account (${currentUser.name})?\n\nThis will wipe all holdings, open positions, order history, watchlist, and virtual funds. This action cannot be undone.`
+  );
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch('/api/user/delete', { method: 'POST' });
+    const data = await res.json();
+    if (res.ok && data.status === 'success') {
+      localStorage.removeItem('stoxify_user_id');
+      localStorage.removeItem('stoxify_cached_user');
+      localStorage.removeItem('stoxify_watchlist_cache');
+      localStorage.setItem('stoxify_guest_mode', 'true');
+      document.documentElement.classList.remove('user-logged-in');
+      document.documentElement.classList.add('user-guest');
+      currentUser = null;
+      state.account = { balance: 0.0 };
+      state.watchlist = new Set();
+      updateNavbarProfile();
+      closeFundsModal();
+      showToast('Account permanently deleted. Returned to guest mode.');
+      navigateTo('/explore');
+      if (state.currentTab === 'holdings') fetchPortfolio();
+      if (state.currentTab === 'positions') fetchPositions();
+      if (state.currentTab === 'orders') fetchOrders();
+      if (state.currentTab === 'watchlist') fetchWatchlist();
+    } else {
+      showToast(data.detail || 'Failed to delete account', true);
+    }
+  } catch (err) {
+    console.error('Delete account failed:', err);
+    showToast('Error deleting account', true);
   }
 }
 

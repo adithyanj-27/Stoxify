@@ -9,7 +9,7 @@ from database import (
     init_db, get_account, get_holdings, get_positions, execute_trade, 
     exit_position, cancel_order, check_open_limit_orders,
     get_orders, get_watchlist, add_to_watchlist, remove_from_watchlist,
-    deposit_funds, reset_account, create_user, get_user, list_users,
+    deposit_funds, reset_account, restore_balance, delete_user, create_user, get_user, list_users,
     place_gtt_order, get_gtt_orders, cancel_gtt_order,
     create_sip, get_user_sips, cancel_sip,
     apply_ipo, get_ipo_bids, cancel_ipo_bid,
@@ -646,6 +646,27 @@ def deposit(req: DepositRequest, request: Request):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"status": "success", "new_balance": new_balance}
+
+@app.post("/api/account/restore")
+@app.post("/account/restore")
+def api_restore_balance(request: Request):
+    uid = get_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Account required")
+    new_bal = restore_balance(user_id=uid, target_balance=1000000.0)
+    return {"status": "success", "new_balance": new_bal, "message": "Trading balance fully restored to ₹10,00,000.00"}
+
+@app.post("/api/user/delete")
+@app.delete("/api/user/delete")
+@app.delete("/api/user/current")
+def api_delete_user(request: Request):
+    uid = get_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Account required")
+    success = delete_user(uid)
+    if not success:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"status": "success", "message": "Account deleted successfully"}
 
 @app.post("/api/account/reset")
 @app.post("/account/reset")
