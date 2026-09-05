@@ -22,21 +22,16 @@ if os.path.exists(ENV_FILE):
         pass
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
+if SUPABASE_URL.endswith("/rest/v1"):
+    SUPABASE_URL = SUPABASE_URL[:-8].rstrip("/")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_ANON_KEY")
+
 
 if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
     import tempfile
     DB_PATH = os.path.join(tempfile.gettempdir(), "stoxify.db")
 else:
     DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stoxify.db")
-    for prior_db_name in ["brokeahh.db", "growwfahh.db"]:
-        prior_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), prior_db_name)
-        if os.path.exists(prior_db) and not os.path.exists(DB_PATH):
-            try:
-                shutil.copy2(prior_db, DB_PATH)
-                break
-            except Exception:
-                pass
 
 _db_initialized = False
 
@@ -279,7 +274,7 @@ def init_db():
 # --- User Profile Management (Groww Style) ---
 def create_user(
     name: str, 
-    email: Optional[str] = None, 
+    email: str, 
     phone: Optional[str] = None, 
     pan: Optional[str] = None,
     bank_name: str = "HDFC Bank",
@@ -295,7 +290,7 @@ def create_user(
     cursor.execute("""
         INSERT INTO users (id, name, email, phone, pan, bank_name, bank_account, pin, balance, total_deposited, avatar_color)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1000000.0, 1000000.0, ?)
-    """, (user_id, name, email or "", phone or "", pan or "ABCDE1234F", bank_name, bank_account, pin, avatar_color))
+    """, (user_id, name, (email or "").strip(), phone or "", pan or "ABCDE1234F", bank_name, bank_account, pin, avatar_color))
 
     # Seed default watchlist for this new user
     default_items = [
@@ -742,6 +737,11 @@ def deposit_funds(amount: float, user_id: str = "default") -> float:
     acc = cursor.fetchone()
     curr_bal = acc["balance"] if acc else 0.0
     curr_dep = acc["total_deposited"] if acc else 0.0
+    if curr_bal >= 1000000.0:
+        conn.close()
+        raise ValueError("Account balance is already at the maximum limit of ₹10,00,000. Cannot add more funds.")
+    if curr_bal + amount > 1000000.0:
+        amount = 1000000.0 - curr_bal
     new_balance = curr_bal + amount
     new_deposited = curr_dep + amount
     cursor.execute("""

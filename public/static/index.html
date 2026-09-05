@@ -9,6 +9,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Stoxify">
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-dark.png" id="dynamicFavicon">
   <link rel="apple-touch-icon" href="/static/icon-192.png">
   <link rel="stylesheet" href="/static/style.css" onerror="this.onerror=null;this.href='/style.css';">
   <!-- Chart.js for high performance financial line & area charts -->
@@ -20,18 +22,8 @@
   <header class="navbar">
     <div class="brand-container" onclick="navigateTo('/explore')">
       <div class="brand-logo">
-        <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <linearGradient id="stoxBrandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#0EA5E9" />
-              <stop offset="60%" stop-color="#10B981" />
-              <stop offset="100%" stop-color="#34D399" />
-            </linearGradient>
-          </defs>
-          <path d="M7 21L14 14L18 18L25 9" stroke="url(#stoxBrandGrad)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M19 9H25V15" stroke="#10B981" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" />
-          <circle cx="25" cy="9" r="2.2" fill="#0EA5E9" />
-        </svg>
+        <img src="/static/logo-dark.png" class="brand-logo-img logo-dark" alt="Stoxify">
+        <img src="/static/logo-light.png" class="brand-logo-img logo-light" alt="Stoxify">
       </div>
       <div class="brand-name">
         Stoxify
@@ -106,7 +98,7 @@
             <div class="user-avatar-large" id="menuUserAvatar">ST</div>
             <div class="user-details">
               <div class="user-name" id="menuUserName">Trader</div>
-              <div class="user-email" id="menuUserEmail">trader@stoxify.com</div>
+              <div class="user-email" id="menuUserEmail"></div>
               <div class="user-badge" id="menuUserDemat">Demat: STOX-782910</div>
             </div>
           </div>
@@ -116,18 +108,15 @@
             <div class="funds-card-top">
               <div>
                 <div class="funds-card-label">Virtual Cash Balance</div>
-                <div class="funds-card-sub">Equity & F&O Margin</div>
+                <div class="funds-card-sub">Fixed ₹10,00,000 Capital</div>
               </div>
-              <button class="btn-manage-funds" onclick="openFundsModal()" title="Add or Withdraw virtual funds">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                <span>Add Funds</span>
-              </button>
+              <span class="funds-badge-pill" style="margin: 0;">₹10L Cap</span>
             </div>
             <div class="funds-card-amount" id="menuUserBalance">₹10,00,000.00</div>
             <span id="navBalanceDisplay" style="display: none;">₹10,00,000.00</span>
             <div class="funds-card-footer">
               <span class="funds-badge-pill">⚡ 5x Intraday</span>
-              <span class="funds-status-dot">Instant Deposit ✓</span>
+              <span class="funds-status-dot">Zero Risk Practice ✓</span>
             </div>
           </div>
 
@@ -142,7 +131,7 @@
 
           <button class="dropdown-item" onclick="openFundsModal()">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path><path d="M12 18V6"></path></svg>
-            <span>Manage Funds & Deposit</span>
+            <span>Trading Capital & Timings</span>
           </button>
           <button class="dropdown-item" onclick="openSwitchAccountModal()">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg>
@@ -151,10 +140,6 @@
           <button class="dropdown-item" onclick="navigateTo('/onboarding')">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
             <span>Create New Account</span>
-          </button>
-          <button class="dropdown-item text-danger" onclick="resetUserPortfolio()">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><polyline points="3 3 3 8 8 8"></polyline></svg>
-            <span>Reset to ₹10,00,000</span>
           </button>
           <button class="dropdown-item" onclick="logoutUser()">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
@@ -249,13 +234,6 @@
             <h2 class="section-title">Delivery Holdings</h2>
             <p class="section-desc">Long-term portfolio assets held in demat (Delivery CNC)</p>
           </div>
-          <button class="btn-primary" onclick="openFundsModal()">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19"></line>
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg>
-            Add Funds
-          </button>
         </div>
 
         <!-- Portfolio Summary Banner -->
@@ -759,8 +737,8 @@
               </div>
             </div>
             <div class="ob-form-group">
-              <label class="ob-label">Email Address (Optional)</label>
-              <input type="email" class="ob-input" id="obInputEmail" placeholder="Enter your email address" autocomplete="email">
+              <label class="ob-label">Email Address <span style="color: var(--brand-cyan); font-size: 0.8rem;">*</span></label>
+              <input type="email" class="ob-input" id="obInputEmail" placeholder="Enter your email (fake or real, e.g. trader@mail.com)" autocomplete="email">
             </div>
             <button class="ob-btn-primary" onclick="submitObStep1()">Continue →</button>
             <div class="ob-footer-note">By continuing, you agree to Stoxify Simulated Trading T&C.</div>
@@ -924,6 +902,10 @@
               <div class="summary-row">
                 <span>Demat Account ID</span>
                 <strong id="obCreatedDemat">STOX-892140</strong>
+              </div>
+              <div class="summary-row">
+                <span>Registered Email</span>
+                <strong id="obCreatedEmail">trader@example.com</strong>
               </div>
               <div class="summary-row">
                 <span>Linked Bank</span>
@@ -1216,7 +1198,7 @@
   <div class="modal-overlay" id="fundsModalOverlay">
     <div class="modal-card" style="max-width: 500px;">
       <div class="modal-header">
-        <h3 style="font-size: 1.15rem; font-weight: 800;">Account Balance & Settings</h3>
+        <h3 style="font-size: 1.15rem; font-weight: 800;">Virtual Capital & Exchange Timings</h3>
         <button class="icon-btn" onclick="closeFundsModal()">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -1227,24 +1209,24 @@
 
       <div class="modal-body" style="display: flex; flex-direction: column; gap: 1.25rem;">
         <div style="background: var(--bg-main); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 1.25rem; text-align: center;">
-          <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.3rem;">Current Available Balance</div>
+          <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.3rem;">Available Trading Balance</div>
           <div id="fundsCurrentBalance" style="font-size: 2rem; font-weight: 800; color: var(--brand-green);">₹10,00,000.00</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.3rem;">Maximum Capital Limit: ₹10,00,000.00</div>
         </div>
 
-        <div>
-          <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 0.5rem;">
-            Add Funds to Balance (₹)
+        <div id="maxFundsNotice" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-sm); padding: 0.9rem; text-align: center; color: var(--brand-green); font-weight: 600; font-size: 0.85rem;">
+          ✓ Fully funded at maximum capital of ₹10,00,000. Adding funds beyond ₹10L is disabled.
+        </div>
+
+        <div id="depositFormArea" style="display: none;">
+          <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 0.5rem;" id="depositLimitLabel">
+            Restore Balance (Up to ₹10,00,000)
           </label>
-          <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap;">
-            <button class="pill-btn" onclick="quickAddFunds(25000)">+ ₹25,000</button>
-            <button class="pill-btn" onclick="quickAddFunds(50000)">+ ₹50,000</button>
-            <button class="pill-btn" onclick="quickAddFunds(100000)">+ ₹1,00,000</button>
-          </div>
           <div class="stepper-input">
-            <input type="number" id="depositAmountInput" placeholder="Enter custom amount (e.g. 50000)">
+            <input type="number" id="depositAmountInput" placeholder="Enter amount to restore">
           </div>
           <button class="btn-primary" style="width: 100%; justify-content: center; margin-top: 0.75rem;" onclick="submitDeposit()">
-            Deposit Funds
+            Add Funds (Up to ₹10L Max)
           </button>
         </div>
 
@@ -1255,18 +1237,6 @@
           </div>
           <button class="btn-secondary" style="font-size: 0.78rem; padding: 0.35rem 0.75rem;" onclick="closeFundsModal(); openMarketHoursModal();">
             View
-          </button>
-        </div>
-
-        <hr style="border: none; border-top: 1px solid var(--border-subtle); margin: 0.5rem 0;">
-
-        <div>
-          <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--danger-red); margin-bottom: 0.3rem;">Reset Account</h4>
-          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.75rem;">
-            Resets available balance to initial ₹10,00,000 and clears all current holdings, intraday positions, and order history.
-          </p>
-          <button class="btn-danger" style="width: 100%;" onclick="submitResetAccount()">
-            Reset to ₹10,00,000 Balance
           </button>
         </div>
       </div>

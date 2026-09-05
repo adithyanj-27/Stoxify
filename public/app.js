@@ -99,9 +99,10 @@ function showToast(message, isError = false) {
 
 // --- Theme Management ---
 function initTheme() {
-  const saved = localStorage.getItem('stoxify_theme') || localStorage.getItem('growwfahh_theme') || 'dark';
+  const saved = localStorage.getItem('stoxify_theme') || 'dark';
   document.documentElement.setAttribute('data-theme', saved);
   updateThemeIcon(saved);
+  updateFaviconAndMeta(saved);
 }
 
 function toggleTheme() {
@@ -110,8 +111,20 @@ function toggleTheme() {
   document.documentElement.setAttribute('data-theme', next);
   localStorage.setItem('stoxify_theme', next);
   updateThemeIcon(next);
+  updateFaviconAndMeta(next);
   if (state.chartInstance && state.currentModalAsset) {
     loadChartTimeframe(state.currentModalTimeframe);
+  }
+}
+
+function updateFaviconAndMeta(theme) {
+  const faviconEl = document.getElementById('dynamicFavicon');
+  if (faviconEl) {
+    faviconEl.href = theme === 'light' ? '/static/favicon-light.png' : '/static/favicon-dark.png';
+  }
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  if (themeMeta) {
+    themeMeta.setAttribute('content', theme === 'light' ? '#F3EFE6' : '#080D14');
   }
 }
 
@@ -1474,7 +1487,7 @@ async function submitOrder() {
   }
 }
 
-// --- Funds & Reset Modal ---
+// --- Virtual Funds & Timings Modal ---
 function openFundsModal() {
   const menu = document.getElementById('userDropdownMenu');
   if (menu) menu.style.display = 'none';
@@ -1482,21 +1495,45 @@ function openFundsModal() {
   const bal = (state.account && state.account.balance !== undefined) ? state.account.balance : (currentUser ? currentUser.balance : 1000000.0);
   const fundsBal = document.getElementById('fundsCurrentBalance');
   if (fundsBal) fundsBal.innerText = formatINR(bal);
+
+  const maxNotice = document.getElementById('maxFundsNotice');
+  const depositArea = document.getElementById('depositFormArea');
+  const depositInput = document.getElementById('depositAmountInput');
+  const depositLimitLabel = document.getElementById('depositLimitLabel');
+
+  if (bal >= 1000000.0) {
+    if (maxNotice) maxNotice.style.display = 'block';
+    if (depositArea) depositArea.style.display = 'none';
+  } else {
+    const deficit = Math.round((1000000.0 - bal) * 100) / 100;
+    if (maxNotice) maxNotice.style.display = 'none';
+    if (depositArea) depositArea.style.display = 'block';
+    if (depositLimitLabel) depositLimitLabel.innerText = `Restore Balance (Max Allowed: ${formatINR(deficit)})`;
+    if (depositInput) {
+      depositInput.value = deficit;
+      depositInput.max = deficit;
+    }
+  }
 }
 
 function closeFundsModal() {
   document.getElementById('fundsModalOverlay').classList.remove('active');
 }
 
-function quickAddFunds(amount) {
-  document.getElementById('depositAmountInput').value = amount;
-}
-
 async function submitDeposit() {
-  const amount = parseFloat(document.getElementById('depositAmountInput').value);
-  if (!amount || amount <= 0) {
-    showToast('Please enter a valid amount to deposit', true);
+  const bal = (state.account && state.account.balance !== undefined) ? state.account.balance : (currentUser ? currentUser.balance : 1000000.0);
+  if (bal >= 1000000.0) {
+    showToast('Your balance is already at the maximum limit of ₹10,00,000.', true);
     return;
+  }
+  const maxAllowed = 1000000.0 - bal;
+  let amount = parseFloat(document.getElementById('depositAmountInput').value);
+  if (!amount || amount <= 0) {
+    showToast('Please enter a valid amount to restore', true);
+    return;
+  }
+  if (amount > maxAllowed) {
+    amount = maxAllowed;
   }
 
   try {
@@ -1507,34 +1544,15 @@ async function submitDeposit() {
     });
     const data = await res.json();
     if (data.status === 'success') {
-      showToast(`Deposited ${formatINR(amount)} into balance`);
+      showToast(`Added ${formatINR(amount)} to balance (maximum ₹10L reached)`);
       await fetchAccount();
       closeFundsModal();
       document.getElementById('depositAmountInput').value = '';
+    } else {
+      showToast(data.detail || 'Deposit failed', true);
     }
   } catch (err) {
     showToast('Deposit failed', true);
-  }
-}
-
-async function submitResetAccount() {
-  if (!confirm('Are you sure you want to reset your Stoxify account? This will set your balance back to ₹10,00,000 and clear all holdings, intraday positions, and order history.')) {
-    return;
-  }
-
-  try {
-    const res = await fetch('/api/account/reset', { method: 'POST' });
-    const data = await res.json();
-    if (data.status === 'success') {
-      showToast('Stoxify account successfully reset to fresh ₹10,00,000');
-      await fetchAccount();
-      closeFundsModal();
-      if (state.currentTab === 'holdings') fetchPortfolio();
-      if (state.currentTab === 'positions') fetchPositions();
-      if (state.currentTab === 'orders') fetchOrders();
-    }
-  } catch (err) {
-    showToast('Reset failed', true);
   }
 }
 
@@ -1712,7 +1730,7 @@ function updateNavbarProfile() {
   if (initialsEl) initialsEl.innerText = initials;
   if (menuAvatarEl) menuAvatarEl.innerText = initials;
   if (menuNameEl) menuNameEl.innerText = currentUser.name;
-  if (menuEmailEl) menuEmailEl.innerText = currentUser.email || 'trader@stoxify.com';
+  if (menuEmailEl) menuEmailEl.innerText = currentUser.email || '';
   if (menuDematEl) menuDematEl.innerText = `Demat: STOX-${(currentUser.id || '9876').slice(-6).toUpperCase()}`;
   const last4 = (currentUser.bank_account || '5678').slice(-4);
   if (menuBankEl) menuBankEl.innerText = `${currentUser.bank_name || 'HDFC Bank'} •••• ${last4} (Verified ✓)`;
@@ -1796,21 +1814,6 @@ async function activateUserAccount(userId) {
   showToast(`Switched account to ${currentUser.name}!`);
 }
 
-async function resetUserPortfolio() {
-  if (!confirm(`Are you sure you want to reset ${currentUser.name}'s portfolio back to fresh ₹10,00,000?`)) return;
-  try {
-    const res = await fetch('/api/account/reset', { method: 'POST' });
-    const result = await res.json();
-    showToast(result.message || 'Portfolio reset successfully!');
-    fetchCurrentUser();
-    fetchAccount();
-    if (state.currentTab === 'holdings') fetchPortfolio();
-    if (state.currentTab === 'positions') fetchPositions();
-    if (state.currentTab === 'orders') fetchOrders();
-  } catch (err) {
-    showToast('Failed to reset account', true);
-  }
-}
 
 /* =======================================================
    DEDICATED FULL-PAGE ASSET VIEW ENGINE
@@ -2362,6 +2365,12 @@ function submitObStep1() {
     document.getElementById('obInputPhone').focus();
     return;
   }
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!email || !emailRegex.test(email)) {
+    showToast('Please enter your email address (fake or real, e.g. name@example.com)', true);
+    document.getElementById('obInputEmail').focus();
+    return;
+  }
   obUserData.phone = phone;
   obUserData.email = email;
   document.getElementById('obDisplayPhone').innerText = `+91 ${phone}`;
@@ -2587,6 +2596,8 @@ async function submitObStep5() {
     // Update Confirmation screen with user's actual entered details
     document.getElementById('obWelcomeName').innerText = currentUser.name;
     document.getElementById('obCreatedDemat').innerText = `STOX-${Math.floor(100000 + Math.random() * 900000)}`;
+    const emailEl = document.getElementById('obCreatedEmail');
+    if (emailEl) emailEl.innerText = currentUser.email || obUserData.email || '';
     const last4 = (currentUser.bank_account || '5678').slice(-4);
     document.getElementById('obCreatedBank').innerText = `${currentUser.bank_name} •••• ${last4} (Verified ✓)`;
 

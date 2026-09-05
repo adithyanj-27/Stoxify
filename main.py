@@ -57,7 +57,13 @@ def get_user_id(request: Request) -> Optional[str]:
 
 @app.get("/favicon.ico")
 def favicon():
-    svg_icon = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0B0F19"/><defs><linearGradient id="stoxG" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#0EA5E9"/><stop offset="100%" stop-color="#10B981"/></linearGradient></defs><path d="M7 21L14 14L18 18L25 9" stroke="url(#stoxG)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 9H25V15" stroke="#10B981" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="25" cy="9" r="2.2" fill="#0EA5E9"/></svg>"""
+    for candidate in [
+        os.path.join(STATIC_DIR, "favicon.ico"),
+        os.path.join(PUBLIC_DIR, "favicon.ico"),
+    ]:
+        if os.path.exists(candidate):
+            return FileResponse(candidate, media_type="image/x-icon")
+    svg_icon = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="14" fill="#0B0F19" stroke="rgba(14,165,233,0.4)" stroke-width="1.5"/><defs><linearGradient id="stoxG" x1="15%" y1="85%" x2="85%" y2="15%"><stop offset="0%" stop-color="#0284C7"/><stop offset="50%" stop-color="#0EA5E9"/><stop offset="100%" stop-color="#10B981"/></linearGradient></defs><path d="M16 46 L27 31 L32 37 L45 17" stroke="url(#stoxG)" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M36 17 L45 17 L45 26" stroke="#10B981" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>"""
     return Response(content=svg_icon, media_type="image/svg+xml")
 
 @app.get("/")
@@ -121,7 +127,7 @@ def get_sw():
 # --- User Profile Endpoints (Simulated Groww Onboarding) ---
 class CreateUserRequest(BaseModel):
     name: str
-    email: Optional[str] = None
+    email: str
     phone: Optional[str] = None
     pan: Optional[str] = None
     bank_name: Optional[str] = "HDFC Bank"
@@ -132,9 +138,11 @@ class CreateUserRequest(BaseModel):
 def api_create_user(req: CreateUserRequest):
     if not req.name or not req.name.strip():
         raise HTTPException(status_code=400, detail="Legal Name is required")
+    if not req.email or not req.email.strip():
+        raise HTTPException(status_code=400, detail="Email address is required")
     u = create_user(
         name=req.name.strip(),
-        email=req.email,
+        email=req.email.strip(),
         phone=req.phone,
         pan=req.pan,
         bank_name=req.bank_name or "HDFC Bank",
@@ -572,7 +580,10 @@ def deposit(req: DepositRequest, request: Request):
         raise HTTPException(status_code=401, detail="Account required")
     if req.amount <= 0:
         raise HTTPException(status_code=400, detail="Deposit amount must be positive")
-    new_balance = deposit_funds(req.amount, user_id=uid)
+    try:
+        new_balance = deposit_funds(req.amount, user_id=uid)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     return {"status": "success", "new_balance": new_balance}
 
 @app.post("/api/account/reset")

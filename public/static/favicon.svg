@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="stoxArrowGrad" x1="15%" y1="85%" x2="85%" y2="15%">
+      <stop offset="0%" stop-color="#0284C7"/>
+      <stop offset="50%" stop-color="#0EA5E9"/>
+      <stop offset="100%" stop-color="#10B981"/>
+    </linearGradient>
+    <style>
+      .bg-card { fill: #0B0F19; stroke: rgba(14, 165, 233, 0.4); }
+      @media (prefers-color-scheme: light) {
+        .bg-card { fill: #F6F2E7; stroke: rgba(220, 210, 195, 0.9); }
+      }
+    </style>
+  </defs>
+  <rect class="bg-card" x="2" y="2" width="60" height="60" rx="14" stroke-width="1.5"/>
+  <path d="M16 46 L27 31 L32 37 L45 17" stroke="url(#stoxArrowGrad)" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <path d="M36 17 L45 17 L45 26" stroke="#10B981" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>
