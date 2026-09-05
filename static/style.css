@@ -1751,6 +1751,12 @@ body.pwa-installed #mobileInstallBanner {
   box-sizing: border-box;
 }
 
+@media (min-width: 769px) {
+  .mobile-bottom-bar {
+    display: none !important;
+  }
+}
+
 .mobile-nav-item {
   background: transparent;
   border: none;
