@@ -2367,31 +2367,45 @@ body.pwa-installed #mobileInstallBanner {
   .asset-page-header-nav {
     display: flex !important;
     align-items: center !important;
-    justify-content: space-between !important;
+    justify-content: flex-start !important;
     width: 100% !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
     overflow: hidden !important;
-    gap: 0.5rem !important;
+    gap: 0.65rem !important;
     margin-bottom: 0.75rem !important;
   }
 
   .back-link-btn {
-    padding: 0.4rem 0.65rem !important;
-    font-size: 0.76rem !important;
+    width: 34px !important;
+    height: 34px !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
     flex-shrink: 0 !important;
+    border-radius: 8px !important;
+    background: var(--bg-card) !important;
+    border: 1px solid var(--border-subtle) !important;
+    color: var(--text-secondary) !important;
+  }
+
+  .back-link-btn:active {
+    background: var(--bg-card-hover) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--brand-cyan) !important;
   }
 
   .breadcrumb-trail {
     display: flex !important;
     align-items: center !important;
-    gap: 0.25rem !important;
-    font-size: 0.74rem !important;
+    gap: 0.35rem !important;
+    font-size: 0.76rem !important;
     min-width: 0 !important;
     overflow: hidden !important;
     white-space: nowrap !important;
     flex: 1 1 auto !important;
-    justify-content: flex-end !important;
+    justify-content: flex-start !important;
   }
 
   .breadcrumb-trail span,
@@ -3538,16 +3552,17 @@ body.pwa-installed #mobileInstallBanner {
 .back-link-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.5rem 0.9rem;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+  border-radius: 8px;
   color: var(--text-secondary);
-  font-size: 0.85rem;
-  font-weight: 700;
   cursor: pointer;
   transition: var(--transition);
+  flex-shrink: 0;
 }
 
 .back-link-btn:hover {

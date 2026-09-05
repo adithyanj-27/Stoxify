@@ -12,7 +12,7 @@
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-dark.png" id="dynamicFavicon">
   <link rel="apple-touch-icon" href="/static/icon-192.png">
-  <link rel="stylesheet" href="/static/style.css?v=5.9" onerror="this.onerror=null;this.href='/style.css?v=5.9';">
+  <link rel="stylesheet" href="/static/style.css?v=6.0" onerror="this.onerror=null;this.href='/style.css?v=6.0';">
   <!-- Chart.js for high performance financial line & area charts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -736,9 +736,8 @@
     <!-- 6. DEDICATED FULL-PAGE ASSET VIEW (STOCKS & MUTUAL FUNDS) -->
     <section id="pane-asset-detail" class="tab-pane">
       <div class="asset-page-header-nav">
-        <button class="back-link-btn" onclick="navigateTo('/explore')">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-          <span>Back to Explore</span>
+        <button class="back-link-btn" onclick="navigateTo('/explore')" title="Back to Explore" aria-label="Back to Explore">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
         </button>
         <div class="breadcrumb-trail">
           <span style="cursor: pointer;" onclick="navigateTo('/explore')">Stoxify</span>
@@ -2203,6 +2202,6 @@
     </button>
   </nav>
 
-  <script src="/static/app.js?v=5.9" onerror="this.onerror=null;this.src='/app.js?v=5.9';"></script>
+  <script src="/static/app.js?v=6.0" onerror="this.onerror=null;this.src='/app.js?v=6.0';"></script>
 </body>
 </html>
