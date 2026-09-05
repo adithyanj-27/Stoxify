@@ -522,9 +522,7 @@ function renderExploreStocks() {
   }
 
   grid.innerHTML = list.map(s => {
-    const isPos = s.change >= 0;
-    const badgeClass = isPos ? 'badge-positive' : 'badge-negative';
-
+    const cleanSym = (s.symbol || '').replace('.NS', '').replace('.BO', '');
     return `
       <div class="stock-card" onclick="openAssetModal('${s.symbol}', 'STOCK')">
         <div class="card-top">
@@ -532,16 +530,13 @@ function renderExploreStocks() {
             ${renderAssetAvatar(s, 'STOCK')}
             <div class="card-info">
               <div class="card-title" title="${s.name}">${s.name}</div>
-              <div class="card-subtitle">${s.symbol} • ${s.sector || 'NSE Equities'}</div>
+              <div class="card-subtitle">${cleanSym} • ${s.sector || 'NSE'}</div>
             </div>
           </div>
           ${renderCardStarBtn(s.symbol, s.name, 'STOCK')}
         </div>
         <div class="card-bottom">
-          <div>
-            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 2px;">Market Price</div>
-            <div class="card-price">${formatINR(s.price)}</div>
-          </div>
+          <div class="card-price">${formatINR(s.price)}</div>
           <div class="${badgeClass}">
             ${formatChange(s.change, s.change_pct)}
           </div>
@@ -568,14 +563,10 @@ function renderExploreMutualFunds() {
           ${renderCardStarBtn(mf.symbol, mf.name, 'MUTUAL_FUND')}
         </div>
         <div class="card-bottom">
-          <div>
-            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 2px;">NAV</div>
-            <div class="card-price">${formatINR(mf.price)}</div>
-          </div>
+          <div class="card-price">${formatINR(mf.price)}</div>
           <div style="text-align: right;">
-            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 2px;">1Y Return</div>
-            <div class="badge-positive" style="background: rgba(16, 185, 129, 0.15); color: var(--accent-green);">
-              +${formatNumber(mf.return_1y)}%
+            <div class="badge-positive" style="background: rgba(16, 185, 129, 0.15); color: var(--accent-green); font-weight: 700; border-radius: 6px; padding: 2px 6px;">
+              +${formatNumber(mf.return_1y)}% 1Y
             </div>
           </div>
         </div>
@@ -1074,10 +1065,7 @@ async function fetchWatchlist() {
             ${renderCardStarBtn(item.symbol, item.name, item.asset_type)}
           </div>
           <div class="card-bottom">
-            <div>
-              <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 2px;">${priceLabel}</div>
-              <div class="card-price">${formatINR(item.price)}</div>
-            </div>
+            <div class="card-price">${formatINR(item.price)}</div>
             <div class="${badgeClass}">
               ${formatChange(item.change, item.change_pct)}
             </div>
