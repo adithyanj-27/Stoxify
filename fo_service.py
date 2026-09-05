@@ -116,27 +116,32 @@ def get_option_chain(symbol: str = "NIFTY") -> Dict[str, Any]:
         call_delta = round((1.0 + math.erf(d1 / math.sqrt(2.0))) / 2.0, 2)
         put_delta = round(call_delta - 1.0, 2)
 
+        call_dict = {
+            "symbol": f"{clean_sym}{int(k)}CE",
+            "ltp": call_ltp,
+            "oi": call_oi,
+            "oi_chg_pct": round((k % 17 - 8) * 1.5, 1),
+            "iv": round(iv * 100, 1),
+            "delta": call_delta,
+            "in_the_money": (spot_price > k)
+        }
+        put_dict = {
+            "symbol": f"{clean_sym}{int(k)}PE",
+            "ltp": put_ltp,
+            "oi": put_oi,
+            "oi_chg_pct": round((k % 13 - 6) * 1.8, 1),
+            "iv": round(iv * 100, 1),
+            "delta": put_delta,
+            "in_the_money": (spot_price < k)
+        }
+
         chain_rows.append({
             "strike": k,
             "is_atm": (k == atm_strike),
-            "call": {
-                "symbol": f"{clean_sym}{int(k)}CE",
-                "ltp": call_ltp,
-                "oi": call_oi,
-                "oi_chg_pct": round((k % 17 - 8) * 1.5, 1),
-                "iv": round(iv * 100, 1),
-                "delta": call_delta,
-                "in_the_money": (spot_price > k)
-            },
-            "put": {
-                "symbol": f"{clean_sym}{int(k)}PE",
-                "ltp": put_ltp,
-                "oi": put_oi,
-                "oi_chg_pct": round((k % 13 - 6) * 1.8, 1),
-                "iv": round(iv * 100, 1),
-                "delta": put_delta,
-                "in_the_money": (spot_price < k)
-            }
+            "call": call_dict,
+            "put": put_dict,
+            "ce": call_dict,
+            "pe": put_dict
         })
 
     pcr = round(total_put_oi / total_call_oi, 2) if total_call_oi else 1.0
@@ -153,5 +158,6 @@ def get_option_chain(symbol: str = "NIFTY") -> Dict[str, Any]:
         "pcr_sentiment": "Bullish" if pcr > 1.05 else ("Bearish" if pcr < 0.85 else "Neutral"),
         "total_call_oi": total_call_oi,
         "total_put_oi": total_put_oi,
-        "chain": chain_rows
+        "chain": chain_rows,
+        "strikes": chain_rows
     }

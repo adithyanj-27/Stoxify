@@ -222,12 +222,20 @@ REAL_IPOS: List[Dict[str, Any]] = [
 ]
 
 def get_ipos(status_filter: Optional[str] = None) -> List[Dict[str, Any]]:
+    enriched = []
+    for ipo in REAL_IPOS:
+        item = dict(ipo)
+        item["category"] = ipo.get("category") or ipo.get("sector") or "Mainline"
+        sub = ipo.get("subscription", {})
+        item["subscription_times"] = sub.get("overall", "1.0x").replace("x", "")
+        enriched.append(item)
+
     if not status_filter or status_filter.upper() == "ALL":
-        return REAL_IPOS
-    return [ipo for ipo in REAL_IPOS if ipo.get("status", "").upper() == status_filter.upper()]
+        return enriched
+    return [ipo for ipo in enriched if ipo.get("status", "").upper() == status_filter.upper()]
 
 def get_ipo_by_id(ipo_id: str) -> Optional[Dict[str, Any]]:
-    for ipo in REAL_IPOS:
+    for ipo in get_ipos():
         if ipo["id"] == ipo_id or ipo["symbol"].upper() == ipo_id.upper():
             return ipo
     return None

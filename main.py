@@ -740,7 +740,11 @@ def api_stock_news(symbol: str):
 def api_tax_report(request: Request):
     uid = get_user_id(request)
     if not uid:
-        return {"stcg_profit": 0, "net_stcg": 0, "stcg_tax": 0, "ltcg_profit": 0, "net_ltcg": 0, "ltcg_tax": 0, "total_tax_liability": 0, "trades": []}
+        return {
+            "stcg_profit": 0, "net_stcg": 0, "stcg_realized_gain": 0, "stcg_tax": 0, "stcg_tax_payable": 0,
+            "ltcg_profit": 0, "net_ltcg": 0, "ltcg_realized_gain": 0, "ltcg_taxable_gain": 0, "ltcg_tax": 0, "ltcg_tax_payable": 0,
+            "total_tax_liability": 0, "trades": []
+        }
     return get_capital_gains_tax_report(uid)
 
 @app.get("/api/analytics/sector-allocation")

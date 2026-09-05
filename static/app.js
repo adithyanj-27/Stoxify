@@ -3185,8 +3185,9 @@ async function fetchOptionChain() {
   try {
     const res = await fetch(`/api/fo/option-chain?symbol=${encodeURIComponent(currentFoUnderlying)}`);
     const data = await res.json();
-    if (!res.ok || !data.strikes) {
-      if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--accent-red); padding: 2rem;">Failed to load option chain</td></tr>';
+    const strikeList = data.strikes || data.chain;
+    if (!res.ok || !strikeList || !Array.isArray(strikeList) || strikeList.length === 0) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">Option chain data temporarily unavailable.</td></tr>';
       return;
     }
 
@@ -3204,6 +3205,7 @@ async function fetchOptionChain() {
     renderOptionChain(data);
   } catch (err) {
     console.error('Failed to fetch option chain:', err);
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">Option chain data temporarily unavailable.</td></tr>';
   }
 }
 
@@ -3212,40 +3214,46 @@ function renderOptionChain(data) {
   if (!tbody) return;
 
   const lotSize = data.lot_size || 25;
-  const strikes = data.strikes || [];
+  const strikes = data.strikes || data.chain || [];
 
   tbody.innerHTML = strikes.map(s => {
     const isAtm = s.is_atm;
     const atmClass = isAtm ? 'atm-strike-row' : '';
     const atmBadge = isAtm ? '<span class="atm-badge">ATM</span>' : '';
+    const ce = s.ce || s.call || {};
+    const pe = s.pe || s.put || {};
+    const ceLtp = Number(ce.ltp) || 0;
+    const peLtp = Number(pe.ltp) || 0;
+    const ceOi = Number(ce.oi) || 0;
+    const peOi = Number(pe.oi) || 0;
 
     return `
       <tr class="${atmClass}">
         <!-- CALL SIDE -->
-        <td class="fo-oi-col">${(s.ce.oi / 100000).toFixed(1)}L</td>
-        <td class="fo-iv-col">${s.ce.iv}%</td>
+        <td class="fo-oi-col">${(ceOi / 100000).toFixed(1)}L</td>
+        <td class="fo-iv-col">${ce.iv ?? 13}%</td>
         <td class="fo-ltp-col call">
-          <button class="opt-trade-btn call" onclick="openOptionBuyModal('${data.underlying}', ${s.strike}, 'CE', ${s.ce.ltp}, ${s.ce.iv}, ${lotSize})">
-            <strong>${formatINR(s.ce.ltp)}</strong>
-            <span class="delta-sub">Δ ${s.ce.delta}</span>
+          <button class="opt-trade-btn call" onclick="openOptionBuyModal('${data.underlying}', ${s.strike}, 'CE', ${ceLtp}, ${ce.iv ?? 13}, ${lotSize})">
+            <strong>${formatINR(ceLtp)}</strong>
+            <span class="delta-sub">Δ ${ce.delta ?? 0.5}</span>
           </button>
         </td>
 
         <!-- STRIKE CENTER -->
         <td class="fo-strike-col">
-          <span class="strike-num">${s.strike.toLocaleString('en-IN')}</span>
+          <span class="strike-num">${Number(s.strike).toLocaleString('en-IN')}</span>
           ${atmBadge}
         </td>
 
         <!-- PUT SIDE -->
         <td class="fo-ltp-col put">
-          <button class="opt-trade-btn put" onclick="openOptionBuyModal('${data.underlying}', ${s.strike}, 'PE', ${s.pe.ltp}, ${s.pe.iv}, ${lotSize})">
-            <strong>${formatINR(s.pe.ltp)}</strong>
-            <span class="delta-sub">Δ ${s.pe.delta}</span>
+          <button class="opt-trade-btn put" onclick="openOptionBuyModal('${data.underlying}', ${s.strike}, 'PE', ${peLtp}, ${pe.iv ?? 13}, ${lotSize})">
+            <strong>${formatINR(peLtp)}</strong>
+            <span class="delta-sub">Δ ${pe.delta ?? -0.5}</span>
           </button>
         </td>
-        <td class="fo-iv-col">${s.pe.iv}%</td>
-        <td class="fo-oi-col">${(s.pe.oi / 100000).toFixed(1)}L</td>
+        <td class="fo-iv-col">${pe.iv ?? 13}%</td>
+        <td class="fo-oi-col">${(peOi / 100000).toFixed(1)}L</td>
       </tr>
     `;
   }).join('');
@@ -3440,14 +3448,20 @@ function renderIpos(filter) {
     const isOpen = ipo.status === 'OPEN';
     const minInvestment = ipo.max_price * ipo.lot_size;
 
+    const subTimes = ipo.subscription_times || (typeof ipo.subscription === 'object' ? (ipo.subscription.overall || '1.0x') : '1.0x');
+    const gmpDisplay = typeof ipo.gmp === 'string' 
+      ? `${ipo.gmp} (${ipo.gmp_pct > 0 ? '+' : ''}${ipo.gmp_pct}%)`
+      : (ipo.gmp ? `+₹${ipo.gmp} (${ipo.gmp_pct}%)` : '--');
+    const categoryDisplay = ipo.category || ipo.sector || 'Mainline';
+
     return `
       <div class="ipo-card">
         <div class="ipo-card-header">
           <div style="display: flex; align-items: center; gap: 0.75rem;">
-            <div class="card-avatar" style="background: rgba(147, 51, 234, 0.15); color: #a855f7;">${ipo.symbol.slice(0, 2)}</div>
+            <div class="card-avatar" style="background: rgba(147, 51, 234, 0.15); color: #a855f7;">${(ipo.symbol || 'IP').slice(0, 2)}</div>
             <div>
               <h4 class="ipo-card-title">${ipo.name}</h4>
-              <span class="sub-text">${ipo.category} • ${ipo.issue_size}</span>
+              <span class="sub-text">${categoryDisplay} • ${ipo.issue_size || ''}</span>
             </div>
           </div>
           <span class="pill-btn ${isOpen ? 'badge-positive' : ''}">${ipo.status}</span>
@@ -3468,13 +3482,13 @@ function renderIpos(filter) {
           </div>
           <div class="ipo-metric-item">
             <span class="label">Estimated GMP</span>
-            <strong style="color: var(--accent-green);">${ipo.gmp > 0 ? '+₹' + ipo.gmp + ' (' + ipo.gmp_pct + '%)' : '--'}</strong>
+            <strong style="color: var(--accent-green);">${gmpDisplay}</strong>
           </div>
         </div>
 
         <div class="ipo-sub-status">
-          <span>Subscription: <strong>${ipo.subscription_times}x</strong></span>
-          <span style="color: var(--text-muted); font-size: 0.75rem;">Closes: ${ipo.close_date}</span>
+          <span>Subscription: <strong>${subTimes.includes('x') ? subTimes : subTimes + 'x'}</strong></span>
+          <span style="color: var(--text-muted); font-size: 0.75rem;">Closes: ${ipo.close_date || '--'}</span>
         </div>
 
         <div class="ipo-card-actions">
@@ -3791,12 +3805,19 @@ async function loadPortfolioAnalytics() {
     const ltcgPayable = document.getElementById('taxLtcgPayable');
     const totalLiability = document.getElementById('taxTotalLiability');
 
-    if (stcgRealized) stcgRealized.innerText = formatINR(taxData.stcg_realized_gain);
-    if (stcgPayable) stcgPayable.innerText = formatINR(taxData.stcg_tax_payable);
-    if (ltcgRealized) ltcgRealized.innerText = formatINR(taxData.ltcg_realized_gain);
-    if (ltcgTaxable) ltcgTaxable.innerText = formatINR(taxData.ltcg_taxable_gain);
-    if (ltcgPayable) ltcgPayable.innerText = formatINR(taxData.ltcg_tax_payable);
-    if (totalLiability) totalLiability.innerText = formatINR(taxData.total_tax_liability);
+    const sRealized = taxData.stcg_realized_gain ?? taxData.net_stcg ?? 0;
+    const sPayable = taxData.stcg_tax_payable ?? taxData.stcg_tax ?? 0;
+    const lRealized = taxData.ltcg_realized_gain ?? taxData.net_ltcg ?? 0;
+    const lTaxable = taxData.ltcg_taxable_gain ?? taxData.taxable_ltcg ?? 0;
+    const lPayable = taxData.ltcg_tax_payable ?? taxData.ltcg_tax ?? 0;
+    const totLiability = taxData.total_tax_liability ?? (sPayable + lPayable);
+
+    if (stcgRealized) stcgRealized.innerText = formatINR(sRealized);
+    if (stcgPayable) stcgPayable.innerText = formatINR(sPayable);
+    if (ltcgRealized) ltcgRealized.innerText = formatINR(lRealized);
+    if (ltcgTaxable) ltcgTaxable.innerText = formatINR(lTaxable);
+    if (ltcgPayable) ltcgPayable.innerText = formatINR(lPayable);
+    if (totalLiability) totalLiability.innerText = formatINR(totLiability);
   } catch (err) {
     console.error('Failed to load portfolio analytics:', err);
   }
@@ -3845,11 +3866,13 @@ async function fetchStockFinancials(symbol) {
   const container = document.getElementById('pageFinancialsBarsContainer');
   try {
     const res = await fetch(`/api/stock/financials?symbol=${encodeURIComponent(symbol)}`);
+    if (!res.ok) throw new Error('API error: ' + res.status);
     const data = await res.json();
     currentFinData = data;
     renderFinancialsBars(data, currentFinPeriod);
   } catch (err) {
-    if (container) container.innerHTML = '<div style="color: var(--accent-red); padding: 2rem;">Failed to load financials</div>';
+    console.error('Failed to load financials:', err);
+    if (container) container.innerHTML = '<div style="color: var(--text-muted); padding: 2rem; text-align: center;">Financial metrics temporarily unavailable for this asset.</div>';
   }
 }
 
@@ -3858,48 +3881,59 @@ function renderFinancialsBars(data, period) {
   const tbody = document.getElementById('pageFinancialsTableBody');
   if (!container || !data) return;
 
-  const dataset = period === 'quarterly' ? data.quarterly : data.annual;
+  const dataset = period === 'quarterly' ? (data.quarterly || []) : (data.annual || []);
   if (!dataset || dataset.length === 0) {
-    container.innerHTML = '<div style="color: var(--text-muted); padding: 2rem;">Financial statements not available for this period.</div>';
+    container.innerHTML = '<div style="color: var(--text-muted); padding: 2rem; text-align: center;">Financial statements not available for this period.</div>';
     return;
   }
 
   dataset.forEach((item, idx) => {
     const col = document.getElementById(`finPeriodCol${idx + 1}`);
-    if (col) col.innerText = item.period;
+    if (col) col.innerText = item.period || `P${idx + 1}`;
   });
 
-  container.innerHTML = dataset.map(d => `
-    <div class="fin-bar-col">
-      <div class="fin-bars-group">
-        <div class="fin-bar revenue" style="height: ${Math.min(100, Math.max(15, (d.revenue / 25000) * 100))}%;" title="Revenue: ₹${d.revenue} Cr">
-          <span class="fin-bar-val">₹${(d.revenue / 1000).toFixed(1)}k</span>
+  const maxRev = Math.max(...dataset.map(d => Number(d.revenue) || 1), 1000);
+  const maxProf = Math.max(...dataset.map(d => Number(d.profit) || 1), 500);
+
+  container.innerHTML = dataset.map(d => {
+    const rev = Number(d.revenue) || 0;
+    const prof = Number(d.profit) || 0;
+    const revHeight = Math.min(100, Math.max(12, Math.round((rev / maxRev) * 100)));
+    const profHeight = Math.min(100, Math.max(8, Math.round((prof / maxProf) * 100)));
+    const revDisplay = rev >= 1000 ? `₹${(rev / 1000).toFixed(1)}k` : `₹${rev}`;
+
+    return `
+      <div class="fin-bar-col">
+        <div class="fin-bars-group">
+          <div class="fin-bar revenue" style="height: ${revHeight}%;" title="Revenue: ₹${rev.toLocaleString('en-IN')} Cr">
+            <span class="fin-bar-val">${revDisplay}</span>
+          </div>
+          <div class="fin-bar profit" style="height: ${profHeight}%;" title="Net Profit: ₹${prof.toLocaleString('en-IN')} Cr">
+            <span class="fin-bar-val">₹${prof >= 1000 ? (prof / 1000).toFixed(1) + 'k' : prof}</span>
+          </div>
         </div>
-        <div class="fin-bar profit" style="height: ${Math.min(100, Math.max(10, (d.profit / 5000) * 100))}%;" title="Net Profit: ₹${d.profit} Cr">
-          <span class="fin-bar-val">₹${d.profit}</span>
-        </div>
+        <span class="fin-bar-label">${d.period || ''}</span>
       </div>
-      <span class="fin-bar-label">${d.period}</span>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 
   if (tbody) {
     tbody.innerHTML = `
       <tr>
         <td><strong>Total Revenue</strong></td>
-        ${dataset.map(d => `<td>₹${d.revenue.toLocaleString('en-IN')} Cr</td>`).join('')}
+        ${dataset.map(d => `<td>₹${(Number(d.revenue) || 0).toLocaleString('en-IN')} Cr</td>`).join('')}
       </tr>
       <tr>
         <td><strong>Operating EBITDA</strong></td>
-        ${dataset.map(d => `<td>₹${d.ebitda.toLocaleString('en-IN')} Cr</td>`).join('')}
+        ${dataset.map(d => `<td>₹${(Number(d.ebitda) || 0).toLocaleString('en-IN')} Cr</td>`).join('')}
       </tr>
       <tr>
         <td><strong>Net Profit (PAT)</strong></td>
-        ${dataset.map(d => `<td style="color: var(--accent-green);">₹${d.profit.toLocaleString('en-IN')} Cr</td>`).join('')}
+        ${dataset.map(d => `<td style="color: var(--accent-green);">₹${(Number(d.profit) || 0).toLocaleString('en-IN')} Cr</td>`).join('')}
       </tr>
       <tr>
         <td><strong>EPS (₹)</strong></td>
-        ${dataset.map(d => `<td>₹${d.eps}</td>`).join('')}
+        ${dataset.map(d => `<td>₹${d.eps ?? '--'}</td>`).join('')}
       </tr>
     `;
   }
@@ -3909,6 +3943,7 @@ async function fetchStockShareholding(symbol) {
   const container = document.getElementById('pageShareholdingContainer');
   try {
     const res = await fetch(`/api/stock/shareholding?symbol=${encodeURIComponent(symbol)}`);
+    if (!res.ok) throw new Error('API error: ' + res.status);
     const data = await res.json();
 
     const colors = {
@@ -3920,11 +3955,11 @@ async function fetchStockShareholding(symbol) {
     };
 
     const categories = [
-      { key: 'promoter', label: 'Promoters & Group', pct: data.promoter },
-      { key: 'fii', label: 'Foreign Inst. (FII)', pct: data.fii },
-      { key: 'dii', label: 'Domestic Inst. (DII)', pct: data.dii },
-      { key: 'mutual_funds', label: 'Mutual Funds', pct: data.mutual_funds },
-      { key: 'public', label: 'Retail & Public', pct: data.public }
+      { key: 'promoter', label: 'Promoters & Group', pct: Number(data.promoter ?? data.promoters ?? 48.0) },
+      { key: 'fii', label: 'Foreign Inst. (FII)', pct: Number(data.fii ?? 20.0) },
+      { key: 'dii', label: 'Domestic Inst. (DII)', pct: Number(data.dii ?? 15.0) },
+      { key: 'mutual_funds', label: 'Mutual Funds', pct: Number(data.mutual_funds ?? 10.0) },
+      { key: 'public', label: 'Retail & Public', pct: Number(data.public ?? data.retail_public ?? 7.0) }
     ];
 
     container.innerHTML = `
@@ -3940,16 +3975,17 @@ async function fetchStockShareholding(symbol) {
               <span class="legend-dot" style="background: ${colors[c.key]};"></span>
               <span class="sh-name">${c.label}</span>
             </div>
-            <strong class="sh-val">${c.pct}%</strong>
+            <strong class="sh-val">${c.pct.toFixed(1)}%</strong>
           </div>
         `).join('')}
       </div>
       <div style="margin-top: 1rem; font-size: 0.75rem; color: var(--text-muted); text-align: right;">
-        Promoter Pledging: <strong>${data.promoter_pledged || '0.0%'}</strong>
+        Promoter Pledging: <strong>${data.promoter_pledged || data.pledged_shares || '0.00%'}</strong>
       </div>
     `;
   } catch (err) {
-    if (container) container.innerHTML = '<div style="color: var(--accent-red); padding: 2rem;">Failed to load shareholding</div>';
+    console.error('Failed to load shareholding:', err);
+    if (container) container.innerHTML = '<div style="color: var(--text-muted); padding: 2rem; text-align: center;">Shareholding pattern temporarily unavailable for this asset.</div>';
   }
 }
 
@@ -3957,6 +3993,7 @@ async function fetchStockPeers(symbol) {
   const tbody = document.getElementById('pagePeersTableBody');
   try {
     const res = await fetch(`/api/stock/peers?symbol=${encodeURIComponent(symbol)}`);
+    if (!res.ok) throw new Error('API error: ' + res.status);
     const peers = await res.json();
 
     if (!peers || peers.length === 0) {
@@ -3964,24 +4001,35 @@ async function fetchStockPeers(symbol) {
       return;
     }
 
-    tbody.innerHTML = peers.map(p => `
-      <tr>
-        <td>
-          <strong>${p.name}</strong>
-          <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">${p.symbol.replace('.NS', '')}</span>
-        </td>
-        <td><strong>${formatINR(p.price)}</strong></td>
-        <td>${p.pe}</td>
-        <td>${p.market_cap}</td>
-        <td class="${p.return_1y.startsWith('+') ? 'text-positive' : 'text-negative'}">${p.return_1y}</td>
-        <td>${p.div_yield}</td>
-        <td style="text-align: right;">
-          <button class="btn-subtle" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;" onclick="showAssetPage('${p.symbol}', 'STOCK')">View</button>
-        </td>
-      </tr>
-    `).join('');
+    tbody.innerHTML = peers.map(p => {
+      const pSym = (p.symbol || '').replace('.NS', '').replace('.BO', '');
+      const pPrice = Number(p.price) || 0;
+      const ret1y = String(p.return_1y || (p.change_pct ? (p.change_pct >= 0 ? '+' : '') + p.change_pct + '%' : '--'));
+      const isPositive = ret1y.startsWith('+');
+      const peStr = p.pe ?? p.pe_ratio ?? '--';
+      const mcapStr = p.market_cap ? (typeof p.market_cap === 'number' ? `₹${(p.market_cap / 1e7).toFixed(0)} Cr` : String(p.market_cap)) : '--';
+      const divYieldStr = p.div_yield ? (typeof p.div_yield === 'number' ? `${p.div_yield.toFixed(2)}%` : String(p.div_yield)) : '--';
+
+      return `
+        <tr>
+          <td>
+            <strong>${p.name || pSym}</strong>
+            <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">${pSym}</span>
+          </td>
+          <td><strong>${formatINR(pPrice)}</strong></td>
+          <td>${peStr}</td>
+          <td>${mcapStr}</td>
+          <td class="${isPositive ? 'text-positive' : 'text-negative'}">${ret1y}</td>
+          <td>${divYieldStr}</td>
+          <td style="text-align: right;">
+            <button class="btn-subtle" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;" onclick="showAssetPage('${p.symbol}', 'STOCK')">View</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
   } catch (err) {
-    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--accent-red); padding: 2rem;">Failed to load peers</td></tr>';
+    console.error('Failed to load peers:', err);
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">Sector peer comparison temporarily unavailable.</td></tr>';
   }
 }
 
@@ -3989,26 +4037,28 @@ async function fetchStockNews(symbol) {
   const container = document.getElementById('pageNewsContainer');
   try {
     const res = await fetch(`/api/stock/news?symbol=${encodeURIComponent(symbol)}`);
+    if (!res.ok) throw new Error('API error: ' + res.status);
     const news = await res.json();
 
     if (!news || news.length === 0) {
-      if (container) container.innerHTML = '<div style="color: var(--text-muted); padding: 2rem;">No recent news articles found.</div>';
+      if (container) container.innerHTML = '<div style="color: var(--text-muted); padding: 2rem; text-align: center;">No recent news articles found for this asset.</div>';
       return;
     }
 
     container.innerHTML = news.map(n => `
       <div class="news-card-item">
         <div class="news-meta">
-          <span class="news-source">${n.source}</span>
+          <span class="news-source">${n.source || 'Market Feed'}</span>
           <span class="sub-sep">•</span>
-          <span class="news-time">${n.time}</span>
-          <span class="news-sentiment ${n.sentiment === 'Positive' ? 'badge-positive' : 'pill-btn'}">${n.sentiment}</span>
+          <span class="news-time">${n.time || 'Recently'}</span>
+          <span class="news-sentiment ${n.sentiment === 'Positive' ? 'badge-positive' : 'pill-btn'}">${n.sentiment || 'Neutral'}</span>
         </div>
-        <h4 class="news-title">${n.title}</h4>
-        <p class="news-summary">${n.summary}</p>
+        <h4 class="news-title">${n.title || ''}</h4>
+        <p class="news-summary">${n.summary || ''}</p>
       </div>
     `).join('');
   } catch (err) {
-    if (container) container.innerHTML = '<div style="color: var(--accent-red); padding: 2rem;">Failed to load news</div>';
+    console.error('Failed to load news:', err);
+    if (container) container.innerHTML = '<div style="color: var(--text-muted); padding: 2rem; text-align: center;">Market news feed temporarily unavailable.</div>';
   }
 }
