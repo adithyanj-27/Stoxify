@@ -138,9 +138,9 @@
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg>
             <span>Switch Account</span>
           </button>
-          <button class="dropdown-item" onclick="navigateTo('/onboarding')">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-            <span>Create New Account</span>
+          <button class="dropdown-item" id="dropdownInstallItem" onclick="installPWA()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            <span>Install Stoxify App</span>
           </button>
           <button class="dropdown-item" onclick="logoutUser()">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
@@ -159,13 +159,26 @@
     <div class="index-pill"><span class="name">NIFTY IT</span><span class="price">--</span></div>
   </div>
 
-  <!-- Mobile Browser Install App Floating Banner (Outside profile, auto-hides once installed) -->
-  <div class="mobile-install-banner" id="mobileInstallBanner" style="display: none;">
+  <!-- Mobile Browser Install App Floating Banner (Always visible in mobile browser until installed) -->
+  <div class="mobile-install-banner" id="mobileInstallBanner">
     <div class="mob-install-left">
-      <img src="/static/icon-192.png" alt="Stoxify" class="mob-install-icon">
+      <div class="mob-install-icon-wrap">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="34" height="34">
+          <rect x="2" y="2" width="60" height="60" rx="14" fill="#0B0F19" stroke="rgba(14,165,233,0.5)" stroke-width="2"/>
+          <defs>
+            <linearGradient id="stoxGBanner" x1="15%" y1="85%" x2="85%" y2="15%">
+              <stop offset="0%" stop-color="#0284C7"/>
+              <stop offset="50%" stop-color="#0EA5E9"/>
+              <stop offset="100%" stop-color="#10B981"/>
+            </linearGradient>
+          </defs>
+          <path d="M16 46 L27 31 L32 37 L45 17" stroke="url(#stoxGBanner)" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <path d="M36 17 L45 17 L45 26" stroke="#10B981" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+      </div>
       <div>
         <div class="mob-install-title">Install Stoxify App</div>
-        <div class="mob-install-sub">Full screen • Live quotes • 0MB storage</div>
+        <div class="mob-install-sub">Full Screen • Live NSE Quotes • 0MB Storage</div>
       </div>
     </div>
     <div class="mob-install-actions">
@@ -179,6 +192,52 @@
 
     <!-- 1. EXPLORE TAB -->
     <section id="pane-explore" class="tab-pane active">
+
+      <!-- Groww Mobile & Desktop 4-Icon Quick Actions Grid (Products & Tools) -->
+      <div class="groww-quick-grid">
+        <div class="quick-action-card" onclick="switchExploreSubnav('fo')">
+          <div class="quick-action-icon fo-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+            </svg>
+          </div>
+          <span class="quick-action-label">F&O</span>
+          <span class="quick-action-sub">Option Chain</span>
+        </div>
+        <div class="quick-action-card" onclick="switchExploreSubnav('ipo')">
+          <div class="quick-action-icon ipo-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"></path>
+              <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"></path>
+            </svg>
+            <span class="quick-badge">8 Live</span>
+          </div>
+          <span class="quick-action-label">IPO</span>
+          <span class="quick-action-sub">Real GMP</span>
+        </div>
+        <div class="quick-action-card" onclick="switchExploreSubnav('mf')">
+          <div class="quick-action-icon mf-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path>
+              <path d="M12 18V6"></path>
+            </svg>
+          </div>
+          <span class="quick-action-label">Mutual Funds</span>
+          <span class="quick-action-sub">SIP Compounding</span>
+        </div>
+        <div class="quick-action-card install-card" onclick="installPWA()">
+          <div class="quick-action-icon install-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+              <line x1="12" y1="18" x2="12.01" y2="18"></line>
+            </svg>
+          </div>
+          <span class="quick-action-label">Install App</span>
+          <span class="quick-action-sub">Add to Home</span>
+        </div>
+      </div>
+
       <div class="sub-nav">
         <button class="sub-nav-btn active" id="subnav-stocks" onclick="switchExploreSubnav('stocks')">Stocks</button>
         <button class="sub-nav-btn" id="subnav-fo" onclick="switchExploreSubnav('fo')">F&O (Futures & Options)</button>
@@ -188,6 +247,27 @@
 
       <!-- Stocks Sub-view -->
       <div id="explore-stocks-container">
+
+        <!-- Groww "Most Bought on Stoxify" Horizontal Carousel -->
+        <div class="groww-section-block" id="mostBoughtSection">
+          <div class="groww-section-header">
+            <div>
+              <h3 class="groww-section-title">Most Bought on Stoxify</h3>
+              <span class="groww-section-sub">Popular Indian equities among retail traders</span>
+            </div>
+          </div>
+          <div class="most-bought-carousel" id="mostBoughtCarousel">
+            <div style="color: var(--text-muted); font-size: 0.85rem; padding: 1rem;">Loading popular stocks...</div>
+          </div>
+        </div>
+
+        <div class="section-header" style="margin-top: 1.25rem;">
+          <div>
+            <h2 class="section-title" id="exploreStocksTitle">Top Indian Equities (NSE / BSE)</h2>
+            <p class="section-desc" id="exploreStocksDesc">Live market quotes directly from National Stock Exchange (NSE)</p>
+          </div>
+        </div>
+
         <div class="filter-pills">
           <button class="pill-btn active" onclick="filterExploreStocks('all')">All / Most Active</button>
           <button class="pill-btn" onclick="filterExploreStocks('gainers')">Top Gainers</button>
@@ -203,13 +283,6 @@
           <button class="pill-btn" onclick="filterExploreStocks('Consumer')">Consumer</button>
           <button class="pill-btn" onclick="filterExploreStocks('Pharma')">Pharma</button>
           <button class="pill-btn" onclick="filterExploreStocks('Infra')">Infra</button>
-        </div>
-
-        <div class="section-header">
-          <div>
-            <h2 class="section-title" id="exploreStocksTitle">Explore Indian Equities on Stoxify</h2>
-            <p class="section-desc" id="exploreStocksDesc">Live market quotes directly from the National Stock Exchange (NSE) & BSE</p>
-          </div>
         </div>
 
         <div class="cards-grid" id="stocksGrid">
@@ -1098,6 +1171,12 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Sticky Mobile Buy / Sell Action Bar (Groww App Style) -->
+      <div class="mobile-sticky-trade-bar mobile-only" id="mobileStickyTradeBar">
+        <button class="mob-trade-btn buy" onclick="quickMobileTrade('BUY')">BUY</button>
+        <button class="mob-trade-btn sell" onclick="quickMobileTrade('SELL')">SELL</button>
       </div>
     </section>
 

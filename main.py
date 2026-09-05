@@ -130,6 +130,28 @@ def get_sw():
             return FileResponse(candidate, media_type="application/javascript")
     return Response(content="// sw not found", media_type="application/javascript")
 
+@app.get("/icon-192.png")
+def get_icon_192():
+    for candidate in [
+        os.path.join(STATIC_DIR, "icon-192.png"),
+        os.path.join(PUBLIC_DIR, "icon-192.png"),
+        os.path.join(BASE_DIR, "icon-192.png")
+    ]:
+        if os.path.exists(candidate):
+            return FileResponse(candidate, media_type="image/png")
+    return Response(status_code=404)
+
+@app.get("/icon-512.png")
+def get_icon_512():
+    for candidate in [
+        os.path.join(STATIC_DIR, "icon-512.png"),
+        os.path.join(PUBLIC_DIR, "icon-512.png"),
+        os.path.join(BASE_DIR, "icon-512.png")
+    ]:
+        if os.path.exists(candidate):
+            return FileResponse(candidate, media_type="image/png")
+    return Response(status_code=404)
+
 # --- User Profile Endpoints (Simulated Groww Onboarding) ---
 class CreateUserRequest(BaseModel):
     name: str

@@ -429,6 +429,33 @@ function renderExploreStocks() {
   const title = document.getElementById('exploreStocksTitle');
   const desc = document.getElementById('exploreStocksDesc');
 
+  // Populate "Most Bought on Stoxify" horizontal carousel with premier Indian stocks
+  const mbContainer = document.getElementById('mostBoughtCarousel');
+  if (mbContainer && state.exploreData.all_stocks) {
+    const popularSymbols = ['RELIANCE.NS', 'TATAMOTORS.NS', 'HDFCBANK.NS', 'INFY.NS', 'TCS.NS', 'ZOMATO.NS', 'HAL.NS', 'SBIN.NS'];
+    const popularStocks = state.exploreData.all_stocks.filter(s => popularSymbols.includes(s.symbol));
+    const finalPopular = popularStocks.length >= 4 ? popularStocks : state.exploreData.all_stocks.slice(0, 8);
+    
+    mbContainer.innerHTML = finalPopular.map(s => {
+      const isPos = s.change >= 0;
+      const cleanSym = (s.symbol || '').replace('.NS', '').replace('.BO', '');
+      const badgeClass = isPos ? 'badge-positive' : 'badge-negative';
+      return `
+        <div class="most-bought-card" onclick="openAssetModal('${s.symbol}', 'STOCK')">
+          <div class="mb-top">
+            ${renderAssetAvatar(s, 'STOCK')}
+            <span class="mb-sym-pill">${cleanSym}</span>
+          </div>
+          <div class="mb-name" title="${s.name}">${s.name}</div>
+          <div class="mb-bottom">
+            <span class="mb-price">${formatINR(s.price)}</span>
+            <span class="${badgeClass} mb-badge">${isPos ? '+' : ''}${formatNumber(s.change_pct)}%</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
   let list = [];
   if (state.exploreStockFilter === 'all') {
     list = state.exploreData.all_stocks;
@@ -1604,7 +1631,6 @@ let deferredInstallPrompt = null;
 function isAppInstalled() {
   return window.matchMedia('(display-mode: standalone)').matches || 
          window.navigator.standalone === true ||
-         localStorage.getItem('stoxify_app_installed') === '1' ||
          document.referrer.includes('android-app://');
 }
 
@@ -1621,9 +1647,11 @@ function updateInstallButtonsVisibility() {
   const mobBanner = document.getElementById('mobileInstallBanner');
   const mobDismissed = sessionStorage.getItem('stoxify_mob_install_dismissed') === '1';
 
+  // Desktop/header button is visible unless running as installed standalone PWA
   if (topBtn) topBtn.style.display = installed ? 'none' : 'inline-flex';
   if (dropdownItem) dropdownItem.style.display = installed ? 'none' : 'flex';
 
+  // Mobile banner is visible on mobile browsers unless running in standalone PWA
   if (mobBanner) {
     if (installed || mobDismissed) {
       mobBanner.style.display = 'none';
@@ -2446,17 +2474,31 @@ function setPageOrderAction(action) {
   const cleanSym = currentPageAsset ? currentPageAsset.symbol.replace('.NS', '') : 'ASSET';
 
   if (action === 'BUY') {
-    buyBtn.className = 'trade-tab-btn active buy';
-    sellBtn.className = 'trade-tab-btn sell';
-    execBtn.className = 'btn-trade-execute buy';
-    execBtn.innerText = `BUY ${cleanSym}`;
+    if (buyBtn) buyBtn.className = 'trade-tab-btn active buy';
+    if (sellBtn) sellBtn.className = 'trade-tab-btn sell';
+    if (execBtn) {
+      execBtn.className = 'btn-trade-execute buy';
+      execBtn.innerText = `BUY ${cleanSym}`;
+    }
   } else {
-    buyBtn.className = 'trade-tab-btn buy';
-    sellBtn.className = 'trade-tab-btn active sell';
-    execBtn.className = 'btn-trade-execute sell';
-    execBtn.innerText = `SELL ${cleanSym}`;
+    if (buyBtn) buyBtn.className = 'trade-tab-btn buy';
+    if (sellBtn) sellBtn.className = 'trade-tab-btn active sell';
+    if (execBtn) {
+      execBtn.className = 'btn-trade-execute sell';
+      execBtn.innerText = `SELL ${cleanSym}`;
+    }
   }
   recalcPageMargin();
+}
+
+function quickMobileTrade(action) {
+  setPageOrderAction(action);
+  const terminal = document.querySelector('.asset-sidebar-col');
+  if (terminal) {
+    terminal.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    terminal.classList.add('pulse-highlight');
+    setTimeout(() => terminal.classList.remove('pulse-highlight'), 1200);
+  }
 }
 
 function setPageProductType(prod) {
