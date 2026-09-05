@@ -172,6 +172,7 @@ class CreateUserRequest(BaseModel):
     bank_account: Optional[str] = "50100234567890"
     pin: Optional[str] = "1234"
     id: Optional[str] = None
+    dob: Optional[str] = None
 
 @app.post("/api/user/create")
 def api_create_user(req: CreateUserRequest):
@@ -179,6 +180,18 @@ def api_create_user(req: CreateUserRequest):
         raise HTTPException(status_code=400, detail="Legal Name is required")
     if not req.email or not req.email.strip():
         raise HTTPException(status_code=400, detail="Email address is required")
+    if req.dob:
+        try:
+            from datetime import date, datetime
+            birth_d = datetime.strptime(req.dob.strip(), "%Y-%m-%d").date()
+            today = date.today()
+            age = today.year - birth_d.year - ((today.month, today.day) < (birth_d.month, birth_d.day))
+            if age < 10:
+                raise HTTPException(status_code=400, detail="You must be at least 10 years of age to register")
+        except HTTPException:
+            raise
+        except Exception:
+            pass
     u = create_user(
         name=req.name.strip(),
         email=req.email.strip(),

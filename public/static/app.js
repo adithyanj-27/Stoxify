@@ -3063,7 +3063,13 @@ function showOnboardingPage() {
   const nameInput = document.getElementById('obInputName');
   if (nameInput) nameInput.value = '';
   const dobInput = document.getElementById('obInputDob');
-  if (dobInput) dobInput.value = '';
+  if (dobInput) {
+    const tenYearsAgo = new Date();
+    tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10);
+    const maxAllowedDob = tenYearsAgo.toISOString().split('T')[0];
+    dobInput.max = maxAllowedDob;
+    dobInput.value = '2000-01-01';
+  }
   const accInput = document.getElementById('obInputAccount');
   if (accInput) accInput.value = '';
   const accConfInput = document.getElementById('obInputAccountConfirm');
@@ -3107,6 +3113,20 @@ function goToObStep(stepNum) {
       else conn.classList.remove('completed');
     }
   }
+
+  if (stepNum === 3) {
+    const dobInput = document.getElementById('obInputDob');
+    if (dobInput) {
+      const tenYearsAgo = new Date();
+      tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10);
+      const maxAllowedDob = tenYearsAgo.toISOString().split('T')[0];
+      dobInput.max = maxAllowedDob;
+      if (!dobInput.value || new Date(dobInput.value) > tenYearsAgo) {
+        dobInput.value = '2000-01-01';
+      }
+    }
+  }
+
   const activeContent = document.getElementById(`obStep-${stepNum}`);
   if (activeContent) activeContent.classList.add('active');
 }
@@ -3244,6 +3264,27 @@ function submitObStep3() {
     document.getElementById('obInputName').focus();
     return;
   }
+  if (!dob) {
+    showToast('Please enter your Date of Birth', true);
+    document.getElementById('obInputDob').focus();
+    return;
+  }
+
+  const birthDate = new Date(dob);
+  const cutoffDate = new Date();
+  cutoffDate.setFullYear(cutoffDate.getFullYear() - 10);
+
+  if (isNaN(birthDate.getTime())) {
+    showToast('Please enter a valid Date of Birth', true);
+    document.getElementById('obInputDob').focus();
+    return;
+  }
+
+  if (birthDate > cutoffDate) {
+    showToast('You must be at least 10 years of age to register', true);
+    document.getElementById('obInputDob').focus();
+    return;
+  }
 
   obUserData.pan = pan;
   obUserData.name = name;
@@ -3333,6 +3374,7 @@ async function submitObStep5() {
         email: obUserData.email,
         phone: obUserData.phone,
         pan: obUserData.pan,
+        dob: obUserData.dob,
         bank_name: obUserData.bank_name,
         bank_account: obUserData.bank_account,
         pin: obUserData.pin
