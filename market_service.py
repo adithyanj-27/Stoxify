@@ -1,6 +1,7 @@
 import time
 import requests
 import concurrent.futures
+from datetime import datetime, timedelta, time as dtime
 import yfinance as yf
 from typing import Dict, List, Any, Optional
 
@@ -449,28 +450,42 @@ def get_stock_chart(symbol: str, timeframe: str = "1D") -> List[Dict[str, Any]]:
     if not formatted_symbol.endswith(".NS") and not formatted_symbol.endswith(".BO") and not formatted_symbol.startswith("^"):
         formatted_symbol += ".NS"
 
-    cache_key = f"chart_{formatted_symbol}_{timeframe}"
+    tf_upper = timeframe.strip().upper()
+    cache_key = f"chart_{formatted_symbol}_{tf_upper}"
     cached = get_cached(cache_key)
     if cached:
         return cached
 
-    period_map = {
-        "1D": ("1d", "5m"),
-        "1W": ("5d", "15m"),
-        "1M": ("1mo", "1d"),
-        "1Y": ("1y", "1d"),
-        "5Y": ("5y", "1wk"),
-        "ALL": ("max", "1mo")
-    }
-    period, interval = period_map.get(timeframe.upper(), ("1d", "5m"))
+    now = datetime.now()
 
     try:
         t = yf.Ticker(formatted_symbol)
-        hist = t.history(period=period, interval=interval)
+        if tf_upper == "3Y":
+            three_yrs_ago = (now - timedelta(days=3 * 365)).strftime("%Y-%m-%d")
+            hist = t.history(start=three_yrs_ago, interval="1wk")
+        else:
+            period_map = {
+                "1D": ("1d", "5m"),
+                "1W": ("5d", "15m"),
+                "1M": ("1mo", "1d"),
+                "1Y": ("1y", "1d"),
+                "5Y": ("5y", "1wk"),
+                "ALL": ("max", "1mo")
+            }
+            period, interval = period_map.get(tf_upper, ("1mo", "1d"))
+            hist = t.history(period=period, interval=interval)
+
         points = []
         for idx, row in hist.iterrows():
+            if tf_upper == "1D":
+                time_str = idx.strftime("%H:%M")
+            elif tf_upper == "1W":
+                time_str = idx.strftime("%d %b %H:%M")
+            else:
+                time_str = idx.strftime("%d %b %Y")
+
             points.append({
-                "time": idx.strftime("%d %b %H:%M") if timeframe in ["1D", "1W"] else idx.strftime("%d %b %Y"),
+                "time": time_str,
                 "value": round(float(row["Close"]), 2),
                 "open": round(float(row["Open"]), 2),
                 "high": round(float(row["High"]), 2),
@@ -487,31 +502,51 @@ def get_stock_chart(symbol: str, timeframe: str = "1D") -> List[Dict[str, Any]]:
     quote = get_stock_quote(symbol)
     base_price = quote["price"]
     points = []
-    count = 25 if timeframe == "1D" else 40
+    count = 25 if tf_upper == "1D" else 40
     import math
-    for i in range(count):
-        val = base_price * (1.0 + (math.sin(i / 4.0) * 0.012) + ((i - count/2) * 0.0004))
-        points.append({
-            "time": f"T{i}",
-            "value": round(val, 2),
-            "open": round(val, 2),
-            "high": round(val * 1.002, 2),
-            "low": round(val * 0.998, 2),
-            "volume": 10000
-        })
+
+    if tf_upper == "1D":
+        from datetime import time as dtime
+        base_time = datetime.combine(now.date(), dtime(9, 15))
+        for i in range(count):
+            slot_time = base_time + timedelta(minutes=i * 15)
+            val = base_price * (1.0 + (math.sin(i / 4.0) * 0.012) + ((i - count/2) * 0.0004))
+            points.append({
+                "time": slot_time.strftime("%H:%M"),
+                "value": round(val, 2),
+                "open": round(val * 0.999, 2),
+                "high": round(val * 1.002, 2),
+                "low": round(val * 0.998, 2),
+                "volume": 12500 + int(abs(math.sin(i)) * 25000)
+            })
+    else:
+        day_step = 1 if tf_upper in ["1W", "1M"] else (7 if tf_upper in ["1Y", "3Y"] else 30)
+        for i in range(count):
+            slot_date = now - timedelta(days=(count - 1 - i) * day_step)
+            val = base_price * (1.0 + (math.sin(i / 4.0) * 0.012) + ((i - count/2) * 0.0004))
+            points.append({
+                "time": slot_date.strftime("%d %b %Y"),
+                "value": round(val, 2),
+                "open": round(val * 0.999, 2),
+                "high": round(val * 1.002, 2),
+                "low": round(val * 0.998, 2),
+                "volume": 25000 + int(abs(math.sin(i)) * 50000)
+            })
+
     set_cached(cache_key, points, ttl=120)
     return points
 
 def get_mf_chart(code: str, timeframe: str = "1M") -> List[Dict[str, Any]]:
     code_str = str(code).strip()
-    cache_key = f"mf_chart_{code_str}_{timeframe}"
+    tf_upper = timeframe.strip().upper()
+    cache_key = f"mf_chart_{code_str}_{tf_upper}"
     cached = get_cached(cache_key)
     if cached:
         return cached
 
     url = f"https://api.mfapi.in/mf/{code_str}"
-    limit_map = {"1D": 7, "1W": 14, "1M": 30, "1Y": 240, "5Y": 1200, "ALL": 2400}
-    limit = limit_map.get(timeframe.upper(), 30)
+    limit_map = {"1D": 7, "1W": 14, "1M": 30, "1Y": 240, "3Y": 750, "5Y": 1200, "ALL": 1500}
+    limit = limit_map.get(tf_upper, 30)
 
     try:
         resp = requests.get(url, timeout=3.5)
@@ -534,7 +569,13 @@ def get_mf_chart(code: str, timeframe: str = "1M") -> List[Dict[str, Any]]:
 
     mf_q = get_mutual_fund_quote(code_str)
     base_nav = mf_q["price"]
-    points = [{"time": f"Day {i}", "value": round(base_nav * (0.95 + (i * 0.003)), 2)} for i in range(20)]
+    now = datetime.now()
+    points = [
+        {
+            "time": (now - timedelta(days=20 - 1 - i)).strftime("%d-%m-%Y"),
+            "value": round(base_nav * (0.95 + (i * 0.003)), 2)
+        } for i in range(20)
+    ]
     return points
 
 def search_market(query: str) -> List[Dict[str, Any]]:
