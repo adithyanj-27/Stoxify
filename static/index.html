@@ -57,6 +57,14 @@
 
     <!-- Nav Right Controls -->
     <div class="nav-actions">
+      <!-- Mobile Search Toggle Button -->
+      <button class="icon-btn mobile-only" id="mobileSearchBtn" onclick="toggleMobileSearch()" title="Search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+      </button>
+
       <!-- PWA Install App Button -->
       <button class="btn-install-app" id="btnInstallApp" onclick="installPWA()" title="Install Stoxify App">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -158,6 +166,19 @@
     <div class="index-pill"><span class="name">BANK NIFTY</span><span class="price">--</span></div>
     <div class="index-pill"><span class="name">NIFTY IT</span><span class="price">--</span></div>
   </div>
+
+  <!-- Groww-Style Mobile Underline Sub-Tabs -->
+  <nav class="mobile-sub-tabs mobile-only" id="mobileSubTabs">
+    <button class="mob-subtab-btn active" id="mob-tab-explore" onclick="navigateTo('/explore')">Explore</button>
+    <button class="mob-subtab-btn" id="mob-tab-holdings" onclick="navigateTo('/holdings')">Holdings</button>
+    <button class="mob-subtab-btn" id="mob-tab-positions" onclick="navigateTo('/positions')">
+      Positions <span class="badge-count" id="mobPositionsBadge" style="display: none;">0</span>
+    </button>
+    <button class="mob-subtab-btn" id="mob-tab-orders" onclick="navigateTo('/orders')">
+      Orders <span class="badge-count" id="mobOrdersBadge" style="display: none;">0</span>
+    </button>
+    <button class="mob-subtab-btn" id="mob-tab-watchlist" onclick="navigateTo('/watchlist')">Watchlist</button>
+  </nav>
 
   <!-- Mobile Browser Install App Floating Banner (Always visible in mobile browser until installed) -->
   <div class="mobile-install-banner" id="mobileInstallBanner">
@@ -2118,6 +2139,39 @@
       </div>
     </div>
   </div>
+
+  <!-- Groww-Style Fixed Bottom App Navigation Bar -->
+  <nav class="mobile-bottom-bar mobile-only" id="mobileBottomBar">
+    <button class="mobile-nav-item active" id="mob-nav-stocks" onclick="navigateToExploreTab('stocks')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline>
+        <polyline points="16 7 22 7 22 13"></polyline>
+      </svg>
+      <span>Stocks</span>
+    </button>
+    <button class="mobile-nav-item" id="mob-nav-fo" onclick="navigateToExploreTab('fo')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10"></line>
+        <line x1="12" y1="20" x2="12" y2="4"></line>
+        <line x1="6" y1="20" x2="6" y2="14"></line>
+      </svg>
+      <span>F&O</span>
+    </button>
+    <button class="mobile-nav-item" id="mob-nav-mf" onclick="navigateToExploreTab('mf')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
+        <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
+      </svg>
+      <span>Mutual Funds</span>
+    </button>
+    <button class="mobile-nav-item" id="mob-nav-holdings" onclick="navigateTo('/holdings')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+      </svg>
+      <span>Holdings</span>
+    </button>
+  </nav>
 
 </body>
 </html>

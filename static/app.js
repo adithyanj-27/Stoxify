@@ -211,10 +211,21 @@ function switchTab(tabId, updateUrl = true) {
   const desktopBtn = document.getElementById(`nav-${tabId}`);
   if (desktopBtn) desktopBtn.classList.add('active');
 
-  // Mobile bar items
-  document.querySelectorAll('.mobile-nav-item').forEach(btn => btn.classList.remove('active'));
-  const mobBtn = document.getElementById(`mob-nav-${tabId}`);
-  if (mobBtn) mobBtn.classList.add('active');
+  // Groww-Style Mobile Underline Sub-Tabs
+  document.querySelectorAll('.mob-subtab-btn').forEach(btn => btn.classList.remove('active'));
+  const mobSubBtn = document.getElementById(`mob-tab-${tabId}`);
+  if (mobSubBtn) mobSubBtn.classList.add('active');
+
+  // Mobile bottom bar items
+  document.querySelectorAll('.mobile-bottom-bar .mobile-nav-item').forEach(btn => btn.classList.remove('active'));
+  if (tabId === 'holdings') {
+    const mobHoldingsBtn = document.getElementById('mob-nav-holdings');
+    if (mobHoldingsBtn) mobHoldingsBtn.classList.add('active');
+  } else if (tabId === 'explore') {
+    const sub = state.exploreSubnav || 'stocks';
+    const mobSubNav = document.getElementById(`mob-nav-${sub}`);
+    if (mobSubNav) mobSubNav.classList.add('active');
+  }
 
   // Pane activation
   document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
@@ -230,11 +241,35 @@ function switchTab(tabId, updateUrl = true) {
   if (tabId === 'explore') fetchExploreData();
 }
 
+function navigateToExploreTab(subId) {
+  navigateTo('/explore');
+  switchExploreSubnav(subId);
+  updateMobileBottomNav(subId);
+}
+
+function updateMobileBottomNav(activeId) {
+  document.querySelectorAll('.mobile-bottom-bar .mobile-nav-item').forEach(btn => btn.classList.remove('active'));
+  const activeBtn = document.getElementById(`mob-nav-${activeId}`);
+  if (activeBtn) activeBtn.classList.add('active');
+}
+
+function toggleMobileSearch() {
+  const wrapper = document.querySelector('.search-wrapper');
+  if (wrapper) {
+    wrapper.classList.toggle('mobile-open');
+    if (wrapper.classList.contains('mobile-open')) {
+      const input = document.getElementById('globalSearchInput');
+      if (input) input.focus();
+    }
+  }
+}
+
 function switchExploreSubnav(subId) {
   state.exploreSubnav = subId;
   document.querySelectorAll('#pane-explore .sub-nav-btn').forEach(btn => btn.classList.remove('active'));
   const btn = document.getElementById(`subnav-${subId}`);
   if (btn) btn.classList.add('active');
+  updateMobileBottomNav(subId);
 
   const containers = {
     stocks: document.getElementById('explore-stocks-container'),
@@ -854,15 +889,23 @@ async function fetchOrders() {
     document.getElementById('openOrdersCount').innerText = openOrders.length;
     const navOrdersBadge = document.getElementById('navOrdersBadge');
     const mobOpenOrdersBadge = document.getElementById('mobOpenOrdersBadge');
+    const mobOrdersBadge = document.getElementById('mobOrdersBadge');
 
     if (openOrders.length > 0) {
       navOrdersBadge.innerText = openOrders.length;
       navOrdersBadge.style.display = 'inline-flex';
-      mobOpenOrdersBadge.innerText = openOrders.length;
-      mobOpenOrdersBadge.style.display = 'flex';
+      if (mobOpenOrdersBadge) {
+        mobOpenOrdersBadge.innerText = openOrders.length;
+        mobOpenOrdersBadge.style.display = 'flex';
+      }
+      if (mobOrdersBadge) {
+        mobOrdersBadge.innerText = openOrders.length;
+        mobOrdersBadge.style.display = 'inline-flex';
+      }
     } else {
       navOrdersBadge.style.display = 'none';
-      mobOpenOrdersBadge.style.display = 'none';
+      if (mobOpenOrdersBadge) mobOpenOrdersBadge.style.display = 'none';
+      if (mobOrdersBadge) mobOrdersBadge.style.display = 'none';
     }
 
     // 1. Render Executed Orders Table & Mobile Cards
