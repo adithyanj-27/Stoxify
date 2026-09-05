@@ -2590,7 +2590,7 @@ function recalcPageMargin() {
   if (isGuest()) {
     document.getElementById('pageAvailableCash').innerText = '₹0.00 (Locked)';
     if (execBtn) {
-      execBtn.innerText = 'Get Started to Trade (Unlock ₹10L)';
+      execBtn.innerText = 'Start Investing to Trade (Unlock ₹10L)';
       execBtn.className = 'btn-trade-execute guest-locked';
     }
   } else {
