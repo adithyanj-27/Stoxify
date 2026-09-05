@@ -146,6 +146,78 @@ def test_all():
     assert depth["total_ask_qty"] > 0
     print(f" ✓ Level-2 Market Depth: 5 Bids & 5 Asks generated (Total Buy Qty: {depth['total_bid_qty']:,}, Sell: {depth['total_ask_qty']:,})")
 
+    # 7. Test Futures & Options (F&O) Engine
+    print("\n[7/9] Testing F&O Option Chains & Option Trades...")
+    import fo_service
+    chain = fo_service.get_option_chain("NIFTY")
+    assert chain["underlying"] == "NIFTY"
+    assert chain["lot_size"] == 25
+    assert len(chain["chain"]) >= 15
+    atm_row = next(r for r in chain["chain"] if r["is_atm"])
+    print(f" ✓ NIFTY Option Chain: Spot ₹{chain['spot_price']:,.2f}, ATM Strike {atm_row['strike']}, PCR {chain['pcr']} ({chain['pcr_sentiment']})")
+    print(f"   Call CE LTP: ₹{atm_row['call']['ltp']}, Put PE LTP: ₹{atm_row['put']['ltp']}, Delta: {atm_row['call']['delta']}")
+
+    # Buy 1 lot (25 qty) of NIFTY ATM Call
+    opt_qty = 25
+    opt_price = atm_row['call']['ltp']
+    res_opt_buy = database.execute_trade(atm_row['call']['symbol'], "NIFTY 50 Call Option", "OPTION", "BUY", "INTRADAY", opt_qty, opt_price)
+    assert res_opt_buy["success"], f"Option buy failed: {res_opt_buy}"
+    opt_positions = [p for p in database.get_positions() if p["asset_type"] == "OPTION"]
+    assert len(opt_positions) == 1
+    assert opt_positions[0]["quantity"] == 25
+    print(f" ✓ Option Buy Order: 1 Lot (25 shares) of {atm_row['call']['symbol']} filled at ₹{opt_price:,.2f}")
+
+    # 8. Test GTT Orders & SIP Planner
+    print("\n[8/9] Testing GTT Orders & SIP Scheduler...")
+    database.reset_account(user_id="default")
+    res_gtt = database.place_gtt_order(
+        user_id="default", symbol="TCS.NS", name="Tata Consultancy Services",
+        trigger_price=3800.0, quantity=5, action="BUY", product_type="DELIVERY", target_price=4200.0, stop_loss_price=3600.0
+    )
+    assert res_gtt["success"]
+    gtt_orders = database.get_gtt_orders("default")
+    assert len(gtt_orders) >= 1
+    assert gtt_orders[0]["trigger_price"] == 3800.0
+    print(f" ✓ GTT Order placed: Buy 5 TCS @ trigger ₹3,800.00 (Target: ₹4,200.00, SL: ₹3,600.00)")
+    database.cancel_gtt_order("default", res_gtt["gtt_id"])
+    print(" ✓ GTT Order cancellation verified")
+
+    # SIP
+    res_sip = database.create_sip("default", "122639", "Parag Parikh Flexi Cap Fund", 5000.0, sip_day=5)
+    assert res_sip["success"]
+    sips = database.get_user_sips("default")
+    assert len(sips) == 1
+    assert sips[0]["monthly_amount"] == 5000.0
+    print(f" ✓ Monthly SIP created: ₹5,000.00/mo on 5th of every month (Next: {res_sip['next_date']})")
+    database.cancel_sip("default", res_sip["sip_id"])
+    print(" ✓ SIP cancellation verified")
+
+    # 9. Test IPO Hub & Capital Gains Tax
+    print("\n[9/9] Testing Real Indian IPO Hub & Capital Gains Tax...")
+    import ipo_service
+    all_ipos = ipo_service.get_ipos()
+    assert len(all_ipos) >= 5
+    swiggy_ipo = ipo_service.get_ipo_by_id("swiggy")
+    assert swiggy_ipo["name"] == "Swiggy Ltd"
+    print(f" ✓ Real Indian IPOs loaded: {len(all_ipos)} issues (e.g. {swiggy_ipo['name']} - Band: {swiggy_ipo['price_band']}, Lot: {swiggy_ipo['lot_size']}, GMP: {swiggy_ipo['gmp']})")
+
+    # Test IPO Application
+    res_ipo = database.apply_ipo("default", "swiggy", "Swiggy Ltd", 1, 38, 390.0, "trader@okaxis")
+    assert res_ipo["success"]
+    assert res_ipo["amount_blocked"] == 14820.0  # 38 * 390
+    user_bids = database.get_ipo_bids("default")
+    assert len(user_bids) == 1
+    print(f" ✓ IPO Application submitted: 1 Lot (38 shares) of Swiggy Ltd, ₹14,820.00 blocked via ASBA")
+    database.cancel_ipo_bid("default", res_ipo["bid_id"])
+    print(" ✓ IPO Application cancelled & ₹14,820.00 unblocked successfully")
+
+    # Test Capital Gains Tax (Budget 2024: STCG 20%, LTCG 12.5%)
+    tax_rep = database.get_capital_gains_tax_report("default")
+    assert "stcg_tax_rate" in tax_rep
+    assert tax_rep["stcg_tax_rate"] == "20%"
+    assert tax_rep["ltcg_tax_rate"] == "12.5%"
+    print(f" ✓ Capital Gains Tax Report verified under Budget 2024: STCG @ {tax_rep['stcg_tax_rate']}, LTCG @ {tax_rep['ltcg_tax_rate']}")
+
     # Reset account cleanly
     database.reset_account(1000000.0)
     print(" ✓ Database reset to fresh ₹10,00,000 balance")

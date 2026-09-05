@@ -9,10 +9,16 @@ from database import (
     init_db, get_account, get_holdings, get_positions, execute_trade, 
     exit_position, cancel_order, check_open_limit_orders,
     get_orders, get_watchlist, add_to_watchlist, remove_from_watchlist,
-    deposit_funds, reset_account, create_user, get_user, list_users
+    deposit_funds, reset_account, create_user, get_user, list_users,
+    place_gtt_order, get_gtt_orders, cancel_gtt_order,
+    create_sip, get_user_sips, cancel_sip,
+    apply_ipo, get_ipo_bids, cancel_ipo_bid,
+    get_capital_gains_tax_report, get_sector_allocation
 )
 import market_service
 import market_hours
+import fo_service
+import ipo_service
 from datetime import datetime
 
 app = FastAPI(title="Stoxify", description="Stoxify - Stock & Mutual Fund Broker Platform", version="1.0.0")
@@ -448,6 +454,7 @@ class OrderRequest(BaseModel):
     price: float
     order_variety: str = "MARKET"
     limit_price: Optional[float] = None
+    trigger_price: Optional[float] = None
 
 @app.post("/api/order")
 @app.post("/order")
@@ -492,7 +499,8 @@ def place_order(order: OrderRequest, request: Request):
         order_variety=order.order_variety,
         limit_price=order.limit_price,
         order_tag=order_tag,
-        user_id=uid
+        user_id=uid,
+        trigger_price=order.trigger_price
     )
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "Transaction failed"))
@@ -595,8 +603,157 @@ def reset(request: Request):
     reset_account(1000000.0, user_id=uid)
     return {"status": "success", "message": "Account balance reset to ₹10,00,000"}
 
+# --- Futures & Options (F&O) ---
+@app.get("/api/fo/option-chain")
+def api_option_chain(symbol: str = "NIFTY"):
+    return fo_service.get_option_chain(symbol)
+
+# --- GTT (Good Till Triggered) Orders ---
+class GTTRequest(BaseModel):
+    symbol: str
+    name: str
+    trigger_price: float
+    quantity: float
+    action: str = "BUY"
+    product_type: str = "DELIVERY"
+    target_price: Optional[float] = 0.0
+    stop_loss_price: Optional[float] = 0.0
+
+@app.post("/api/order/gtt")
+def api_place_gtt(req: GTTRequest, request: Request):
+    uid = get_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Account required for GTT orders")
+    res = place_gtt_order(
+        user_id=uid,
+        symbol=req.symbol,
+        name=req.name,
+        trigger_price=req.trigger_price,
+        quantity=req.quantity,
+        action=req.action,
+        product_type=req.product_type,
+        target_price=req.target_price or 0.0,
+        stop_loss_price=req.stop_loss_price or 0.0
+    )
+    return res
+
+@app.get("/api/orders/gtt")
+def api_get_gtt(request: Request):
+    uid = get_user_id(request)
+    if not uid:
+        return []
+    return get_gtt_orders(uid)
+
+@app.delete("/api/order/gtt/{gtt_id}")
+def api_cancel_gtt(gtt_id: int, request: Request):
+    uid = get_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Account required")
+    return cancel_gtt_order(uid, gtt_id)
+
+# --- Mutual Fund SIP (Systematic Investment Plans) ---
+class SIPRequest(BaseModel):
+    fund_id: str
+    fund_name: str
+    monthly_amount: float
+    sip_day: int = 5
+
+@app.post("/api/mf/sip")
+def api_create_sip(req: SIPRequest, request: Request):
+    uid = get_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Account required to create SIP")
+    if req.monthly_amount < 500:
+        raise HTTPException(status_code=400, detail="Minimum monthly SIP amount is ₹500")
+    return create_sip(uid, req.fund_id, req.fund_name, req.monthly_amount, req.sip_day)
+
+@app.get("/api/mf/sips")
+def api_get_sips(request: Request):
+    uid = get_user_id(request)
+    if not uid:
+        return []
+    return get_user_sips(uid)
+
+@app.delete("/api/mf/sip/{sip_id}")
+def api_cancel_sip(sip_id: int, request: Request):
+    uid = get_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Account required")
+    return cancel_sip(uid, sip_id)
+
+# --- Real Indian IPOs Hub ---
+@app.get("/api/ipo/list")
+def api_get_ipos(status: Optional[str] = None):
+    return ipo_service.get_ipos(status)
+
+class IPOApplyRequest(BaseModel):
+    ipo_id: str
+    ipo_name: str
+    lots: int
+    shares: int
+    bid_price: float
+    upi_id: str = "trader@okaxis"
+
+@app.post("/api/ipo/apply")
+def api_apply_ipo(req: IPOApplyRequest, request: Request):
+    uid = get_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Account required to bid for IPOs")
+    res = apply_ipo(uid, req.ipo_id, req.ipo_name, req.lots, req.shares, req.bid_price, req.upi_id)
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("error"))
+    return res
+
+@app.get("/api/ipo/applications")
+def api_get_ipo_bids(request: Request):
+    uid = get_user_id(request)
+    if not uid:
+        return []
+    return get_ipo_bids(uid)
+
+@app.delete("/api/ipo/bid/{bid_id}")
+def api_cancel_ipo_bid(bid_id: int, request: Request):
+    uid = get_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Account required")
+    return cancel_ipo_bid(uid, bid_id)
+
+# --- Extended Fundamentals & Market Data ---
+@app.get("/api/stock/financials")
+def api_stock_financials(symbol: str):
+    return market_service.get_stock_financials(symbol)
+
+@app.get("/api/stock/shareholding")
+def api_stock_shareholding(symbol: str):
+    return market_service.get_stock_shareholding(symbol)
+
+@app.get("/api/stock/peers")
+def api_stock_peers(symbol: str):
+    return market_service.get_stock_peers(symbol)
+
+@app.get("/api/stock/news")
+def api_stock_news(symbol: str):
+    return market_service.get_stock_news(symbol)
+
+# --- Portfolio Analytics & Tax Reporting ---
+@app.get("/api/analytics/tax-report")
+def api_tax_report(request: Request):
+    uid = get_user_id(request)
+    if not uid:
+        return {"stcg_profit": 0, "net_stcg": 0, "stcg_tax": 0, "ltcg_profit": 0, "net_ltcg": 0, "ltcg_tax": 0, "total_tax_liability": 0, "trades": []}
+    return get_capital_gains_tax_report(uid)
+
+@app.get("/api/analytics/sector-allocation")
+def api_sector_allocation(request: Request):
+    uid = get_user_id(request)
+    if not uid:
+        return []
+    return get_sector_allocation(uid)
+
 # --- Single Page Application (SPA) Deep-Linking Browser Routes ---
 @app.get("/explore")
+@app.get("/fo")
+@app.get("/ipo")
 @app.get("/holdings")
 @app.get("/positions")
 @app.get("/orders")

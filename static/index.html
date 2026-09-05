@@ -134,10 +134,6 @@
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path><path d="M12 18V6"></path></svg>
             <span>Trading Capital & Timings</span>
           </button>
-          <button class="dropdown-item" id="dropdownInstallItem" onclick="installPWA()">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-            <span>Install Stoxify App</span>
-          </button>
           <button class="dropdown-item" onclick="openSwitchAccountModal()">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg>
             <span>Switch Account</span>
@@ -163,6 +159,21 @@
     <div class="index-pill"><span class="name">NIFTY IT</span><span class="price">--</span></div>
   </div>
 
+  <!-- Mobile Browser Install App Floating Banner (Outside profile, auto-hides once installed) -->
+  <div class="mobile-install-banner" id="mobileInstallBanner" style="display: none;">
+    <div class="mob-install-left">
+      <img src="/static/icon-192.png" alt="Stoxify" class="mob-install-icon">
+      <div>
+        <div class="mob-install-title">Install Stoxify App</div>
+        <div class="mob-install-sub">Full screen • Live quotes • 0MB storage</div>
+      </div>
+    </div>
+    <div class="mob-install-actions">
+      <button class="mob-install-btn" onclick="installPWA()">Install</button>
+      <button class="mob-install-close" onclick="dismissMobileInstallBanner()" title="Dismiss">✕</button>
+    </div>
+  </div>
+
   <!-- Main Container -->
   <main class="main-content">
 
@@ -170,7 +181,9 @@
     <section id="pane-explore" class="tab-pane active">
       <div class="sub-nav">
         <button class="sub-nav-btn active" id="subnav-stocks" onclick="switchExploreSubnav('stocks')">Stocks</button>
+        <button class="sub-nav-btn" id="subnav-fo" onclick="switchExploreSubnav('fo')">F&O (Futures & Options)</button>
         <button class="sub-nav-btn" id="subnav-mf" onclick="switchExploreSubnav('mf')">Mutual Funds</button>
+        <button class="sub-nav-btn" id="subnav-ipo" onclick="switchExploreSubnav('ipo')">IPOs</button>
       </div>
 
       <!-- Stocks Sub-view -->
@@ -204,6 +217,74 @@
         </div>
       </div>
 
+      <!-- F&O (Futures & Options) Sub-view -->
+      <div id="explore-fo-container" style="display: none;">
+        <!-- Educational SEBI Notice (Highlighting Stoxify's zero income proof practice) -->
+        <div class="fo-educational-banner">
+          <div class="fo-edu-badge">⚡ NO INCOME PROOF NEEDED</div>
+          <div class="fo-edu-content">
+            <h3 class="fo-edu-title">Instant Virtual F&O Access on Stoxify</h3>
+            <p class="fo-edu-desc">
+              In real Indian brokers like Groww, Zerodha, or Upstox, SEBI mandates submitting <strong>6-month bank statements, Form 16, or ITR acknowledgment</strong> to activate F&O. On <strong>Stoxify</strong>, you can master Option Chains, Calls, and Puts <strong>immediately without paperwork</strong> using your ₹10,00,000 virtual balance!
+            </p>
+          </div>
+        </div>
+
+        <div class="fo-controls-bar">
+          <div class="fo-index-switcher">
+            <button class="fo-idx-btn active" id="btnFoNifty" onclick="switchFoUnderlying('NIFTY')">
+              <span>NIFTY 50</span>
+              <small>Lot: 25</small>
+            </button>
+            <button class="fo-idx-btn" id="btnFoBankNifty" onclick="switchFoUnderlying('BANKNIFTY')">
+              <span>BANK NIFTY</span>
+              <small>Lot: 15</small>
+            </button>
+          </div>
+          <div class="fo-stats-row">
+            <div class="fo-stat-pill">
+              <span class="label">Spot Price:</span>
+              <strong id="foSpotPrice">₹24,000.00</strong>
+              <span id="foSpotChange" class="badge-positive">+120.50 (+0.50%)</span>
+            </div>
+            <div class="fo-stat-pill">
+              <span class="label">Weekly Expiry:</span>
+              <strong id="foExpiryDate">Thursday</strong>
+            </div>
+            <div class="fo-stat-pill">
+              <span class="label">Put-Call Ratio (PCR):</span>
+              <strong id="foPcrVal">1.14</strong>
+              <span id="foPcrSentiment" class="pcr-pill bullish">Bullish</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Option Chain Matrix Table -->
+        <div class="table-container option-chain-table-container">
+          <table class="groww-table option-chain-table">
+            <thead>
+              <tr class="oc-super-header">
+                <th colspan="3" style="text-align: center; background: rgba(16, 185, 129, 0.08); color: var(--accent-green);">CALLS (CE)</th>
+                <th style="text-align: center; background: var(--bg-elevated);">STRIKE</th>
+                <th colspan="3" style="text-align: center; background: rgba(244, 63, 94, 0.08); color: var(--danger-red);">PUTS (PE)</th>
+              </tr>
+              <tr class="oc-sub-header">
+                <th>OI (Contracts)</th>
+                <th>Call LTP</th>
+                <th style="text-align: right;">Action</th>
+                <th style="text-align: center;">Strike Price</th>
+                <th>Action</th>
+                <th>Put LTP</th>
+                <th style="text-align: right;">OI (Contracts)</th>
+              </tr>
+            </thead>
+            <tbody id="optionChainTableBody">
+              <tr><td colspan="7" style="text-align: center; padding: 3rem; color: var(--text-muted);">Loading option chain...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- Mutual Funds Sub-view -->
       <div id="explore-mf-container" style="display: none;">
         <div class="section-header">
@@ -214,6 +295,25 @@
         </div>
 
         <div class="cards-grid" id="mfGrid"></div>
+      </div>
+
+      <!-- Real Indian IPOs Hub Sub-view -->
+      <div id="explore-ipo-container" style="display: none;">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Initial Public Offerings (IPOs)</h2>
+            <p class="section-desc">Real Indian mainline & SME IPOs with verified price bands, GMP, and simulated ASBA lot bidding</p>
+          </div>
+          <div class="filter-pills" style="margin-bottom: 0;">
+            <button class="pill-btn active" onclick="filterIpos('ALL', this)">All</button>
+            <button class="pill-btn" onclick="filterIpos('LISTED', this)">Recently Listed</button>
+            <button class="pill-btn" onclick="filterIpos('UPCOMING', this)">Upcoming</button>
+          </div>
+        </div>
+
+        <div class="cards-grid" id="ipoGrid">
+          <div style="color: var(--text-muted); font-size: 0.9rem; padding: 2rem;">Loading live IPOs...</div>
+        </div>
       </div>
     </section>
 
@@ -234,65 +334,183 @@
       </div>
 
       <div id="holdingsAuthContent">
-        <div class="section-header">
-          <div>
-            <h2 class="section-title">Delivery Holdings</h2>
-            <p class="section-desc">Long-term portfolio assets held in demat (Delivery CNC)</p>
+        <!-- Holdings Section Sub-Navigation -->
+        <div class="sub-nav" style="margin-bottom: 1.25rem;">
+          <button class="sub-nav-btn active" id="subnav-holdings-list" onclick="switchHoldingsSubnav('list')">Holdings</button>
+          <button class="sub-nav-btn" id="subnav-holdings-analytics" onclick="switchHoldingsSubnav('analytics')">Analytics & Tax Report (Budget 2024)</button>
+          <button class="sub-nav-btn" id="subnav-holdings-sips" onclick="switchHoldingsSubnav('sips')">Active SIPs</button>
+        </div>
+
+        <!-- 1. Normal Holdings View -->
+        <div id="holdings-list-container">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Delivery Holdings</h2>
+              <p class="section-desc">Long-term portfolio assets held in demat (Delivery CNC)</p>
+            </div>
+          </div>
+
+          <!-- Portfolio Summary Banner -->
+          <div class="portfolio-banner">
+            <div>
+              <div class="banner-metric-label">Current Value</div>
+              <div class="banner-metric-val" id="summaryCurrentVal">₹0.00</div>
+              <div class="banner-metric-sub" id="summaryTodayPnl"><span>1D: ₹0.00 (0.00%)</span></div>
+            </div>
+            <div>
+              <div class="banner-metric-label">Total Investment</div>
+              <div class="banner-metric-val" id="summaryInvestedVal">₹0.00</div>
+              <div class="banner-metric-sub" style="color: var(--text-muted);">Cost basis</div>
+            </div>
+            <div>
+              <div class="banner-metric-label">Total Returns</div>
+              <div class="banner-metric-val" id="summaryTotalReturns">₹0.00</div>
+              <div class="banner-metric-sub" id="summaryTotalReturnsPct"><span>0.00%</span></div>
+            </div>
+            <div>
+              <div class="banner-metric-label">Available Balance</div>
+              <div class="banner-metric-val" id="summaryAvailableBalance" style="color: var(--accent-green);">₹10,00,000.00</div>
+              <div class="banner-metric-sub" style="color: var(--text-muted);">Ready to trade</div>
+            </div>
+          </div>
+
+          <!-- Desktop Holdings Table -->
+          <div class="table-container desktop-table-container">
+            <table class="groww-table">
+              <thead>
+                <tr>
+                  <th>Instrument</th>
+                  <th>Type</th>
+                  <th>Shares / Units</th>
+                  <th>Avg. Price</th>
+                  <th>Current Price</th>
+                  <th>Current Value</th>
+                  <th>Total Returns</th>
+                  <th>1D Returns</th>
+                  <th style="text-align: right;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="holdingsTableBody">
+                <tr>
+                  <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 3rem;">
+                    No active holdings. Explore stocks and mutual funds to start investing!
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Mobile Holdings Cards List -->
+          <div class="mobile-cards-list" id="holdingsMobileList"></div>
+        </div>
+
+        <!-- 2. Portfolio Analytics & Capital Gains Tax Report View -->
+        <div id="holdings-analytics-container" style="display: none;">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Portfolio Analytics & Tax Liability</h2>
+              <p class="section-desc">Computed using India Union Budget 2024 revised capital gains provisions</p>
+            </div>
+          </div>
+
+          <!-- Sector Allocation Card -->
+          <div class="asset-section-card" style="margin-bottom: 1.5rem;">
+            <h3 class="section-heading">Sector & Asset Diversification</h3>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
+              Portfolio exposure across Indian industrial sectors and mutual funds.
+            </p>
+            <div id="sectorAllocationContainer" style="display: flex; flex-direction: column; gap: 0.85rem;">
+              <div style="color: var(--text-muted); font-size: 0.85rem;">No holdings available to compute sector allocation.</div>
+            </div>
+          </div>
+
+          <!-- Capital Gains Tax Card (Budget 2024: STCG 20%, LTCG 12.5%) -->
+          <div class="asset-section-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+              <h3 class="section-heading" style="margin-bottom: 0;">Capital Gains Tax Statement (FY 2024-25)</h3>
+              <span class="funds-badge-pill">Budget 2024 Rules</span>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
+              • Short-Term Capital Gains (STCG) on equity/intraday taxed at <strong>20%</strong> (revised from 15%).<br>
+              • Long-Term Capital Gains (LTCG) held $\ge$ 1 year taxed at <strong>12.5%</strong> with <strong>₹1,25,000</strong> annual exemption.
+            </p>
+
+            <div class="portfolio-banner" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 1.5rem;">
+              <div>
+                <div class="banner-metric-label">Net STCG (<1 Year)</div>
+                <div class="banner-metric-val" id="taxStcgGain">₹0.00</div>
+                <div class="banner-metric-sub">Tax @ 20%: <strong id="taxStcgLiability" style="color: var(--danger-red);">₹0.00</strong></div>
+              </div>
+              <div>
+                <div class="banner-metric-label">Net LTCG (≥1 Year)</div>
+                <div class="banner-metric-val" id="taxLtcgGain">₹0.00</div>
+                <div class="banner-metric-sub">Exemption: ₹1.25L applied</div>
+              </div>
+              <div>
+                <div class="banner-metric-label">Taxable LTCG</div>
+                <div class="banner-metric-val" id="taxLtcgTaxable">₹0.00</div>
+                <div class="banner-metric-sub">Tax @ 12.5%: <strong id="taxLtcgLiability" style="color: var(--danger-red);">₹0.00</strong></div>
+              </div>
+              <div>
+                <div class="banner-metric-label">Total Estimated Tax</div>
+                <div class="banner-metric-val" id="taxTotalLiability" style="color: var(--danger-red);">₹0.00</div>
+                <div class="banner-metric-sub" style="color: var(--text-muted);">Advance tax reference</div>
+              </div>
+            </div>
+
+            <!-- Tax Trades Table -->
+            <div class="table-container desktop-table-container">
+              <table class="groww-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Asset</th>
+                    <th>Product</th>
+                    <th>Shares Sold</th>
+                    <th>Sale Price</th>
+                    <th>Realized Gain / Loss</th>
+                    <th>Applicable Tax Provision</th>
+                  </tr>
+                </thead>
+                <tbody id="taxTradesTableBody">
+                  <tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">No realized sell trades to report for capital gains tax.</td></tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
-        <!-- Portfolio Summary Banner -->
-        <div class="portfolio-banner">
-          <div>
-            <div class="banner-metric-label">Current Value</div>
-            <div class="banner-metric-val" id="summaryCurrentVal">₹0.00</div>
-            <div class="banner-metric-sub" id="summaryTodayPnl"><span>1D: ₹0.00 (0.00%)</span></div>
+        <!-- 3. Active SIPs View -->
+        <div id="holdings-sips-container" style="display: none;">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">My Active SIPs</h2>
+              <p class="section-desc">Automated recurring monthly investments into mutual funds</p>
+            </div>
+            <button class="btn-primary" onclick="switchExploreSubnav('mf'); navigateTo('/explore');">
+              + Discover More Funds
+            </button>
           </div>
-          <div>
-            <div class="banner-metric-label">Total Investment</div>
-            <div class="banner-metric-val" id="summaryInvestedVal">₹0.00</div>
-            <div class="banner-metric-sub" style="color: var(--text-muted);">Cost basis</div>
-          </div>
-          <div>
-            <div class="banner-metric-label">Total Returns</div>
-            <div class="banner-metric-val" id="summaryTotalReturns">₹0.00</div>
-            <div class="banner-metric-sub" id="summaryTotalReturnsPct"><span>0.00%</span></div>
-          </div>
-          <div>
-            <div class="banner-metric-label">Available Balance</div>
-            <div class="banner-metric-val" id="summaryAvailableBalance" style="color: var(--accent-green);">₹10,00,000.00</div>
-            <div class="banner-metric-sub" style="color: var(--text-muted);">Ready to trade</div>
-          </div>
-        </div>
 
-        <!-- Desktop Holdings Table -->
-        <div class="table-container desktop-table-container">
-          <table class="groww-table">
-            <thead>
-              <tr>
-                <th>Instrument</th>
-                <th>Type</th>
-                <th>Shares / Units</th>
-                <th>Avg. Price</th>
-                <th>Current Price</th>
-                <th>Current Value</th>
-                <th>Total Returns</th>
-                <th>1D Returns</th>
-                <th style="text-align: right;">Action</th>
-              </tr>
-            </thead>
-            <tbody id="holdingsTableBody">
-              <tr>
-                <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 3rem;">
-                  No active holdings. Explore stocks and mutual funds to start investing!
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <div class="table-container desktop-table-container">
+            <table class="groww-table">
+              <thead>
+                <tr>
+                  <th>Fund Name</th>
+                  <th>Monthly SIP Amount</th>
+                  <th>Deduction Day</th>
+                  <th>Next Installment</th>
+                  <th>Status</th>
+                  <th style="text-align: right;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="sipsTableBody">
+                <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 3rem;">No active SIPs scheduled. Select any mutual fund to start your SIP!</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="mobile-cards-list" id="sipsMobileList"></div>
         </div>
-
-        <!-- Mobile Holdings Cards List -->
-        <div class="mobile-cards-list" id="holdingsMobileList"></div>
       </div>
     </section>
 
@@ -387,6 +605,9 @@
         <button class="sub-nav-btn" id="subnav-open" onclick="switchOrdersSubnav('open')">
           Open Orders (<span id="openOrdersCount">0</span>)
         </button>
+        <button class="sub-nav-btn" id="subnav-gtt" onclick="switchOrdersSubnav('gtt')">
+          GTT & Triggers (<span id="gttOrdersCount">0</span>)
+        </button>
       </div>
 
       <!-- Executed Orders View -->
@@ -439,6 +660,31 @@
           </table>
         </div>
         <div class="mobile-cards-list" id="openOrdersMobileList"></div>
+      </div>
+
+      <!-- GTT & Stop-Loss Triggers View -->
+      <div id="orders-gtt-container" style="display: none;">
+        <div class="table-container desktop-table-container">
+          <table class="groww-table">
+            <thead>
+              <tr>
+                <th>Trigger ID</th>
+                <th>Instrument</th>
+                <th>Action</th>
+                <th>Trigger Price</th>
+                <th>Limit Price</th>
+                <th>Quantity</th>
+                <th>Placed At</th>
+                <th>Status</th>
+                <th style="text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="gttOrdersTableBody">
+              <tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 3rem;">No active GTT or Stop-Loss triggers.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="mobile-cards-list" id="gttOrdersMobileList"></div>
       </div>
     </section>
 
@@ -501,7 +747,7 @@
 
           <!-- Chart Card -->
           <div class="asset-chart-card">
-            <div class="chart-controls" style="margin-bottom: 1rem;">
+            <div class="chart-controls" style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
               <div class="chart-timeframes">
                 <button class="tf-btn" onclick="loadPageChartTimeframe('1D', this)">1D</button>
                 <button class="tf-btn" onclick="loadPageChartTimeframe('1W', this)">1W</button>
@@ -511,93 +757,252 @@
                 <button class="tf-btn" onclick="loadPageChartTimeframe('5Y', this)">5Y</button>
                 <button class="tf-btn" onclick="loadPageChartTimeframe('ALL', this)">ALL</button>
               </div>
+              <div class="chart-indicators-row" style="display: flex; align-items: center; gap: 0.5rem;">
+                <div class="chart-type-toggle">
+                  <button class="chart-type-btn active" id="btnChartLine" onclick="setChartType('line')" title="Line Chart">📈 Line</button>
+                  <button class="chart-type-btn" id="btnChartCandle" onclick="setChartType('candle')" title="Candlestick Chart">🕯️ Candle</button>
+                </div>
+                <button class="ema-chip" id="btnEma20" onclick="toggleEma(20)">20 EMA</button>
+                <button class="ema-chip" id="btnEma50" onclick="toggleEma(50)">50 EMA</button>
+              </div>
             </div>
             <div class="chart-wrapper" style="height: 380px; position: relative;">
               <canvas id="pageAssetChartCanvas"></canvas>
             </div>
           </div>
 
-          <!-- Performance Sliders Card -->
-          <div class="asset-section-card" id="pagePerformanceSection">
-            <h3 class="section-heading">Performance</h3>
-            <div class="performance-bars-grid">
-              <div class="range-bar-item">
-                <div class="range-labels">
-                  <div>
-                    <span class="label-sub">Today's Low</span>
-                    <strong class="val" id="perfTodayLow">₹0.00</strong>
+          <!-- Asset Detail Navigation Tab Strip (Groww Style) -->
+          <div class="asset-tab-strip">
+            <button class="asset-tab-btn active" id="tab-asset-overview" onclick="switchAssetPageTab('overview')">Overview</button>
+            <button class="asset-tab-btn" id="tab-asset-financials" onclick="switchAssetPageTab('financials')">Financials</button>
+            <button class="asset-tab-btn" id="tab-asset-shareholding" onclick="switchAssetPageTab('shareholding')">Shareholding</button>
+            <button class="asset-tab-btn" id="tab-asset-peers" onclick="switchAssetPageTab('peers')">Peers</button>
+            <button class="asset-tab-btn" id="tab-asset-news" onclick="switchAssetPageTab('news')">News</button>
+          </div>
+
+          <!-- Tab 1: Overview -->
+          <div id="asset-tab-content-overview" class="asset-tab-pane active">
+            <!-- Performance Sliders Card -->
+            <div class="asset-section-card" id="pagePerformanceSection">
+              <h3 class="section-heading">Performance</h3>
+              <div class="performance-bars-grid">
+                <div class="range-bar-item">
+                  <div class="range-labels">
+                    <div>
+                      <span class="label-sub">Today's Low</span>
+                      <strong class="val" id="perfTodayLow">₹0.00</strong>
+                    </div>
+                    <div>
+                      <span class="label-sub">Today's High</span>
+                      <strong class="val" id="perfTodayHigh">₹0.00</strong>
+                    </div>
                   </div>
-                  <div>
-                    <span class="label-sub">Today's High</span>
-                    <strong class="val" id="perfTodayHigh">₹0.00</strong>
+                  <div class="range-track">
+                    <div class="range-fill" id="perfTodayFill" style="left: 0%; width: 100%;"></div>
+                    <div class="range-marker" id="perfTodayMarker" style="left: 50%;"></div>
                   </div>
                 </div>
-                <div class="range-track">
-                  <div class="range-fill" id="perfTodayFill" style="left: 0%; width: 100%;"></div>
-                  <div class="range-marker" id="perfTodayMarker" style="left: 50%;"></div>
+                <div class="range-bar-item">
+                  <div class="range-labels">
+                    <div>
+                      <span class="label-sub">52-Week Low</span>
+                      <strong class="val" id="perf52wLow">₹0.00</strong>
+                    </div>
+                    <div>
+                      <span class="label-sub">52-Week High</span>
+                      <strong class="val" id="perf52wHigh">₹0.00</strong>
+                    </div>
+                  </div>
+                  <div class="range-track">
+                    <div class="range-fill" id="perf52wFill" style="left: 0%; width: 100%;"></div>
+                    <div class="range-marker" id="perf52wMarker" style="left: 50%;"></div>
+                  </div>
                 </div>
               </div>
-              <div class="range-bar-item">
-                <div class="range-labels">
-                  <div>
-                    <span class="label-sub">52-Week Low</span>
-                    <strong class="val" id="perf52wLow">₹0.00</strong>
-                  </div>
-                  <div>
-                    <span class="label-sub">52-Week High</span>
-                    <strong class="val" id="perf52wHigh">₹0.00</strong>
-                  </div>
+
+              <div class="stats-key-val-grid">
+                <div class="stat-kv"><span class="k">Open</span><strong class="v" id="perfOpen">₹0.00</strong></div>
+                <div class="stat-kv"><span class="k">Prev Close</span><strong class="v" id="perfPrevClose">₹0.00</strong></div>
+                <div class="stat-kv"><span class="k">Volume</span><strong class="v" id="perfVolume">--</strong></div>
+                <div class="stat-kv"><span class="k">Lower Circuit</span><strong class="v" id="perfLowerCircuit">₹0.00</strong></div>
+                <div class="stat-kv"><span class="k">Upper Circuit</span><strong class="v" id="perfUpperCircuit">₹0.00</strong></div>
+              </div>
+            </div>
+
+            <!-- Level-2 Market Depth Card -->
+            <div class="asset-section-card" id="pageMarketDepthSection">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h3 class="section-heading" style="margin-bottom: 0;">Market Depth (Level-2 Order Book)</h3>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">Real-time Bids & Asks</div>
+              </div>
+              <div class="depth-ratio-bar">
+                <div class="depth-ratio-buy" id="pageDepthBuyBar" style="width: 50%;">50% Buyers</div>
+                <div class="depth-ratio-sell" id="pageDepthSellBar" style="width: 50%;">50% Sellers</div>
+              </div>
+              <div class="depth-columns">
+                <div class="depth-col">
+                  <div class="depth-col-head"><span>Orders</span><span>Qty</span><span>Bid Price</span></div>
+                  <div id="pageDepthBids"></div>
                 </div>
-                <div class="range-track">
-                  <div class="range-fill" id="perf52wFill" style="left: 0%; width: 100%;"></div>
-                  <div class="range-marker" id="perf52wMarker" style="left: 50%;"></div>
+                <div class="depth-col">
+                  <div class="depth-col-head"><span>Ask Price</span><span>Qty</span><span>Orders</span></div>
+                  <div id="pageDepthAsks"></div>
                 </div>
               </div>
             </div>
 
-            <div class="stats-key-val-grid">
-              <div class="stat-kv"><span class="k">Open</span><strong class="v" id="perfOpen">₹0.00</strong></div>
-              <div class="stat-kv"><span class="k">Prev Close</span><strong class="v" id="perfPrevClose">₹0.00</strong></div>
-              <div class="stat-kv"><span class="k">Volume</span><strong class="v" id="perfVolume">--</strong></div>
-              <div class="stat-kv"><span class="k">Lower Circuit</span><strong class="v" id="perfLowerCircuit">₹0.00</strong></div>
-              <div class="stat-kv"><span class="k">Upper Circuit</span><strong class="v" id="perfUpperCircuit">₹0.00</strong></div>
+            <!-- Fundamentals Card -->
+            <div class="asset-section-card" id="pageFundamentalsSection">
+              <h3 class="section-heading">Fundamentals & Key Ratios</h3>
+              <div class="fundamentals-grid" id="pageFundamentalsGrid"></div>
+            </div>
+
+            <!-- Mutual Fund SIP Return Calculator (Groww Style Compounding) -->
+            <div class="asset-section-card" id="pageSipCalcSection" style="display: none;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+                <div>
+                  <h3 class="section-heading" style="margin-bottom: 0.2rem;">SIP Return Calculator</h3>
+                  <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">Calculate the future wealth generated through systematic monthly investing</p>
+                </div>
+                <span class="pill-btn" style="color: var(--accent-green); border-color: rgba(16, 185, 129, 0.2);">Compounding Engine</span>
+              </div>
+              <div class="sip-calc-container">
+                <div class="sip-calc-slider-group">
+                  <div class="sip-slider-header">
+                    <span>Monthly Investment</span>
+                    <strong class="sip-val-badge">₹<span id="sipCalcMonthlyVal">5,000</span></strong>
+                  </div>
+                  <input type="range" class="sip-slider" id="sipSliderMonthly" min="500" max="100000" step="500" value="5000" oninput="onSipSliderChange()">
+                </div>
+                <div class="sip-calc-slider-group">
+                  <div class="sip-slider-header">
+                    <span>Expected Annual Return (p.a)</span>
+                    <strong class="sip-val-badge"><span id="sipCalcReturnVal">12</span>%</strong>
+                  </div>
+                  <input type="range" class="sip-slider" id="sipSliderReturn" min="1" max="30" step="0.5" value="12" oninput="onSipSliderChange()">
+                </div>
+                <div class="sip-calc-slider-group">
+                  <div class="sip-slider-header">
+                    <span>Investment Horizon</span>
+                    <strong class="sip-val-badge"><span id="sipCalcYearsVal">5</span> Years</strong>
+                  </div>
+                  <input type="range" class="sip-slider" id="sipSliderYears" min="1" max="30" step="1" value="5" oninput="onSipSliderChange()">
+                </div>
+                <div class="sip-calc-result-box">
+                  <div class="sip-res-item">
+                    <span class="sip-res-label">Invested Amount</span>
+                    <strong class="sip-res-val" id="sipResInvested">₹3,00,000</strong>
+                  </div>
+                  <div class="sip-res-item">
+                    <span class="sip-res-label">Est. Wealth Gain</span>
+                    <strong class="sip-res-val" style="color: var(--accent-green);" id="sipResGains">₹1,12,432</strong>
+                  </div>
+                  <div class="sip-res-item total">
+                    <span class="sip-res-label">Total Maturity Value</span>
+                    <strong class="sip-res-val total-val" id="sipResTotal">₹4,12,432</strong>
+                  </div>
+                </div>
+                <button class="btn-primary" style="width: 100%; justify-content: center; margin-top: 1.25rem; padding: 0.85rem;" onclick="openSipModalForCurrentAsset()">
+                  ⚡ Schedule Monthly SIP with Auto-Debit →
+                </button>
+              </div>
+            </div>
+
+            <!-- About Card -->
+            <div class="asset-section-card" id="pageAboutSection">
+              <h3 class="section-heading">About <span id="pageAboutTitle">Company</span></h3>
+              <p id="pageAboutText" style="color: var(--text-secondary); line-height: 1.6; font-size: 0.92rem;">
+                Description and overview.
+              </p>
             </div>
           </div>
 
-          <!-- Level-2 Market Depth Card -->
-          <div class="asset-section-card" id="pageMarketDepthSection">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-              <h3 class="section-heading" style="margin-bottom: 0;">Market Depth (Level-2 Order Book)</h3>
-              <div style="font-size: 0.75rem; color: var(--text-muted);">Real-time Bids & Asks</div>
-            </div>
-            <div class="depth-ratio-bar">
-              <div class="depth-ratio-buy" id="pageDepthBuyBar" style="width: 50%;">50% Buyers</div>
-              <div class="depth-ratio-sell" id="pageDepthSellBar" style="width: 50%;">50% Sellers</div>
-            </div>
-            <div class="depth-columns">
-              <div class="depth-col">
-                <div class="depth-col-head"><span>Orders</span><span>Qty</span><span>Bid Price</span></div>
-                <div id="pageDepthBids"></div>
+          <!-- Tab 2: Financials -->
+          <div id="asset-tab-content-financials" class="asset-tab-pane" style="display: none;">
+            <div class="asset-section-card">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+                <div>
+                  <h3 class="section-heading" style="margin-bottom: 0.2rem;">Financial Performance</h3>
+                  <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">Income Statement Breakdown (Amounts in ₹ Crores)</p>
+                </div>
+                <div class="segmented-pills">
+                  <button class="seg-btn active" id="btnFinQuarterly" onclick="switchFinPeriod('quarterly')">Quarterly</button>
+                  <button class="seg-btn" id="btnFinAnnual" onclick="switchFinPeriod('annual')">Annual</button>
+                </div>
               </div>
-              <div class="depth-col">
-                <div class="depth-col-head"><span>Ask Price</span><span>Qty</span><span>Orders</span></div>
-                <div id="pageDepthAsks"></div>
+              <div id="pageFinancialsBarsContainer" class="financials-bars-grid">
+                <div style="color: var(--text-muted); padding: 2rem; text-align: center;">Loading financial statements...</div>
+              </div>
+              <div class="table-container" style="margin-top: 1.25rem;">
+                <table class="groww-table" id="pageFinancialsTable">
+                  <thead>
+                    <tr>
+                      <th>Metric (₹ Cr)</th>
+                      <th id="finPeriodCol1">Q1</th>
+                      <th id="finPeriodCol2">Q2</th>
+                      <th id="finPeriodCol3">Q3</th>
+                      <th id="finPeriodCol4">Q4</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pageFinancialsTableBody">
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
 
-          <!-- Fundamentals Card -->
-          <div class="asset-section-card" id="pageFundamentalsSection">
-            <h3 class="section-heading">Fundamentals & Key Ratios</h3>
-            <div class="fundamentals-grid" id="pageFundamentalsGrid"></div>
+          <!-- Tab 3: Shareholding -->
+          <div id="asset-tab-content-shareholding" class="asset-tab-pane" style="display: none;">
+            <div class="asset-section-card">
+              <div style="margin-bottom: 1.25rem;">
+                <h3 class="section-heading" style="margin-bottom: 0.2rem;">Shareholding Pattern</h3>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">Institutional, Promoter & Retail Ownership Breakdown</p>
+              </div>
+              <div id="pageShareholdingContainer">
+                <div style="color: var(--text-muted); padding: 2rem; text-align: center;">Loading ownership distribution...</div>
+              </div>
+            </div>
           </div>
 
-          <!-- About Card -->
-          <div class="asset-section-card" id="pageAboutSection">
-            <h3 class="section-heading">About <span id="pageAboutTitle">Company</span></h3>
-            <p id="pageAboutText" style="color: var(--text-secondary); line-height: 1.6; font-size: 0.92rem;">
-              Description and overview.
-            </p>
+          <!-- Tab 4: Peers -->
+          <div id="asset-tab-content-peers" class="asset-tab-pane" style="display: none;">
+            <div class="asset-section-card">
+              <div style="margin-bottom: 1.25rem;">
+                <h3 class="section-heading" style="margin-bottom: 0.2rem;">Sector Peer Comparison</h3>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">Compare valuation, market cap, and performance against key competitors</p>
+              </div>
+              <div class="table-container">
+                <table class="groww-table" id="pagePeersTable">
+                  <thead>
+                    <tr>
+                      <th>Company</th>
+                      <th>CMP</th>
+                      <th>P/E Ratio</th>
+                      <th>Market Cap</th>
+                      <th>1Y Return</th>
+                      <th>Div Yield</th>
+                      <th style="text-align: right;">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pagePeersTableBody">
+                    <tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading competitor peers...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 5: News -->
+          <div id="asset-tab-content-news" class="asset-tab-pane" style="display: none;">
+            <div class="asset-section-card">
+              <div style="margin-bottom: 1.25rem;">
+                <h3 class="section-heading" style="margin-bottom: 0.2rem;">Company News & Updates</h3>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">Real-time filings, exchange announcements, and market sentiment</p>
+              </div>
+              <div id="pageNewsContainer" class="asset-news-list">
+                <div style="color: var(--text-muted); padding: 2rem; text-align: center;">Loading news feed...</div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -622,12 +1027,14 @@
                 </div>
               </div>
 
-              <!-- Variety (Market vs Limit) -->
+              <!-- Variety (Market vs Limit vs SL vs GTT) -->
               <div class="trade-field-group">
                 <label class="field-label">Order Variety</label>
                 <div class="segmented-pills">
                   <button class="seg-btn active" id="pageVarietyMarket" onclick="setPageOrderVariety('MARKET')">Market</button>
                   <button class="seg-btn" id="pageVarietyLimit" onclick="setPageOrderVariety('LIMIT')">Limit</button>
+                  <button class="seg-btn" id="pageVarietySL" onclick="setPageOrderVariety('STOP_LOSS')">SL</button>
+                  <button class="seg-btn" id="pageVarietyGTT" onclick="setPageOrderVariety('GTT')">GTT</button>
                 </div>
               </div>
 
@@ -656,6 +1063,13 @@
               <div class="trade-field-group" id="pageLimitPriceGroup" style="display: none;">
                 <label class="field-label">Limit Price (₹)</label>
                 <input type="number" class="trade-text-input" id="pageOrderLimitPrice" step="0.05" oninput="recalcPageMargin()">
+              </div>
+
+              <!-- Trigger Price Input (for Stop-Loss and GTT) -->
+              <div class="trade-field-group" id="pageTriggerPriceGroup" style="display: none;">
+                <label class="field-label">Trigger Price (₹)</label>
+                <input type="number" class="trade-text-input" id="pageOrderTriggerPrice" step="0.05" placeholder="e.g. 2450.00" oninput="recalcPageMargin()">
+                <small style="color: var(--text-muted); font-size: 0.72rem; margin-top: 0.25rem; display: block;" id="pageTriggerHint">Order activates when market hits this trigger</small>
               </div>
 
               <!-- Margin Calculation Box -->
@@ -1486,6 +1900,186 @@
         </button>
         <button class="btn-subtle" style="flex: 1; justify-content: center;" onclick="closeOrderSuccessModal()">
           Continue Trading
+        </button>
+      </div>
+  <!-- Groww Style Options Trading Modal -->
+  <div class="modal-overlay" id="optionBuyModal" style="display: none;">
+    <div class="modal-container" style="max-width: 460px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 0.6rem;">
+          <div class="card-avatar" id="optModalAvatar" style="background: rgba(0, 208, 156, 0.15); color: var(--accent-green);">F&O</div>
+          <div>
+            <h3 style="font-size: 1.1rem; font-weight: 800;" id="optModalTitle">NIFTY 24000 CE</h3>
+            <span style="font-size: 0.8rem; color: var(--text-muted);" id="optModalSubtitle">Weekly Expiry • NSE Index Option</span>
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="closeOptionBuyModal()">✕</button>
+      </div>
+      <div class="modal-body" style="padding-top: 0.5rem;">
+        <div class="trade-action-toggle" style="margin-bottom: 1rem;">
+          <button class="trade-tab-btn active buy" id="optBtnBuy" onclick="setOptionAction('BUY')">BUY</button>
+          <button class="trade-tab-btn sell" id="optBtnSell" onclick="setOptionAction('SELL')">SELL</button>
+        </div>
+
+        <div class="fo-option-specs-grid">
+          <div class="stat-kv"><span class="k">Spot Price</span><strong class="v" id="optModalSpot">₹24,000.00</strong></div>
+          <div class="stat-kv"><span class="k">Option LTP</span><strong class="v" style="color: var(--accent-green);" id="optModalLtp">₹145.20</strong></div>
+          <div class="stat-kv"><span class="k">Lot Size</span><strong class="v" id="optModalLotSize">25 shares</strong></div>
+          <div class="stat-kv"><span class="k">Implied Vol (IV)</span><strong class="v" id="optModalIv">13.2%</strong></div>
+        </div>
+
+        <div class="trade-field-group" style="margin-top: 1rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+            <label class="field-label" style="margin-bottom: 0;">Number of Lots</label>
+            <span style="font-size: 0.8rem; color: var(--brand-cyan);" id="optModalTotalQty">25 Qty</span>
+          </div>
+          <div class="stepper-input">
+            <button class="step-btn" onclick="stepOptionLots(-1)">−</button>
+            <input type="number" id="optModalLots" min="1" max="100" step="1" value="1" oninput="recalcOptionPremium()">
+            <button class="step-btn" onclick="stepOptionLots(1)">+</button>
+          </div>
+          <div class="quick-qty-chips">
+            <button class="qty-chip" onclick="setOptionLots(1)">1 Lot</button>
+            <button class="qty-chip" onclick="setOptionLots(2)">2 Lots</button>
+            <button class="qty-chip" onclick="setOptionLots(5)">5 Lots</button>
+            <button class="qty-chip" onclick="setOptionLots(10)">10 Lots</button>
+          </div>
+        </div>
+
+        <div class="margin-calc-box" style="margin-top: 1rem;">
+          <div class="calc-row">
+            <span class="calc-label">Total Premium Payable</span>
+            <strong class="calc-val" id="optModalTotalPremium">₹3,630.00</strong>
+          </div>
+          <div class="calc-row">
+            <span class="calc-label">Virtual Cash Available</span>
+            <span class="calc-sub" id="optModalAvailableCash">₹10,00,000.00</span>
+          </div>
+        </div>
+
+        <button class="btn-trade-execute buy" id="optExecuteBtn" style="margin-top: 1.25rem;" onclick="submitOptionTrade()">
+          EXECUTE OPTION TRADE
+        </button>
+        <div style="text-align: center; margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted);">
+          ⚡ Simulated Black-Scholes execution • Zero broker fee
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Groww Style ASBA IPO Bidding Modal -->
+  <div class="modal-overlay" id="ipoBidModal" style="display: none;">
+    <div class="modal-container" style="max-width: 480px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 0.6rem;">
+          <div class="card-avatar" id="ipoModalAvatar" style="background: rgba(147, 51, 234, 0.15); color: #a855f7;">IPO</div>
+          <div>
+            <h3 style="font-size: 1.15rem; font-weight: 800;" id="ipoModalTitle">NTPC Green Energy Limited</h3>
+            <span style="font-size: 0.8rem; color: var(--text-muted);" id="ipoModalCategory">Mainboard • Bidding Open</span>
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="closeIpoBidModal()">✕</button>
+      </div>
+      <div class="modal-body" style="padding-top: 0.5rem;">
+        <div class="fo-option-specs-grid" style="grid-template-columns: repeat(3, 1fr);">
+          <div class="stat-kv"><span class="k">Price Band</span><strong class="v" id="ipoModalPriceBand">₹102 - ₹108</strong></div>
+          <div class="stat-kv"><span class="k">Lot Size</span><strong class="v" id="ipoModalLotSize">138 shares</strong></div>
+          <div class="stat-kv"><span class="k">Live GMP</span><strong class="v" style="color: var(--accent-green);" id="ipoModalGmp">+₹12.00 (+11.1%)</strong></div>
+        </div>
+
+        <div class="trade-field-group" style="margin-top: 1rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+            <label class="field-label" style="margin-bottom: 0;">Number of Lots (Max 13 Retail)</label>
+            <span style="font-size: 0.8rem; color: var(--brand-cyan);" id="ipoModalTotalShares">138 Shares</span>
+          </div>
+          <div class="stepper-input">
+            <button class="step-btn" onclick="stepIpoLots(-1)">−</button>
+            <input type="number" id="ipoModalLots" min="1" max="13" step="1" value="1" oninput="recalcIpoAmount()">
+            <button class="step-btn" onclick="stepIpoLots(1)">+</button>
+          </div>
+        </div>
+
+        <div class="trade-field-group">
+          <label class="field-label">Simulated UPI ID for ASBA Mandate</label>
+          <input type="text" class="trade-text-input" id="ipoModalUpi" value="trader@okhdfcbank" placeholder="yourname@bank">
+          <small style="color: var(--text-muted); font-size: 0.72rem; margin-top: 0.25rem; display: block;">Simulated mandate authorization against your Stoxify virtual cash</small>
+        </div>
+
+        <div class="margin-calc-box" style="margin-top: 1rem;">
+          <div class="calc-row">
+            <span class="calc-label">Total ASBA Block Amount</span>
+            <strong class="calc-val" style="color: var(--accent-green);" id="ipoModalTotalAmount">₹14,904.00</strong>
+          </div>
+          <div class="calc-row">
+            <span class="calc-label">Available Virtual Cash</span>
+            <span class="calc-sub" id="ipoModalAvailableCash">₹10,00,000.00</span>
+          </div>
+        </div>
+
+        <button class="btn-trade-execute buy" style="margin-top: 1.25rem;" onclick="submitIpoApplication()">
+          CONFIRM & APPLY FOR IPO
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Groww Style Mutual Fund SIP Scheduler Modal -->
+  <div class="modal-overlay" id="sipScheduleModal" style="display: none;">
+    <div class="modal-container" style="max-width: 460px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 0.6rem;">
+          <div class="card-avatar" style="background: rgba(16, 185, 129, 0.15); color: var(--accent-green);">SIP</div>
+          <div>
+            <h3 style="font-size: 1.15rem; font-weight: 800;" id="sipModalTitle">Schedule Recurring Monthly SIP</h3>
+            <span style="font-size: 0.8rem; color: var(--text-muted);" id="sipModalSubtitle">Automated virtual compounding</span>
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="closeSipModal()">✕</button>
+      </div>
+      <div class="modal-body" style="padding-top: 0.5rem;">
+        <div class="trade-field-group">
+          <label class="field-label">Mutual Fund / ETF Scheme</label>
+          <input type="text" class="trade-text-input" id="sipModalFundName" readonly style="opacity: 0.85;">
+        </div>
+
+        <div class="trade-field-group">
+          <label class="field-label">Monthly Investment Amount (₹)</label>
+          <input type="number" class="trade-text-input" id="sipModalAmount" min="500" step="500" value="5000">
+          <div class="quick-qty-chips" style="margin-top: 0.4rem;">
+            <button class="qty-chip" onclick="document.getElementById('sipModalAmount').value = 1000">₹1,000</button>
+            <button class="qty-chip" onclick="document.getElementById('sipModalAmount').value = 2500">₹2,500</button>
+            <button class="qty-chip" onclick="document.getElementById('sipModalAmount').value = 5000">₹5,000</button>
+            <button class="qty-chip" onclick="document.getElementById('sipModalAmount').value = 10000">₹10,000</button>
+            <button class="qty-chip" onclick="document.getElementById('sipModalAmount').value = 25000">₹25,000</button>
+          </div>
+        </div>
+
+        <div class="trade-field-group">
+          <label class="field-label">Monthly Auto-Debit Day</label>
+          <select class="trade-text-input" id="sipModalDay">
+            <option value="1">1st of every month</option>
+            <option value="5" selected>5th of every month</option>
+            <option value="10">10th of every month</option>
+            <option value="15">15th of every month</option>
+            <option value="20">20th of every month</option>
+            <option value="25">25th of every month</option>
+            <option value="28">28th of every month</option>
+          </select>
+        </div>
+
+        <div class="margin-calc-box" style="margin-top: 1rem;">
+          <div class="calc-row">
+            <span class="calc-label">Mandate Status</span>
+            <span class="badge-positive" style="font-size: 0.75rem;">Instant Virtual OTM Approved</span>
+          </div>
+          <div class="calc-row">
+            <span class="calc-label">Next Execution Date</span>
+            <span class="calc-sub" id="sipModalNextDate">5th Next Month</span>
+          </div>
+        </div>
+
+        <button class="btn-trade-execute buy" style="margin-top: 1.25rem;" onclick="submitSipSchedule()">
+          CONFIRM & START MONTHLY SIP
         </button>
       </div>
     </div>

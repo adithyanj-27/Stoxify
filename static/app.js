@@ -233,29 +233,71 @@ function switchTab(tabId, updateUrl = true) {
 function switchExploreSubnav(subId) {
   state.exploreSubnav = subId;
   document.querySelectorAll('#pane-explore .sub-nav-btn').forEach(btn => btn.classList.remove('active'));
-  document.getElementById(`subnav-${subId}`).classList.add('active');
+  const btn = document.getElementById(`subnav-${subId}`);
+  if (btn) btn.classList.add('active');
+
+  const containers = {
+    stocks: document.getElementById('explore-stocks-container'),
+    fo: document.getElementById('explore-fo-container'),
+    mf: document.getElementById('explore-mf-container'),
+    ipo: document.getElementById('explore-ipo-container')
+  };
+
+  Object.keys(containers).forEach(k => {
+    if (containers[k]) containers[k].style.display = (k === subId) ? 'block' : 'none';
+  });
 
   if (subId === 'stocks') {
-    document.getElementById('explore-stocks-container').style.display = 'block';
-    document.getElementById('explore-mf-container').style.display = 'none';
-  } else {
-    document.getElementById('explore-stocks-container').style.display = 'none';
-    document.getElementById('explore-mf-container').style.display = 'block';
+    if (!state.exploreData) fetchExploreData();
+  } else if (subId === 'fo') {
+    fetchOptionChain();
+  } else if (subId === 'mf') {
     renderExploreMutualFunds();
+  } else if (subId === 'ipo') {
+    fetchIpos();
   }
 }
 
 function switchOrdersSubnav(subId) {
   state.ordersSubnav = subId;
   document.querySelectorAll('#pane-orders .sub-nav-btn').forEach(btn => btn.classList.remove('active'));
-  document.getElementById(`subnav-${subId}`).classList.add('active');
+  const btn = document.getElementById(`subnav-${subId}`);
+  if (btn) btn.classList.add('active');
 
-  if (subId === 'executed') {
-    document.getElementById('orders-executed-container').style.display = 'block';
-    document.getElementById('orders-open-container').style.display = 'none';
-  } else {
-    document.getElementById('orders-executed-container').style.display = 'none';
-    document.getElementById('orders-open-container').style.display = 'block';
+  const exec = document.getElementById('orders-executed-container');
+  const open = document.getElementById('orders-open-container');
+  const gtt = document.getElementById('orders-gtt-container');
+
+  if (exec) exec.style.display = (subId === 'executed') ? 'block' : 'none';
+  if (open) open.style.display = (subId === 'open') ? 'block' : 'none';
+  if (gtt) gtt.style.display = (subId === 'gtt') ? 'block' : 'none';
+
+  if (subId === 'executed' || subId === 'open') {
+    fetchOrders();
+  } else if (subId === 'gtt') {
+    loadGttOrders();
+  }
+}
+
+function switchHoldingsSubnav(subId) {
+  document.querySelectorAll('#pane-holdings .sub-nav-btn').forEach(btn => btn.classList.remove('active'));
+  const btn = document.getElementById(`subnav-holdings-${subId}`);
+  if (btn) btn.classList.add('active');
+
+  const list = document.getElementById('holdings-list-container');
+  const analytics = document.getElementById('holdings-analytics-container');
+  const sips = document.getElementById('holdings-sips-container');
+
+  if (list) list.style.display = (subId === 'list') ? 'block' : 'none';
+  if (analytics) analytics.style.display = (subId === 'analytics') ? 'block' : 'none';
+  if (sips) sips.style.display = (subId === 'sips') ? 'block' : 'none';
+
+  if (subId === 'list') {
+    fetchPortfolio();
+  } else if (subId === 'analytics') {
+    loadPortfolioAnalytics();
+  } else if (subId === 'sips') {
+    loadActiveSips();
   }
 }
 
@@ -1562,15 +1604,34 @@ let deferredInstallPrompt = null;
 function isAppInstalled() {
   return window.matchMedia('(display-mode: standalone)').matches || 
          window.navigator.standalone === true ||
+         localStorage.getItem('stoxify_app_installed') === '1' ||
          document.referrer.includes('android-app://');
+}
+
+function dismissMobileInstallBanner() {
+  sessionStorage.setItem('stoxify_mob_install_dismissed', '1');
+  const banner = document.getElementById('mobileInstallBanner');
+  if (banner) banner.style.display = 'none';
 }
 
 function updateInstallButtonsVisibility() {
   const installed = isAppInstalled();
   const topBtn = document.getElementById('btnInstallApp');
   const dropdownItem = document.getElementById('dropdownInstallItem');
+  const mobBanner = document.getElementById('mobileInstallBanner');
+  const mobDismissed = sessionStorage.getItem('stoxify_mob_install_dismissed') === '1';
+
   if (topBtn) topBtn.style.display = installed ? 'none' : 'inline-flex';
   if (dropdownItem) dropdownItem.style.display = installed ? 'none' : 'flex';
+
+  if (mobBanner) {
+    if (installed || mobDismissed) {
+      mobBanner.style.display = 'none';
+    } else {
+      const isMobile = window.innerWidth <= 768 || detectPlatform() !== 'desktop';
+      mobBanner.style.display = isMobile ? 'flex' : 'none';
+    }
+  }
 }
 
 function detectPlatform() {
@@ -1611,6 +1672,7 @@ async function triggerNativeInstallPrompt() {
     deferredInstallPrompt.prompt();
     const { outcome } = await deferredInstallPrompt.userChoice;
     if (outcome === 'accepted') {
+      localStorage.setItem('stoxify_app_installed', '1');
       updateInstallButtonsVisibility();
       closePwaGuideModal();
       showToast('Stoxify installed successfully!');
@@ -1628,14 +1690,14 @@ async function installPWA() {
     deferredInstallPrompt.prompt();
     const { outcome } = await deferredInstallPrompt.userChoice;
     if (outcome === 'accepted') {
+      localStorage.setItem('stoxify_app_installed', '1');
       updateInstallButtonsVisibility();
+      closePwaGuideModal();
       showToast('Stoxify installed successfully!');
     }
     deferredInstallPrompt = null;
     return;
   }
-  // If native prompt is not primed (iOS Safari, mobile browsers without direct prompt),
-  // open the step-by-step interactive install guide modal
   openPwaGuideModal();
 }
 
@@ -1649,6 +1711,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
 
 window.addEventListener('appinstalled', () => {
   deferredInstallPrompt = null;
+  localStorage.setItem('stoxify_app_installed', '1');
   updateInstallButtonsVisibility();
   closePwaGuideModal();
   showToast('Stoxify installed successfully!');
@@ -1967,6 +2030,18 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
     updatePageAvailableHolding(data.symbol);
     recalcPageMargin();
 
+    // Configure Mutual Fund SIP calculator vs Stock fundamentals tabs
+    const sipSec = document.getElementById('pageSipCalcSection');
+    const tabFin = document.getElementById('tab-asset-financials');
+    const tabSh = document.getElementById('tab-asset-shareholding');
+    const tabPeers = document.getElementById('tab-asset-peers');
+    if (sipSec) sipSec.style.display = isMF ? 'block' : 'none';
+    if (tabFin) tabFin.style.display = isMF ? 'none' : 'inline-block';
+    if (tabSh) tabSh.style.display = isMF ? 'none' : 'inline-block';
+    if (tabPeers) tabPeers.style.display = isMF ? 'none' : 'inline-block';
+    if (isMF) onSipSliderChange();
+    switchAssetPageTab('overview');
+
     loadPageChartTimeframe('1M');
 
   } catch (err) {
@@ -2050,11 +2125,305 @@ function renderPageFundamentals(data) {
   }
 }
 
+let currentChartType = 'line';
+const activeEmas = new Set();
+let currentChartPoints = [];
+let currentChartRange = '1M';
+
+function setChartType(type) {
+  currentChartType = type;
+  const lineBtn = document.getElementById('btnChartLine');
+  const candleBtn = document.getElementById('btnChartCandle');
+  if (lineBtn) lineBtn.classList.toggle('active', type === 'line');
+  if (candleBtn) candleBtn.classList.toggle('active', type === 'candle');
+  renderCurrentChart();
+}
+
+function toggleEma(period) {
+  const btn = document.getElementById(`btnEma${period}`);
+  if (activeEmas.has(period)) {
+    activeEmas.delete(period);
+    if (btn) btn.classList.remove('active');
+  } else {
+    activeEmas.add(period);
+    if (btn) btn.classList.add('active');
+  }
+  renderCurrentChart();
+}
+
+function calculateEMA(prices, period) {
+  const k = 2 / (period + 1);
+  const ema = [];
+  if (!prices || prices.length === 0) return ema;
+
+  let prevEma = prices[0];
+  ema.push(prevEma);
+
+  for (let i = 1; i < prices.length; i++) {
+    const cur = prices[i] * k + prevEma * (1 - k);
+    ema.push(cur);
+    prevEma = cur;
+  }
+  return ema;
+}
+
+function renderCandlestickCanvas(canvas, points) {
+  const ctx = canvas.getContext('2d');
+  const width = canvas.parentElement.clientWidth || 800;
+  const height = 380;
+  canvas.width = width;
+  canvas.height = height;
+
+  ctx.clearRect(0, 0, width, height);
+
+  if (!points || points.length === 0) return;
+
+  const paddingLeft = 15;
+  const paddingRight = 75;
+  const paddingTop = 25;
+  const paddingBottom = 40;
+  const chartWidth = width - paddingLeft - paddingRight;
+  const chartHeight = height - paddingTop - paddingBottom;
+
+  // Compute OHLC for each point
+  const ohlc = points.map((p, idx) => {
+    const close = (p.price !== undefined ? p.price : p.value) || 100;
+    const prevClose = idx > 0 ? ((points[idx - 1].price !== undefined ? points[idx - 1].price : points[idx - 1].value) || close) : close;
+    const open = p.open || prevClose;
+    const high = p.high || Math.max(open, close) * 1.003;
+    const low = p.low || Math.min(open, close) * 0.997;
+    const vol = p.volume || 10000;
+    return { time: p.time, open, high, low, close, volume: vol };
+  });
+
+  const minPrice = Math.min(...ohlc.map(p => p.low)) * 0.998;
+  const maxPrice = Math.max(...ohlc.map(p => p.high)) * 1.002;
+  const priceRange = maxPrice - minPrice || 1;
+
+  const getY = (val) => paddingTop + chartHeight - ((val - minPrice) / priceRange) * chartHeight;
+
+  // Background Grid Lines
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = paddingTop + (chartHeight / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(paddingLeft, y);
+    ctx.lineTo(width - paddingRight, y);
+    ctx.stroke();
+
+    const priceAtGrid = maxPrice - (priceRange / 4) * i;
+    ctx.fillStyle = '#64748B';
+    ctx.font = '10px Sora, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(formatINR(priceAtGrid), width - paddingRight + 8, y + 3);
+  }
+
+  const n = ohlc.length;
+  const candleSlot = chartWidth / n;
+  const candleBodyWidth = Math.max(2, Math.min(18, candleSlot * 0.68));
+
+  // Draw Candlesticks and Volume
+  ohlc.forEach((bar, i) => {
+    const x = paddingLeft + i * candleSlot + candleSlot / 2;
+    const isBull = bar.close >= bar.open;
+    const color = isBull ? '#10B981' : '#F43F5E';
+
+    // 1. Volume Bar (Bottom 18% of chart)
+    const maxVol = Math.max(...ohlc.map(p => p.volume)) || 1;
+    const volHeight = (bar.volume / maxVol) * (chartHeight * 0.18);
+    ctx.fillStyle = isBull ? 'rgba(16, 185, 129, 0.2)' : 'rgba(244, 63, 94, 0.2)';
+    ctx.fillRect(x - candleBodyWidth / 2, paddingTop + chartHeight - volHeight, candleBodyWidth, volHeight);
+
+    // 2. Wick
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(x, getY(bar.high));
+    ctx.lineTo(x, getY(bar.low));
+    ctx.stroke();
+
+    // 3. Body
+    const yOpen = getY(bar.open);
+    const yClose = getY(bar.close);
+    const bodyTop = Math.min(yOpen, yClose);
+    const bodyHeight = Math.max(2, Math.abs(yClose - yOpen));
+
+    ctx.fillStyle = color;
+    ctx.fillRect(x - candleBodyWidth / 2, bodyTop, candleBodyWidth, bodyHeight);
+  });
+
+  // Overlay EMAs
+  const closePrices = ohlc.map(b => b.close);
+  if (activeEmas.has(20)) {
+    const ema20 = calculateEMA(closePrices, 20);
+    ctx.strokeStyle = '#F59E0B';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ema20.forEach((val, i) => {
+      const x = paddingLeft + i * candleSlot + candleSlot / 2;
+      const y = getY(val);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  }
+
+  if (activeEmas.has(50)) {
+    const ema50 = calculateEMA(closePrices, 50);
+    ctx.strokeStyle = '#8B5CF6';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ema50.forEach((val, i) => {
+      const x = paddingLeft + i * candleSlot + candleSlot / 2;
+      const y = getY(val);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  }
+
+  // Time Axis Labels (5-6 sample labels)
+  ctx.fillStyle = '#64748B';
+  ctx.font = '10px Sora, sans-serif';
+  ctx.textAlign = 'center';
+  const step = Math.max(1, Math.floor(n / 5));
+  for (let i = 0; i < n; i += step) {
+    const x = paddingLeft + i * candleSlot + candleSlot / 2;
+    ctx.fillText(ohlc[i].time, x, height - 12);
+  }
+}
+
+function renderCurrentChart() {
+  const canvas = document.getElementById('pageAssetChartCanvas');
+  if (!canvas || !currentChartPoints || currentChartPoints.length === 0) return;
+
+  if (currentChartType === 'candle') {
+    if (pageChartInstance) {
+      pageChartInstance.destroy();
+      pageChartInstance = null;
+    }
+    renderCandlestickCanvas(canvas, currentChartPoints);
+  } else {
+    renderLineChartWithChartJs(canvas, currentChartPoints);
+  }
+}
+
+function renderLineChartWithChartJs(canvas, points) {
+  const ctx = canvas.getContext('2d');
+
+  if (pageChartInstance) {
+    pageChartInstance.destroy();
+    pageChartInstance = null;
+  }
+
+  const prices = points.map(p => (p.price !== undefined ? p.price : p.value) || 0);
+  const firstVal = prices[0] || 0;
+  const lastVal = prices[prices.length - 1] || 0;
+  const isPos = lastVal >= firstVal;
+  const strokeColor = isPos ? '#10B981' : '#F43F5E';
+  const gradient = ctx.createLinearGradient(0, 0, 0, 350);
+  gradient.addColorStop(0, isPos ? 'rgba(16, 185, 129, 0.28)' : 'rgba(244, 63, 94, 0.28)');
+  gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+  const datasets = [{
+    label: 'Price',
+    data: prices,
+    borderColor: strokeColor,
+    borderWidth: 2.2,
+    backgroundColor: gradient,
+    fill: true,
+    tension: 0.2,
+    pointRadius: 0,
+    pointHoverRadius: 6,
+    pointHoverBackgroundColor: strokeColor,
+    pointHoverBorderColor: '#ffffff',
+    pointHoverBorderWidth: 2
+  }];
+
+  if (activeEmas.has(20)) {
+    datasets.push({
+      label: '20 EMA',
+      data: calculateEMA(prices, 20),
+      borderColor: '#F59E0B',
+      borderWidth: 1.8,
+      fill: false,
+      tension: 0.2,
+      pointRadius: 0
+    });
+  }
+
+  if (activeEmas.has(50)) {
+    datasets.push({
+      label: '50 EMA',
+      data: calculateEMA(prices, 50),
+      borderColor: '#8B5CF6',
+      borderWidth: 1.8,
+      fill: false,
+      tension: 0.2,
+      pointRadius: 0
+    });
+  }
+
+  pageChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: points.map(p => p.time),
+      datasets: datasets
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: activeEmas.size > 0,
+          labels: { color: '#94A3B8', font: { family: 'Sora', size: 11 } }
+        },
+        tooltip: {
+          mode: 'index',
+          intersect: false,
+          backgroundColor: '#0F172A',
+          titleColor: '#94A3B8',
+          bodyColor: '#F8FAFC',
+          bodyFont: { weight: '800', size: 14, family: 'Sora' },
+          padding: 10,
+          displayColors: false,
+          callbacks: {
+            label: (item) => `${item.dataset.label || 'Price'}: ${formatINR(item.parsed.y)}`
+          }
+        }
+      },
+      scales: {
+        x: { 
+          display: true,
+          grid: { display: false },
+          ticks: {
+            color: '#64748B',
+            font: { family: 'Sora', size: 10 },
+            maxTicksLimit: 6
+          }
+        },
+        y: { 
+          display: true,
+          position: 'right',
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: {
+            color: '#64748B',
+            font: { family: 'Sora', size: 11 },
+            callback: (val) => formatINR(val)
+          }
+        }
+      }
+    }
+  });
+}
+
 async function loadPageChartTimeframe(range, btnEl = null) {
   if (btnEl) {
     document.querySelectorAll('.asset-chart-card .tf-btn').forEach(b => b.classList.remove('active'));
     btnEl.classList.add('active');
   }
+  currentChartRange = range;
   if (!currentPageAsset) return;
 
   try {
@@ -2062,88 +2431,8 @@ async function loadPageChartTimeframe(range, btnEl = null) {
     const res = await fetch(`/api/history?symbol=${encodeURIComponent(currentPageAsset.symbol)}&asset_type=${encodeURIComponent(assetType)}&range=${range}&timeframe=${range}`);
     const raw = await res.json();
     const points = Array.isArray(raw) ? raw : (raw.points || []);
-
-    const canvas = document.getElementById('pageAssetChartCanvas');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-
-    if (pageChartInstance) {
-      pageChartInstance.destroy();
-      pageChartInstance = null;
-    }
-
-    if (!points || points.length === 0) {
-      return;
-    }
-
-    const firstVal = (points[0].price !== undefined) ? points[0].price : (points[0].value || 0);
-    const lastVal = (points[points.length - 1].price !== undefined) ? points[points.length - 1].price : (points[points.length - 1].value || 0);
-    const isPos = lastVal >= firstVal;
-    const strokeColor = isPos ? '#10B981' : '#F43F5E';
-    const gradient = ctx.createLinearGradient(0, 0, 0, 350);
-    gradient.addColorStop(0, isPos ? 'rgba(16, 185, 129, 0.28)' : 'rgba(244, 63, 94, 0.28)');
-    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
-
-    pageChartInstance = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: points.map(p => p.time),
-        datasets: [{
-          data: points.map(p => (p.price !== undefined ? p.price : p.value)),
-          borderColor: strokeColor,
-          borderWidth: 2.2,
-          backgroundColor: gradient,
-          fill: true,
-          tension: 0.2,
-          pointRadius: 0,
-          pointHoverRadius: 6,
-          pointHoverBackgroundColor: strokeColor,
-          pointHoverBorderColor: '#ffffff',
-          pointHoverBorderWidth: 2
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            mode: 'index',
-            intersect: false,
-            backgroundColor: '#0F172A',
-            titleColor: '#94A3B8',
-            bodyColor: '#F8FAFC',
-            bodyFont: { weight: '800', size: 14, family: 'Sora' },
-            padding: 10,
-            displayColors: false,
-            callbacks: {
-              label: (item) => formatINR(item.parsed.y)
-            }
-          }
-        },
-        scales: {
-          x: { 
-            display: true,
-            grid: { display: false },
-            ticks: {
-              color: '#64748B',
-              font: { family: 'Sora', size: 10 },
-              maxTicksLimit: 6
-            }
-          },
-          y: {
-            display: true,
-            position: 'right',
-            grid: { color: 'rgba(255, 255, 255, 0.05)' },
-            ticks: {
-              color: '#64748B',
-              font: { family: 'Sora', size: 11 },
-              callback: (val) => formatINR(val)
-            }
-          }
-        }
-      }
-    });
+    currentChartPoints = points;
+    renderCurrentChart();
   } catch (err) {
     console.error('Failed to load chart:', err);
   }
@@ -2180,9 +2469,38 @@ function setPageProductType(prod) {
 
 function setPageOrderVariety(varType) {
   pageOrderState.variety = varType;
-  document.getElementById('pageVarietyMarket').className = `seg-btn ${varType === 'MARKET' ? 'active' : ''}`;
-  document.getElementById('pageVarietyLimit').className = `seg-btn ${varType === 'LIMIT' ? 'active' : ''}`;
-  document.getElementById('pageLimitPriceGroup').style.display = varType === 'LIMIT' ? 'block' : 'none';
+  const mktBtn = document.getElementById('pageVarietyMarket');
+  const limBtn = document.getElementById('pageVarietyLimit');
+  const slBtn = document.getElementById('pageVarietySL');
+  const gttBtn = document.getElementById('pageVarietyGTT');
+  if (mktBtn) mktBtn.className = `seg-btn ${varType === 'MARKET' ? 'active' : ''}`;
+  if (limBtn) limBtn.className = `seg-btn ${varType === 'LIMIT' ? 'active' : ''}`;
+  if (slBtn) slBtn.className = `seg-btn ${varType === 'STOP_LOSS' ? 'active' : ''}`;
+  if (gttBtn) gttBtn.className = `seg-btn ${varType === 'GTT' ? 'active' : ''}`;
+
+  const limitGroup = document.getElementById('pageLimitPriceGroup');
+  const trigGroup = document.getElementById('pageTriggerPriceGroup');
+  if (limitGroup) limitGroup.style.display = (varType === 'LIMIT' || varType === 'STOP_LOSS' || varType === 'GTT') ? 'block' : 'none';
+  if (trigGroup) trigGroup.style.display = (varType === 'STOP_LOSS' || varType === 'GTT') ? 'block' : 'none';
+
+  const trigHint = document.getElementById('pageTriggerHint');
+  if (trigHint) {
+    trigHint.innerText = varType === 'GTT' 
+      ? 'Good-Till-Triggered order remains active until trigger is reached' 
+      : 'Order activates when market hits this stop-loss trigger';
+  }
+
+  const execBtn = document.getElementById('pageOrderExecuteBtn');
+  if (execBtn && !isGuest()) {
+    if (varType === 'STOP_LOSS') {
+      execBtn.innerText = `PLACE STOP-LOSS (${pageOrderState.action})`;
+    } else if (varType === 'GTT') {
+      execBtn.innerText = `CREATE GTT TRIGGER (${pageOrderState.action})`;
+    } else {
+      execBtn.innerText = `${pageOrderState.action} ${currentPageAsset ? (currentPageAsset.symbol || '').replace('.NS', '') : ''}`;
+    }
+  }
+
   recalcPageMargin();
 }
 
@@ -2204,7 +2522,7 @@ function setPageQuickQuantity(qty) {
 function recalcPageMargin() {
   if (!currentPageAsset) return;
   const qty = parseInt(document.getElementById('pageOrderQuantity').value || '1', 10);
-  const effectivePrice = pageOrderState.variety === 'LIMIT' 
+  const effectivePrice = (pageOrderState.variety === 'LIMIT' || pageOrderState.variety === 'STOP_LOSS' || pageOrderState.variety === 'GTT')
     ? parseFloat(document.getElementById('pageOrderLimitPrice').value || currentPageAsset.price)
     : currentPageAsset.price;
 
@@ -2225,7 +2543,13 @@ function recalcPageMargin() {
     document.getElementById('pageAvailableCash').innerText = formatINR(availCash);
     if (execBtn) {
       execBtn.className = `btn-trade-execute ${pageOrderState.action.toLowerCase()}`;
-      execBtn.innerText = `${pageOrderState.action} ${currentPageAsset.symbol || ''}`;
+      if (pageOrderState.variety === 'STOP_LOSS') {
+        execBtn.innerText = `PLACE STOP-LOSS (${pageOrderState.action})`;
+      } else if (pageOrderState.variety === 'GTT') {
+        execBtn.innerText = `CREATE GTT TRIGGER (${pageOrderState.action})`;
+      } else {
+        execBtn.innerText = `${pageOrderState.action} ${currentPageAsset.symbol || ''}`;
+      }
     }
   }
 }
@@ -2269,12 +2593,21 @@ async function executePageTrade() {
     return;
   }
 
-  const limitPrice = pageOrderState.variety === 'LIMIT' 
+  const limitPrice = (pageOrderState.variety === 'LIMIT' || pageOrderState.variety === 'STOP_LOSS' || pageOrderState.variety === 'GTT')
     ? parseFloat(document.getElementById('pageOrderLimitPrice').value || currentPageAsset.price)
     : null;
 
   if (pageOrderState.variety === 'LIMIT' && (!limitPrice || limitPrice <= 0 || isNaN(limitPrice))) {
     showToast('Please enter a valid Limit Price', true);
+    return;
+  }
+
+  const triggerPrice = (pageOrderState.variety === 'STOP_LOSS' || pageOrderState.variety === 'GTT')
+    ? parseFloat(document.getElementById('pageOrderTriggerPrice').value || '0')
+    : 0.0;
+
+  if ((pageOrderState.variety === 'STOP_LOSS' || pageOrderState.variety === 'GTT') && (!triggerPrice || triggerPrice <= 0 || isNaN(triggerPrice))) {
+    showToast('Please enter a valid Trigger Price', true);
     return;
   }
 
@@ -2285,29 +2618,46 @@ async function executePageTrade() {
   }
 
   try {
-    const res = await fetch('/api/order', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        symbol: currentPageAsset.symbol,
-        name: currentPageAsset.name,
-        asset_type: currentPageAsset.asset_type || 'STOCK',
-        order_type: pageOrderState.action,
-        product_type: pageOrderState.product,
-        quantity: qty,
-        price: currentPageAsset.price,
-        order_variety: pageOrderState.variety,
-        limit_price: limitPrice
-      })
-    });
+    let res, result;
+    if (pageOrderState.variety === 'GTT') {
+      res = await fetch('/api/order/gtt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          symbol: currentPageAsset.symbol,
+          transaction_type: pageOrderState.action,
+          quantity: qty,
+          trigger_price: triggerPrice,
+          limit_price: limitPrice || triggerPrice
+        })
+      });
+      result = await res.json();
+    } else {
+      res = await fetch('/api/order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          symbol: currentPageAsset.symbol,
+          name: currentPageAsset.name,
+          asset_type: currentPageAsset.asset_type || 'STOCK',
+          order_type: pageOrderState.action,
+          product_type: pageOrderState.product,
+          quantity: qty,
+          price: currentPageAsset.price,
+          order_variety: pageOrderState.variety,
+          limit_price: limitPrice,
+          trigger_price: triggerPrice
+        })
+      });
+      result = await res.json();
+    }
 
-    const result = await res.json();
     if (!res.ok || !result.success) {
       showToast(result.detail || result.error || 'Trade execution failed', true);
       return;
     }
 
-    showToast(result.message || `${pageOrderState.action} order executed successfully!`);
+    showToast(result.message || `${pageOrderState.action} order placed successfully!`);
     await fetchAccount();
     await fetchPortfolio();
     await fetchPositions();
@@ -2321,8 +2671,8 @@ async function executePageTrade() {
       action: pageOrderState.action,
       product: pageOrderState.product,
       quantity: qty,
-      price: currentPageAsset.price,
-      total: qty * currentPageAsset.price
+      price: (pageOrderState.variety === 'LIMIT' || pageOrderState.variety === 'STOP_LOSS') ? (limitPrice || currentPageAsset.price) : currentPageAsset.price,
+      total: qty * ((pageOrderState.variety === 'LIMIT' || pageOrderState.variety === 'STOP_LOSS') ? (limitPrice || currentPageAsset.price) : currentPageAsset.price)
     });
 
   } catch (err) {
@@ -2727,4 +3077,938 @@ function closeOrderSuccessModal() {
 function goToHoldingsFromModal() {
   closeOrderSuccessModal();
   navigateTo('/holdings');
+}
+
+/* =======================================================
+   1. GTT & TRIGGER ORDERS ENGINE
+   ======================================================= */
+async function loadGttOrders() {
+  if (isGuest()) return;
+  try {
+    const res = await fetch('/api/orders/gtt');
+    const orders = await res.json();
+    const countEl = document.getElementById('gttOrdersCount');
+    if (countEl) countEl.innerText = orders.length;
+
+    const tbody = document.getElementById('gttOrdersTableBody');
+    const mobList = document.getElementById('gttOrdersMobileList');
+
+    if (!orders || orders.length === 0) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 3rem;">No active GTT or Stop-Loss triggers.</td></tr>';
+      if (mobList) mobList.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 2rem;">No active triggers.</div>';
+      return;
+    }
+
+    if (tbody) {
+      tbody.innerHTML = orders.map(o => `
+        <tr>
+          <td><code style="font-size: 0.8rem; color: var(--text-muted);">${o.order_id}</code></td>
+          <td><strong>${o.symbol.replace('.NS', '')}</strong></td>
+          <td><span class="badge-${o.transaction_type === 'BUY' ? 'positive' : 'negative'}">${o.transaction_type}</span></td>
+          <td><strong>${formatINR(o.trigger_price)}</strong></td>
+          <td>${formatINR(o.limit_price)}</td>
+          <td>${o.quantity}</td>
+          <td>${new Date(o.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
+          <td><span class="pill-btn" style="color: var(--brand-cyan); font-size: 0.72rem;">${o.status}</span></td>
+          <td style="text-align: right;">
+            <button class="btn-cancel-small" onclick="cancelGttOrder('${o.order_id}')">Cancel</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    if (mobList) {
+      mobList.innerHTML = orders.map(o => `
+        <div class="mobile-order-card">
+          <div class="mob-order-header">
+            <strong>${o.symbol.replace('.NS', '')}</strong>
+            <span class="badge-${o.transaction_type === 'BUY' ? 'positive' : 'negative'}">${o.transaction_type}</span>
+          </div>
+          <div class="mob-order-row">
+            <span>Trigger Price</span><strong>${formatINR(o.trigger_price)}</strong>
+          </div>
+          <div class="mob-order-row">
+            <span>Limit Price</span><span>${formatINR(o.limit_price)}</span>
+          </div>
+          <div class="mob-order-row">
+            <span>Quantity</span><span>${o.quantity}</span>
+          </div>
+          <div class="mob-order-row">
+            <span>Status</span><span class="pill-btn" style="color: var(--brand-cyan);">${o.status}</span>
+          </div>
+          <div style="margin-top: 0.75rem; text-align: right;">
+            <button class="btn-cancel-small" onclick="cancelGttOrder('${o.order_id}')">Cancel Trigger</button>
+          </div>
+        </div>
+      `).join('');
+    }
+  } catch (err) {
+    console.error('Failed to load GTT orders:', err);
+  }
+}
+
+async function cancelGttOrder(orderId) {
+  try {
+    const res = await fetch(`/api/order/gtt/${orderId}`, { method: 'DELETE' });
+    const d = await res.json();
+    if (d.success) {
+      showToast(d.message || 'Trigger cancelled');
+      loadGttOrders();
+    } else {
+      showToast(d.error || 'Failed to cancel trigger', true);
+    }
+  } catch (err) {
+    showToast('Failed to cancel trigger', true);
+  }
+}
+
+
+/* =======================================================
+   2. F&O (FUTURES & OPTIONS) OPTION CHAIN ENGINE
+   ======================================================= */
+let currentFoUnderlying = 'NIFTY';
+let currentOptionTrade = null;
+
+function switchFoUnderlying(sym) {
+  currentFoUnderlying = sym;
+  const btnNifty = document.getElementById('btnFoNifty');
+  const btnBankNifty = document.getElementById('btnFoBankNifty');
+  if (btnNifty) btnNifty.classList.toggle('active', sym === 'NIFTY');
+  if (btnBankNifty) btnBankNifty.classList.toggle('active', sym === 'BANKNIFTY');
+  fetchOptionChain();
+}
+
+async function fetchOptionChain() {
+  const tbody = document.getElementById('foTableBody');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 3rem;">Calculating Black-Scholes Greeks & Option Matrix...</td></tr>';
+
+  try {
+    const res = await fetch(`/api/fo/option-chain?symbol=${encodeURIComponent(currentFoUnderlying)}`);
+    const data = await res.json();
+    if (!res.ok || !data.strikes) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--accent-red); padding: 2rem;">Failed to load option chain</td></tr>';
+      return;
+    }
+
+    const spotEl = document.getElementById('foSpotPrice');
+    const pcrEl = document.getElementById('foPcrVal');
+    const pcrSent = document.getElementById('foPcrSentiment');
+    if (spotEl) spotEl.innerText = formatINR(data.spot_price);
+    if (pcrEl) pcrEl.innerText = data.pcr ? data.pcr.toFixed(2) : '1.00';
+    if (pcrSent) {
+      const pcr = data.pcr || 1.0;
+      pcrSent.innerText = pcr > 1.2 ? 'Bullish' : (pcr < 0.8 ? 'Bearish' : 'Neutral');
+      pcrSent.className = pcr > 1.2 ? 'badge-positive' : (pcr < 0.8 ? 'badge-negative' : 'pill-btn');
+    }
+
+    renderOptionChain(data);
+  } catch (err) {
+    console.error('Failed to fetch option chain:', err);
+  }
+}
+
+function renderOptionChain(data) {
+  const tbody = document.getElementById('foTableBody');
+  if (!tbody) return;
+
+  const lotSize = data.lot_size || 25;
+  const strikes = data.strikes || [];
+
+  tbody.innerHTML = strikes.map(s => {
+    const isAtm = s.is_atm;
+    const atmClass = isAtm ? 'atm-strike-row' : '';
+    const atmBadge = isAtm ? '<span class="atm-badge">ATM</span>' : '';
+
+    return `
+      <tr class="${atmClass}">
+        <!-- CALL SIDE -->
+        <td class="fo-oi-col">${(s.ce.oi / 100000).toFixed(1)}L</td>
+        <td class="fo-iv-col">${s.ce.iv}%</td>
+        <td class="fo-ltp-col call">
+          <button class="opt-trade-btn call" onclick="openOptionBuyModal('${data.underlying}', ${s.strike}, 'CE', ${s.ce.ltp}, ${s.ce.iv}, ${lotSize})">
+            <strong>${formatINR(s.ce.ltp)}</strong>
+            <span class="delta-sub">Δ ${s.ce.delta}</span>
+          </button>
+        </td>
+
+        <!-- STRIKE CENTER -->
+        <td class="fo-strike-col">
+          <span class="strike-num">${s.strike.toLocaleString('en-IN')}</span>
+          ${atmBadge}
+        </td>
+
+        <!-- PUT SIDE -->
+        <td class="fo-ltp-col put">
+          <button class="opt-trade-btn put" onclick="openOptionBuyModal('${data.underlying}', ${s.strike}, 'PE', ${s.pe.ltp}, ${s.pe.iv}, ${lotSize})">
+            <strong>${formatINR(s.pe.ltp)}</strong>
+            <span class="delta-sub">Δ ${s.pe.delta}</span>
+          </button>
+        </td>
+        <td class="fo-iv-col">${s.pe.iv}%</td>
+        <td class="fo-oi-col">${(s.pe.oi / 100000).toFixed(1)}L</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function openOptionBuyModal(underlying, strike, optType, ltp, iv, lotSize) {
+  if (isGuest()) {
+    showToast('Please create an account to trade options with your ₹10,00,000 virtual balance!', false);
+    navigateTo('/onboarding');
+    return;
+  }
+
+  currentOptionTrade = {
+    underlying,
+    strike,
+    optType,
+    ltp,
+    iv,
+    lotSize: lotSize || (underlying === 'BANKNIFTY' ? 15 : 25),
+    action: 'BUY',
+    lots: 1
+  };
+
+  const titleEl = document.getElementById('optModalTitle');
+  const subEl = document.getElementById('optModalSubtitle');
+  const ltpEl = document.getElementById('optModalLtp');
+  const lotEl = document.getElementById('optModalLotSize');
+  const ivEl = document.getElementById('optModalIv');
+
+  if (titleEl) titleEl.innerText = `${underlying} ${strike} ${optType}`;
+  if (subEl) subEl.innerText = `Weekly Expiry • ${optType === 'CE' ? 'Call Option' : 'Put Option'}`;
+  if (ltpEl) ltpEl.innerText = formatINR(ltp);
+  if (lotEl) lotEl.innerText = `${currentOptionTrade.lotSize} shares / lot`;
+  if (ivEl) ivEl.innerText = `${iv}%`;
+
+  document.getElementById('optModalLots').value = 1;
+  setOptionAction('BUY');
+  recalcOptionPremium();
+
+  const modal = document.getElementById('optionBuyModal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeOptionBuyModal() {
+  const modal = document.getElementById('optionBuyModal');
+  if (modal) modal.style.display = 'none';
+  currentOptionTrade = null;
+}
+
+function setOptionAction(action) {
+  if (!currentOptionTrade) return;
+  currentOptionTrade.action = action;
+  const buyBtn = document.getElementById('optBtnBuy');
+  const sellBtn = document.getElementById('optBtnSell');
+  const execBtn = document.getElementById('optExecuteBtn');
+  if (buyBtn) buyBtn.className = `trade-tab-btn ${action === 'BUY' ? 'active buy' : ''}`;
+  if (sellBtn) sellBtn.className = `trade-tab-btn ${action === 'SELL' ? 'active sell' : ''}`;
+  if (execBtn) {
+    execBtn.className = `btn-trade-execute ${action.toLowerCase()}`;
+    execBtn.innerText = `${action} ${currentOptionTrade.underlying} ${currentOptionTrade.strike} ${currentOptionTrade.optType}`;
+  }
+}
+
+function stepOptionLots(delta) {
+  if (!currentOptionTrade) return;
+  const input = document.getElementById('optModalLots');
+  let val = parseInt(input.value || '1', 10) + delta;
+  if (val < 1) val = 1;
+  input.value = val;
+  currentOptionTrade.lots = val;
+  recalcOptionPremium();
+}
+
+function setOptionLots(lots) {
+  if (!currentOptionTrade) return;
+  document.getElementById('optModalLots').value = lots;
+  currentOptionTrade.lots = lots;
+  recalcOptionPremium();
+}
+
+function recalcOptionPremium() {
+  if (!currentOptionTrade) return;
+  const lots = parseInt(document.getElementById('optModalLots').value || '1', 10);
+  currentOptionTrade.lots = lots;
+  const totalQty = lots * currentOptionTrade.lotSize;
+  const totalPremium = totalQty * currentOptionTrade.ltp;
+
+  const qtyEl = document.getElementById('optModalTotalQty');
+  const premEl = document.getElementById('optModalTotalPremium');
+  const cashEl = document.getElementById('optModalAvailableCash');
+
+  if (qtyEl) qtyEl.innerText = `${totalQty} Qty (${lots} ${lots === 1 ? 'Lot' : 'Lots'})`;
+  if (premEl) premEl.innerText = formatINR(totalPremium);
+  const bal = state.account ? state.account.balance : 1000000.0;
+  if (cashEl) cashEl.innerText = formatINR(bal);
+}
+
+async function submitOptionTrade() {
+  if (!currentOptionTrade) return;
+  const lots = parseInt(document.getElementById('optModalLots').value || '1', 10);
+  const totalQty = lots * currentOptionTrade.lotSize;
+  const symbol = `${currentOptionTrade.underlying}_${currentOptionTrade.strike}_${currentOptionTrade.optType}`;
+
+  const execBtn = document.getElementById('optExecuteBtn');
+  if (execBtn) {
+    execBtn.disabled = true;
+    execBtn.innerText = 'Executing Option Trade...';
+  }
+
+  try {
+    const res = await fetch('/api/order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        symbol: symbol,
+        name: `${currentOptionTrade.underlying} ${currentOptionTrade.strike} ${currentOptionTrade.optType}`,
+        asset_type: 'OPTION',
+        order_type: currentOptionTrade.action,
+        product_type: 'INTRADAY',
+        quantity: totalQty,
+        price: currentOptionTrade.ltp,
+        order_variety: 'MARKET'
+      })
+    });
+
+    const result = await res.json();
+    if (!res.ok || !result.success) {
+      showToast(result.detail || result.error || 'Option execution failed', true);
+      return;
+    }
+
+    showToast(`${currentOptionTrade.action} ${lots} lot(s) executed at ${formatINR(currentOptionTrade.ltp)}!`);
+    closeOptionBuyModal();
+    await fetchAccount();
+    await fetchPositions();
+    await fetchOrders();
+  } catch (err) {
+    showToast('Failed to execute option trade', true);
+  } finally {
+    if (execBtn) execBtn.disabled = false;
+  }
+}
+
+
+/* =======================================================
+   3. IPO HUB & ASBA LOT BIDDING ENGINE
+   ======================================================= */
+let allIpos = [];
+let activeIpoFilter = 'ALL';
+let currentIpoModalData = null;
+
+async function fetchIpos() {
+  const grid = document.getElementById('ipoGrid');
+  if (grid) grid.innerHTML = '<div style="color: var(--text-muted); padding: 2rem;">Loading real Indian IPOs...</div>';
+
+  try {
+    const res = await fetch('/api/ipo/list');
+    allIpos = await res.json();
+    renderIpos(activeIpoFilter);
+  } catch (err) {
+    if (grid) grid.innerHTML = '<div style="color: var(--accent-red); padding: 2rem;">Failed to load IPOs</div>';
+  }
+}
+
+function filterIpos(filter, btn) {
+  activeIpoFilter = filter;
+  if (btn) {
+    document.querySelectorAll('#explore-ipo-container .pill-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  renderIpos(filter);
+}
+
+function renderIpos(filter) {
+  const grid = document.getElementById('ipoGrid');
+  if (!grid) return;
+
+  const filtered = (allIpos || []).filter(item => {
+    if (filter === 'ALL') return true;
+    if (filter === 'LISTED') return item.status === 'LISTED';
+    if (filter === 'UPCOMING') return item.status === 'UPCOMING' || item.status === 'OPEN';
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    grid.innerHTML = '<div style="color: var(--text-muted); padding: 2rem;">No IPOs found in this category.</div>';
+    return;
+  }
+
+  grid.innerHTML = filtered.map(ipo => {
+    const isListed = ipo.status === 'LISTED';
+    const isOpen = ipo.status === 'OPEN';
+    const minInvestment = ipo.max_price * ipo.lot_size;
+
+    return `
+      <div class="ipo-card">
+        <div class="ipo-card-header">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div class="card-avatar" style="background: rgba(147, 51, 234, 0.15); color: #a855f7;">${ipo.symbol.slice(0, 2)}</div>
+            <div>
+              <h4 class="ipo-card-title">${ipo.name}</h4>
+              <span class="sub-text">${ipo.category} • ${ipo.issue_size}</span>
+            </div>
+          </div>
+          <span class="pill-btn ${isOpen ? 'badge-positive' : ''}">${ipo.status}</span>
+        </div>
+
+        <div class="ipo-metrics-grid">
+          <div class="ipo-metric-item">
+            <span class="label">Price Band</span>
+            <strong>₹${ipo.min_price} - ₹${ipo.max_price}</strong>
+          </div>
+          <div class="ipo-metric-item">
+            <span class="label">Lot Size</span>
+            <strong>${ipo.lot_size} Shares</strong>
+          </div>
+          <div class="ipo-metric-item">
+            <span class="label">Min. Investment</span>
+            <strong>${formatINR(minInvestment)}</strong>
+          </div>
+          <div class="ipo-metric-item">
+            <span class="label">Estimated GMP</span>
+            <strong style="color: var(--accent-green);">${ipo.gmp > 0 ? '+₹' + ipo.gmp + ' (' + ipo.gmp_pct + '%)' : '--'}</strong>
+          </div>
+        </div>
+
+        <div class="ipo-sub-status">
+          <span>Subscription: <strong>${ipo.subscription_times}x</strong></span>
+          <span style="color: var(--text-muted); font-size: 0.75rem;">Closes: ${ipo.close_date}</span>
+        </div>
+
+        <div class="ipo-card-actions">
+          ${isOpen 
+            ? `<button class="btn-primary" style="width: 100%; justify-content: center;" onclick="openIpoBidModal('${ipo.id}')">Apply Now (ASBA)</button>`
+            : isListed
+            ? `<button class="btn-subtle" style="width: 100%; justify-content: center;" onclick="showToast('${ipo.name} listed at ₹${ipo.listing_price || ipo.max_price} (+${ipo.gmp_pct}%)')">View Listing Details</button>`
+            : `<button class="btn-subtle" style="width: 100%; justify-content: center;" onclick="showToast('Alert set for ${ipo.name}!')">Notify on Open</button>`
+          }
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function openIpoBidModal(ipoId) {
+  if (isGuest()) {
+    showToast('Please sign in to bid for IPOs using virtual funds!', false);
+    navigateTo('/onboarding');
+    return;
+  }
+
+  const ipo = (allIpos || []).find(i => i.id === ipoId);
+  if (!ipo) return;
+  currentIpoModalData = { ...ipo, lots: 1 };
+
+  document.getElementById('ipoModalTitle').innerText = ipo.name;
+  document.getElementById('ipoModalCategory').innerText = `${ipo.category} • Lot: ${ipo.lot_size} Shares`;
+  document.getElementById('ipoModalPriceBand').innerText = `₹${ipo.min_price} - ₹${ipo.max_price}`;
+  document.getElementById('ipoModalLotSize').innerText = `${ipo.lot_size} shares`;
+  document.getElementById('ipoModalGmp').innerText = `+₹${ipo.gmp} (+${ipo.gmp_pct}%)`;
+
+  document.getElementById('ipoModalLots').value = 1;
+  recalcIpoAmount();
+
+  const modal = document.getElementById('ipoBidModal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeIpoBidModal() {
+  const modal = document.getElementById('ipoBidModal');
+  if (modal) modal.style.display = 'none';
+  currentIpoModalData = null;
+}
+
+function stepIpoLots(delta) {
+  if (!currentIpoModalData) return;
+  const input = document.getElementById('ipoModalLots');
+  let val = parseInt(input.value || '1', 10) + delta;
+  if (val < 1) val = 1;
+  if (val > 13) val = 13;
+  input.value = val;
+  currentIpoModalData.lots = val;
+  recalcIpoAmount();
+}
+
+function recalcIpoAmount() {
+  if (!currentIpoModalData) return;
+  const lots = parseInt(document.getElementById('ipoModalLots').value || '1', 10);
+  currentIpoModalData.lots = lots;
+  const totalShares = lots * currentIpoModalData.lot_size;
+  const totalAmount = totalShares * currentIpoModalData.max_price;
+
+  document.getElementById('ipoModalTotalShares').innerText = `${totalShares} Shares (${lots} ${lots === 1 ? 'Lot' : 'Lots'})`;
+  document.getElementById('ipoModalTotalAmount').innerText = formatINR(totalAmount);
+  const bal = state.account ? state.account.balance : 1000000.0;
+  document.getElementById('ipoModalAvailableCash').innerText = formatINR(bal);
+}
+
+async function submitIpoApplication() {
+  if (!currentIpoModalData) return;
+  const lots = parseInt(document.getElementById('ipoModalLots').value || '1', 10);
+  const upiId = document.getElementById('ipoModalUpi').value.trim() || 'trader@okhdfcbank';
+
+  try {
+    const res = await fetch('/api/ipo/apply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ipo_id: currentIpoModalData.id,
+        lots: lots,
+        bid_price: currentIpoModalData.max_price,
+        upi_id: upiId
+      })
+    });
+
+    const result = await res.json();
+    if (!res.ok || !result.success) {
+      showToast(result.detail || result.error || 'IPO application failed', true);
+      return;
+    }
+
+    showToast(result.message || 'IPO application submitted successfully!');
+    closeIpoBidModal();
+    await fetchAccount();
+  } catch (err) {
+    showToast('Failed to apply for IPO', true);
+  }
+}
+
+
+/* =======================================================
+   4. MUTUAL FUNDS & SIP RECURRING ENGINE
+   ======================================================= */
+function onSipSliderChange() {
+  const monthly = parseFloat(document.getElementById('sipSliderMonthly').value || '5000');
+  const rate = parseFloat(document.getElementById('sipSliderReturn').value || '12');
+  const years = parseFloat(document.getElementById('sipSliderYears').value || '5');
+
+  const monthlyValEl = document.getElementById('sipCalcMonthlyVal');
+  const rateValEl = document.getElementById('sipCalcReturnVal');
+  const yearsValEl = document.getElementById('sipCalcYearsVal');
+
+  if (monthlyValEl) monthlyValEl.innerText = monthly.toLocaleString('en-IN');
+  if (rateValEl) rateValEl.innerText = rate;
+  if (yearsValEl) yearsValEl.innerText = years;
+
+  const months = years * 12;
+  const i = (rate / 100) / 12;
+  const fv = monthly * ((Math.pow(1 + i, months) - 1) / i) * (1 + i);
+  const invested = monthly * months;
+  const gains = fv - invested;
+
+  const invEl = document.getElementById('sipResInvested');
+  const gainEl = document.getElementById('sipResGains');
+  const totalEl = document.getElementById('sipResTotal');
+
+  if (invEl) invEl.innerText = formatINR(invested);
+  if (gainEl) gainEl.innerText = formatINR(gains);
+  if (totalEl) totalEl.innerText = formatINR(fv);
+}
+
+function openSipModalForCurrentAsset() {
+  if (!currentPageAsset) return;
+  openSipModal(currentPageAsset.symbol, currentPageAsset.name);
+}
+
+function openSipModal(symbol, name) {
+  if (isGuest()) {
+    showToast('Please create an account to schedule automated SIPs!', false);
+    navigateTo('/onboarding');
+    return;
+  }
+
+  const cleanName = name || symbol;
+  const monthlyVal = document.getElementById('sipSliderMonthly') ? document.getElementById('sipSliderMonthly').value : '5000';
+
+  const fundInput = document.getElementById('sipModalFundName');
+  const amtInput = document.getElementById('sipModalAmount');
+  if (fundInput) fundInput.value = `${cleanName} (${symbol})`;
+  if (amtInput) amtInput.value = monthlyVal;
+
+  const modal = document.getElementById('sipScheduleModal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeSipModal() {
+  const modal = document.getElementById('sipScheduleModal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function submitSipSchedule() {
+  const fundInput = document.getElementById('sipModalFundName').value;
+  const amount = parseFloat(document.getElementById('sipModalAmount').value || '5000');
+  const day = parseInt(document.getElementById('sipModalDay').value || '5', 10);
+
+  if (!amount || amount < 500) {
+    showToast('Minimum SIP installment is ₹500', true);
+    return;
+  }
+
+  const sym = currentPageAsset ? currentPageAsset.symbol : (fundInput.split('(')[1]?.replace(')', '') || fundInput);
+
+  try {
+    const res = await fetch('/api/mf/sip', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        symbol: sym,
+        amount: amount,
+        installment_day: day
+      })
+    });
+
+    const result = await res.json();
+    if (!res.ok || !result.success) {
+      showToast(result.detail || result.error || 'Failed to schedule SIP', true);
+      return;
+    }
+
+    showToast(`Monthly SIP of ${formatINR(amount)} scheduled on the ${day}th of every month!`);
+    closeSipModal();
+    loadActiveSips();
+  } catch (err) {
+    showToast('Failed to schedule SIP', true);
+  }
+}
+
+async function loadActiveSips() {
+  if (isGuest()) return;
+  try {
+    const res = await fetch('/api/mf/sips');
+    const sips = await res.json();
+
+    const tbody = document.getElementById('sipsTableBody');
+    const mobList = document.getElementById('sipsMobileList');
+
+    if (!sips || sips.length === 0) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 3rem;">No active SIP schedules.</td></tr>';
+      if (mobList) mobList.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 2rem;">No active SIP schedules.</div>';
+      return;
+    }
+
+    if (tbody) {
+      tbody.innerHTML = sips.map(s => `
+        <tr>
+          <td><strong>${s.symbol.replace('.NS', '')}</strong></td>
+          <td><strong style="color: var(--accent-green);">${formatINR(s.amount)}</strong></td>
+          <td>${s.installment_day}th of month</td>
+          <td>${s.next_trigger_date}</td>
+          <td>${s.installments_completed || 0}</td>
+          <td><span class="badge-positive">${s.status}</span></td>
+          <td style="text-align: right;">
+            <button class="btn-cancel-small" onclick="cancelSip('${s.sip_id}')">Stop SIP</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    if (mobList) {
+      mobList.innerHTML = sips.map(s => `
+        <div class="mobile-order-card">
+          <div class="mob-order-header">
+            <strong>${s.symbol.replace('.NS', '')}</strong>
+            <span class="badge-positive">${s.status}</span>
+          </div>
+          <div class="mob-order-row">
+            <span>Monthly Amount</span><strong style="color: var(--accent-green);">${formatINR(s.amount)}</strong>
+          </div>
+          <div class="mob-order-row">
+            <span>Debit Date</span><span>${s.installment_day}th Monthly</span>
+          </div>
+          <div class="mob-order-row">
+            <span>Next Execution</span><span>${s.next_trigger_date}</span>
+          </div>
+          <div style="margin-top: 0.75rem; text-align: right;">
+            <button class="btn-cancel-small" onclick="cancelSip('${s.sip_id}')">Stop SIP</button>
+          </div>
+        </div>
+      `).join('');
+    }
+  } catch (err) {
+    console.error('Failed to load SIPs:', err);
+  }
+}
+
+async function cancelSip(sipId) {
+  try {
+    const res = await fetch(`/api/mf/sip/${sipId}`, { method: 'DELETE' });
+    const d = await res.json();
+    if (d.success) {
+      showToast('SIP cancelled successfully');
+      loadActiveSips();
+    } else {
+      showToast(d.error || 'Failed to cancel SIP', true);
+    }
+  } catch (err) {
+    showToast('Failed to cancel SIP', true);
+  }
+}
+
+
+/* =======================================================
+   5. PORTFOLIO ANALYTICS & BUDGET 2024 CAPITAL GAINS TAX
+   ======================================================= */
+async function loadPortfolioAnalytics() {
+  if (isGuest()) return;
+  try {
+    // 1. Sector Allocation
+    const secRes = await fetch('/api/analytics/sector-allocation');
+    const secData = await secRes.json();
+    const secContainer = document.getElementById('sectorDiversificationBars');
+
+    if (secContainer && Array.isArray(secData) && secData.length > 0) {
+      const colors = ['#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#06b6d4', '#14b8a6'];
+      secContainer.innerHTML = `
+        <div class="sector-bar-wrapper">
+          <div class="sector-stacked-bar">
+            ${secData.map((s, idx) => `
+              <div class="sector-segment" style="width: ${s.weight_pct}%; background: ${colors[idx % colors.length]};" title="${s.sector}: ${s.weight_pct}%"></div>
+            `).join('')}
+          </div>
+          <div class="sector-legend-grid">
+            ${secData.map((s, idx) => `
+              <div class="sector-legend-item">
+                <span class="legend-dot" style="background: ${colors[idx % colors.length]};"></span>
+                <span class="legend-name">${s.sector}</span>
+                <strong class="legend-val">${s.weight_pct}% (${formatINR(s.value)})</strong>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // 2. Budget 2024 Tax Report
+    const taxRes = await fetch('/api/analytics/tax-report');
+    const taxData = await taxRes.json();
+    
+    const stcgRealized = document.getElementById('taxStcgRealized');
+    const stcgPayable = document.getElementById('taxStcgPayable');
+    const ltcgRealized = document.getElementById('taxLtcgRealized');
+    const ltcgTaxable = document.getElementById('taxLtcgTaxable');
+    const ltcgPayable = document.getElementById('taxLtcgPayable');
+    const totalLiability = document.getElementById('taxTotalLiability');
+
+    if (stcgRealized) stcgRealized.innerText = formatINR(taxData.stcg_realized_gain);
+    if (stcgPayable) stcgPayable.innerText = formatINR(taxData.stcg_tax_payable);
+    if (ltcgRealized) ltcgRealized.innerText = formatINR(taxData.ltcg_realized_gain);
+    if (ltcgTaxable) ltcgTaxable.innerText = formatINR(taxData.ltcg_taxable_gain);
+    if (ltcgPayable) ltcgPayable.innerText = formatINR(taxData.ltcg_tax_payable);
+    if (totalLiability) totalLiability.innerText = formatINR(taxData.total_tax_liability);
+  } catch (err) {
+    console.error('Failed to load portfolio analytics:', err);
+  }
+}
+
+
+/* =======================================================
+   6. STOCK DETAIL TABS (FINANCIALS, SHAREHOLDING, PEERS, NEWS)
+   ======================================================= */
+let currentFinData = null;
+let currentFinPeriod = 'quarterly';
+
+function switchAssetPageTab(tabId) {
+  document.querySelectorAll('.asset-tab-btn').forEach(btn => btn.classList.remove('active'));
+  const activeBtn = document.getElementById(`tab-asset-${tabId}`);
+  if (activeBtn) activeBtn.classList.add('active');
+
+  document.querySelectorAll('.asset-tab-pane').forEach(pane => pane.style.display = 'none');
+  const activePane = document.getElementById(`asset-tab-content-${tabId}`);
+  if (activePane) activePane.style.display = 'block';
+
+  if (!currentPageAsset) return;
+  const sym = currentPageAsset.symbol;
+
+  if (tabId === 'financials') {
+    fetchStockFinancials(sym);
+  } else if (tabId === 'shareholding') {
+    fetchStockShareholding(sym);
+  } else if (tabId === 'peers') {
+    fetchStockPeers(sym);
+  } else if (tabId === 'news') {
+    fetchStockNews(sym);
+  }
+}
+
+function switchFinPeriod(period) {
+  currentFinPeriod = period;
+  const qBtn = document.getElementById('btnFinQuarterly');
+  const aBtn = document.getElementById('btnFinAnnual');
+  if (qBtn) qBtn.className = `seg-btn ${period === 'quarterly' ? 'active' : ''}`;
+  if (aBtn) aBtn.className = `seg-btn ${period === 'annual' ? 'active' : ''}`;
+  if (currentFinData) renderFinancialsBars(currentFinData, period);
+}
+
+async function fetchStockFinancials(symbol) {
+  const container = document.getElementById('pageFinancialsBarsContainer');
+  try {
+    const res = await fetch(`/api/stock/financials?symbol=${encodeURIComponent(symbol)}`);
+    const data = await res.json();
+    currentFinData = data;
+    renderFinancialsBars(data, currentFinPeriod);
+  } catch (err) {
+    if (container) container.innerHTML = '<div style="color: var(--accent-red); padding: 2rem;">Failed to load financials</div>';
+  }
+}
+
+function renderFinancialsBars(data, period) {
+  const container = document.getElementById('pageFinancialsBarsContainer');
+  const tbody = document.getElementById('pageFinancialsTableBody');
+  if (!container || !data) return;
+
+  const dataset = period === 'quarterly' ? data.quarterly : data.annual;
+  if (!dataset || dataset.length === 0) {
+    container.innerHTML = '<div style="color: var(--text-muted); padding: 2rem;">Financial statements not available for this period.</div>';
+    return;
+  }
+
+  dataset.forEach((item, idx) => {
+    const col = document.getElementById(`finPeriodCol${idx + 1}`);
+    if (col) col.innerText = item.period;
+  });
+
+  container.innerHTML = dataset.map(d => `
+    <div class="fin-bar-col">
+      <div class="fin-bars-group">
+        <div class="fin-bar revenue" style="height: ${Math.min(100, Math.max(15, (d.revenue / 25000) * 100))}%;" title="Revenue: ₹${d.revenue} Cr">
+          <span class="fin-bar-val">₹${(d.revenue / 1000).toFixed(1)}k</span>
+        </div>
+        <div class="fin-bar profit" style="height: ${Math.min(100, Math.max(10, (d.profit / 5000) * 100))}%;" title="Net Profit: ₹${d.profit} Cr">
+          <span class="fin-bar-val">₹${d.profit}</span>
+        </div>
+      </div>
+      <span class="fin-bar-label">${d.period}</span>
+    </div>
+  `).join('');
+
+  if (tbody) {
+    tbody.innerHTML = `
+      <tr>
+        <td><strong>Total Revenue</strong></td>
+        ${dataset.map(d => `<td>₹${d.revenue.toLocaleString('en-IN')} Cr</td>`).join('')}
+      </tr>
+      <tr>
+        <td><strong>Operating EBITDA</strong></td>
+        ${dataset.map(d => `<td>₹${d.ebitda.toLocaleString('en-IN')} Cr</td>`).join('')}
+      </tr>
+      <tr>
+        <td><strong>Net Profit (PAT)</strong></td>
+        ${dataset.map(d => `<td style="color: var(--accent-green);">₹${d.profit.toLocaleString('en-IN')} Cr</td>`).join('')}
+      </tr>
+      <tr>
+        <td><strong>EPS (₹)</strong></td>
+        ${dataset.map(d => `<td>₹${d.eps}</td>`).join('')}
+      </tr>
+    `;
+  }
+}
+
+async function fetchStockShareholding(symbol) {
+  const container = document.getElementById('pageShareholdingContainer');
+  try {
+    const res = await fetch(`/api/stock/shareholding?symbol=${encodeURIComponent(symbol)}`);
+    const data = await res.json();
+
+    const colors = {
+      promoter: '#10b981',
+      fii: '#3b82f6',
+      dii: '#8b5cf6',
+      mutual_funds: '#f59e0b',
+      public: '#06b6d4'
+    };
+
+    const categories = [
+      { key: 'promoter', label: 'Promoters & Group', pct: data.promoter },
+      { key: 'fii', label: 'Foreign Inst. (FII)', pct: data.fii },
+      { key: 'dii', label: 'Domestic Inst. (DII)', pct: data.dii },
+      { key: 'mutual_funds', label: 'Mutual Funds', pct: data.mutual_funds },
+      { key: 'public', label: 'Retail & Public', pct: data.public }
+    ];
+
+    container.innerHTML = `
+      <div class="shareholding-progress-bar">
+        ${categories.map(c => `
+          <div class="sh-segment" style="width: ${c.pct}%; background: ${colors[c.key]};" title="${c.label}: ${c.pct}%"></div>
+        `).join('')}
+      </div>
+      <div class="shareholding-list">
+        ${categories.map(c => `
+          <div class="sh-row">
+            <div style="display: flex; align-items: center; gap: 0.6rem;">
+              <span class="legend-dot" style="background: ${colors[c.key]};"></span>
+              <span class="sh-name">${c.label}</span>
+            </div>
+            <strong class="sh-val">${c.pct}%</strong>
+          </div>
+        `).join('')}
+      </div>
+      <div style="margin-top: 1rem; font-size: 0.75rem; color: var(--text-muted); text-align: right;">
+        Promoter Pledging: <strong>${data.promoter_pledged || '0.0%'}</strong>
+      </div>
+    `;
+  } catch (err) {
+    if (container) container.innerHTML = '<div style="color: var(--accent-red); padding: 2rem;">Failed to load shareholding</div>';
+  }
+}
+
+async function fetchStockPeers(symbol) {
+  const tbody = document.getElementById('pagePeersTableBody');
+  try {
+    const res = await fetch(`/api/stock/peers?symbol=${encodeURIComponent(symbol)}`);
+    const peers = await res.json();
+
+    if (!peers || peers.length === 0) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">No peer comparisons found.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = peers.map(p => `
+      <tr>
+        <td>
+          <strong>${p.name}</strong>
+          <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">${p.symbol.replace('.NS', '')}</span>
+        </td>
+        <td><strong>${formatINR(p.price)}</strong></td>
+        <td>${p.pe}</td>
+        <td>${p.market_cap}</td>
+        <td class="${p.return_1y.startsWith('+') ? 'text-positive' : 'text-negative'}">${p.return_1y}</td>
+        <td>${p.div_yield}</td>
+        <td style="text-align: right;">
+          <button class="btn-subtle" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;" onclick="showAssetPage('${p.symbol}', 'STOCK')">View</button>
+        </td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--accent-red); padding: 2rem;">Failed to load peers</td></tr>';
+  }
+}
+
+async function fetchStockNews(symbol) {
+  const container = document.getElementById('pageNewsContainer');
+  try {
+    const res = await fetch(`/api/stock/news?symbol=${encodeURIComponent(symbol)}`);
+    const news = await res.json();
+
+    if (!news || news.length === 0) {
+      if (container) container.innerHTML = '<div style="color: var(--text-muted); padding: 2rem;">No recent news articles found.</div>';
+      return;
+    }
+
+    container.innerHTML = news.map(n => `
+      <div class="news-card-item">
+        <div class="news-meta">
+          <span class="news-source">${n.source}</span>
+          <span class="sub-sep">•</span>
+          <span class="news-time">${n.time}</span>
+          <span class="news-sentiment ${n.sentiment === 'Positive' ? 'badge-positive' : 'pill-btn'}">${n.sentiment}</span>
+        </div>
+        <h4 class="news-title">${n.title}</h4>
+        <p class="news-summary">${n.summary}</p>
+      </div>
+    `).join('');
+  } catch (err) {
+    if (container) container.innerHTML = '<div style="color: var(--accent-red); padding: 2rem;">Failed to load news</div>';
+  }
 }
