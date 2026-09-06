@@ -2184,6 +2184,7 @@ async function fetchCurrentUser() {
       document.documentElement.classList.remove('user-guest');
     } else {
       currentUser = null;
+      localStorage.removeItem('stoxify_user_id');
       localStorage.removeItem('stoxify_cached_user');
       document.documentElement.classList.remove('user-logged-in');
       document.documentElement.classList.add('user-guest');
