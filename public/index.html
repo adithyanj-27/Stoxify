@@ -12,7 +12,7 @@
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-dark.png" id="dynamicFavicon">
   <link rel="apple-touch-icon" href="/static/icon-192.png">
-  <link rel="stylesheet" href="/static/style.css?v=6.7" onerror="this.onerror=null;this.href='/style.css?v=6.7';">
+  <link rel="stylesheet" href="/static/style.css?v=6.8" onerror="this.onerror=null;this.href='/style.css?v=6.8';">
   <!-- Chart.js for high performance financial line & area charts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Pre-render synchronous auth & theme hydration to completely eliminate cold-boot flash of 'Invest' button -->
@@ -26,8 +26,10 @@
         var cachedUser = localStorage.getItem('stoxify_cached_user');
         if (uid && uid !== 'default' && uid !== 'guest' && !isGuest && cachedUser) {
           document.documentElement.classList.add('user-logged-in');
-        } else if (isGuest) {
+          document.documentElement.classList.remove('user-guest');
+        } else {
           document.documentElement.classList.add('user-guest');
+          document.documentElement.classList.remove('user-logged-in');
         }
       } catch(e) {}
     })();
@@ -2448,6 +2450,6 @@
     </button>
   </nav>
 
-  <script src="/static/app.js?v=6.7" onerror="this.onerror=null;this.src='/app.js?v=6.7';"></script>
+  <script src="/static/app.js?v=6.8" onerror="this.onerror=null;this.src='/app.js?v=6.8';"></script>
 </body>
 </html>

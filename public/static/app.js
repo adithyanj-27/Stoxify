@@ -2198,13 +2198,15 @@ function updateNavbarProfile() {
   const menuBankEl = document.getElementById('menuUserBank');
   const menuBalEl = document.getElementById('menuUserBalance');
 
-  const guestBtns = document.getElementById('navGuestButtons') || document.getElementById('navGetStartedBtn');
+  const guestBtns = document.querySelectorAll('#navAuthBtn, #navGetStartedBtn, #navGuestButtons');
 
   if (isGuest() || !currentUser) {
     document.documentElement.classList.remove('user-logged-in');
     document.documentElement.classList.add('user-guest');
-    if (guestBtns) guestBtns.style.display = 'inline-flex';
-    if (profileWrapper) profileWrapper.style.display = 'none';
+    guestBtns.forEach(btn => {
+      btn.style.setProperty('display', 'inline-flex', 'important');
+    });
+    if (profileWrapper) profileWrapper.style.setProperty('display', 'none', 'important');
     const navBalEl = document.getElementById('navBalanceDisplay');
     if (navBalEl) navBalEl.innerText = '₹0.00';
     return;
@@ -2213,8 +2215,10 @@ function updateNavbarProfile() {
   // Authenticated user
   document.documentElement.classList.add('user-logged-in');
   document.documentElement.classList.remove('user-guest');
-  if (guestBtns) guestBtns.style.display = 'none';
-  if (profileWrapper) profileWrapper.style.display = 'inline-flex';
+  guestBtns.forEach(btn => {
+    btn.style.setProperty('display', 'none', 'important');
+  });
+  if (profileWrapper) profileWrapper.style.setProperty('display', 'inline-flex', 'important');
 
   const initials = currentUser.name ? currentUser.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'ST';
   const avatarColor = currentUser.avatar_color || '#0EA5E9';
@@ -4143,6 +4147,7 @@ async function submitObStep5() {
 
 
 function finishOnboarding() {
+  updateNavbarProfile();
   navigateTo('/explore');
   showToast(`Welcome to Stoxify, ${currentUser.name}! ₹10,00,000 virtual cash credited!`);
 }
