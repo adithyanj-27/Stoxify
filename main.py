@@ -224,15 +224,6 @@ class UpdateProfileRequest(BaseModel):
 @app.put("/api/user/profile")
 def api_update_user_profile(req: UpdateProfileRequest, request: Request):
     uid = req.id or get_user_id(request)
-    if not uid:
-        try:
-            users = list_users()
-            real_users = [u for u in users if u.get("id") and u.get("id") != "default"]
-            if real_users:
-                uid = real_users[0]["id"]
-        except Exception:
-            pass
-
     if not uid or uid == "guest":
         raise HTTPException(status_code=401, detail="Account required to edit profile")
 
@@ -309,16 +300,6 @@ def api_get_current_user(request: Request):
         u = get_user(uid)
         if u:
             return u
-    # Single-user mode: auto-connect to the registered user if one exists
-    try:
-        users = list_users()
-        real_users = [u for u in users if u.get("id") and u.get("id") != "default"]
-        if real_users:
-            u = get_user(real_users[0]["id"])
-            if u:
-                return u
-    except Exception:
-        pass
     return {"is_guest": True, "id": None, "name": "Guest", "balance": 0.0}
 
 @app.get("/api/user/list")

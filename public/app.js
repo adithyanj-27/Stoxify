@@ -1844,6 +1844,13 @@ async function confirmDeleteAccount() {
       localStorage.removeItem('stoxify_user_id');
       localStorage.removeItem('stoxify_cached_user');
       localStorage.removeItem('stoxify_watchlist_cache');
+      try {
+        let recent = JSON.parse(localStorage.getItem('stoxify_recent_accounts') || '[]');
+        if (currentUser && currentUser.id) {
+          recent = recent.filter(item => item.id !== currentUser.id && item.email !== currentUser.email);
+        }
+        localStorage.setItem('stoxify_recent_accounts', JSON.stringify(recent));
+      } catch (e) {}
       localStorage.setItem('stoxify_guest_mode', 'true');
       document.documentElement.classList.remove('user-logged-in');
       document.documentElement.classList.add('user-guest');
@@ -2483,17 +2490,32 @@ function closeLoginModal() {
   if (overlay) overlay.classList.remove('active');
 }
 
-async function loadSavedLoginAccounts() {
+function saveRecentAccount(u) {
+  if (!u || !u.id || u.id === 'default' || u.id === 'guest') return;
+  try {
+    let recent = JSON.parse(localStorage.getItem('stoxify_recent_accounts') || '[]');
+    recent = recent.filter(item => item.id !== u.id && item.email !== u.email);
+    recent.unshift({
+      id: u.id,
+      name: u.name,
+      email: u.email || u.phone || '',
+      avatar_color: u.avatar_color || '#0EA5E9'
+    });
+    if (recent.length > 5) recent = recent.slice(0, 5);
+    localStorage.setItem('stoxify_recent_accounts', JSON.stringify(recent));
+  } catch (e) {}
+}
+
+function loadSavedLoginAccounts() {
   const section = document.getElementById('loginSavedAccountsSection');
   const list = document.getElementById('loginSavedAccountsList');
   if (!section || !list) return;
 
   try {
-    const res = await fetch('/api/user/list');
-    const users = await res.json();
-    const validUsers = (users || []).filter(u => u.id && u.id !== 'default' && u.name);
+    const raw = localStorage.getItem('stoxify_recent_accounts');
+    const validUsers = raw ? JSON.parse(raw) : [];
 
-    if (validUsers.length === 0) {
+    if (!validUsers || validUsers.length === 0) {
       section.style.display = 'none';
       return;
     }
@@ -2503,7 +2525,7 @@ async function loadSavedLoginAccounts() {
       const inits = (u.name || 'Trader').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
       const col = u.avatar_color || '#0EA5E9';
       const demat = (u.id || '').replace('STOX-', '').slice(-6).toUpperCase();
-      const email = u.email || u.phone || '';
+      const email = u.email || '';
       return `
         <div class="login-account-card" onclick="selectLoginAccount('${u.id}', '${(u.name || '').replace(/'/g, "\\'")}', '${email}')">
           <div style="width: 38px; height: 38px; border-radius: 50%; background: ${col}; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.95rem; flex-shrink: 0;">
@@ -2522,7 +2544,6 @@ async function loadSavedLoginAccounts() {
       `;
     }).join('');
   } catch (err) {
-    console.error('Failed to load login accounts:', err);
     section.style.display = 'none';
   }
 }
@@ -2577,6 +2598,7 @@ async function submitLogin() {
     document.documentElement.classList.remove('user-guest');
 
     updateNavbarProfile();
+    saveRecentAccount(currentUser);
     closeLoginModal();
     showToast(`Welcome back, ${currentUser.name}!`);
 
@@ -4137,6 +4159,7 @@ async function submitObStep5() {
     document.getElementById('obCreatedBank').innerText = `${currentUser.bank_name} •••• ${last4} (Verified ✓)`;
 
     updateNavbarProfile();
+    saveRecentAccount(currentUser);
     fetchAccount();
     goToObStep(6);
 

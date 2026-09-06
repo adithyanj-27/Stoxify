@@ -442,6 +442,41 @@ def create_user(
         else:
             print(f"[Supabase] Warning: could not sync user {user_id} to Supabase")
 
+        # 3. Register user directly into Supabase Authentication -> Users (auth.users)
+        try:
+            auth_url = f"{SUPABASE_URL}/auth/v1/signup"
+            clean_email = (email or "").strip()
+            if clean_email:
+                pwd = f"stoxify_{pin}" if len(str(pin or "1234")) < 6 else str(pin)
+                auth_payload = {
+                    "email": clean_email,
+                    "password": pwd,
+                    "data": {
+                        "name": name,
+                        "phone": phone or "",
+                        "demat": user_id,
+                        "pin": str(pin or "1234"),
+                        "pan": pan or "ABCDE1234F"
+                    }
+                }
+                auth_headers = {
+                    "apikey": SUPABASE_KEY,
+                    "Content-Type": "application/json"
+                }
+                auth_req = urllib.request.Request(
+                    auth_url, 
+                    data=json.dumps(auth_payload).encode("utf-8"), 
+                    headers=auth_headers, 
+                    method="POST"
+                )
+                with urllib.request.urlopen(auth_req, timeout=6) as auth_resp:
+                    print(f"[Supabase Auth] Successfully registered {clean_email} in Supabase Authentication -> Users")
+        except urllib.error.HTTPError as he:
+            err_text = he.read().decode("utf-8", errors="ignore")
+            print(f"[Supabase Auth Note] signup response ({he.code}): {err_text}")
+        except Exception as ae:
+            print(f"[Supabase Auth Note] {ae}")
+
     return user_data
 
 def update_user(
