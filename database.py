@@ -134,6 +134,23 @@ def init_db():
             INSERT INTO users (id, name, email, phone, pan, bank_name, bank_account, pin, balance, total_deposited, avatar_color)
             VALUES ('default', 'Default Trader', 'trader@stoxify.com', '9876543210', 'ABCDE1234F', 'HDFC Bank', '50100234567890', '1234', 1000000.0, 1000000.0, '#0EA5E9')
         """)
+    if is_supabase_enabled():
+        try:
+            supabase_api("POST", "users", payload={
+                "id": "default",
+                "name": "Default Trader",
+                "email": "trader@stoxify.com",
+                "phone": "9876543210",
+                "pan": "ABCDE1234F",
+                "bank_name": "HDFC Bank",
+                "bank_account": "50100234567890",
+                "pin": "1234",
+                "balance": 1000000.0,
+                "total_deposited": 1000000.0,
+                "avatar_color": "#0EA5E9"
+            })
+        except Exception:
+            pass
 
     # 2. Legacy Account table (for backwards compatibility)
     cursor.execute("""
