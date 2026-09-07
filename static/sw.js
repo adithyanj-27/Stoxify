@@ -1,5 +1,5 @@
 // Stoxify PWA Service Worker
-const CACHE_NAME = 'stoxify-v6';
+const CACHE_NAME = 'stoxify-v7';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/static/manifest.json',

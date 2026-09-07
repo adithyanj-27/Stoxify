@@ -1,5 +1,18 @@
 // Stoxify — Core Client Application Logic & Feature Engine
 
+// Transparently migrate legacy storage keys into stoxify namespace
+(function migrateStorage() {
+  try {
+    const keys = ['user_id', 'cached_user', 'theme', 'guest_mode', 'watchlist_cache', 'recent_accounts', 'app_installed', 'explore_cache'];
+    keys.forEach(k => {
+      const oldVal = localStorage.getItem('stoxify_' + k);
+      if (oldVal !== null && localStorage.getItem('stoxify_' + k) === null) {
+        localStorage.setItem('stoxify_' + k, oldVal);
+      }
+    });
+  } catch (e) {}
+})();
+
 // Clean up legacy default session so unauthenticated visitors start in clean Guest mode
 if (localStorage.getItem('stoxify_user_id') === 'default') {
   localStorage.removeItem('stoxify_user_id');
@@ -770,7 +783,7 @@ async function fetchPortfolio() {
       return `
         <tr>
           <td>
-            <div style="font-weight: 700;">${h.name}</div>
+            <button type="button" class="holding-name-link" onclick="openHoldingDetails('${h.symbol}', '${h.asset_type}')" title="View details for ${h.name}">${h.name}</button>
             <div style="font-size: 0.75rem; color: var(--text-muted);">${h.symbol}</div>
           </td>
           <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;">${h.asset_type === 'MUTUAL_FUND' ? 'Mutual Fund' : 'Stock'}</span></td>
@@ -786,7 +799,7 @@ async function fetchPortfolio() {
             ${isPosDay ? '+' : ''}${formatINR(h.today_pnl)}
           </td>
           <td style="text-align: right;">
-            <button class="btn-danger" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" onclick="openAssetModal('${h.symbol}', '${h.asset_type}', 'SELL')">Sell</button>
+            <button class="btn-danger" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" onclick="startHoldingSale('${h.symbol}', '${h.asset_type}', ${Number(h.quantity) || 0})">Sell</button>
           </td>
         </tr>
       `;
@@ -800,7 +813,7 @@ async function fetchPortfolio() {
           <div class="mobile-card-top">
             <div>
               <div class="mobile-card-symbol">${h.symbol}</div>
-              <div class="mobile-card-name">${h.name}</div>
+              <button type="button" class="holding-name-link mobile-card-name" onclick="openHoldingDetails('${h.symbol}', '${h.asset_type}')" title="View details for ${h.name}">${h.name}</button>
             </div>
             <div class="mobile-card-price">
               ${formatINR(h.current_value)}
@@ -817,7 +830,7 @@ async function fetchPortfolio() {
           </div>
           <div class="mobile-card-actions">
             <button class="pill-btn" onclick="openAssetModal('${h.symbol}', '${h.asset_type}', 'BUY')">+ Add More</button>
-            <button class="btn-danger" style="padding: 0.35rem 0.85rem; font-size: 0.8rem;" onclick="openAssetModal('${h.symbol}', '${h.asset_type}', 'SELL')">Sell</button>
+            <button class="btn-danger" style="padding: 0.35rem 0.85rem; font-size: 0.8rem;" onclick="startHoldingSale('${h.symbol}', '${h.asset_type}', ${Number(h.quantity) || 0})">Sell</button>
           </div>
         </div>
       `;
@@ -1289,12 +1302,36 @@ function openAssetModal(symbol, assetType = 'STOCK', preselectAction = 'BUY') {
   const cleanSym = (symbol || '').replace('.NS', '').replace('.BO', '');
   if (preselectAction && preselectAction !== 'BUY') {
     sessionStorage.setItem('stoxify_preselect_action', preselectAction);
+  } else {
+    sessionStorage.removeItem('stoxify_preselect_action');
+    sessionStorage.removeItem('stoxify_holding_sale');
   }
   if (assetType === 'MUTUAL_FUND' || symbol.match(/^\d+$/)) {
     navigateTo('/mf/' + cleanSym);
   } else {
     navigateTo('/stock/' + cleanSym);
   }
+}
+
+// Holdings have a known product and quantity. Carry those values through the
+// route change instead of waiting for a second portfolio request before Sell.
+function openHoldingDetails(symbol, assetType = 'STOCK') {
+  openAssetModal(symbol, assetType, 'BUY');
+}
+
+function startHoldingSale(symbol, assetType = 'STOCK', quantity = 0) {
+  const cleanQuantity = Number(quantity);
+  if (!Number.isFinite(cleanQuantity) || cleanQuantity <= 0) {
+    showToast('This holding has no sellable shares.', true);
+    return;
+  }
+  sessionStorage.setItem('stoxify_holding_sale', JSON.stringify({
+    symbol: (symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase(),
+    assetType,
+    quantity: cleanQuantity,
+    product: 'DELIVERY'
+  }));
+  openAssetModal(symbol, assetType, 'SELL');
 }
 
 async function legacyOpenAssetModal(symbol, assetType = 'STOCK', preselectAction = 'BUY') {
@@ -2241,6 +2278,15 @@ function updateNavbarProfile() {
   }
   if (menuNameEl) menuNameEl.innerText = currentUser.name;
   if (menuEmailEl) menuEmailEl.innerText = currentUser.email || '';
+  const menuUsernameEl = document.getElementById('menuUserUsername');
+  if (menuUsernameEl) {
+    if (currentUser.username) {
+      menuUsernameEl.innerText = `@${currentUser.username}`;
+      menuUsernameEl.style.display = 'inline-block';
+    } else {
+      menuUsernameEl.style.display = 'none';
+    }
+  }
   if (menuDematEl) menuDematEl.innerText = `Demat: STOX-${(currentUser.id || '9876').slice(-6).toUpperCase()}`;
   const last4 = (currentUser.bank_account || '5678').slice(-4);
   if (menuBankEl) menuBankEl.innerText = `${currentUser.bank_name || 'HDFC Bank'} •••• ${last4} (Verified ✓)`;
@@ -2315,13 +2361,17 @@ function openEditProfileModal() {
   const dematDisplay = document.getElementById('editProfileDematDisplay');
 
   if (nameInput) nameInput.value = currentUser.name || '';
+  const usernameInput = document.getElementById('editProfileUsername');
+  if (usernameInput) usernameInput.value = currentUser.username || '';
+  const passwordInput = document.getElementById('editProfilePassword');
+  if (passwordInput) passwordInput.value = '';
   if (emailInput) emailInput.value = currentUser.email || '';
   if (phoneInput) phoneInput.value = currentUser.phone || '';
   if (dobInput) dobInput.value = currentUser.dob || '';
   if (panInput) panInput.value = currentUser.pan || '';
   if (bankNameInput) bankNameInput.value = currentUser.bank_name || 'HDFC Bank';
   if (bankAccInput) bankAccInput.value = currentUser.bank_account || '';
-  if (pinInput) pinInput.value = currentUser.pin || '1234';
+  if (pinInput) pinInput.value = currentUser.pin || '';
 
   selectedEditAvatarColor = currentUser.avatar_color || '#0EA5E9';
   highlightSelectedAvatarColor(selectedEditAvatarColor);
@@ -2383,6 +2433,8 @@ async function saveUserProfile() {
   }
 
   const name = document.getElementById('editProfileName').value.trim();
+  const username = document.getElementById('editProfileUsername') ? document.getElementById('editProfileUsername').value.trim().replace(/^@/, '').toLowerCase() : '';
+  const password = document.getElementById('editProfilePassword') ? document.getElementById('editProfilePassword').value.trim() : '';
   const email = document.getElementById('editProfileEmail').value.trim();
   const phone = document.getElementById('editProfilePhone').value.trim();
   const dob = document.getElementById('editProfileDob').value.trim();
@@ -2394,6 +2446,23 @@ async function saveUserProfile() {
   if (!name) {
     showToast('Legal Name is required', true);
     document.getElementById('editProfileName').focus();
+    return;
+  }
+  if (username) {
+    if (username.length < 3 || username.length > 25) {
+      showToast('Username must be between 3 and 25 characters', true);
+      document.getElementById('editProfileUsername')?.focus();
+      return;
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+      showToast('Username can only contain letters, numbers, and underscores', true);
+      document.getElementById('editProfileUsername')?.focus();
+      return;
+    }
+  }
+  if (password && password.length < 6) {
+    showToast('Password must be at least 6 characters', true);
+    document.getElementById('editProfilePassword')?.focus();
     return;
   }
   if (!email || !email.includes('@')) {
@@ -2432,6 +2501,8 @@ async function saveUserProfile() {
       body: JSON.stringify({
         id: currentUser.id,
         name,
+        username: username || null,
+        password: password || null,
         email,
         phone,
         dob,
@@ -2499,6 +2570,7 @@ function saveRecentAccount(u) {
     recent.unshift({
       id: u.id,
       name: u.name,
+      username: u.username || '',
       email: u.email || u.phone || '',
       avatar_color: u.avatar_color || '#0EA5E9'
     });
@@ -2527,15 +2599,16 @@ function loadSavedLoginAccounts() {
       const col = u.avatar_color || '#0EA5E9';
       const demat = (u.id || '').replace('STOX-', '').slice(-6).toUpperCase();
       const email = u.email || '';
+      const userHandle = u.username ? `@${u.username} • ` : '';
       return `
-        <div class="login-account-card" onclick="selectLoginAccount('${u.id}', '${(u.name || '').replace(/'/g, "\\'")}', '${email}')">
+        <div class="login-account-card" onclick="selectLoginAccount('${u.username || u.id}', '${(u.name || '').replace(/'/g, "\\'")}', '${email}')">
           <div style="width: 38px; height: 38px; border-radius: 50%; background: ${col}; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.95rem; flex-shrink: 0;">
             ${inits}
           </div>
           <div style="flex: 1; min-width: 0;">
             <div style="font-weight: 800; font-size: 0.92rem; color: var(--text-primary);">${u.name}</div>
             <div style="font-size: 0.72rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-              ${email} • Demat: STOX-${demat}
+              ${userHandle}${email} • Demat: STOX-${demat}
             </div>
           </div>
           <div style="color: var(--brand-cyan); font-weight: 700; font-size: 0.78rem; display: flex; align-items: center; gap: 3px; flex-shrink: 0;">
@@ -2555,7 +2628,7 @@ function selectLoginAccount(id, name, email) {
   if (identInput) identInput.value = id || email;
   if (pinInput) {
     pinInput.focus();
-    pinInput.placeholder = 'Enter Password or 4-digit PIN (default 1234)';
+    pinInput.placeholder = 'Enter Password or 4-digit PIN';
   }
 }
 
@@ -2568,8 +2641,14 @@ async function submitLogin() {
   const pin = pinInput ? pinInput.value.trim() : '';
 
   if (!identifier) {
-    showToast('Please enter your Email Address or Phone Number', true);
+    showToast('Please enter your Username, Email Address or Phone Number', true);
     if (identInput) identInput.focus();
+    return;
+  }
+
+  if (!pin) {
+    showToast('Please enter your Password or 4-digit PIN', true);
+    if (pinInput) pinInput.focus();
     return;
   }
 
@@ -2582,7 +2661,7 @@ async function submitLogin() {
     const res = await fetch('/api/user/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identifier, pin: pin || '1234', password: pin || '1234' })
+      body: JSON.stringify({ identifier, pin, password: pin })
     });
     const data = await res.json();
 
@@ -2734,11 +2813,47 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
 
     // Check if preselect action was requested (e.g. from Sell button on Holdings)
     const preselect = sessionStorage.getItem('stoxify_preselect_action');
+    let holdingSale = null;
+    try {
+      holdingSale = JSON.parse(sessionStorage.getItem('stoxify_holding_sale') || 'null');
+    } catch (_) {}
+    sessionStorage.removeItem('stoxify_holding_sale');
     if (preselect) {
       sessionStorage.removeItem('stoxify_preselect_action');
       setPageOrderAction(preselect);
-      if (window.innerWidth <= 768) {
-        setTimeout(() => openMobileTradeDrawer(preselect), 200);
+      if (preselect === 'SELL') {
+        const cleanSym = (data.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase();
+        if (holdingSale && holdingSale.symbol === cleanSym && holdingSale.quantity > 0) {
+          setPageProductType('DELIVERY');
+          setPageQuickQuantity(holdingSale.quantity);
+          updatePageAvailableHolding(data.symbol);
+          if (window.innerWidth <= 768) openMobileTradeDrawer('SELL');
+        } else {
+          Promise.all([
+          fetch('/api/portfolio').then(r => r.json()).catch(() => ({})),
+          fetch('/api/positions').then(r => r.json()).catch(() => ({}))
+        ]).then(([pData, posData]) => {
+          const holding = (pData.holdings || []).find(h => (h.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase() === cleanSym);
+          const pos = (posData.positions || []).find(p => (p.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase() === cleanSym);
+          if (holding && holding.quantity > 0) {
+            setPageProductType('DELIVERY');
+            setPageQuickQuantity(holding.quantity);
+          } else if (pos && pos.quantity > 0) {
+            setPageProductType('INTRADAY');
+            setPageQuickQuantity(pos.quantity);
+          }
+          updatePageAvailableHolding(data.symbol);
+          if (window.innerWidth <= 768) {
+            openMobileTradeDrawer('SELL');
+          }
+          }).catch(() => {
+          if (window.innerWidth <= 768) {
+            openMobileTradeDrawer('SELL');
+          }
+          });
+        }
+      } else if (window.innerWidth <= 768) {
+        setTimeout(() => openMobileTradeDrawer(preselect), 100);
       }
     }
 
@@ -3427,6 +3542,11 @@ function openMobileTradeDrawer(action = 'BUY') {
     drawer.classList.add('active');
     document.body.style.overflow = 'hidden';
   }
+  const dInput = document.getElementById('drawerOrderQuantity');
+  const mainInput = document.getElementById('pageOrderQuantity');
+  if (dInput && mainInput) {
+    dInput.value = mainInput.value;
+  }
 }
 
 function closeMobileTradeDrawer() {
@@ -3487,6 +3607,34 @@ function setPageOrderAction(action) {
       drawerExec.className = 'btn-trade-execute sell';
       drawerExec.innerText = `SELL ${cleanSym}`;
     }
+
+    // Smart Position Detection on SELL
+    if (currentPageAsset && currentPageAsset.symbol) {
+      const targetSym = currentPageAsset.symbol.replace('.NS', '').replace('.BO', '').toUpperCase();
+      Promise.all([
+        fetch('/api/portfolio').then(r => r.json()).catch(() => ({})),
+        fetch('/api/positions').then(r => r.json()).catch(() => ({}))
+      ]).then(([pData, posData]) => {
+        const holding = (pData.holdings || []).find(h => (h.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase() === targetSym);
+        const pos = (posData.positions || []).find(p => (p.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase() === targetSym);
+        
+        if (holding && holding.quantity > 0 && (!pos || pos.quantity <= 0)) {
+          setPageProductType('DELIVERY');
+          setPageQuickQuantity(holding.quantity);
+        } else if (pos && pos.quantity > 0 && (!holding || holding.quantity <= 0)) {
+          setPageProductType('INTRADAY');
+          setPageQuickQuantity(pos.quantity);
+        } else if (holding && holding.quantity > 0) {
+          setPageQuickQuantity(holding.quantity);
+        } else if (pos && pos.quantity > 0) {
+          setPageQuickQuantity(pos.quantity);
+        }
+        updatePageAvailableHolding(currentPageAsset.symbol);
+      }).catch(() => {});
+    }
+  }
+  if (currentPageAsset && currentPageAsset.symbol) {
+    updatePageAvailableHolding(currentPageAsset.symbol);
   }
   recalcPageMargin();
 }
@@ -3507,6 +3655,9 @@ function setPageProductType(prod) {
   const dLevHint = document.getElementById('drawerLeverageHint');
   if (dLevHint) dLevHint.style.display = prod === 'INTRADAY' ? 'flex' : 'none';
 
+  if (currentPageAsset && currentPageAsset.symbol) {
+    updatePageAvailableHolding(currentPageAsset.symbol);
+  }
   recalcPageMargin();
 }
 
@@ -3635,15 +3786,64 @@ function recalcPageMargin() {
 
 async function updatePageAvailableHolding(symbol) {
   try {
-    const res = await fetch('/api/portfolio');
-    const data = await res.json();
-    const holding = (data.holdings || []).find(h => h.symbol === symbol);
-    const qty = holding ? holding.quantity : 0;
+    if (!symbol) return;
+    const cleanSym = symbol.replace('.NS', '').replace('.BO', '').toUpperCase();
+    const [pRes, posRes] = await Promise.all([
+      fetch('/api/portfolio').catch(() => null),
+      fetch('/api/positions').catch(() => null)
+    ]);
+
+    let holdings = [];
+    if (pRes && pRes.ok) {
+      const pData = await pRes.json();
+      holdings = pData.holdings || [];
+    }
+    let positions = [];
+    if (posRes && posRes.ok) {
+      const posData = await posRes.json();
+      positions = posData.positions || [];
+    }
+
+    const holding = holdings.find(h => (h.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase() === cleanSym);
+    const pos = positions.find(p => (p.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase() === cleanSym);
+
+    const deliveryQty = holding ? (holding.quantity || 0) : 0;
+    const intradayQty = pos ? (pos.quantity || 0) : 0;
+
+    const isIntraday = pageOrderState.product === 'INTRADAY';
+    const activeQty = isIntraday ? intradayQty : deliveryQty;
+    const prodLabel = isIntraday ? 'Intraday' : 'Delivery';
+
+    let displayTxt = `${activeQty} ${prodLabel} share${activeQty === 1 ? '' : 's'} owned`;
+    if (!isIntraday && intradayQty > 0) {
+      displayTxt += ` • ${intradayQty} open (Intraday)`;
+    } else if (isIntraday && deliveryQty > 0) {
+      displayTxt += ` • ${deliveryQty} owned (Delivery)`;
+    }
+
+    const clickHandler = () => {
+      if (activeQty > 0) {
+        setPageQuickQuantity(activeQty);
+      }
+    };
+
     const label = document.getElementById('pageAvailableHoldingQty');
-    if (label) label.innerText = `${qty} shares owned`;
+    if (label) {
+      label.innerText = displayTxt;
+      label.title = activeQty > 0 ? 'Click to fill quantity' : '';
+      label.style.cursor = activeQty > 0 ? 'pointer' : 'default';
+      label.onclick = clickHandler;
+    }
     const dLabel = document.getElementById('drawerHoldingQty');
-    if (dLabel) dLabel.innerText = `${qty} shares owned`;
-  } catch (err) {}
+    if (dLabel) {
+      dLabel.innerText = displayTxt;
+      dLabel.title = activeQty > 0 ? 'Click to fill quantity' : '';
+      dLabel.style.cursor = activeQty > 0 ? 'pointer' : 'default';
+      dLabel.onclick = clickHandler;
+    }
+  } catch (err) {
+    console.error('updatePageAvailableHolding error:', err);
+  }
 }
 
 async function executePageTrade() {
@@ -3775,6 +3975,8 @@ let obCurrentStep = 1;
 let obUserData = {
   phone: '',
   email: '',
+  username: '',
+  password: '',
   name: '',
   pan: '',
   dob: '',
@@ -3800,6 +4002,12 @@ function showOnboardingPage() {
   if (phoneInput) phoneInput.value = '';
   const emailInput = document.getElementById('obInputEmail');
   if (emailInput) emailInput.value = '';
+  const userInput = document.getElementById('obInputUsername');
+  if (userInput) userInput.value = '';
+  const passInput = document.getElementById('obInputPassword');
+  if (passInput) passInput.value = '';
+  const statusBadge = document.getElementById('obUsernameStatus');
+  if (statusBadge) { statusBadge.style.display = 'none'; statusBadge.innerText = ''; }
   const panInput = document.getElementById('obInputPan');
   if (panInput) panInput.value = '';
   const nameInput = document.getElementById('obInputName');
@@ -3835,6 +4043,50 @@ function showOnboardingPage() {
 
   goToObStep(1);
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+let usernameDebounceTimer = null;
+async function onUsernameInput(inputEl) {
+  const statusBadge = document.getElementById('obUsernameStatus');
+  if (!statusBadge) return;
+  const raw = (inputEl.value || '').trim().replace(/^@/, '').toLowerCase();
+  if (!raw) {
+    statusBadge.style.display = 'none';
+    return;
+  }
+  if (raw.length < 3) {
+    statusBadge.style.display = 'inline';
+    statusBadge.style.color = 'var(--text-muted)';
+    statusBadge.innerText = 'Min 3 chars';
+    return;
+  }
+  if (!/^[a-zA-Z0-9_]+$/.test(raw)) {
+    statusBadge.style.display = 'inline';
+    statusBadge.style.color = '#EF4444';
+    statusBadge.innerText = 'Only letters, numbers, _';
+    return;
+  }
+
+  statusBadge.style.display = 'inline';
+  statusBadge.style.color = 'var(--text-muted)';
+  statusBadge.innerText = 'Checking...';
+
+  clearTimeout(usernameDebounceTimer);
+  usernameDebounceTimer = setTimeout(async () => {
+    try {
+      const res = await fetch(`/api/user/check-username?username=${encodeURIComponent(raw)}`);
+      const data = await res.json();
+      if (data.available) {
+        statusBadge.style.color = '#10B981';
+        statusBadge.innerText = `✓ @${raw} available`;
+      } else {
+        statusBadge.style.color = '#EF4444';
+        statusBadge.innerText = `✗ Taken`;
+      }
+    } catch (_) {
+      statusBadge.style.display = 'none';
+    }
+  }, 300);
 }
 
 function goToObStep(stepNum) {
@@ -3876,6 +4128,9 @@ function goToObStep(stepNum) {
 async function submitObStep1() {
   const phone = document.getElementById('obInputPhone').value.trim();
   const email = document.getElementById('obInputEmail').value.trim();
+  const username = (document.getElementById('obInputUsername')?.value || '').trim().replace(/^@/, '').toLowerCase();
+  const password = (document.getElementById('obInputPassword')?.value || '').trim();
+
   if (phone.length < 10) {
     showToast('Please enter a valid 10-digit mobile number', true);
     document.getElementById('obInputPhone').focus();
@@ -3887,6 +4142,34 @@ async function submitObStep1() {
     document.getElementById('obInputEmail').focus();
     return;
   }
+  if (!username || username.length < 3 || username.length > 25) {
+    showToast('Please choose a username between 3 and 25 characters', true);
+    document.getElementById('obInputUsername')?.focus();
+    return;
+  }
+  if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+    showToast('Username can only contain letters, numbers, and underscores', true);
+    document.getElementById('obInputUsername')?.focus();
+    return;
+  }
+  if (!password || password.length < 6) {
+    showToast('Please create a password of at least 6 characters', true);
+    document.getElementById('obInputPassword')?.focus();
+    return;
+  }
+
+  // Verify username availability
+  try {
+    const uChk = await fetch(`/api/user/check-username?username=${encodeURIComponent(username)}`);
+    const uData = await uChk.json();
+    if (!uData.available) {
+      showToast(uData.message || `@${username} is already taken. Please choose another.`, true);
+      document.getElementById('obInputUsername')?.focus();
+      return;
+    }
+  } catch (err) {
+    console.warn('Username check warning:', err);
+  }
 
   // Check if account already exists with this email or phone
   try {
@@ -3897,7 +4180,7 @@ async function submitObStep1() {
     });
     const chkData = await chk.json();
     if (chk.ok && chkData.success) {
-      showToast(`Account found for ${chkData.user.name}! Please enter your PIN to log in.`, false);
+      showToast(`Account found for ${chkData.user.name}! Please enter your Password or PIN to log in.`, false);
       openLoginModal(email);
       return;
     }
@@ -3905,6 +4188,8 @@ async function submitObStep1() {
 
   obUserData.phone = phone;
   obUserData.email = email;
+  obUserData.username = username;
+  obUserData.password = password;
   document.getElementById('obDisplayPhone').innerText = `+91 ${phone}`;
 
   // Generate real simulated 4-digit OTP
@@ -4129,6 +4414,8 @@ async function submitObStep5() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: obUserData.name,
+        username: obUserData.username || null,
+        password: obUserData.password || null,
         email: obUserData.email,
         phone: obUserData.phone,
         pan: obUserData.pan,
@@ -4154,6 +4441,8 @@ async function submitObStep5() {
     // Update Confirmation screen with user's actual entered details
     document.getElementById('obWelcomeName').innerText = currentUser.name;
     document.getElementById('obCreatedDemat').innerText = currentUser.id || `STOX-${Math.floor(100000 + Math.random() * 900000)}`;
+    const usernameEl = document.getElementById('obCreatedUsername');
+    if (usernameEl) usernameEl.innerText = currentUser.username ? ('@' + currentUser.username) : ('@' + (obUserData.username || 'trader'));
     const emailEl = document.getElementById('obCreatedEmail');
     if (emailEl) emailEl.innerText = currentUser.email || obUserData.email || '';
     const last4 = (currentUser.bank_account || '5678').slice(-4);

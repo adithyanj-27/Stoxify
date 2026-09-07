@@ -6,13 +6,15 @@
 CREATE TABLE IF NOT EXISTS public.users (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
+    username TEXT UNIQUE,
+    password TEXT,
     email TEXT,
     phone TEXT,
     pan TEXT,
     dob DATE,
     bank_name TEXT DEFAULT 'HDFC Bank',
     bank_account TEXT DEFAULT '50100234567890',
-    pin TEXT DEFAULT '1234',
+    pin TEXT DEFAULT '',
     balance NUMERIC(15, 2) NOT NULL DEFAULT 1000000.00,
     total_deposited NUMERIC(15, 2) NOT NULL DEFAULT 1000000.00,
     avatar_color TEXT DEFAULT '#0EA5E9',
@@ -20,19 +22,23 @@ CREATE TABLE IF NOT EXISTS public.users (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Ensure dob column exists if table was already created earlier:
+-- Ensure newer columns exist if table was already created earlier:
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS dob DATE;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS username TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS password TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS users_username_idx ON public.users (LOWER(username));
 
-INSERT INTO public.users (id, name, email, phone, pan, bank_name, bank_account, pin, balance, total_deposited)
+INSERT INTO public.users (id, name, username, email, phone, pan, bank_name, bank_account, pin, balance, total_deposited)
 VALUES (
     'default', 
     'Default Trader', 
+    'default_trader',
     'trader@stoxify.com', 
     '9876543210', 
     'ABCDE1234F', 
     'HDFC Bank', 
     '50100234567890', 
-    '1234', 
+    '', 
     1000000.00, 
     1000000.00
 ) ON CONFLICT (id) DO NOTHING;

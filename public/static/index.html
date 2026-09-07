@@ -12,22 +12,24 @@
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-dark.png" id="dynamicFavicon">
   <link rel="apple-touch-icon" href="/static/icon-192.png">
-  <link rel="stylesheet" href="/static/style.css?v=6.7" onerror="this.onerror=null;this.href='/style.css?v=6.7';">
+  <link rel="stylesheet" href="/static/style.css?v=7.2" onerror="this.onerror=null;this.href='/style.css?v=7.2';">
   <!-- Chart.js for high performance financial line & area charts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Pre-render synchronous auth & theme hydration to completely eliminate cold-boot flash of 'Invest' button -->
   <script>
     (function() {
       try {
-        var savedTheme = localStorage.getItem('stoxify_theme');
+        var savedTheme = localStorage.getItem('stoxify_theme') || localStorage.getItem('stoxify_theme');
         if (savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
-        var uid = localStorage.getItem('stoxify_user_id');
-        var isGuest = localStorage.getItem('stoxify_guest_mode') === 'true';
-        var cachedUser = localStorage.getItem('stoxify_cached_user');
+        var uid = localStorage.getItem('stoxify_user_id') || localStorage.getItem('stoxify_user_id');
+        var isGuest = (localStorage.getItem('stoxify_guest_mode') || localStorage.getItem('stoxify_guest_mode')) === 'true';
+        var cachedUser = localStorage.getItem('stoxify_cached_user') || localStorage.getItem('stoxify_cached_user');
         if (uid && uid !== 'default' && uid !== 'guest' && !isGuest && cachedUser) {
           document.documentElement.classList.add('user-logged-in');
-        } else if (isGuest) {
+          document.documentElement.classList.remove('user-guest');
+        } else {
           document.documentElement.classList.add('user-guest');
+          document.documentElement.classList.remove('user-guest');
         }
       } catch(e) {}
     })();
@@ -131,7 +133,10 @@
                 </button>
               </div>
               <div class="user-email" id="menuUserEmail"></div>
-              <div class="user-badge" id="menuUserDemat">Demat: STOX-782910</div>
+              <div style="display: flex; align-items: center; gap: 0.35rem; margin-top: 2px;">
+                <span class="user-badge" id="menuUserUsername" style="color: var(--brand-cyan); font-weight: 700; display: none;"></span>
+                <span class="user-badge" id="menuUserDemat">Demat: STOX-782910</span>
+              </div>
             </div>
           </div>
 
@@ -186,21 +191,38 @@
       <script>
         (function() {
           try {
-            var cu = localStorage.getItem('stoxify_cached_user');
-            var isG = localStorage.getItem('stoxify_guest_mode') === 'true';
+            var cu = localStorage.getItem('stoxify_cached_user') || localStorage.getItem('stoxify_cached_user');
+            var isG = (localStorage.getItem('stoxify_guest_mode') || localStorage.getItem('stoxify_guest_mode')) === 'true';
             if (cu && !isG) {
               var u = JSON.parse(cu);
               if (u && u.name) {
                 var inits = u.name.split(' ').map(function(n){ return n[0]; }).join('').toUpperCase().slice(0, 2) || 'ST';
                 var el1 = document.getElementById('navUserInitials');
                 var el2 = document.getElementById('menuUserAvatar');
-                var el3 = document.getElementById('menuUserName');
-                var el4 = document.getElementById('menuUserEmail');
-                if (el1) el1.innerText = inits;
-                if (el2) el2.innerText = inits;
-                if (el3) el3.innerText = u.name;
-                if (el4) el4.innerText = u.email || '';
+                if (el1) { el1.innerText = inits; el1.style.background = u.avatar_color || 'var(--brand-cyan)'; }
+                if (el2) { el2.innerText = inits; el2.style.background = u.avatar_color || 'var(--brand-cyan)'; }
               }
+              var d1 = document.getElementById('menuUserName');
+              var d2 = document.getElementById('menuUserEmail');
+              var d3 = document.getElementById('menuUserDemat');
+              var d4 = document.getElementById('menuUserBank');
+              var d5 = document.getElementById('menuUserBalance');
+              var d6 = document.getElementById('navBalanceDisplay');
+              var dU = document.getElementById('menuUserUsername');
+              if (d1 && u.name) d1.innerText = u.name;
+              if (d2 && u.email) d2.innerText = u.email;
+              if (dU) {
+                if (u.username) {
+                  dU.innerText = '@' + u.username;
+                  dU.style.display = 'inline-block';
+                } else {
+                  dU.style.display = 'none';
+                }
+              }
+              if (d3 && u.id) d3.innerText = 'Demat: ' + u.id;
+              if (d4 && u.bank_name) d4.innerText = u.bank_name + ' •••• ' + (u.bank_account ? u.bank_account.slice(-4) : '5678') + ' (Verified ✓)';
+              if (d5 && u.balance !== undefined) d5.innerText = '₹' + Number(u.balance).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+              if (d6 && u.balance !== undefined) d6.innerText = '₹' + Number(u.balance).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
             }
           } catch(e) {}
         })();
@@ -1249,6 +1271,21 @@
               <label class="ob-label">Email Address <span style="color: var(--brand-cyan); font-size: 0.8rem;">*</span></label>
               <input type="email" class="ob-input" id="obInputEmail" placeholder="trader@mail.com" autocomplete="email">
             </div>
+            <div class="ob-form-group">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                <label class="ob-label" style="margin-bottom: 0;">Choose Username <span style="color: var(--brand-cyan); font-size: 0.8rem;">*</span></label>
+                <span id="obUsernameStatus" style="font-size: 0.76rem; font-weight: 600; display: none;"></span>
+              </div>
+              <div style="position: relative; display: flex; align-items: center;">
+                <span style="position: absolute; left: 0.85rem; color: var(--text-muted); font-weight: 700; font-size: 0.95rem; pointer-events: none;">@</span>
+                <input type="text" class="ob-input" id="obInputUsername" placeholder="your_unique_username" autocomplete="username" style="padding-left: 2rem; font-family: monospace;" oninput="onUsernameInput(this)">
+              </div>
+              <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem;">3–25 characters, letters, numbers & underscores</div>
+            </div>
+            <div class="ob-form-group">
+              <label class="ob-label">Create Password <span style="color: var(--brand-cyan); font-size: 0.8rem;">*</span></label>
+              <input type="password" class="ob-input" id="obInputPassword" placeholder="Minimum 6 characters" autocomplete="new-password">
+            </div>
             <button class="ob-btn-primary" onclick="submitObStep1()">Continue →</button>
             <div style="text-align: center; margin-top: 1rem; font-size: 0.86rem; color: var(--text-secondary);">
               Already have an account? <a href="javascript:void(0)" onclick="openLoginModal()" style="color: var(--brand-cyan); font-weight: 700; text-decoration: underline;">Log In here</a>
@@ -1414,6 +1451,10 @@
               <div class="summary-row">
                 <span>Demat Account ID</span>
                 <strong id="obCreatedDemat">STOX-892140</strong>
+              </div>
+              <div class="summary-row">
+                <span>Username</span>
+                <strong id="obCreatedUsername" style="color: var(--brand-cyan);">@trader</strong>
               </div>
               <div class="summary-row">
                 <span>Registered Email</span>
@@ -1908,6 +1949,14 @@
           </div>
 
           <div class="ob-form-group" style="margin-bottom: 0.85rem;">
+            <label class="ob-label" for="editProfileUsername">Username (@handle)</label>
+            <div style="position: relative; display: flex; align-items: center;">
+              <span style="position: absolute; left: 0.85rem; color: var(--text-muted); font-weight: 700; font-size: 0.95rem; pointer-events: none;">@</span>
+              <input type="text" class="ob-input" id="editProfileUsername" placeholder="username" style="padding-left: 2rem; font-family: monospace;">
+            </div>
+          </div>
+
+          <div class="ob-form-group" style="margin-bottom: 0.85rem;">
             <label class="ob-label" for="editProfileEmail">Email Address *</label>
             <input type="email" class="ob-input" id="editProfileEmail" placeholder="name@example.com">
           </div>
@@ -1959,10 +2008,16 @@
             </div>
           </div>
 
+          <div class="ob-form-group" style="margin-bottom: 0.85rem;">
+            <label class="ob-label" for="editProfilePassword">New Account Password</label>
+            <input type="password" class="ob-input" id="editProfilePassword" placeholder="Leave blank to keep current password">
+            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem;">Used to log into your Stoxify account (min 6 characters)</div>
+          </div>
+
           <div class="ob-form-group" style="margin-bottom: 0.5rem;">
-            <label class="ob-label" for="editProfilePin">4-Digit Security PIN</label>
+            <label class="ob-label" for="editProfilePin">4-Digit Security PIN (Trading PIN)</label>
             <input type="password" class="ob-input" id="editProfilePin" placeholder="••••" maxlength="4" style="letter-spacing: 0.25rem;">
-            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem;">Used to verify trading sessions and sensitive actions</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem;">Used to authorize trades and sensitive actions</div>
           </div>
         </div>
 
@@ -1985,7 +2040,7 @@
       <div class="modal-header">
         <div>
           <h3 style="font-size: 1.2rem; font-weight: 800;">Login / Register</h3>
-          <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">Enter your Email or Phone and Password or PIN</div>
+          <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">Enter your Username, Email or Phone and Password or PIN</div>
         </div>
         <button class="icon-btn" onclick="closeLoginModal()">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2006,7 +2061,7 @@
           </div>
           <div style="display: flex; align-items: center; gap: 0.75rem; margin: 1rem 0 0.5rem 0;">
             <div style="flex: 1; height: 1px; background: var(--border-subtle);"></div>
-            <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Or log in with Email / Phone</span>
+            <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Or log in with Username / Email / Phone</span>
             <div style="flex: 1; height: 1px; background: var(--border-subtle);"></div>
           </div>
         </div>
@@ -2014,16 +2069,13 @@
         <!-- Manual Credentials Form -->
         <div>
           <div class="ob-form-group" style="margin-bottom: 0.85rem;">
-            <label class="ob-label" for="loginIdentifierInput">Email Address or Phone Number</label>
-            <input type="text" class="ob-input" id="loginIdentifierInput" placeholder="e.g. your@email.com or 9876543210 (or Demat ID)" autocomplete="username" onkeydown="if(event.key==='Enter') submitLogin()">
+            <label class="ob-label" for="loginIdentifierInput">Username, Email Address or Phone Number</label>
+            <input type="text" class="ob-input" id="loginIdentifierInput" placeholder="e.g. username, your@email.com or 9876543210" autocomplete="username" onkeydown="if(event.key==='Enter') submitLogin()">
           </div>
 
           <div class="ob-form-group" style="margin-bottom: 0.85rem;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-              <label class="ob-label" for="loginPinInput" style="margin-bottom: 0;">Password or PIN</label>
-              <span style="font-size: 0.75rem; color: var(--text-muted);">Default PIN: 1234</span>
-            </div>
-            <input type="password" class="ob-input" id="loginPinInput" placeholder="Enter password or 4-digit PIN" style="letter-spacing: 0.1rem;" autocomplete="current-password" onkeydown="if(event.key==='Enter') submitLogin()">
+            <label class="ob-label" for="loginPinInput" style="margin-bottom: 0.4rem;">Password or PIN</label>
+            <input type="password" class="ob-input" id="loginPinInput" placeholder="Enter password or 4-digit PIN" style="letter-spacing: 0.05rem;" autocomplete="current-password" onkeydown="if(event.key==='Enter') submitLogin()">
           </div>
 
           <button class="btn-primary" id="btnLoginSubmit" style="width: 100%; justify-content: center; padding: 0.85rem 1rem; font-size: 0.95rem; font-weight: 700; margin-top: 0.5rem;" onclick="submitLogin()">
@@ -2448,6 +2500,6 @@
     </button>
   </nav>
 
-  <script src="/static/app.js?v=6.7" onerror="this.onerror=null;this.src='/app.js?v=6.7';"></script>
+  <script src="/static/app.js?v=7.2" onerror="this.onerror=null;this.src='/app.js?v=7.2';"></script>
 </body>
 </html>

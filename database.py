@@ -4,6 +4,7 @@ import sqlite3
 import json
 import uuid
 import random
+import re
 import urllib.request
 import urllib.parse
 from datetime import datetime
@@ -73,7 +74,7 @@ else:
 _db_initialized = False
 
 def get_raw_connection():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=15)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -107,13 +108,15 @@ def init_db():
         CREATE TABLE IF NOT EXISTS users (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
+            username TEXT UNIQUE,
+            password TEXT,
             email TEXT,
             phone TEXT,
             pan TEXT,
             dob TEXT,
             bank_name TEXT DEFAULT 'HDFC Bank',
             bank_account TEXT DEFAULT '50100234567890',
-            pin TEXT DEFAULT '1234',
+            pin TEXT DEFAULT '',
             balance REAL NOT NULL DEFAULT 1000000.0,
             total_deposited REAL NOT NULL DEFAULT 1000000.0,
             avatar_color TEXT DEFAULT '#0EA5E9',
@@ -121,18 +124,19 @@ def init_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    try:
-        cursor.execute("ALTER TABLE users ADD COLUMN dob TEXT")
-        conn.commit()
-    except Exception:
-        pass
+    for col in ["dob TEXT", "username TEXT", "password TEXT"]:
+        try:
+            cursor.execute(f"ALTER TABLE users ADD COLUMN {col}")
+            conn.commit()
+        except Exception:
+            pass
 
     # Ensure default user exists
     cursor.execute("SELECT COUNT(*) FROM users WHERE id = 'default'")
     if cursor.fetchone()[0] == 0:
         cursor.execute("""
             INSERT INTO users (id, name, email, phone, pan, bank_name, bank_account, pin, balance, total_deposited, avatar_color)
-            VALUES ('default', 'Default Trader', 'trader@stoxify.com', '9876543210', 'ABCDE1234F', 'HDFC Bank', '50100234567890', '1234', 1000000.0, 1000000.0, '#0EA5E9')
+            VALUES ('default', 'Default Trader', 'trader@stoxify.com', '9876543210', 'ABCDE1234F', 'HDFC Bank', '50100234567890', '', 1000000.0, 1000000.0, '#0EA5E9')
         """)
     if is_supabase_enabled():
         try:
@@ -144,7 +148,7 @@ def init_db():
                 "pan": "ABCDE1234F",
                 "bank_name": "HDFC Bank",
                 "bank_account": "50100234567890",
-                "pin": "1234",
+                "pin": "",
                 "balance": 1000000.0,
                 "total_deposited": 1000000.0,
                 "avatar_color": "#0EA5E9"
@@ -383,6 +387,40 @@ def init_db():
     conn.close()
 
 # --- User Profile Management (Groww Style) ---
+def check_username_available(username: str, exclude_user_id: Optional[str] = None) -> bool:
+    if not username:
+        return False
+    clean = username.strip().lstrip("@").lower()
+    if len(clean) < 3 or len(clean) > 25:
+        return False
+    if not re.match(r"^[a-zA-Z0-9_]+$", clean):
+        return False
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    if exclude_user_id:
+        cursor.execute("SELECT COUNT(*) FROM users WHERE LOWER(username) = ? AND id != ?", (clean, exclude_user_id))
+    else:
+        cursor.execute("SELECT COUNT(*) FROM users WHERE LOWER(username) = ?", (clean,))
+    count = cursor.fetchone()[0]
+    conn.close()
+
+    if count > 0:
+        return False
+
+    if is_supabase_enabled():
+        try:
+            params = {"username": f"eq.{clean}", "select": "id"}
+            res = supabase_api("GET", "users", params=params)
+            if res and isinstance(res, list) and len(res) > 0:
+                if exclude_user_id and res[0].get("id") == exclude_user_id:
+                    return True
+                return False
+        except Exception:
+            pass
+
+    return True
+
 def create_user(
     name: str, 
     email: str, 
@@ -390,22 +428,27 @@ def create_user(
     pan: Optional[str] = None,
     bank_name: str = "HDFC Bank",
     bank_account: str = "50100234567890",
-    pin: str = "1234",
+    pin: str = "",
     user_id: Optional[str] = None,
-    dob: Optional[str] = None
+    dob: Optional[str] = None,
+    username: Optional[str] = None,
+    password: Optional[str] = None
 ) -> Dict[str, Any]:
     if not user_id:
         user_id = f"STOX-{random.randint(100000, 999999)}"
     palettes = ["#0EA5E9", "#10B981", "#6366F1", "#EC4899", "#F59E0B", "#8B5CF6"]
     avatar_color = palettes[len(name) % len(palettes)]
 
+    clean_username = username.strip().lstrip("@").lower() if username else None
+    clean_password = password.strip() if password else None
+
     # 1. Insert into local SQLite
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT OR REPLACE INTO users (id, name, email, phone, pan, dob, bank_name, bank_account, pin, balance, total_deposited, avatar_color)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1000000.0, 1000000.0, ?)
-    """, (user_id, name, (email or "").strip(), phone or "", pan or "ABCDE1234F", dob or "", bank_name, bank_account, pin, avatar_color))
+        INSERT OR REPLACE INTO users (id, name, email, phone, pan, dob, bank_name, bank_account, pin, balance, total_deposited, avatar_color, username, password)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1000000.0, 1000000.0, ?, ?, ?)
+    """, (user_id, name, (email or "").strip(), phone or "", pan or "ABCDE1234F", dob or "", bank_name, bank_account, pin, avatar_color, clean_username, clean_password))
 
     # Seed default watchlist for this new user
     default_items = [
@@ -440,12 +483,18 @@ def create_user(
         }
         if dob:
             sb_user_payload["dob"] = dob.strip()
+        if clean_username:
+            sb_user_payload["username"] = clean_username
+        if clean_password:
+            sb_user_payload["password"] = clean_password
 
         sb_res = supabase_api("POST", "users", payload=sb_user_payload)
-        if sb_res is None and "dob" in sb_user_payload:
-            # Graceful fallback if dob column hasn't been added yet in Supabase
+        if sb_res is None:
+            # Graceful fallback if new columns haven't been added yet in Supabase
             fallback_payload = dict(sb_user_payload)
-            del fallback_payload["dob"]
+            fallback_payload.pop("dob", None)
+            fallback_payload.pop("username", None)
+            fallback_payload.pop("password", None)
             sb_res = supabase_api("POST", "users", payload=fallback_payload)
 
         if sb_res is not None:
@@ -464,7 +513,12 @@ def create_user(
             auth_url = f"{SUPABASE_URL}/auth/v1/signup"
             clean_email = (email or "").strip()
             if clean_email:
-                pwd = f"stoxify_{pin}" if len(str(pin or "1234")) < 6 else str(pin)
+                if clean_password and len(clean_password) >= 6:
+                    pwd = clean_password
+                elif pin and len(str(pin)) >= 4:
+                    pwd = f"stoxify_{pin}" if len(str(pin)) < 6 else str(pin)
+                else:
+                    pwd = f"stoxify_{user_id.replace('-', '_')}"
                 auth_payload = {
                     "email": clean_email,
                     "password": pwd,
@@ -472,8 +526,9 @@ def create_user(
                         "name": name,
                         "phone": phone or "",
                         "demat": user_id,
-                        "pin": str(pin or "1234"),
-                        "pan": pan or "ABCDE1234F"
+                        "pin": str(pin or ""),
+                        "pan": pan or "ABCDE1234F",
+                        "username": clean_username or ""
                     }
                 }
                 auth_headers = {
@@ -506,7 +561,9 @@ def update_user(
     bank_name: Optional[str] = None,
     bank_account: Optional[str] = None,
     pin: Optional[str] = None,
-    avatar_color: Optional[str] = None
+    avatar_color: Optional[str] = None,
+    username: Optional[str] = None,
+    password: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
     if not user_id or user_id == "guest":
         return None
@@ -551,6 +608,16 @@ def update_user(
         fields.append("avatar_color = ?")
         params.append(avatar_color.strip())
         sb_payload["avatar_color"] = avatar_color.strip()
+    if username is not None:
+        clean_user = username.strip().lstrip("@").lower()
+        fields.append("username = ?")
+        params.append(clean_user)
+        sb_payload["username"] = clean_user
+    if password is not None:
+        clean_pwd = password.strip()
+        fields.append("password = ?")
+        params.append(clean_pwd)
+        sb_payload["password"] = clean_pwd
 
     if not fields:
         return get_user(user_id)
@@ -573,9 +640,11 @@ def update_user(
         try:
             sb_payload["updated_at"] = datetime.utcnow().isoformat()
             res = supabase_api("PATCH", f"users?id=eq.{user_id}", payload=sb_payload)
-            if res is None and "dob" in sb_payload:
+            if res is None:
                 sb_fallback = dict(sb_payload)
-                del sb_fallback["dob"]
+                sb_fallback.pop("dob", None)
+                sb_fallback.pop("username", None)
+                sb_fallback.pop("password", None)
                 supabase_api("PATCH", f"users?id=eq.{user_id}", payload=sb_fallback)
         except Exception:
             pass
@@ -593,8 +662,8 @@ def get_user(user_id: str = "default") -> Optional[Dict[str, Any]]:
                 conn = get_connection()
                 cur = conn.cursor()
                 cur.execute("""
-                    INSERT OR REPLACE INTO users (id, name, email, phone, pan, bank_name, bank_account, pin, balance, total_deposited, avatar_color)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT OR REPLACE INTO users (id, name, email, phone, pan, bank_name, bank_account, pin, balance, total_deposited, avatar_color, username, password)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     sb_u.get("id"),
                     sb_u.get("name"),
@@ -606,7 +675,9 @@ def get_user(user_id: str = "default") -> Optional[Dict[str, Any]]:
                     sb_u.get("pin"),
                     float(sb_u.get("balance", 1000000.0)),
                     float(sb_u.get("total_deposited", 1000000.0)),
-                    sb_u.get("avatar_color", "#0EA5E9")
+                    sb_u.get("avatar_color", "#0EA5E9"),
+                    sb_u.get("username"),
+                    sb_u.get("password")
                 ))
                 conn.commit()
                 conn.close()
@@ -626,12 +697,13 @@ def get_user(user_id: str = "default") -> Optional[Dict[str, Any]]:
         return {
             "id": "default",
             "name": "Default Trader",
+            "username": "default_trader",
             "email": "trader@stoxify.com",
             "phone": "9876543210",
             "pan": "ABCDE1234F",
             "bank_name": "HDFC Bank",
             "bank_account": "50100234567890",
-            "pin": "1234",
+            "pin": "",
             "balance": 1000000.0,
             "total_deposited": 1000000.0,
             "avatar_color": "#0EA5E9"
@@ -641,14 +713,17 @@ def get_user(user_id: str = "default") -> Optional[Dict[str, Any]]:
 def list_users() -> List[Dict[str, Any]]:
     # 1. Try Supabase first
     if is_supabase_enabled():
-        res = supabase_api("GET", "users", params={"select": "id,name,email,phone,bank_name,balance,avatar_color,created_at", "order": "created_at.desc"})
+        res = supabase_api("GET", "users", params={"select": "id,name,username,email,phone,bank_name,balance,avatar_color,created_at", "order": "created_at.desc"})
+        if res is None:
+            # Fallback if username column not yet present in remote Supabase project
+            res = supabase_api("GET", "users", params={"select": "id,name,email,phone,bank_name,balance,avatar_color,created_at", "order": "created_at.desc"})
         if res and isinstance(res, list) and len(res) > 0:
             return res
 
     # 2. Local SQLite fallback
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, name, email, phone, bank_name, balance, avatar_color, created_at FROM users ORDER BY created_at DESC")
+    cursor.execute("SELECT id, name, username, email, phone, bank_name, balance, avatar_color, created_at FROM users ORDER BY created_at DESC")
     rows = cursor.fetchall()
     conn.close()
     return [dict(r) for r in rows]
@@ -656,8 +731,8 @@ def list_users() -> List[Dict[str, Any]]:
 def find_user_by_identifier(identifier: str) -> Optional[Dict[str, Any]]:
     if not identifier:
         return None
-    clean = identifier.strip().lower()
-    clean_raw = identifier.strip()
+    clean = identifier.strip().lstrip("@").lower()
+    clean_raw = identifier.strip().lstrip("@")
 
     conn = get_connection()
     cursor = conn.cursor()
@@ -667,16 +742,17 @@ def find_user_by_identifier(identifier: str) -> Optional[Dict[str, Any]]:
            OR LOWER(email) = ? 
            OR phone = ? 
            OR UPPER(pan) = ?
+           OR LOWER(username) = ?
         ORDER BY CASE WHEN id = 'default' THEN 1 ELSE 0 END, created_at DESC
         LIMIT 1
-    """, (clean, clean, clean_raw, clean_raw.upper()))
+    """, (clean, clean, clean_raw, clean_raw.upper(), clean))
     row = cursor.fetchone()
     conn.close()
     if row:
         return dict(row)
 
     if is_supabase_enabled():
-        for query_field, query_val in [("email", clean), ("phone", clean_raw), ("id", clean_raw)]:
+        for query_field, query_val in [("username", clean), ("email", clean), ("phone", clean_raw), ("id", clean_raw)]:
             try:
                 res = supabase_api("GET", "users", params={query_field: f"eq.{query_val}", "select": "*"})
                 if res and isinstance(res, list) and len(res) > 0:
@@ -685,13 +761,13 @@ def find_user_by_identifier(identifier: str) -> Optional[Dict[str, Any]]:
                         conn = get_connection()
                         cur = conn.cursor()
                         cur.execute("""
-                            INSERT OR REPLACE INTO users (id, name, email, phone, pan, bank_name, bank_account, pin, balance, total_deposited, avatar_color)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            INSERT OR REPLACE INTO users (id, name, email, phone, pan, bank_name, bank_account, pin, balance, total_deposited, avatar_color, username, password)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, (
                             sb_u.get("id"), sb_u.get("name"), sb_u.get("email"), sb_u.get("phone"),
                             sb_u.get("pan"), sb_u.get("bank_name"), sb_u.get("bank_account"), sb_u.get("pin"),
                             float(sb_u.get("balance", 1000000.0)), float(sb_u.get("total_deposited", 1000000.0)),
-                            sb_u.get("avatar_color", "#0EA5E9")
+                            sb_u.get("avatar_color", "#0EA5E9"), sb_u.get("username"), sb_u.get("password")
                         ))
                         conn.commit()
                         conn.close()
@@ -724,14 +800,127 @@ def get_account(user_id: str = "default") -> Dict[str, Any]:
         return {"balance": row["balance"], "total_deposited": row["total_deposited"]}
     return {"balance": 1000000.0, "total_deposited": 1000000.0}
 
-def get_holdings(user_id: str = "default") -> List[Dict[str, Any]]:
-    # 1. Try Supabase first
-    if is_supabase_enabled() and user_id and user_id != "guest":
-        res = supabase_api("GET", "holdings", params={"user_id": f"eq.{user_id}", "quantity": "gt.0", "select": "symbol,name,asset_type,quantity,avg_price,updated_at"})
-        if res is not None and isinstance(res, list) and len(res) > 0:
-            return res
+def get_symbol_variants(symbol: str) -> List[str]:
+    clean = (symbol or "").strip().upper()
+    variants = [clean]
+    if clean.endswith(".NS") or clean.endswith(".BO"):
+        base = clean[:-3]
+        variants.append(base)
+    elif not clean.startswith("^"):
+        variants.append(clean + ".NS")
+        variants.append(clean + ".BO")
+    return list(dict.fromkeys(variants))
 
-    # 2. SQLite fallback
+def sync_holdings_from_supabase_into_cursor(cursor, user_id: str):
+    if not is_supabase_enabled() or not user_id or user_id in ["guest", "default"]:
+        return None
+    try:
+        res = supabase_api("GET", "holdings", params={"user_id": f"eq.{user_id}", "quantity": "gt.0", "select": "symbol,name,asset_type,quantity,avg_price,updated_at"})
+        if res is not None and isinstance(res, list):
+            cursor.execute("SELECT symbol, name, asset_type, quantity, avg_price, updated_at FROM holdings WHERE user_id = ? AND quantity > 0", (user_id,))
+            local_rows = cursor.fetchall()
+            local_map = {(r["symbol"] or "").upper(): dict(r) for r in local_rows}
+
+            sb_symbols = set()
+            for h in res:
+                sb_sym = (h["symbol"] or "").upper()
+                sb_symbols.add(sb_sym)
+                cursor.execute("""
+                    INSERT OR REPLACE INTO holdings (user_id, symbol, name, asset_type, quantity, avg_price, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    user_id, 
+                    h["symbol"], 
+                    h.get("name", h["symbol"]), 
+                    h.get("asset_type", "STOCK"), 
+                    float(h["quantity"]), 
+                    float(h["avg_price"]), 
+                    h.get("updated_at")
+                ))
+
+            # Push any local holdings that Supabase doesn't have yet
+            for l_sym, l_data in local_map.items():
+                matching_vars = get_symbol_variants(l_sym)
+                if not any(v in sb_symbols for v in matching_vars):
+                    try:
+                        supabase_api("POST", "holdings?on_conflict=user_id,symbol", payload={
+                            "user_id": user_id,
+                            "symbol": l_data["symbol"],
+                            "name": l_data["name"],
+                            "asset_type": l_data["asset_type"],
+                            "quantity": float(l_data["quantity"]),
+                            "avg_price": float(l_data["avg_price"])
+                        })
+                    except Exception:
+                        pass
+            return res
+    except Exception as sync_e:
+        print(f"[Supabase Holdings Sync Error] {sync_e}")
+    return None
+
+def sync_positions_from_supabase_into_cursor(cursor, user_id: str):
+    if not is_supabase_enabled() or not user_id or user_id in ["guest", "default"]:
+        return None
+    try:
+        res = supabase_api("GET", "positions", params={"user_id": f"eq.{user_id}", "quantity": "gt.0", "select": "symbol,name,asset_type,quantity,avg_price,margin_used,product_type,updated_at"})
+        if res is not None and isinstance(res, list):
+            cursor.execute("SELECT symbol, name, asset_type, quantity, avg_price, margin_used, product_type, updated_at FROM positions WHERE user_id = ? AND quantity > 0", (user_id,))
+            local_rows = cursor.fetchall()
+            local_map = {(r["symbol"] or "").upper(): dict(r) for r in local_rows}
+
+            sb_symbols = set()
+            for p in res:
+                sb_sym = (p["symbol"] or "").upper()
+                sb_symbols.add(sb_sym)
+                cursor.execute("""
+                    INSERT OR REPLACE INTO positions (user_id, symbol, name, asset_type, quantity, avg_price, margin_used, product_type, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    user_id, 
+                    p["symbol"], 
+                    p.get("name", p["symbol"]), 
+                    p.get("asset_type", "STOCK"), 
+                    float(p["quantity"]), 
+                    float(p["avg_price"]), 
+                    float(p.get("margin_used", 0.0)), 
+                    p.get("product_type", "INTRADAY"), 
+                    p.get("updated_at")
+                ))
+
+            for l_sym, l_data in local_map.items():
+                matching_vars = get_symbol_variants(l_sym)
+                if not any(v in sb_symbols for v in matching_vars):
+                    try:
+                        supabase_api("POST", "positions?on_conflict=user_id,symbol", payload={
+                            "user_id": user_id,
+                            "symbol": l_data["symbol"],
+                            "name": l_data["name"],
+                            "asset_type": l_data["asset_type"],
+                            "quantity": float(l_data["quantity"]),
+                            "avg_price": float(l_data["avg_price"]),
+                            "margin_used": float(l_data.get("margin_used", 0.0)),
+                            "product_type": l_data.get("product_type", "INTRADAY")
+                        })
+                    except Exception:
+                        pass
+            return res
+    except Exception as sync_e:
+        print(f"[Supabase Positions Sync Error] {sync_e}")
+    return None
+
+def get_holdings(user_id: str = "default") -> List[Dict[str, Any]]:
+    # 1. Try Supabase merge first
+    if is_supabase_enabled() and user_id and user_id != "guest":
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            sync_holdings_from_supabase_into_cursor(cursor, user_id)
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+
+    # 2. SQLite read
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -743,13 +932,18 @@ def get_holdings(user_id: str = "default") -> List[Dict[str, Any]]:
     return [dict(r) for r in rows]
 
 def get_positions(user_id: str = "default") -> List[Dict[str, Any]]:
-    # 1. Try Supabase first
+    # 1. Try Supabase merge first
     if is_supabase_enabled() and user_id and user_id != "guest":
-        res = supabase_api("GET", "positions", params={"user_id": f"eq.{user_id}", "quantity": "gt.0", "select": "symbol,name,asset_type,quantity,avg_price,margin_used,product_type,updated_at"})
-        if res is not None and isinstance(res, list) and len(res) > 0:
-            return res
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            sync_positions_from_supabase_into_cursor(cursor, user_id)
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
 
-    # 2. SQLite fallback
+    # 2. SQLite read
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -774,10 +968,13 @@ def execute_trade(
     user_id: str = "default",
     trigger_price: Optional[float] = None
 ) -> Dict[str, Any]:
+    symbol = (symbol or "").strip().upper()
     order_type = order_type.upper()
     product_type = product_type.upper()
     order_variety = order_variety.upper()
     asset_type = asset_type.upper()
+    quantity = float(quantity)
+    price = float(price)
 
     effective_price = limit_price if (order_variety == "LIMIT" and limit_price and limit_price > 0) else price
     total_amount = round(quantity * effective_price, 2)
@@ -798,11 +995,15 @@ def execute_trade(
         if not acc_row:
             cursor.execute("""
                 INSERT OR IGNORE INTO users (id, name, email, phone, pan, bank_name, bank_account, pin, balance, total_deposited)
-                VALUES (?, ?, 'trader@stoxify.com', '9876543210', 'ABCDE1234F', 'HDFC Bank', '50100234567890', '1234', 1000000.0, 1000000.0)
+                VALUES (?, ?, 'trader@stoxify.com', '9876543210', 'ABCDE1234F', 'HDFC Bank', '50100234567890', '', 1000000.0, 1000000.0)
             """, (user_id, "Default Trader" if user_id == "default" else "Trader"))
             cursor.execute("SELECT balance FROM users WHERE id = ?", (user_id,))
             acc_row = cursor.fetchone()
         balance = acc_row["balance"] if acc_row else 1000000.0
+
+        sym_variants = get_symbol_variants(symbol)
+        sym_clause = " OR ".join(["UPPER(symbol) = ?"] * len(sym_variants))
+        sym_params = [v.upper() for v in sym_variants]
 
         # Pending Limit orders check
         is_pending_limit = False
@@ -822,15 +1023,31 @@ def execute_trade(
                 if user_id == "default":
                     cursor.execute("UPDATE account SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (new_balance,))
             else:
-                if product_type == "INTRADAY" or asset_type == "OPTION":
-                    cursor.execute("SELECT quantity FROM positions WHERE user_id = ? AND symbol = ?", (user_id, symbol))
-                else:
-                    cursor.execute("SELECT quantity FROM holdings WHERE user_id = ? AND symbol = ?", (user_id, symbol))
+                tbl = "positions" if (product_type == "INTRADAY" or asset_type == "OPTION") else "holdings"
+                cursor.execute(f"SELECT id, symbol, quantity FROM {tbl} WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
                 existing = cursor.fetchone()
+                if (not existing or existing["quantity"] < quantity) and is_supabase_enabled() and user_id != "guest":
+                    if tbl == "positions":
+                        sync_positions_from_supabase_into_cursor(cursor, user_id)
+                    else:
+                        sync_holdings_from_supabase_into_cursor(cursor, user_id)
+                    cursor.execute(f"SELECT id, symbol, quantity FROM {tbl} WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
+                    existing = cursor.fetchone()
+
+                # Cross-product check if primary table doesn't have sufficient quantity
                 if not existing or existing["quantity"] < quantity:
-                    avail = existing["quantity"] if existing else 0
-                    conn.close()
-                    return {"success": False, "error": f"Insufficient quantity to place Limit SELL. Available: {avail}, Requested: {quantity}"}
+                    alt_tbl = "holdings" if tbl == "positions" else "positions"
+                    cursor.execute(f"SELECT id, symbol, quantity FROM {alt_tbl} WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
+                    alt_existing = cursor.fetchone()
+                    if alt_existing and alt_existing["quantity"] >= quantity:
+                        product_type = "DELIVERY" if alt_tbl == "holdings" else "INTRADAY"
+                        existing = alt_existing
+                    else:
+                        avail = (existing["quantity"] if existing else 0) + (alt_existing["quantity"] if alt_existing else 0)
+                        conn.close()
+                        if avail <= 0:
+                            return {"success": False, "error": f"You do not own any shares of {symbol} to place a Limit SELL."}
+                        return {"success": False, "error": f"Insufficient quantity to place Limit SELL. Available: {avail}, Requested: {quantity}"}
 
             cursor.execute("""
                 INSERT INTO orders (user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, trigger_price, order_tag, status, realized_pnl)
@@ -864,15 +1081,30 @@ def execute_trade(
                 if user_id == "default":
                     cursor.execute("UPDATE account SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (new_balance,))
             else:
-                if product_type == "INTRADAY" or asset_type == "OPTION":
-                    cursor.execute("SELECT quantity FROM positions WHERE user_id = ? AND symbol = ?", (user_id, symbol))
-                else:
-                    cursor.execute("SELECT quantity FROM holdings WHERE user_id = ? AND symbol = ?", (user_id, symbol))
+                tbl = "positions" if (product_type == "INTRADAY" or asset_type == "OPTION") else "holdings"
+                cursor.execute(f"SELECT id, symbol, quantity FROM {tbl} WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
                 existing = cursor.fetchone()
+                if (not existing or existing["quantity"] < quantity) and is_supabase_enabled() and user_id != "guest":
+                    if tbl == "positions":
+                        sync_positions_from_supabase_into_cursor(cursor, user_id)
+                    else:
+                        sync_holdings_from_supabase_into_cursor(cursor, user_id)
+                    cursor.execute(f"SELECT id, symbol, quantity FROM {tbl} WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
+                    existing = cursor.fetchone()
+
                 if not existing or existing["quantity"] < quantity:
-                    avail = existing["quantity"] if existing else 0
-                    conn.close()
-                    return {"success": False, "error": f"Insufficient quantity to place Stop-Loss SELL. Available: {avail}, Requested: {quantity}"}
+                    alt_tbl = "holdings" if tbl == "positions" else "positions"
+                    cursor.execute(f"SELECT id, symbol, quantity FROM {alt_tbl} WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
+                    alt_existing = cursor.fetchone()
+                    if alt_existing and alt_existing["quantity"] >= quantity:
+                        product_type = "DELIVERY" if alt_tbl == "holdings" else "INTRADAY"
+                        existing = alt_existing
+                    else:
+                        avail = (existing["quantity"] if existing else 0) + (alt_existing["quantity"] if alt_existing else 0)
+                        conn.close()
+                        if avail <= 0:
+                            return {"success": False, "error": f"You do not own any shares of {symbol} to place a Stop-Loss SELL."}
+                        return {"success": False, "error": f"Insufficient quantity to place Stop-Loss SELL. Available: {avail}, Requested: {quantity}"}
 
             cursor.execute("""
                 INSERT INTO orders (user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, trigger_price, order_tag, status, realized_pnl)
@@ -900,36 +1132,38 @@ def execute_trade(
                 cursor.execute("UPDATE account SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (new_balance,))
 
             if product_type == "INTRADAY":
-                cursor.execute("SELECT quantity, avg_price, margin_used FROM positions WHERE user_id = ? AND symbol = ?", (user_id, symbol))
+                cursor.execute(f"SELECT id, symbol, quantity, avg_price, margin_used FROM positions WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
                 pos = cursor.fetchone()
                 if pos:
+                    matched_sym = pos["symbol"]
                     curr_qty = pos["quantity"]
                     curr_avg = pos["avg_price"]
                     curr_margin = pos["margin_used"]
                     new_qty = curr_qty + quantity
-                    new_avg = round(((curr_qty * curr_avg) + (quantity * effective_price)) / new_qty, 2)
+                    new_avg = round(((curr_qty * curr_avg) + total_amount) / new_qty, 2)
                     new_margin_used = round(curr_margin + required_margin, 2)
                     cursor.execute("""
                         UPDATE positions SET quantity = ?, avg_price = ?, margin_used = ?, updated_at = CURRENT_TIMESTAMP 
-                        WHERE user_id = ? AND symbol = ?
-                    """, (new_qty, new_avg, new_margin_used, user_id, symbol))
+                        WHERE user_id = ? AND UPPER(symbol) = ?
+                    """, (new_qty, new_avg, new_margin_used, user_id, matched_sym.upper()))
                 else:
                     cursor.execute("""
                         INSERT INTO positions (user_id, symbol, name, asset_type, quantity, avg_price, margin_used, product_type) 
                         VALUES (?, ?, ?, ?, ?, ?, ?, 'INTRADAY')
                     """, (user_id, symbol, name, asset_type, quantity, effective_price, required_margin))
             else:
-                cursor.execute("SELECT quantity, avg_price FROM holdings WHERE user_id = ? AND symbol = ?", (user_id, symbol))
+                cursor.execute(f"SELECT id, symbol, quantity, avg_price FROM holdings WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
                 existing = cursor.fetchone()
                 if existing:
+                    matched_sym = existing["symbol"]
                     curr_qty = existing["quantity"]
                     curr_avg = existing["avg_price"]
                     new_qty = curr_qty + quantity
                     new_avg = round(((curr_qty * curr_avg) + total_amount) / new_qty, 2)
                     cursor.execute("""
                         UPDATE holdings SET quantity = ?, avg_price = ?, updated_at = CURRENT_TIMESTAMP 
-                        WHERE user_id = ? AND symbol = ?
-                    """, (new_qty, new_avg, user_id, symbol))
+                        WHERE user_id = ? AND UPPER(symbol) = ?
+                    """, (new_qty, new_avg, user_id, matched_sym.upper()))
                 else:
                     cursor.execute("""
                         INSERT INTO holdings (user_id, symbol, name, asset_type, quantity, avg_price) 
@@ -953,15 +1187,17 @@ def execute_trade(
                         sb_qty = new_qty if pos else quantity
                         sb_avg = new_avg if pos else effective_price
                         sb_margin = new_margin_used if pos else required_margin
+                        sb_sym = matched_sym if pos else symbol
                         supabase_api("POST", "positions?on_conflict=user_id,symbol", payload={
-                            "user_id": user_id, "symbol": symbol, "name": name, "asset_type": asset_type,
+                            "user_id": user_id, "symbol": sb_sym, "name": name, "asset_type": asset_type,
                             "quantity": sb_qty, "avg_price": sb_avg, "margin_used": sb_margin, "product_type": "INTRADAY"
                         })
                     else:
                         sb_qty = new_qty if existing else quantity
                         sb_avg = new_avg if existing else effective_price
+                        sb_sym = matched_sym if existing else symbol
                         supabase_api("POST", "holdings?on_conflict=user_id,symbol", payload={
-                            "user_id": user_id, "symbol": symbol, "name": name, "asset_type": asset_type,
+                            "user_id": user_id, "symbol": sb_sym, "name": name, "asset_type": asset_type,
                             "quantity": sb_qty, "avg_price": sb_avg
                         })
                     supabase_api("POST", "orders", payload={
@@ -977,14 +1213,52 @@ def execute_trade(
             return {"success": True, "order_id": order_id, "status": order_status, "message": f"Successfully purchased {quantity} {symbol} at ₹{effective_price:,.2f}{tag_msg}"}
 
         elif order_type == "SELL":
-            if product_type == "INTRADAY":
-                cursor.execute("SELECT quantity, avg_price, margin_used FROM positions WHERE user_id = ? AND symbol = ?", (user_id, symbol))
-                pos = cursor.fetchone()
-                if not pos or pos["quantity"] < quantity:
-                    avail = pos["quantity"] if pos else 0
-                    conn.close()
-                    return {"success": False, "error": f"Insufficient Intraday position to sell. Open: {avail}, Requested: {quantity}"}
+            # Fetch both positions (Intraday) and holdings (Delivery)
+            cursor.execute(f"SELECT id, symbol, quantity, avg_price, margin_used FROM positions WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
+            pos = cursor.fetchone()
 
+            cursor.execute(f"SELECT id, symbol, quantity, avg_price FROM holdings WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
+            deliv_hold = cursor.fetchone()
+
+            # Sync from Supabase if both are missing or insufficient
+            need_sync = False
+            if product_type == "INTRADAY":
+                if (not pos or pos["quantity"] < quantity) and (not deliv_hold or deliv_hold["quantity"] < quantity):
+                    need_sync = True
+            else:
+                if (not deliv_hold or deliv_hold["quantity"] < quantity) and (not pos or pos["quantity"] < quantity):
+                    need_sync = True
+
+            if need_sync and is_supabase_enabled() and user_id != "guest":
+                sync_positions_from_supabase_into_cursor(cursor, user_id)
+                sync_holdings_from_supabase_into_cursor(cursor, user_id)
+                cursor.execute(f"SELECT id, symbol, quantity, avg_price, margin_used FROM positions WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
+                pos = cursor.fetchone()
+                cursor.execute(f"SELECT id, symbol, quantity, avg_price FROM holdings WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
+                deliv_hold = cursor.fetchone()
+
+            # Smart Cross-Product Auto-Routing:
+            # If user requested Intraday but only has Delivery shares, sell Delivery!
+            # If user requested Delivery but only has Intraday shares, square off Intraday!
+            actual_product = product_type
+            if product_type == "INTRADAY":
+                if (not pos or pos["quantity"] < quantity) and (deliv_hold and deliv_hold["quantity"] >= quantity):
+                    actual_product = "DELIVERY"
+            else:
+                if (not deliv_hold or deliv_hold["quantity"] < quantity) and (pos and pos["quantity"] >= quantity):
+                    actual_product = "INTRADAY"
+
+            if actual_product == "INTRADAY":
+                if not pos or pos["quantity"] < quantity:
+                    avail_intra = pos["quantity"] if pos else 0
+                    avail_deliv = deliv_hold["quantity"] if deliv_hold else 0
+                    total_avail = avail_intra + avail_deliv
+                    conn.close()
+                    if total_avail <= 0:
+                        return {"success": False, "error": f"You do not own any shares of {symbol} to sell."}
+                    return {"success": False, "error": f"Insufficient shares to sell {symbol}. You have {avail_intra} in Intraday and {avail_deliv} in Delivery ({total_avail} total), but requested to sell {quantity}."}
+
+                matched_symbol = pos["symbol"]
                 curr_qty = pos["quantity"]
                 avg_price = pos["avg_price"]
                 curr_margin = pos["margin_used"]
@@ -998,21 +1272,24 @@ def execute_trade(
 
                 rem_qty = round(curr_qty - quantity, 4)
                 if rem_qty <= 0.0001:
-                    cursor.execute("DELETE FROM positions WHERE user_id = ? AND symbol = ?", (user_id, symbol))
+                    cursor.execute("DELETE FROM positions WHERE user_id = ? AND UPPER(symbol) = ?", (user_id, matched_symbol.upper()))
                 else:
                     new_margin = round(curr_margin - margin_released, 2)
-                    cursor.execute("UPDATE positions SET quantity = ?, margin_used = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND symbol = ?", (rem_qty, new_margin, user_id, symbol))
+                    cursor.execute("UPDATE positions SET quantity = ?, margin_used = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND UPPER(symbol) = ?", (rem_qty, new_margin, user_id, matched_symbol.upper()))
 
-            else:
-                cursor.execute("SELECT quantity, avg_price FROM holdings WHERE user_id = ? AND symbol = ?", (user_id, symbol))
-                existing = cursor.fetchone()
-                if not existing or existing["quantity"] < quantity:
-                    avail_qty = existing["quantity"] if existing else 0
+            else: # DELIVERY
+                if not deliv_hold or deliv_hold["quantity"] < quantity:
+                    avail_deliv = deliv_hold["quantity"] if deliv_hold else 0
+                    avail_intra = pos["quantity"] if pos else 0
+                    total_avail = avail_deliv + avail_intra
                     conn.close()
-                    return {"success": False, "error": f"Insufficient shares to sell. Available: {avail_qty}, Requested: {quantity}"}
+                    if total_avail <= 0:
+                        return {"success": False, "error": f"You do not own any shares of {symbol} to sell."}
+                    return {"success": False, "error": f"Insufficient shares to sell {symbol}. You have {avail_deliv} in Delivery and {avail_intra} in Intraday ({total_avail} total), but requested to sell {quantity}."}
 
-                curr_qty = existing["quantity"]
-                avg_price = existing["avg_price"]
+                matched_symbol = deliv_hold["symbol"]
+                curr_qty = deliv_hold["quantity"]
+                avg_price = deliv_hold["avg_price"]
                 realized_pnl = round((effective_price - avg_price) * quantity, 2)
                 new_balance = round(balance + total_amount, 2)
                 cursor.execute("UPDATE users SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (new_balance, user_id))
@@ -1021,10 +1298,11 @@ def execute_trade(
 
                 rem_qty = round(curr_qty - quantity, 4)
                 if rem_qty <= 0.0001:
-                    cursor.execute("DELETE FROM holdings WHERE user_id = ? AND symbol = ?", (user_id, symbol))
+                    cursor.execute("DELETE FROM holdings WHERE user_id = ? AND UPPER(symbol) = ?", (user_id, matched_symbol.upper()))
                 else:
-                    cursor.execute("UPDATE holdings SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND symbol = ?", (rem_qty, user_id, symbol))
+                    cursor.execute("UPDATE holdings SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND UPPER(symbol) = ?", (rem_qty, user_id, matched_symbol.upper()))
 
+            product_type = actual_product
             order_status = "EXECUTED (AMO)" if order_tag == "AMO" else "EXECUTED"
             cursor.execute("""
                 INSERT INTO orders (user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl)
@@ -1040,18 +1318,18 @@ def execute_trade(
                     supabase_api("PATCH", f"users?id=eq.{user_id}", payload={"balance": new_balance, "updated_at": datetime.utcnow().isoformat()})
                     if product_type == "INTRADAY":
                         if rem_qty <= 0.0001:
-                            supabase_api("DELETE", f"positions?user_id=eq.{user_id}&symbol=eq.{urllib.parse.quote(symbol)}")
+                            supabase_api("DELETE", f"positions?user_id=eq.{user_id}&symbol=eq.{urllib.parse.quote(matched_symbol)}")
                         else:
                             supabase_api("POST", "positions?on_conflict=user_id,symbol", payload={
-                                "user_id": user_id, "symbol": symbol, "name": name, "asset_type": asset_type,
+                                "user_id": user_id, "symbol": matched_symbol, "name": name, "asset_type": asset_type,
                                 "quantity": rem_qty, "avg_price": avg_price, "margin_used": new_margin, "product_type": "INTRADAY"
                             })
                     else:
                         if rem_qty <= 0.0001:
-                            supabase_api("DELETE", f"holdings?user_id=eq.{user_id}&symbol=eq.{urllib.parse.quote(symbol)}")
+                            supabase_api("DELETE", f"holdings?user_id=eq.{user_id}&symbol=eq.{urllib.parse.quote(matched_symbol)}")
                         else:
                             supabase_api("POST", "holdings?on_conflict=user_id,symbol", payload={
-                                "user_id": user_id, "symbol": symbol, "name": name, "asset_type": asset_type,
+                                "user_id": user_id, "symbol": matched_symbol, "name": name, "asset_type": asset_type,
                                 "quantity": rem_qty, "avg_price": avg_price
                             })
                     supabase_api("POST", "orders", payload={
@@ -1076,10 +1354,20 @@ def execute_trade(
         return {"success": False, "error": str(e)}
 
 def exit_position(symbol: str, exit_price: float, user_id: str = "default") -> Dict[str, Any]:
+    sym_variants = get_symbol_variants(symbol)
+    sym_clause = " OR ".join(["UPPER(symbol) = ?"] * len(sym_variants))
+    sym_params = [v.upper() for v in sym_variants]
+
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT symbol, name, asset_type, quantity, avg_price, margin_used FROM positions WHERE user_id = ? AND symbol = ?", (user_id, symbol))
+    cursor.execute(f"SELECT symbol, name, asset_type, quantity, avg_price, margin_used FROM positions WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
     pos = cursor.fetchone()
+
+    if not pos and is_supabase_enabled() and user_id != "guest":
+        sync_positions_from_supabase_into_cursor(cursor, user_id)
+        conn.commit()
+        cursor.execute(f"SELECT symbol, name, asset_type, quantity, avg_price, margin_used FROM positions WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
+        pos = cursor.fetchone()
     conn.close()
 
     if not pos:

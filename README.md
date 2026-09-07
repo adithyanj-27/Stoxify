@@ -65,7 +65,7 @@ py run.py
 ```
 
 ### Windows Double-Click Launcher:
-Double-click `start_stoxify.bat` to launch the platform.
+Double-click `start_stoxify.bat` (or `start_stoxify.bat`) to launch the platform.
 
 ### Running Automated Verification Tests:
 ```bash

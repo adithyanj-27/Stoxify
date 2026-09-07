@@ -1730,6 +1730,25 @@ body.pwa-installed #mobileInstallBanner {
   align-items: flex-start;
 }
 
+.holding-name-link {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.holding-name-link:hover,
+.holding-name-link:focus-visible {
+  color: var(--brand-cyan);
+  text-decoration: underline;
+}
+
 .mobile-card-symbol {
   font-size: 1rem;
   font-weight: 800;

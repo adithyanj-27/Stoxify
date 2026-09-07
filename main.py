@@ -10,6 +10,7 @@ from database import (
     exit_position, cancel_order, check_open_limit_orders,
     get_orders, get_watchlist, add_to_watchlist, remove_from_watchlist,
     deposit_funds, reset_account, restore_balance, delete_user, create_user, update_user, get_user, list_users, find_user_by_identifier,
+    check_username_available,
     place_gtt_order, get_gtt_orders, cancel_gtt_order,
     create_sip, get_user_sips, cancel_sip,
     apply_ipo, get_ipo_bids, cancel_ipo_bid,
@@ -163,14 +164,45 @@ if os.path.exists(PUBLIC_DIR):
     app.mount("/public", StaticFiles(directory=PUBLIC_DIR), name="public")
 
 # --- User Profile Endpoints (Simulated Groww Onboarding) ---
+@app.get("/api/user/check-username")
+def api_check_username(username: str = Query(..., min_length=1, max_length=50)):
+    clean = username.strip().lstrip("@").lower()
+    if len(clean) < 3 or len(clean) > 25:
+        return {
+            "available": False, 
+            "username": clean, 
+            "message": "Username must be between 3 and 25 characters"
+        }
+    import re
+    if not re.match(r"^[a-zA-Z0-9_]+$", clean):
+        return {
+            "available": False, 
+            "username": clean, 
+            "message": "Username can only contain letters, numbers, and underscores"
+        }
+    avail = check_username_available(clean)
+    if not avail:
+        return {
+            "available": False,
+            "username": clean,
+            "message": f"@{clean} is already taken"
+        }
+    return {
+        "available": True,
+        "username": clean,
+        "message": f"@{clean} is available!"
+    }
+
 class CreateUserRequest(BaseModel):
     name: str
     email: str
     phone: Optional[str] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
     pan: Optional[str] = None
     bank_name: Optional[str] = "HDFC Bank"
     bank_account: Optional[str] = "50100234567890"
-    pin: Optional[str] = "1234"
+    pin: Optional[str] = None
     id: Optional[str] = None
     dob: Optional[str] = None
 
@@ -192,6 +224,24 @@ def api_create_user(req: CreateUserRequest):
             raise
         except Exception:
             pass
+
+    clean_username = None
+    if req.username and req.username.strip():
+        clean_username = req.username.strip().lstrip("@").lower()
+        if len(clean_username) < 3 or len(clean_username) > 25:
+            raise HTTPException(status_code=400, detail="Username must be between 3 and 25 characters")
+        import re
+        if not re.match(r"^[a-zA-Z0-9_]+$", clean_username):
+            raise HTTPException(status_code=400, detail="Username can only contain letters, numbers, and underscores")
+        if not check_username_available(clean_username):
+            raise HTTPException(status_code=400, detail=f"Username @{clean_username} is already taken")
+
+    clean_password = None
+    if req.password and req.password.strip():
+        clean_password = req.password.strip()
+        if len(clean_password) < 6:
+            raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+
     u = create_user(
         name=req.name.strip(),
         email=req.email.strip(),
@@ -199,15 +249,19 @@ def api_create_user(req: CreateUserRequest):
         pan=req.pan,
         bank_name=req.bank_name or "HDFC Bank",
         bank_account=req.bank_account or "50100234567890",
-        pin=req.pin or "1234",
+        pin=req.pin or "",
         user_id=req.id,
-        dob=(req.dob or "").strip()
+        dob=(req.dob or "").strip(),
+        username=clean_username,
+        password=clean_password
     )
     return {"success": True, "user": u}
 
 class UpdateProfileRequest(BaseModel):
     id: Optional[str] = None
     name: Optional[str] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
     pan: Optional[str] = None
@@ -243,6 +297,25 @@ def api_update_user_profile(req: UpdateProfileRequest, request: Request):
             raise
         except Exception:
             pass
+
+    clean_username = None
+    if req.username is not None:
+        clean_username = req.username.strip().lstrip("@").lower()
+        if clean_username:
+            if len(clean_username) < 3 or len(clean_username) > 25:
+                raise HTTPException(status_code=400, detail="Username must be between 3 and 25 characters")
+            import re
+            if not re.match(r"^[a-zA-Z0-9_]+$", clean_username):
+                raise HTTPException(status_code=400, detail="Username can only contain letters, numbers, and underscores")
+            if not check_username_available(clean_username, exclude_user_id=uid):
+                raise HTTPException(status_code=400, detail=f"Username @{clean_username} is already taken")
+
+    clean_password = None
+    if req.password is not None:
+        clean_password = req.password.strip()
+        if clean_password and len(clean_password) < 6:
+            raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+
     if req.pin is not None:
         clean_pin = req.pin.strip()
         if clean_pin and (len(clean_pin) != 4 or not clean_pin.isdigit()):
@@ -258,7 +331,9 @@ def api_update_user_profile(req: UpdateProfileRequest, request: Request):
         bank_name=req.bank_name.strip() if req.bank_name else None,
         bank_account=req.bank_account.strip() if req.bank_account else None,
         pin=req.pin.strip() if req.pin else None,
-        avatar_color=req.avatar_color
+        avatar_color=req.avatar_color,
+        username=clean_username if req.username is not None else None,
+        password=clean_password if req.password is not None else None
     )
     if not updated:
         raise HTTPException(status_code=404, detail="User not found")
@@ -272,20 +347,40 @@ class LoginRequest(BaseModel):
 @app.post("/api/user/login")
 def api_login_user(req: LoginRequest):
     if not req.identifier or not req.identifier.strip():
-        raise HTTPException(status_code=400, detail="Please enter your Email Address or Phone Number")
+        raise HTTPException(status_code=400, detail="Please enter your Username, Email Address or Phone Number")
 
     user = find_user_by_identifier(req.identifier.strip())
     if not user:
-        raise HTTPException(status_code=404, detail="No registered account found matching this Email or Phone Number")
+        raise HTTPException(status_code=404, detail="No registered account found matching this Username, Email or Phone Number")
 
-    # Verify credentials via PIN or Password
+    # Verify credentials via Password or PIN
     entered_secret = (req.password or req.pin or "").strip()
-    user_pin = (user.get("pin") or "1234").strip()
-    user_password = (user.get("password") or user_pin).strip()
+    if not entered_secret:
+        return {
+            "success": True,
+            "user": {
+                "name": user.get("name"), 
+                "username": user.get("username"),
+                "email": user.get("email"), 
+                "id": user.get("id")
+            },
+            "exists": True,
+            "message": "Account found"
+        }
 
-    if entered_secret:
-        if entered_secret != user_pin and entered_secret != user_password:
-            raise HTTPException(status_code=401, detail="Incorrect PIN or Password. Please try again.")
+    user_password = (user.get("password") or "").strip()
+    user_pin = (user.get("pin") or "").strip()
+
+    valid = False
+    if user_password and entered_secret == user_password:
+        valid = True
+    elif user_pin and entered_secret == user_pin:
+        valid = True
+    elif not user_password and not user_pin:
+        valid = True
+
+    if not valid:
+        raise HTTPException(status_code=401, detail="Incorrect Password or PIN. Please try again.")
 
     return {
         "success": True,
