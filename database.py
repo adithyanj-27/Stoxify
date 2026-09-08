@@ -851,13 +851,8 @@ def find_user_by_identifier(identifier: str) -> Optional[Dict[str, Any]]:
 
 # --- Account & Balances ---
 def get_account(user_id: str = "default") -> Dict[str, Any]:
-    # 1. Try Supabase first
-    if is_supabase_enabled() and user_id and user_id != "guest":
-        res = supabase_api("GET", "users", params={"id": f"eq.{user_id}", "select": "balance,total_deposited"})
-        if res and isinstance(res, list) and len(res) > 0:
-            return {"balance": float(res[0].get("balance", 1000000.0)), "total_deposited": float(res[0].get("total_deposited", 1000000.0))}
-
-    # 2. SQLite fallback
+    # Local trade transactions are authoritative for the active process. Do not
+    # overwrite a just-updated balance with a slower cloud replica response.
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT balance, total_deposited FROM users WHERE id = ?", (user_id,))
@@ -868,6 +863,12 @@ def get_account(user_id: str = "default") -> Dict[str, Any]:
     conn.close()
     if row:
         return {"balance": row["balance"], "total_deposited": row["total_deposited"]}
+
+    # A new serverless instance may not have a local user row yet.
+    if is_supabase_enabled() and user_id and user_id != "guest":
+        res = supabase_api("GET", "users", params={"id": f"eq.{user_id}", "select": "balance,total_deposited"})
+        if res and isinstance(res, list) and len(res) > 0:
+            return {"balance": float(res[0].get("balance", 1000000.0)), "total_deposited": float(res[0].get("total_deposited", 1000000.0))}
     return {"balance": 1000000.0, "total_deposited": 1000000.0}
 
 def get_symbol_variants(symbol: str) -> List[str]:
@@ -895,13 +896,29 @@ def get_available_sell_quantity(cursor, user_id: str, symbol: str, product_type:
     reserved = float(cursor.fetchone()["reserved"] or 0.0)
     return max(0.0, float(owned_quantity) - reserved)
 
+def get_executed_delivery_quantity(cursor, user_id: str, symbol: str) -> Optional[float]:
+    """Net delivery units from the immutable local order ledger, if known."""
+    variants = get_symbol_variants(symbol)
+    clause = " OR ".join(["UPPER(symbol) = ?"] * len(variants))
+    cursor.execute(f"""
+        SELECT order_type, COALESCE(SUM(quantity), 0) AS quantity
+        FROM orders
+        WHERE user_id = ? AND product_type = 'DELIVERY' AND status LIKE 'EXECUTED%'
+          AND ({clause})
+        GROUP BY order_type
+    """, [user_id] + [v.upper() for v in variants])
+    rows = cursor.fetchall()
+    if not rows:
+        return None
+    totals = {row["order_type"]: float(row["quantity"] or 0.0) for row in rows}
+    return totals.get("BUY", 0.0) - totals.get("SELL", 0.0)
+
 def sync_holdings_from_supabase_into_cursor(cursor, user_id: str):
     if not is_supabase_enabled() or not user_id or user_id in ["guest", "default"]:
         return None
     try:
         res = supabase_api("GET", "holdings", params={"user_id": f"eq.{user_id}", "quantity": "gt.0", "select": "symbol,name,asset_type,quantity,avg_price,updated_at"})
         if res is not None and isinstance(res, list):
-            cursor.execute("DELETE FROM holding_tombstones WHERE deleted_at < datetime('now', '-5 minutes')")
             cursor.execute("SELECT symbol FROM holding_tombstones WHERE user_id = ?", (user_id,))
             tombstone_variants = {
                 variant.upper()
@@ -915,13 +932,20 @@ def sync_holdings_from_supabase_into_cursor(cursor, user_id: str):
             sb_symbols = set()
             for h in res:
                 sb_sym = (h["symbol"] or "").upper()
-                if sb_sym in tombstone_variants:
-                    # Retry the idempotent delete. Do not restore an already-sold
-                    # holding from a delayed Supabase response.
-                    supabase_api("DELETE", "holdings", params={
-                        "user_id": f"eq.{user_id}",
-                        "symbol": f"eq.{h['symbol']}"
-                    })
+                ledger_quantity = get_executed_delivery_quantity(cursor, user_id, h["symbol"])
+                if sb_sym in tombstone_variants or (ledger_quantity is not None and ledger_quantity <= 0.0001):
+                    # A sold-out row must remain absent until a later BUY clears
+                    # its tombstone. Marking quantity zero is robust even when a
+                    # remote DELETE is delayed by replicas or RLS policies.
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO holding_tombstones (user_id, symbol, deleted_at)
+                        VALUES (?, ?, CURRENT_TIMESTAMP)
+                    """, (user_id, h["symbol"]))
+                    filters = {"user_id": f"eq.{user_id}", "symbol": f"eq.{h['symbol']}"}
+                    supabase_api("PATCH", "holdings", payload={"quantity": 0, "updated_at": datetime.utcnow().isoformat()}, params=filters)
+                    supabase_api("DELETE", "holdings", params=filters)
+                    enqueue_sync_operation(cursor, user_id, "PATCH", "holdings", filters=filters, payload={"quantity": 0, "updated_at": datetime.utcnow().isoformat()})
+                    enqueue_sync_operation(cursor, user_id, "DELETE", "holdings", filters=filters)
                     continue
                 sb_symbols.add(sb_sym)
                 cursor.execute("""
@@ -1415,10 +1439,12 @@ def execute_trade(
                         INSERT OR REPLACE INTO holding_tombstones (user_id, symbol, deleted_at)
                         VALUES (?, ?, CURRENT_TIMESTAMP)
                     """, (user_id, matched_symbol))
-                    enqueue_sync_operation(cursor, user_id, "DELETE", "holdings", filters={
+                    close_filters = {
                         "user_id": f"eq.{user_id}",
                         "symbol": f"eq.{matched_symbol}"
-                    })
+                    }
+                    enqueue_sync_operation(cursor, user_id, "PATCH", "holdings", filters=close_filters, payload={"quantity": 0, "updated_at": datetime.utcnow().isoformat()})
+                    enqueue_sync_operation(cursor, user_id, "DELETE", "holdings", filters=close_filters)
                 else:
                     cursor.execute("UPDATE holdings SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND UPPER(symbol) = ?", (rem_qty, user_id, matched_symbol.upper()))
 
@@ -1446,10 +1472,12 @@ def execute_trade(
                             })
                     else:
                         if rem_qty <= 0.0001:
-                            supabase_api("DELETE", "holdings", params={
+                            close_filters = {
                                 "user_id": f"eq.{user_id}",
                                 "symbol": f"eq.{matched_symbol}"
-                            })
+                            }
+                            supabase_api("PATCH", "holdings", payload={"quantity": 0, "updated_at": datetime.utcnow().isoformat()}, params=close_filters)
+                            supabase_api("DELETE", "holdings", params=close_filters)
                         else:
                             supabase_api("POST", "holdings?on_conflict=user_id,symbol", payload={
                                 "user_id": user_id, "symbol": matched_symbol, "name": name, "asset_type": asset_type,
