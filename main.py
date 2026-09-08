@@ -381,12 +381,13 @@ def api_login_user(req: LoginRequest):
     user_password = (user.get("password") or "").strip()
     user_pin = (user.get("pin") or "").strip()
 
+    # A supplied secret must match a credential the account actually has.
+    # Accounts with no credentials set are only "found" (see above) and must
+    # never authenticate a wrong/arbitrary secret.
     valid = False
     if user_password and entered_secret == user_password:
         valid = True
     elif user_pin and entered_secret == user_pin:
-        valid = True
-    elif not user_password and not user_pin:
         valid = True
 
     if not valid:
@@ -729,7 +730,11 @@ def place_order(order: OrderRequest, request: Request):
         raise HTTPException(status_code=400, detail=timing_msg)
 
     exec_price = order.price
-    if order.order_variety.upper() == "MARKET" and order.asset_type.upper() == "STOCK":
+    if order.asset_type.upper() == "STOCK":
+        # Always resolve against the live feed for stock orders so that
+        # marketable LIMIT orders fill at the market price (not the stale page
+        # price or the worse limit price) and pending decisions compare against
+        # the real market.
         try:
             live_q = market_service.get_stock_quote(order.symbol)
             if live_q.get("price"):

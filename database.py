@@ -1107,7 +1107,36 @@ def execute_trade(
     if order_variety in ("STOP_LOSS", "SL") and (trigger_price is None or float(trigger_price) <= 0):
         return {"success": False, "error": "A valid trigger price is required for a Stop-Loss order."}
 
-    effective_price = limit_price if (order_variety == "LIMIT" and limit_price and limit_price > 0) else price
+    # A LIMIT order is pending only when it is NOT immediately marketable:
+    #   BUY  limit below market  -> wait for price to fall to the limit
+    #   SELL limit above market  -> wait for price to rise to the limit
+    # A marketable LIMIT order (BUY limit >= market / SELL limit <= market) must
+    # fill at the better market price, not at the (worse) limit price.
+    is_pending_limit = False
+    if order_variety == "LIMIT" and limit_price and float(limit_price) > 0:
+        if order_type == "BUY" and float(limit_price) < price:
+            is_pending_limit = True
+        elif order_type == "SELL" and float(limit_price) > price:
+            is_pending_limit = True
+
+    # Stop-Loss orders whose trigger cannot fire yet are held as TRIGGER_PENDING.
+    is_pending_sl = False
+    if order_variety in ("STOP_LOSS", "SL") and trigger_price and float(trigger_price) > 0:
+        if order_type == "SELL" and price > float(trigger_price):
+            is_pending_sl = True
+        elif order_type == "BUY" and price < float(trigger_price):
+            is_pending_sl = True
+
+    # Fill price for an immediately executing order is the live market price.
+    # Pending orders use their limit/trigger reference for margin blocking.
+    if is_pending_limit:
+        effective_price = float(limit_price)
+    elif is_pending_sl and order_type == "BUY":
+        # A buy-stop can only trigger at/above its trigger price, so its worst
+        # case cost (and margin) must be evaluated at the trigger price.
+        effective_price = float(trigger_price)
+    else:
+        effective_price = price
     total_amount = round(quantity * effective_price, 2)
 
     # Margin requirements: 20% for regular Intraday stocks (5x leverage), 100% for Delivery CNC & Options
@@ -1135,14 +1164,6 @@ def execute_trade(
         sym_variants = get_symbol_variants(symbol)
         sym_clause = " OR ".join(["UPPER(symbol) = ?"] * len(sym_variants))
         sym_params = [v.upper() for v in sym_variants]
-
-        # Pending Limit orders check
-        is_pending_limit = False
-        if order_variety == "LIMIT":
-            if order_type == "BUY" and limit_price < price:
-                is_pending_limit = True
-            elif order_type == "SELL" and limit_price > price:
-                is_pending_limit = True
 
         if is_pending_limit:
             if order_type == "BUY":
@@ -1195,14 +1216,7 @@ def execute_trade(
                 "message": f"Limit {order_type} order placed for {quantity} {symbol} at ₹{effective_price:,.2f} (Status: Open)"
             }
 
-        # Stop-Loss Orders (SL-Limit) check
-        is_pending_sl = False
-        if order_variety in ["STOP_LOSS", "SL"] and trigger_price and trigger_price > 0:
-            if order_type == "SELL" and price > trigger_price:
-                is_pending_sl = True
-            elif order_type == "BUY" and price < trigger_price:
-                is_pending_sl = True
-
+        # Stop-Loss Orders (SL-Limit) handling
         if is_pending_sl:
             if order_type == "BUY":
                 if balance < required_margin:
@@ -1636,7 +1650,11 @@ def get_orders(limit: int = 100, status_filter: Optional[str] = None, user_id: s
     if is_supabase_enabled() and user_id and user_id != "guest":
         params = {"user_id": f"eq.{user_id}", "order": "id.desc", "limit": str(limit)}
         if status_filter:
-            params["status"] = f"eq.{status_filter}"
+            if status_filter.upper() == "EXECUTED":
+                # Executed rows may carry an "(AMO)" suffix; treat them as executed.
+                params["status"] = "like.EXECUTED%"
+            else:
+                params["status"] = f"eq.{status_filter}"
         res = supabase_api("GET", "orders", params=params)
         if res is not None and isinstance(res, list) and len(res) > 0:
             return res
@@ -1645,10 +1663,16 @@ def get_orders(limit: int = 100, status_filter: Optional[str] = None, user_id: s
     conn = get_connection()
     cursor = conn.cursor()
     if status_filter:
-        cursor.execute("""
-            SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, timestamp
-            FROM orders WHERE user_id = ? AND status = ? ORDER BY id DESC LIMIT ?
-        """, (user_id, status_filter, limit))
+        if status_filter.upper() == "EXECUTED":
+            cursor.execute("""
+                SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, timestamp
+                FROM orders WHERE user_id = ? AND status LIKE 'EXECUTED%' ORDER BY id DESC LIMIT ?
+            """, (user_id, limit))
+        else:
+            cursor.execute("""
+                SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, timestamp
+                FROM orders WHERE user_id = ? AND status = ? ORDER BY id DESC LIMIT ?
+            """, (user_id, status_filter, limit))
     else:
         cursor.execute("""
             SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, timestamp
@@ -1968,16 +1992,40 @@ def cancel_ipo_bid(user_id: str, bid_id: int) -> Dict[str, Any]:
     return {"success": True, "message": f"IPO application for {bid['ipo_name']} cancelled. ₹{blocked:,.2f} unblocked."}
 
 # --- Capital Gains Tax (Budget 2024 Rules: STCG 20%, LTCG 12.5%) ---
+def _parse_order_dt(value) -> Optional[datetime]:
+    try:
+        return datetime.strptime(str(value)[:19], "%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return None
+
 def get_capital_gains_tax_report(user_id: str = "default") -> Dict[str, Any]:
     conn = get_connection()
     cursor = conn.cursor()
+    # Sells, oldest first, so lots can be FIFO-matched against earlier buys.
     cursor.execute("""
-        SELECT symbol, name, order_type, product_type, quantity, price, realized_pnl, timestamp 
+        SELECT id, symbol, name, product_type, quantity, price, realized_pnl, timestamp
         FROM orders WHERE user_id = ? AND order_type = 'SELL' AND status LIKE 'EXECUTED%'
-        ORDER BY id DESC
+        ORDER BY id ASC
     """, (user_id,))
     rows = cursor.fetchall()
+
+    # Executed delivery buys per symbol (acquisition lots), oldest first.
+    cursor.execute("""
+        SELECT symbol, quantity, timestamp FROM orders
+        WHERE user_id = ? AND product_type = 'DELIVERY' AND order_type = 'BUY' AND status LIKE 'EXECUTED%'
+        ORDER BY id ASC
+    """, (user_id,))
+    buy_rows = cursor.fetchall()
     conn.close()
+
+    from collections import deque
+    buy_lots: Dict[str, deque] = {}
+    for b in buy_rows:
+        key = (b["symbol"] or "").upper()
+        buy_lots.setdefault(key, deque()).append({
+            "qty": float(b["quantity"] or 0.0),
+            "ts": _parse_order_dt(b["timestamp"])
+        })
 
     total_stcg_profit = 0.0
     total_stcg_loss = 0.0
@@ -1988,13 +2036,27 @@ def get_capital_gains_tax_report(user_id: str = "default") -> Dict[str, Any]:
     for r in rows:
         pnl = float(r["realized_pnl"] or 0.0)
         is_ltcg = False
-        try:
-            order_dt = datetime.strptime(str(r["timestamp"])[:19], "%Y-%m-%d %H:%M:%S")
-            days_held = (datetime.now() - order_dt).days
-            if r["product_type"] == "DELIVERY" and days_held >= 365:
-                is_ltcg = True
-        except Exception:
-            pass
+
+        # Holding period is measured from when the shares were acquired (FIFO),
+        # not from the sell date or from today.
+        if r["product_type"] == "DELIVERY":
+            sell_dt = _parse_order_dt(r["timestamp"])
+            if sell_dt:
+                qty_to_match = float(r["quantity"] or 0.0)
+                lots = buy_lots.get((r["symbol"] or "").upper())
+                acquisition_dt = None
+                if lots:
+                    while qty_to_match > 1e-6 and lots:
+                        lot = lots[0]
+                        take = min(lot["qty"], qty_to_match)
+                        lot["qty"] -= take
+                        qty_to_match -= take
+                        acquisition_dt = lot["ts"] or acquisition_dt
+                        if lot["qty"] <= 1e-6:
+                            lots.popleft()
+                if qty_to_match <= 1e-6 and acquisition_dt:
+                    days_held = (sell_dt - acquisition_dt).days
+                    is_ltcg = days_held >= 365
 
         if is_ltcg:
             if pnl > 0:
@@ -2017,6 +2079,9 @@ def get_capital_gains_tax_report(user_id: str = "default") -> Dict[str, Any]:
             "tax_type": "LTCG (12.5%)" if is_ltcg else "STCG (20%)",
             "date": str(r["timestamp"])[:10]
         })
+
+    # Keep the historical order of the response: newest sell first.
+    trades.reverse()
 
     net_stcg = max(0.0, round(total_stcg_profit - total_stcg_loss, 2))
     stcg_tax = round(net_stcg * 0.20, 2)

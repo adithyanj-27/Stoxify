@@ -707,14 +707,19 @@ function renderExploreMutualFunds() {
 // Navigation, polling, and trade completion can request the same portfolio at
 // once. Coalesce those reads to avoid duplicate backend/cloud work.
 let portfolioRequest = null;
-function fetchPortfolio() {
-  if (!portfolioRequest) {
-    portfolioRequest = fetchPortfolioInternal().finally(() => { portfolioRequest = null; });
+let portfolioRequestVersion = 0;
+function fetchPortfolio(force = false) {
+  if (force || !portfolioRequest) {
+    const version = ++portfolioRequestVersion;
+    const request = fetchPortfolioInternal(version).finally(() => {
+      if (portfolioRequest === request) portfolioRequest = null;
+    });
+    portfolioRequest = request;
   }
   return portfolioRequest;
 }
 
-async function fetchPortfolioInternal() {
+async function fetchPortfolioInternal(requestVersion) {
   const guestBanner = document.getElementById('holdingsGuestBanner');
   const authContent = document.getElementById('holdingsAuthContent');
 
@@ -729,6 +734,7 @@ async function fetchPortfolioInternal() {
   try {
     const res = await fetch('/api/portfolio');
     const data = await res.json();
+    if (requestVersion !== portfolioRequestVersion) return data;
     state.account.balance = data.balance || 0;
 
     const navBal = document.getElementById('navBalanceDisplay');
@@ -853,14 +859,19 @@ async function fetchPortfolioInternal() {
 
 // --- Positions View (Intraday MIS with 5x Leverage) ---
 let positionsRequest = null;
-function fetchPositions() {
-  if (!positionsRequest) {
-    positionsRequest = fetchPositionsInternal().finally(() => { positionsRequest = null; });
+let positionsRequestVersion = 0;
+function fetchPositions(force = false) {
+  if (force || !positionsRequest) {
+    const version = ++positionsRequestVersion;
+    const request = fetchPositionsInternal(version).finally(() => {
+      if (positionsRequest === request) positionsRequest = null;
+    });
+    positionsRequest = request;
   }
   return positionsRequest;
 }
 
-async function fetchPositionsInternal() {
+async function fetchPositionsInternal(requestVersion) {
   const guestBanner = document.getElementById('positionsGuestBanner');
   const authContent = document.getElementById('positionsAuthContent');
 
@@ -875,6 +886,7 @@ async function fetchPositionsInternal() {
   try {
     const res = await fetch('/api/positions');
     const data = await res.json();
+    if (requestVersion !== positionsRequestVersion) return data;
     const positions = data.positions || [];
 
     // Update badges
@@ -991,8 +1003,9 @@ async function exitPosition(symbol) {
       return;
     }
     showToast(`Position squared off: ${symbol} at current market price`);
-    fetchPositions();
+    fetchPositions(true);
     fetchAccount();
+    fetchOrders();
   } catch (err) {
     showToast('Failed to connect to execution server', true);
   }
@@ -1004,8 +1017,9 @@ async function squareOffAllPositions() {
     const res = await fetch('/api/position/exit-all', { method: 'POST' });
     const result = await res.json();
     showToast(`Squared off ${result.exited_count} open intraday positions!`);
-    fetchPositions();
+    fetchPositions(true);
     fetchAccount();
+    fetchOrders();
   } catch (err) {
     showToast('Failed to square off positions', true);
   }
@@ -1014,13 +1028,16 @@ async function squareOffAllPositions() {
 // --- Orders View (Executed & Open Orders) ---
 async function fetchOrders() {
   try {
-    const [execRes, openRes] = await Promise.all([
-      fetch('/api/orders'),
-      fetch('/api/orders?status=OPEN')
+    const [execRes, openRes, slRes] = await Promise.all([
+      fetch('/api/orders?status=EXECUTED'),
+      fetch('/api/orders?status=OPEN'),
+      fetch('/api/orders?status=TRIGGER_PENDING')
     ]);
-    const allOrders = await execRes.json();
-    const openOrders = await openRes.json();
-    const executedOrders = allOrders.filter(o => o.status !== 'OPEN');
+    const executedOrders = await execRes.json();
+    // Pending stop-loss (TRIGGER_PENDING) orders are open orders too: they can
+    // still be cancelled and must not appear in the executed history.
+    const openOrders = [...(await openRes.json()), ...(await slRes.json())]
+      .sort((a, b) => (b.id || 0) - (a.id || 0));
 
     // Update Open Orders count badges
     document.getElementById('openOrdersCount').innerText = openOrders.length;
@@ -1104,11 +1121,14 @@ async function fetchOrders() {
     const openMobileList = document.getElementById('openOrdersMobileList');
 
     if (openOrders.length === 0) {
-      openTableBody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 3rem;">No pending limit orders.</td></tr>`;
-      openMobileList.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 2.5rem;">No pending limit orders.</div>`;
+      openTableBody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 3rem;">No pending orders.</td></tr>`;
+      openMobileList.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 2.5rem;">No pending orders.</div>`;
     } else {
       openTableBody.innerHTML = openOrders.map(o => {
         const isBuy = o.order_type === 'BUY';
+        const displayPrice = o.order_variety === 'STOP_LOSS'
+          ? (o.trigger_price ? `Trig: ${formatINR(o.trigger_price)}` : formatINR(o.price))
+          : formatINR(o.limit_price || o.price);
         return `
           <tr>
             <td>#${o.id}</td>
@@ -1116,10 +1136,10 @@ async function fetchOrders() {
             <td><span class="badge-${isBuy ? 'positive' : 'negative'}">${o.order_type}</span></td>
             <td>${o.product_type}</td>
             <td style="font-weight: 600;">${o.quantity}</td>
-            <td style="font-weight: 700; color: var(--brand-cyan);">${formatINR(o.limit_price || o.price)}</td>
+            <td style="font-weight: 700; color: var(--brand-cyan);">${displayPrice}</td>
             <td>${formatINR(o.total_amount)}</td>
             <td style="font-size: 0.75rem; color: var(--text-muted);">${o.timestamp || 'Today'}</td>
-            <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem; color: var(--brand-cyan);">OPEN</span></td>
+            <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem; color: var(--brand-cyan);">${o.status}</span></td>
             <td style="text-align: right;">
               <button class="btn-danger" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" onclick="cancelOrder(${o.id})">Cancel</button>
             </td>
@@ -1129,16 +1149,19 @@ async function fetchOrders() {
 
       openMobileList.innerHTML = openOrders.map(o => {
         const isBuy = o.order_type === 'BUY';
+        const displayPrice = o.order_variety === 'STOP_LOSS'
+          ? (o.trigger_price ? `Trig: ${formatINR(o.trigger_price)}` : formatINR(o.price))
+          : formatINR(o.limit_price || o.price);
         return `
           <div class="mobile-card-item" style="border-left: 4px solid var(--brand-cyan);">
             <div class="mobile-card-top">
               <div>
-                <div class="mobile-card-symbol">${o.symbol} <span class="badge-${isBuy ? 'positive' : 'negative'}">${o.order_type} LIMIT</span></div>
+                <div class="mobile-card-symbol">${o.symbol} <span class="badge-${isBuy ? 'positive' : 'negative'}">${o.order_type} ${o.order_variety || 'LIMIT'}</span></div>
                 <div class="mobile-card-name">Order #${o.id} • ${o.product_type}</div>
               </div>
               <div class="mobile-card-price">
-                <span style="color: var(--brand-cyan);">${formatINR(o.limit_price || o.price)}</span>
-                <div style="font-size: 0.75rem; color: var(--text-muted);">Pending Execution</div>
+                <span style="color: var(--brand-cyan);">${displayPrice}</span>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">${o.status === 'TRIGGER_PENDING' ? 'Trigger Pending' : 'Pending Execution'}</div>
               </div>
             </div>
             <div class="mobile-card-grid">
@@ -1146,7 +1169,7 @@ async function fetchOrders() {
               <div><span style="color:var(--text-muted);">Blocked:</span> <strong>${formatINR(o.total_amount)}</strong></div>
             </div>
             <div class="mobile-card-actions">
-              <button class="btn-danger" style="width: 100%; justify-content: center; padding: 0.45rem;" onclick="cancelOrder(${o.id})">Cancel Limit Order</button>
+              <button class="btn-danger" style="width: 100%; justify-content: center; padding: 0.45rem;" onclick="cancelOrder(${o.id})">Cancel Order</button>
             </div>
           </div>
         `;
@@ -1171,8 +1194,14 @@ async function cancelOrder(orderId) {
       return;
     }
     showToast(`Order #${orderId} cancelled and blocked funds returned!`);
-    fetchOrders();
-    fetchAccount();
+    await fetchOrders();
+    await fetchAccount();
+    await fetchPortfolio(true);
+    await fetchPositions(true);
+    if (currentPageAsset && currentPageAsset.symbol) {
+      updatePageAvailableHolding(currentPageAsset.symbol);
+      recalcPageMargin();
+    }
   } catch (err) {
     showToast('Failed to cancel order', true);
   }
@@ -1773,8 +1802,8 @@ async function submitOrder() {
     showToast(result.message || `Order processed successfully: ${state.orderAction} ${qty} ${payload.symbol}`);
     closeTradeModal();
     await fetchAccount();
-    await fetchPortfolio();
-    await fetchPositions();
+    await fetchPortfolio(true);
+    await fetchPositions(true);
     await fetchOrders();
 
     openOrderSuccessModal({
@@ -3753,9 +3782,24 @@ function recalcPageMargin() {
   const qtyInput = document.getElementById('pageOrderQuantity');
   const qty = parseInt((qtyInput ? qtyInput.value : '1') || '1', 10);
   const limInput = document.getElementById('pageOrderLimitPrice');
-  const effectivePrice = (pageOrderState.variety === 'LIMIT' || pageOrderState.variety === 'STOP_LOSS' || pageOrderState.variety === 'GTT')
-    ? parseFloat((limInput ? limInput.value : '') || currentPageAsset.price)
-    : currentPageAsset.price;
+  const trigInput = document.getElementById('pageOrderTriggerPrice');
+
+  let effectivePrice = currentPageAsset.price;
+  if (pageOrderState.variety === 'LIMIT') {
+    const limVal = parseFloat((limInput ? limInput.value : '') || '0');
+    effectivePrice = limVal > 0 ? limVal : currentPageAsset.price;
+  } else if (pageOrderState.variety === 'STOP_LOSS') {
+    const trigVal = parseFloat((trigInput ? trigInput.value : '') || '0');
+    if (pageOrderState.action === 'BUY' && trigVal > 0) {
+      effectivePrice = trigVal;
+    } else {
+      effectivePrice = currentPageAsset.price;
+    }
+  } else if (pageOrderState.variety === 'GTT') {
+    const trigVal = parseFloat((trigInput ? trigInput.value : '') || '0');
+    const limVal = parseFloat((limInput ? limInput.value : '') || '0');
+    effectivePrice = limVal > 0 ? limVal : (trigVal > 0 ? trigVal : currentPageAsset.price);
+  }
 
   const total = qty * effectivePrice;
   const margin = pageOrderState.product === 'INTRADAY' ? total * 0.20 : total;
@@ -3958,8 +4002,8 @@ async function executePageTrade() {
 
     showToast(result.message || `${pageOrderState.action} order placed successfully!`);
     await fetchAccount();
-    await fetchPortfolio();
-    await fetchPositions();
+    await fetchPortfolio(true);
+    await fetchPositions(true);
     await fetchOrders();
     updatePageAvailableHolding(currentPageAsset.symbol);
     recalcPageMargin();
@@ -4841,7 +4885,7 @@ async function submitOptionTrade() {
     showToast(`${currentOptionTrade.action} ${lots} lot(s) executed at ${formatINR(currentOptionTrade.ltp)}!`);
     closeOptionBuyModal();
     await fetchAccount();
-    await fetchPositions();
+    await fetchPositions(true);
     await fetchOrders();
   } catch (err) {
     showToast('Failed to execute option trade', true);
