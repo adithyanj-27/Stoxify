@@ -5,6 +5,7 @@ import json
 import uuid
 import random
 import re
+import time
 import urllib.request
 import urllib.parse
 from datetime import datetime
@@ -72,6 +73,50 @@ else:
     DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stoxify.db")
 
 _db_initialized = False
+_REMOTE_SYNC_LAST_AT: Dict[str, float] = {}
+_REMOTE_SYNC_INTERVAL_SECONDS = 12
+
+def should_sync_remote(resource: str, user_id: str) -> bool:
+    """Avoid a cloud round trip on every UI refresh while keeping data fresh."""
+    key = f"{resource}:{user_id}"
+    now = time.monotonic()
+    if now - _REMOTE_SYNC_LAST_AT.get(key, 0.0) < _REMOTE_SYNC_INTERVAL_SECONDS:
+        return False
+    _REMOTE_SYNC_LAST_AT[key] = now
+    return True
+
+def enqueue_sync_operation(cursor, user_id: str, method: str, endpoint: str, filters: Optional[Dict[str, str]] = None, payload: Optional[Any] = None):
+    """Persist an idempotent cloud operation with the local trade transaction."""
+    cursor.execute("""
+        INSERT INTO sync_outbox (user_id, method, endpoint, filters_json, payload_json)
+        VALUES (?, ?, ?, ?, ?)
+    """, (user_id, method, endpoint, json.dumps(filters or {}), json.dumps(payload) if payload is not None else None))
+
+def drain_sync_outbox(user_id: str, limit: int = 20):
+    if not is_supabase_enabled() or not user_id or user_id == "guest":
+        return
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, method, endpoint, filters_json, payload_json
+        FROM sync_outbox WHERE user_id = ? ORDER BY id ASC LIMIT ?
+    """, (user_id, limit))
+    operations = [dict(row) for row in cursor.fetchall()]
+    for operation in operations:
+        try:
+            result = supabase_api(
+                operation["method"], operation["endpoint"],
+                payload=json.loads(operation["payload_json"]) if operation["payload_json"] else None,
+                params=json.loads(operation["filters_json"] or "{}")
+            )
+            if result is not None:
+                cursor.execute("DELETE FROM sync_outbox WHERE id = ?", (operation["id"],))
+            else:
+                cursor.execute("UPDATE sync_outbox SET attempts = attempts + 1, last_attempt_at = CURRENT_TIMESTAMP WHERE id = ?", (operation["id"],))
+        except Exception:
+            cursor.execute("UPDATE sync_outbox SET attempts = attempts + 1, last_attempt_at = CURRENT_TIMESTAMP WHERE id = ?", (operation["id"],))
+    conn.commit()
+    conn.close()
 
 def get_raw_connection():
     conn = sqlite3.connect(DB_PATH, timeout=15)
@@ -188,6 +233,31 @@ def init_db():
         cursor.execute("ALTER TABLE holdings ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default'")
     except Exception:
         pass
+
+    # A short-lived local marker prevents a stale remote row from reappearing
+    # between a full sale and the cloud DELETE becoming visible to a read.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS holding_tombstones (
+            user_id TEXT NOT NULL,
+            symbol TEXT NOT NULL,
+            deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (user_id, symbol)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS sync_outbox (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            method TEXT NOT NULL,
+            endpoint TEXT NOT NULL,
+            filters_json TEXT NOT NULL DEFAULT '{}',
+            payload_json TEXT,
+            attempts INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_attempt_at TIMESTAMP
+        )
+    """)
 
     # 4. Positions table (Intraday / MIS with 5x leverage)
     cursor.execute("""
@@ -811,12 +881,33 @@ def get_symbol_variants(symbol: str) -> List[str]:
         variants.append(clean + ".BO")
     return list(dict.fromkeys(variants))
 
+def get_available_sell_quantity(cursor, user_id: str, symbol: str, product_type: str, owned_quantity: float) -> float:
+    """Return inventory not already committed to another pending sell order."""
+    variants = get_symbol_variants(symbol)
+    clause = " OR ".join(["UPPER(symbol) = ?"] * len(variants))
+    cursor.execute(f"""
+        SELECT COALESCE(SUM(quantity), 0) AS reserved
+        FROM orders
+        WHERE user_id = ? AND order_type = 'SELL' AND product_type = ?
+          AND status IN ('OPEN', 'TRIGGER_PENDING', 'EXECUTING')
+          AND ({clause})
+    """, [user_id, product_type] + [v.upper() for v in variants])
+    reserved = float(cursor.fetchone()["reserved"] or 0.0)
+    return max(0.0, float(owned_quantity) - reserved)
+
 def sync_holdings_from_supabase_into_cursor(cursor, user_id: str):
     if not is_supabase_enabled() or not user_id or user_id in ["guest", "default"]:
         return None
     try:
         res = supabase_api("GET", "holdings", params={"user_id": f"eq.{user_id}", "quantity": "gt.0", "select": "symbol,name,asset_type,quantity,avg_price,updated_at"})
         if res is not None and isinstance(res, list):
+            cursor.execute("DELETE FROM holding_tombstones WHERE deleted_at < datetime('now', '-5 minutes')")
+            cursor.execute("SELECT symbol FROM holding_tombstones WHERE user_id = ?", (user_id,))
+            tombstone_variants = {
+                variant.upper()
+                for row in cursor.fetchall()
+                for variant in get_symbol_variants(row["symbol"])
+            }
             cursor.execute("SELECT symbol, name, asset_type, quantity, avg_price, updated_at FROM holdings WHERE user_id = ? AND quantity > 0", (user_id,))
             local_rows = cursor.fetchall()
             local_map = {(r["symbol"] or "").upper(): dict(r) for r in local_rows}
@@ -824,6 +915,14 @@ def sync_holdings_from_supabase_into_cursor(cursor, user_id: str):
             sb_symbols = set()
             for h in res:
                 sb_sym = (h["symbol"] or "").upper()
+                if sb_sym in tombstone_variants:
+                    # Retry the idempotent delete. Do not restore an already-sold
+                    # holding from a delayed Supabase response.
+                    supabase_api("DELETE", "holdings", params={
+                        "user_id": f"eq.{user_id}",
+                        "symbol": f"eq.{h['symbol']}"
+                    })
+                    continue
                 sb_symbols.add(sb_sym)
                 cursor.execute("""
                     INSERT OR REPLACE INTO holdings (user_id, symbol, name, asset_type, quantity, avg_price, updated_at)
@@ -910,8 +1009,9 @@ def sync_positions_from_supabase_into_cursor(cursor, user_id: str):
 
 def get_holdings(user_id: str = "default") -> List[Dict[str, Any]]:
     # 1. Try Supabase merge first
-    if is_supabase_enabled() and user_id and user_id != "guest":
+    if is_supabase_enabled() and user_id and user_id != "guest" and should_sync_remote("holdings", user_id):
         try:
+            drain_sync_outbox(user_id)
             conn = get_connection()
             cursor = conn.cursor()
             sync_holdings_from_supabase_into_cursor(cursor, user_id)
@@ -933,7 +1033,7 @@ def get_holdings(user_id: str = "default") -> List[Dict[str, Any]]:
 
 def get_positions(user_id: str = "default") -> List[Dict[str, Any]]:
     # 1. Try Supabase merge first
-    if is_supabase_enabled() and user_id and user_id != "guest":
+    if is_supabase_enabled() and user_id and user_id != "guest" and should_sync_remote("positions", user_id):
         try:
             conn = get_connection()
             cursor = conn.cursor()
@@ -975,6 +1075,13 @@ def execute_trade(
     asset_type = asset_type.upper()
     quantity = float(quantity)
     price = float(price)
+
+    if quantity <= 0 or price <= 0:
+        return {"success": False, "error": "Quantity and price must be greater than zero."}
+    if order_variety == "LIMIT" and (limit_price is None or float(limit_price) <= 0):
+        return {"success": False, "error": "A valid limit price is required for a Limit order."}
+    if order_variety in ("STOP_LOSS", "SL") and (trigger_price is None or float(trigger_price) <= 0):
+        return {"success": False, "error": "A valid trigger price is required for a Stop-Loss order."}
 
     effective_price = limit_price if (order_variety == "LIMIT" and limit_price and limit_price > 0) else price
     total_amount = round(quantity * effective_price, 2)
@@ -1026,7 +1133,7 @@ def execute_trade(
                 tbl = "positions" if (product_type == "INTRADAY" or asset_type == "OPTION") else "holdings"
                 cursor.execute(f"SELECT id, symbol, quantity FROM {tbl} WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
                 existing = cursor.fetchone()
-                if (not existing or existing["quantity"] < quantity) and is_supabase_enabled() and user_id != "guest":
+                if (not existing or get_available_sell_quantity(cursor, user_id, symbol, product_type, existing["quantity"]) < quantity) and is_supabase_enabled() and user_id != "guest":
                     if tbl == "positions":
                         sync_positions_from_supabase_into_cursor(cursor, user_id)
                     else:
@@ -1035,11 +1142,12 @@ def execute_trade(
                     existing = cursor.fetchone()
 
                 # Cross-product check if primary table doesn't have sufficient quantity
-                if not existing or existing["quantity"] < quantity:
+                if not existing or get_available_sell_quantity(cursor, user_id, symbol, product_type, existing["quantity"]) < quantity:
                     alt_tbl = "holdings" if tbl == "positions" else "positions"
                     cursor.execute(f"SELECT id, symbol, quantity FROM {alt_tbl} WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
                     alt_existing = cursor.fetchone()
-                    if alt_existing and alt_existing["quantity"] >= quantity:
+                    alt_product = "DELIVERY" if alt_tbl == "holdings" else "INTRADAY"
+                    if alt_existing and get_available_sell_quantity(cursor, user_id, symbol, alt_product, alt_existing["quantity"]) >= quantity:
                         product_type = "DELIVERY" if alt_tbl == "holdings" else "INTRADAY"
                         existing = alt_existing
                     else:
@@ -1084,7 +1192,7 @@ def execute_trade(
                 tbl = "positions" if (product_type == "INTRADAY" or asset_type == "OPTION") else "holdings"
                 cursor.execute(f"SELECT id, symbol, quantity FROM {tbl} WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
                 existing = cursor.fetchone()
-                if (not existing or existing["quantity"] < quantity) and is_supabase_enabled() and user_id != "guest":
+                if (not existing or get_available_sell_quantity(cursor, user_id, symbol, product_type, existing["quantity"]) < quantity) and is_supabase_enabled() and user_id != "guest":
                     if tbl == "positions":
                         sync_positions_from_supabase_into_cursor(cursor, user_id)
                     else:
@@ -1092,11 +1200,12 @@ def execute_trade(
                     cursor.execute(f"SELECT id, symbol, quantity FROM {tbl} WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
                     existing = cursor.fetchone()
 
-                if not existing or existing["quantity"] < quantity:
+                if not existing or get_available_sell_quantity(cursor, user_id, symbol, product_type, existing["quantity"]) < quantity:
                     alt_tbl = "holdings" if tbl == "positions" else "positions"
                     cursor.execute(f"SELECT id, symbol, quantity FROM {alt_tbl} WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
                     alt_existing = cursor.fetchone()
-                    if alt_existing and alt_existing["quantity"] >= quantity:
+                    alt_product = "DELIVERY" if alt_tbl == "holdings" else "INTRADAY"
+                    if alt_existing and get_available_sell_quantity(cursor, user_id, symbol, alt_product, alt_existing["quantity"]) >= quantity:
                         product_type = "DELIVERY" if alt_tbl == "holdings" else "INTRADAY"
                         existing = alt_existing
                     else:
@@ -1169,6 +1278,7 @@ def execute_trade(
                         INSERT INTO holdings (user_id, symbol, name, asset_type, quantity, avg_price) 
                         VALUES (?, ?, ?, ?, ?, ?)
                     """, (user_id, symbol, name, asset_type, quantity, effective_price))
+                cursor.execute(f"DELETE FROM holding_tombstones WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
 
             order_status = "EXECUTED (AMO)" if order_tag == "AMO" else "EXECUTED"
             cursor.execute("""
@@ -1240,18 +1350,20 @@ def execute_trade(
             # Smart Cross-Product Auto-Routing:
             # If user requested Intraday but only has Delivery shares, sell Delivery!
             # If user requested Delivery but only has Intraday shares, square off Intraday!
+            available_intra = get_available_sell_quantity(cursor, user_id, symbol, "INTRADAY", pos["quantity"] if pos else 0)
+            available_deliv = get_available_sell_quantity(cursor, user_id, symbol, "DELIVERY", deliv_hold["quantity"] if deliv_hold else 0)
             actual_product = product_type
             if product_type == "INTRADAY":
-                if (not pos or pos["quantity"] < quantity) and (deliv_hold and deliv_hold["quantity"] >= quantity):
+                if available_intra < quantity and available_deliv >= quantity:
                     actual_product = "DELIVERY"
             else:
-                if (not deliv_hold or deliv_hold["quantity"] < quantity) and (pos and pos["quantity"] >= quantity):
+                if available_deliv < quantity and available_intra >= quantity:
                     actual_product = "INTRADAY"
 
             if actual_product == "INTRADAY":
-                if not pos or pos["quantity"] < quantity:
-                    avail_intra = pos["quantity"] if pos else 0
-                    avail_deliv = deliv_hold["quantity"] if deliv_hold else 0
+                avail_intra = get_available_sell_quantity(cursor, user_id, symbol, "INTRADAY", pos["quantity"] if pos else 0)
+                avail_deliv = get_available_sell_quantity(cursor, user_id, symbol, "DELIVERY", deliv_hold["quantity"] if deliv_hold else 0)
+                if not pos or avail_intra < quantity:
                     total_avail = avail_intra + avail_deliv
                     conn.close()
                     if total_avail <= 0:
@@ -1278,9 +1390,9 @@ def execute_trade(
                     cursor.execute("UPDATE positions SET quantity = ?, margin_used = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND UPPER(symbol) = ?", (rem_qty, new_margin, user_id, matched_symbol.upper()))
 
             else: # DELIVERY
-                if not deliv_hold or deliv_hold["quantity"] < quantity:
-                    avail_deliv = deliv_hold["quantity"] if deliv_hold else 0
-                    avail_intra = pos["quantity"] if pos else 0
+                avail_deliv = get_available_sell_quantity(cursor, user_id, symbol, "DELIVERY", deliv_hold["quantity"] if deliv_hold else 0)
+                avail_intra = get_available_sell_quantity(cursor, user_id, symbol, "INTRADAY", pos["quantity"] if pos else 0)
+                if not deliv_hold or avail_deliv < quantity:
                     total_avail = avail_deliv + avail_intra
                     conn.close()
                     if total_avail <= 0:
@@ -1299,6 +1411,14 @@ def execute_trade(
                 rem_qty = round(curr_qty - quantity, 4)
                 if rem_qty <= 0.0001:
                     cursor.execute("DELETE FROM holdings WHERE user_id = ? AND UPPER(symbol) = ?", (user_id, matched_symbol.upper()))
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO holding_tombstones (user_id, symbol, deleted_at)
+                        VALUES (?, ?, CURRENT_TIMESTAMP)
+                    """, (user_id, matched_symbol))
+                    enqueue_sync_operation(cursor, user_id, "DELETE", "holdings", filters={
+                        "user_id": f"eq.{user_id}",
+                        "symbol": f"eq.{matched_symbol}"
+                    })
                 else:
                     cursor.execute("UPDATE holdings SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND UPPER(symbol) = ?", (rem_qty, user_id, matched_symbol.upper()))
 
@@ -1326,7 +1446,10 @@ def execute_trade(
                             })
                     else:
                         if rem_qty <= 0.0001:
-                            supabase_api("DELETE", f"holdings?user_id=eq.{user_id}&symbol=eq.{urllib.parse.quote(matched_symbol)}")
+                            supabase_api("DELETE", "holdings", params={
+                                "user_id": f"eq.{user_id}",
+                                "symbol": f"eq.{matched_symbol}"
+                            })
                         else:
                             supabase_api("POST", "holdings?on_conflict=user_id,symbol", payload={
                                 "user_id": user_id, "symbol": matched_symbol, "name": name, "asset_type": asset_type,
@@ -1390,15 +1513,29 @@ def cancel_order(order_id: int, user_id: str = "default") -> Dict[str, Any]:
     cursor = conn.cursor()
 
     try:
-        cursor.execute("SELECT id, user_id, symbol, order_type, total_amount, status FROM orders WHERE id = ?", (order_id,))
+        cursor.execute("""
+            SELECT id, user_id, symbol, order_type, total_amount, status
+            FROM orders WHERE id = ? AND user_id = ?
+        """, (order_id, user_id))
         order = cursor.fetchone()
         if not order:
             conn.close()
             return {"success": False, "error": f"Order #{order_id} not found"}
 
-        if order["status"] != "OPEN":
+        if order["status"] not in ("OPEN", "TRIGGER_PENDING"):
             conn.close()
             return {"success": False, "error": f"Cannot cancel order #{order_id} with status '{order['status']}'"}
+
+        # Claim the pending order before releasing funds. Concurrent pollers
+        # then see a non-pending state and cannot refund/fill it twice.
+        cursor.execute("""
+            UPDATE orders SET status = 'CANCELLING'
+            WHERE id = ? AND status IN ('OPEN', 'TRIGGER_PENDING')
+        """, (order_id,))
+        if cursor.rowcount != 1:
+            conn.rollback()
+            conn.close()
+            return {"success": False, "error": f"Order #{order_id} is already being processed"}
 
         o_user = order["user_id"] or user_id
         if order["order_type"] == "BUY":
@@ -1450,18 +1587,21 @@ def check_open_limit_orders(symbol: str, current_price: float, user_id: Optional
                 should_fill = True
 
         if should_fill:
-            cancel_order(o["id"], user_id=o["user_id"])
-            execute_trade(
-                symbol=o["symbol"],
-                name=o["name"],
-                asset_type=o["asset_type"],
-                order_type=o["order_type"],
-                product_type=o["product_type"],
-                quantity=o["quantity"],
-                price=current_price,
-                order_variety="MARKET",
-                user_id=o["user_id"]
-            )
+            # Only the worker that successfully cancels/releases this pending
+            # order may execute it. This prevents duplicate fills on polling.
+            released = cancel_order(o["id"], user_id=o["user_id"])
+            if released.get("success"):
+                execute_trade(
+                    symbol=o["symbol"],
+                    name=o["name"],
+                    asset_type=o["asset_type"],
+                    order_type=o["order_type"],
+                    product_type=o["product_type"],
+                    quantity=o["quantity"],
+                    price=current_price,
+                    order_variety="MARKET",
+                    user_id=o["user_id"]
+                )
 
 def get_orders(limit: int = 100, status_filter: Optional[str] = None, user_id: str = "default") -> List[Dict[str, Any]]:
     # 1. Try Supabase first
@@ -1577,6 +1717,8 @@ def reset_account(initial_balance: float = 1000000.0, user_id: str = "default"):
     if user_id == "default":
         cursor.execute("UPDATE account SET balance = ?, total_deposited = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (initial_balance, initial_balance))
     cursor.execute("DELETE FROM holdings WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM holding_tombstones WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM sync_outbox WHERE user_id = ?", (user_id,))
     cursor.execute("DELETE FROM positions WHERE user_id = ?", (user_id,))
     cursor.execute("DELETE FROM orders WHERE user_id = ?", (user_id,))
     cursor.execute("DELETE FROM gtt_orders WHERE user_id = ?", (user_id,))
@@ -1625,6 +1767,8 @@ def delete_user(user_id: str) -> bool:
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM holdings WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM holding_tombstones WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM sync_outbox WHERE user_id = ?", (user_id,))
     cursor.execute("DELETE FROM positions WHERE user_id = ?", (user_id,))
     cursor.execute("DELETE FROM orders WHERE user_id = ?", (user_id,))
     cursor.execute("DELETE FROM watchlist WHERE user_id = ?", (user_id,))
@@ -1634,6 +1778,8 @@ def delete_user(user_id: str) -> bool:
     cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
     if user_id == "default":
         cursor.execute("DELETE FROM holdings")
+        cursor.execute("DELETE FROM holding_tombstones")
+        cursor.execute("DELETE FROM sync_outbox")
         cursor.execute("DELETE FROM positions")
         cursor.execute("DELETE FROM orders")
         cursor.execute("UPDATE account SET balance = 1000000.0, total_deposited = 1000000.0 WHERE id = 1")

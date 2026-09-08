@@ -704,7 +704,17 @@ function renderExploreMutualFunds() {
 }
 
 // --- Holdings View (Delivery CNC) ---
-async function fetchPortfolio() {
+// Navigation, polling, and trade completion can request the same portfolio at
+// once. Coalesce those reads to avoid duplicate backend/cloud work.
+let portfolioRequest = null;
+function fetchPortfolio() {
+  if (!portfolioRequest) {
+    portfolioRequest = fetchPortfolioInternal().finally(() => { portfolioRequest = null; });
+  }
+  return portfolioRequest;
+}
+
+async function fetchPortfolioInternal() {
   const guestBanner = document.getElementById('holdingsGuestBanner');
   const authContent = document.getElementById('holdingsAuthContent');
 
@@ -842,7 +852,15 @@ async function fetchPortfolio() {
 }
 
 // --- Positions View (Intraday MIS with 5x Leverage) ---
-async function fetchPositions() {
+let positionsRequest = null;
+function fetchPositions() {
+  if (!positionsRequest) {
+    positionsRequest = fetchPositionsInternal().finally(() => { positionsRequest = null; });
+  }
+  return positionsRequest;
+}
+
+async function fetchPositionsInternal() {
   const guestBanner = document.getElementById('positionsGuestBanner');
   const authContent = document.getElementById('positionsAuthContent');
 

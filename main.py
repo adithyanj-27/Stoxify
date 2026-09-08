@@ -1,4 +1,5 @@
 import os
+from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, Query, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
@@ -27,6 +28,15 @@ app = FastAPI(title="Stoxify", description="Stoxify - Stock & Mutual Fund Broker
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 PUBLIC_DIR = os.path.join(BASE_DIR, "public")
+
+def get_holding_quote(holding: Dict[str, Any]) -> Dict[str, Any]:
+    """Fetch a holding quote without allowing one slow feed to break a portfolio."""
+    try:
+        if holding["asset_type"] == "MUTUAL_FUND":
+            return market_service.get_mutual_fund_quote(holding["symbol"])
+        return market_service.get_stock_quote(holding["symbol"])
+    except Exception:
+        return {"price": holding["avg_price"], "change": 0.0, "change_pct": 0.0}
 
 
 @app.middleware("http")
@@ -541,11 +551,15 @@ def read_portfolio(request: Request):
     total_invested_val = 0.0
     total_day_pnl = 0.0
 
-    for h in raw_holdings:
-        if h["asset_type"] == "MUTUAL_FUND":
-            quote = market_service.get_mutual_fund_quote(h["symbol"])
-        else:
-            quote = market_service.get_stock_quote(h["symbol"])
+    # A portfolio may hold many instruments. Quote requests are network-bound,
+    # so resolve them concurrently rather than serially delaying the page.
+    if len(raw_holdings) > 1:
+        with ThreadPoolExecutor(max_workers=min(8, len(raw_holdings))) as executor:
+            quotes = list(executor.map(get_holding_quote, raw_holdings))
+    else:
+        quotes = [get_holding_quote(h) for h in raw_holdings]
+
+    for h, quote in zip(raw_holdings, quotes):
 
         cur_price = quote.get("price", h["avg_price"])
         chg = quote.get("change", 0.0)
@@ -615,8 +629,13 @@ def read_positions(request: Request):
     total_unrealized_pnl = 0.0
     total_margin_used = 0.0
 
-    for p in raw_positions:
-        quote = market_service.get_stock_quote(p["symbol"])
+    if len(raw_positions) > 1:
+        with ThreadPoolExecutor(max_workers=min(8, len(raw_positions))) as executor:
+            quotes = list(executor.map(get_holding_quote, raw_positions))
+    else:
+        quotes = [get_holding_quote(p) for p in raw_positions]
+
+    for p, quote in zip(raw_positions, quotes):
         cur_price = quote.get("price", p["avg_price"])
         unrealized = round((cur_price - p["avg_price"]) * p["quantity"], 2)
         unrealized_pct = round(((cur_price - p["avg_price"]) / p["avg_price"]) * 100, 2) if p["avg_price"] > 0 else 0.0
