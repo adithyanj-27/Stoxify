@@ -8,7 +8,7 @@ import re
 import time
 import urllib.request
 import urllib.parse
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 
 # 1. Automatic .env loading (Zero third-party dependency)
@@ -244,6 +244,14 @@ def init_db():
             PRIMARY KEY (user_id, symbol)
         )
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS position_tombstones (
+            user_id TEXT NOT NULL,
+            symbol TEXT NOT NULL,
+            deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (user_id, symbol)
+        )
+    """)
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS sync_outbox (
@@ -402,6 +410,27 @@ def init_db():
                 cursor.execute(f"DROP TABLE {temp_name}")
         except Exception:
             pass
+
+    # Deduplicate existing holdings & positions and enforce unique indexes
+    try:
+        cursor.execute("""
+            DELETE FROM holdings WHERE id NOT IN (
+                SELECT MAX(id) FROM holdings GROUP BY user_id, symbol
+            )
+        """)
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS holdings_user_symbol_idx ON holdings (user_id, symbol)")
+    except Exception:
+        pass
+
+    try:
+        cursor.execute("""
+            DELETE FROM positions WHERE id NOT IN (
+                SELECT MAX(id) FROM positions GROUP BY user_id, symbol
+            )
+        """)
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS positions_user_symbol_idx ON positions (user_id, symbol)")
+    except Exception:
+        pass
 
     # 7. SIPs (Systematic Investment Plans) table
     cursor.execute("""
@@ -708,7 +737,7 @@ def update_user(
     # Sync to Supabase
     if is_supabase_enabled() and user_id != "default":
         try:
-            sb_payload["updated_at"] = datetime.utcnow().isoformat()
+            sb_payload["updated_at"] = datetime.now(timezone.utc).isoformat()
             res = supabase_api("PATCH", f"users?id=eq.{user_id}", payload=sb_payload)
             if res is None:
                 sb_fallback = dict(sb_payload)
@@ -911,6 +940,8 @@ def get_executed_delivery_quantity(cursor, user_id: str, symbol: str) -> Optiona
     if not rows:
         return None
     totals = {row["order_type"]: float(row["quantity"] or 0.0) for row in rows}
+    if totals.get("BUY", 0.0) <= 0.0001:
+        return None
     return totals.get("BUY", 0.0) - totals.get("SELL", 0.0)
 
 def sync_holdings_from_supabase_into_cursor(cursor, user_id: str):
@@ -930,24 +961,39 @@ def sync_holdings_from_supabase_into_cursor(cursor, user_id: str):
             local_map = {(r["symbol"] or "").upper(): dict(r) for r in local_rows}
 
             sb_symbols = set()
+            purged_variants = set()
+
             for h in res:
-                sb_sym = (h["symbol"] or "").upper()
-                ledger_quantity = get_executed_delivery_quantity(cursor, user_id, h["symbol"])
-                if sb_sym in tombstone_variants or (ledger_quantity is not None and ledger_quantity <= 0.0001):
-                    # A sold-out row must remain absent until a later BUY clears
-                    # its tombstone. Marking quantity zero is robust even when a
-                    # remote DELETE is delayed by replicas or RLS policies.
-                    cursor.execute("""
-                        INSERT OR REPLACE INTO holding_tombstones (user_id, symbol, deleted_at)
-                        VALUES (?, ?, CURRENT_TIMESTAMP)
-                    """, (user_id, h["symbol"]))
-                    filters = {"user_id": f"eq.{user_id}", "symbol": f"eq.{h['symbol']}"}
-                    supabase_api("PATCH", "holdings", payload={"quantity": 0, "updated_at": datetime.utcnow().isoformat()}, params=filters)
-                    supabase_api("DELETE", "holdings", params=filters)
-                    enqueue_sync_operation(cursor, user_id, "PATCH", "holdings", filters=filters, payload={"quantity": 0, "updated_at": datetime.utcnow().isoformat()})
-                    enqueue_sync_operation(cursor, user_id, "DELETE", "holdings", filters=filters)
+                h_sym = (h.get("symbol") or "").strip()
+                variants = get_symbol_variants(h_sym)
+                upper_variants = [v.upper() for v in variants]
+                ledger_quantity = get_executed_delivery_quantity(cursor, user_id, h_sym)
+                is_tombstoned = any(v in tombstone_variants for v in upper_variants)
+                is_sold_out = (ledger_quantity is not None and ledger_quantity <= 0.0001)
+
+                if is_tombstoned or is_sold_out or float(h.get("quantity", 0)) <= 0.0001:
+                    # 1. Purge ALL variants from local holdings & enforce tombstones
+                    for v in upper_variants:
+                        cursor.execute("DELETE FROM holdings WHERE user_id = ? AND UPPER(symbol) = ?", (user_id, v))
+                        cursor.execute("""
+                            INSERT OR REPLACE INTO holding_tombstones (user_id, symbol, deleted_at)
+                            VALUES (?, ?, CURRENT_TIMESTAMP)
+                        """, (user_id, v))
+                        purged_variants.add(v)
+                        sb_symbols.add(v)
+                    # 2. Purge from Supabase for all variants
+                    for v in variants:
+                        filters = {"user_id": f"eq.{user_id}", "symbol": f"eq.{v}"}
+                        supabase_api("PATCH", "holdings", payload={"quantity": 0, "updated_at": datetime.now(timezone.utc).isoformat()}, params=filters)
+                        supabase_api("DELETE", "holdings", params=filters)
+                        enqueue_sync_operation(cursor, user_id, "PATCH", "holdings", filters=filters, payload={"quantity": 0, "updated_at": datetime.now(timezone.utc).isoformat()})
+                        enqueue_sync_operation(cursor, user_id, "DELETE", "holdings", filters=filters)
                     continue
-                sb_symbols.add(sb_sym)
+
+                for v in upper_variants:
+                    sb_symbols.add(v)
+                    cursor.execute("DELETE FROM holdings WHERE user_id = ? AND UPPER(symbol) = ? AND symbol != ?", (user_id, v, h_sym))
+
                 cursor.execute("""
                     INSERT OR REPLACE INTO holdings (user_id, symbol, name, asset_type, quantity, avg_price, updated_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -963,7 +1009,22 @@ def sync_holdings_from_supabase_into_cursor(cursor, user_id: str):
 
             # Push any local holdings that Supabase doesn't have yet
             for l_sym, l_data in local_map.items():
-                matching_vars = get_symbol_variants(l_sym)
+                matching_vars = [v.upper() for v in get_symbol_variants(l_sym)]
+                if any(v in tombstone_variants for v in matching_vars) or any(v in purged_variants for v in matching_vars):
+                    for v in matching_vars:
+                        cursor.execute("DELETE FROM holdings WHERE user_id = ? AND UPPER(symbol) = ?", (user_id, v))
+                    continue
+
+                ledger_qty = get_executed_delivery_quantity(cursor, user_id, l_data["symbol"])
+                if (ledger_qty is not None and ledger_qty <= 0.0001) or float(l_data.get("quantity", 0)) <= 0.0001:
+                    for v in matching_vars:
+                        cursor.execute("DELETE FROM holdings WHERE user_id = ? AND UPPER(symbol) = ?", (user_id, v))
+                        cursor.execute("""
+                            INSERT OR REPLACE INTO holding_tombstones (user_id, symbol, deleted_at)
+                            VALUES (?, ?, CURRENT_TIMESTAMP)
+                        """, (user_id, v))
+                    continue
+
                 if not any(v in sb_symbols for v in matching_vars):
                     try:
                         supabase_api("POST", "holdings?on_conflict=user_id,symbol", payload={
@@ -987,14 +1048,43 @@ def sync_positions_from_supabase_into_cursor(cursor, user_id: str):
     try:
         res = supabase_api("GET", "positions", params={"user_id": f"eq.{user_id}", "quantity": "gt.0", "select": "symbol,name,asset_type,quantity,avg_price,margin_used,product_type,updated_at"})
         if res is not None and isinstance(res, list):
+            cursor.execute("SELECT symbol FROM position_tombstones WHERE user_id = ?", (user_id,))
+            tombstone_variants = {
+                variant.upper()
+                for row in cursor.fetchall()
+                for variant in get_symbol_variants(row["symbol"])
+            }
             cursor.execute("SELECT symbol, name, asset_type, quantity, avg_price, margin_used, product_type, updated_at FROM positions WHERE user_id = ? AND quantity > 0", (user_id,))
             local_rows = cursor.fetchall()
             local_map = {(r["symbol"] or "").upper(): dict(r) for r in local_rows}
 
             sb_symbols = set()
+            purged_variants = set()
+
             for p in res:
-                sb_sym = (p["symbol"] or "").upper()
-                sb_symbols.add(sb_sym)
+                p_sym = (p.get("symbol") or "").strip()
+                variants = get_symbol_variants(p_sym)
+                upper_variants = [v.upper() for v in variants]
+                is_tombstoned = any(v in tombstone_variants for v in upper_variants)
+
+                if is_tombstoned or float(p.get("quantity", 0)) <= 0.0001:
+                    for v in upper_variants:
+                        cursor.execute("DELETE FROM positions WHERE user_id = ? AND UPPER(symbol) = ?", (user_id, v))
+                        cursor.execute("""
+                            INSERT OR REPLACE INTO position_tombstones (user_id, symbol, deleted_at)
+                            VALUES (?, ?, CURRENT_TIMESTAMP)
+                        """, (user_id, v))
+                        purged_variants.add(v)
+                        sb_symbols.add(v)
+                    for v in variants:
+                        supabase_api("DELETE", f"positions?user_id=eq.{user_id}&symbol=eq.{urllib.parse.quote(v)}")
+                        enqueue_sync_operation(cursor, user_id, "DELETE", "positions", filters={"user_id": f"eq.{user_id}", "symbol": f"eq.{v}"})
+                    continue
+
+                for v in upper_variants:
+                    sb_symbols.add(v)
+                    cursor.execute("DELETE FROM positions WHERE user_id = ? AND UPPER(symbol) = ? AND symbol != ?", (user_id, v, p_sym))
+
                 cursor.execute("""
                     INSERT OR REPLACE INTO positions (user_id, symbol, name, asset_type, quantity, avg_price, margin_used, product_type, updated_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1011,7 +1101,21 @@ def sync_positions_from_supabase_into_cursor(cursor, user_id: str):
                 ))
 
             for l_sym, l_data in local_map.items():
-                matching_vars = get_symbol_variants(l_sym)
+                matching_vars = [v.upper() for v in get_symbol_variants(l_sym)]
+                if any(v in tombstone_variants for v in matching_vars) or any(v in purged_variants for v in matching_vars):
+                    for v in matching_vars:
+                        cursor.execute("DELETE FROM positions WHERE user_id = ? AND UPPER(symbol) = ?", (user_id, v))
+                    continue
+
+                if float(l_data.get("quantity", 0)) <= 0.0001:
+                    for v in matching_vars:
+                        cursor.execute("DELETE FROM positions WHERE user_id = ? AND UPPER(symbol) = ?", (user_id, v))
+                        cursor.execute("""
+                            INSERT OR REPLACE INTO position_tombstones (user_id, symbol, deleted_at)
+                            VALUES (?, ?, CURRENT_TIMESTAMP)
+                        """, (user_id, v))
+                    continue
+
                 if not any(v in sb_symbols for v in matching_vars):
                     try:
                         supabase_api("POST", "positions?on_conflict=user_id,symbol", payload={
@@ -1044,21 +1148,48 @@ def get_holdings(user_id: str = "default") -> List[Dict[str, Any]]:
         except Exception:
             pass
 
-    # 2. SQLite read
+    # 2. SQLite read with tombstone and ledger filtering
     conn = get_connection()
     cursor = conn.cursor()
+    cursor.execute("SELECT symbol FROM holding_tombstones WHERE user_id = ?", (user_id,))
+    tombstone_variants = {
+        variant.upper()
+        for row in cursor.fetchall()
+        for variant in get_symbol_variants(row["symbol"])
+    }
     cursor.execute("""
         SELECT symbol, name, asset_type, quantity, avg_price, updated_at 
-        FROM holdings WHERE user_id = ? AND quantity > 0
+        FROM holdings WHERE user_id = ? AND quantity > 0.0001
     """, (user_id,))
     rows = cursor.fetchall()
+
+    valid_rows = []
+    purged_symbols = []
+    for r in rows:
+        sym = (r["symbol"] or "").upper()
+        variants = [v.upper() for v in get_symbol_variants(sym)]
+        if any(v in tombstone_variants for v in variants):
+            purged_symbols.append(r["symbol"])
+            continue
+        ledger_qty = get_executed_delivery_quantity(cursor, user_id, r["symbol"])
+        if ledger_qty is not None and ledger_qty <= 0.0001:
+            purged_symbols.append(r["symbol"])
+            continue
+        valid_rows.append(dict(r))
+
+    if purged_symbols:
+        for ps in purged_symbols:
+            cursor.execute("DELETE FROM holdings WHERE user_id = ? AND UPPER(symbol) = ?", (user_id, ps.upper()))
+        conn.commit()
+
     conn.close()
-    return [dict(r) for r in rows]
+    return valid_rows
 
 def get_positions(user_id: str = "default") -> List[Dict[str, Any]]:
     # 1. Try Supabase merge first
     if is_supabase_enabled() and user_id and user_id != "guest" and should_sync_remote("positions", user_id):
         try:
+            drain_sync_outbox(user_id)
             conn = get_connection()
             cursor = conn.cursor()
             sync_positions_from_supabase_into_cursor(cursor, user_id)
@@ -1067,16 +1198,38 @@ def get_positions(user_id: str = "default") -> List[Dict[str, Any]]:
         except Exception:
             pass
 
-    # 2. SQLite read
+    # 2. SQLite read with tombstone filtering
     conn = get_connection()
     cursor = conn.cursor()
+    cursor.execute("SELECT symbol FROM position_tombstones WHERE user_id = ?", (user_id,))
+    tombstone_variants = {
+        variant.upper()
+        for row in cursor.fetchall()
+        for variant in get_symbol_variants(row["symbol"])
+    }
     cursor.execute("""
         SELECT symbol, name, asset_type, quantity, avg_price, margin_used, product_type, updated_at 
-        FROM positions WHERE user_id = ? AND quantity > 0
+        FROM positions WHERE user_id = ? AND quantity > 0.0001
     """, (user_id,))
     rows = cursor.fetchall()
+
+    valid_rows = []
+    purged_symbols = []
+    for r in rows:
+        sym = (r["symbol"] or "").upper()
+        variants = [v.upper() for v in get_symbol_variants(sym)]
+        if any(v in tombstone_variants for v in variants):
+            purged_symbols.append(r["symbol"])
+            continue
+        valid_rows.append(dict(r))
+
+    if purged_symbols:
+        for ps in purged_symbols:
+            cursor.execute("DELETE FROM positions WHERE user_id = ? AND UPPER(symbol) = ?", (user_id, ps.upper()))
+        conn.commit()
+
     conn.close()
-    return [dict(r) for r in rows]
+    return valid_rows
 
 def execute_trade(
     symbol: str, 
@@ -1298,6 +1451,7 @@ def execute_trade(
                         INSERT INTO positions (user_id, symbol, name, asset_type, quantity, avg_price, margin_used, product_type) 
                         VALUES (?, ?, ?, ?, ?, ?, ?, 'INTRADAY')
                     """, (user_id, symbol, name, asset_type, quantity, effective_price, required_margin))
+                cursor.execute(f"DELETE FROM position_tombstones WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
             else:
                 cursor.execute(f"SELECT id, symbol, quantity, avg_price FROM holdings WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
                 existing = cursor.fetchone()
@@ -1330,7 +1484,7 @@ def execute_trade(
             # Sync to Supabase
             if is_supabase_enabled() and user_id != "guest":
                 try:
-                    supabase_api("PATCH", f"users?id=eq.{user_id}", payload={"balance": new_balance, "updated_at": datetime.utcnow().isoformat()})
+                    supabase_api("PATCH", f"users?id=eq.{user_id}", payload={"balance": new_balance, "updated_at": datetime.now(timezone.utc).isoformat()})
                     if product_type == "INTRADAY":
                         sb_qty = new_qty if pos else quantity
                         sb_avg = new_avg if pos else effective_price
@@ -1421,8 +1575,19 @@ def execute_trade(
                     cursor.execute("UPDATE account SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (new_balance,))
 
                 rem_qty = round(curr_qty - quantity, 4)
+                intra_variants = get_symbol_variants(matched_symbol)
                 if rem_qty <= 0.0001:
-                    cursor.execute("DELETE FROM positions WHERE user_id = ? AND UPPER(symbol) = ?", (user_id, matched_symbol.upper()))
+                    for v in intra_variants:
+                        cursor.execute("DELETE FROM positions WHERE user_id = ? AND UPPER(symbol) = ?", (user_id, v.upper()))
+                        cursor.execute("""
+                            INSERT OR REPLACE INTO position_tombstones (user_id, symbol, deleted_at)
+                            VALUES (?, ?, CURRENT_TIMESTAMP)
+                        """, (user_id, v.upper()))
+                        cursor.execute("""
+                            INSERT OR REPLACE INTO position_tombstones (user_id, symbol, deleted_at)
+                            VALUES (?, ?, CURRENT_TIMESTAMP)
+                        """, (user_id, v))
+                        enqueue_sync_operation(cursor, user_id, "DELETE", "positions", filters={"user_id": f"eq.{user_id}", "symbol": f"eq.{v}"})
                 else:
                     new_margin = round(curr_margin - margin_released, 2)
                     cursor.execute("UPDATE positions SET quantity = ?, margin_used = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND UPPER(symbol) = ?", (rem_qty, new_margin, user_id, matched_symbol.upper()))
@@ -1447,18 +1612,24 @@ def execute_trade(
                     cursor.execute("UPDATE account SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (new_balance,))
 
                 rem_qty = round(curr_qty - quantity, 4)
+                deliv_variants = get_symbol_variants(matched_symbol)
                 if rem_qty <= 0.0001:
-                    cursor.execute("DELETE FROM holdings WHERE user_id = ? AND UPPER(symbol) = ?", (user_id, matched_symbol.upper()))
-                    cursor.execute("""
-                        INSERT OR REPLACE INTO holding_tombstones (user_id, symbol, deleted_at)
-                        VALUES (?, ?, CURRENT_TIMESTAMP)
-                    """, (user_id, matched_symbol))
-                    close_filters = {
-                        "user_id": f"eq.{user_id}",
-                        "symbol": f"eq.{matched_symbol}"
-                    }
-                    enqueue_sync_operation(cursor, user_id, "PATCH", "holdings", filters=close_filters, payload={"quantity": 0, "updated_at": datetime.utcnow().isoformat()})
-                    enqueue_sync_operation(cursor, user_id, "DELETE", "holdings", filters=close_filters)
+                    for v in deliv_variants:
+                        cursor.execute("DELETE FROM holdings WHERE user_id = ? AND UPPER(symbol) = ?", (user_id, v.upper()))
+                        cursor.execute("""
+                            INSERT OR REPLACE INTO holding_tombstones (user_id, symbol, deleted_at)
+                            VALUES (?, ?, CURRENT_TIMESTAMP)
+                        """, (user_id, v.upper()))
+                        cursor.execute("""
+                            INSERT OR REPLACE INTO holding_tombstones (user_id, symbol, deleted_at)
+                            VALUES (?, ?, CURRENT_TIMESTAMP)
+                        """, (user_id, v))
+                        close_filters = {
+                            "user_id": f"eq.{user_id}",
+                            "symbol": f"eq.{v}"
+                        }
+                        enqueue_sync_operation(cursor, user_id, "PATCH", "holdings", filters=close_filters, payload={"quantity": 0, "updated_at": datetime.now(timezone.utc).isoformat()})
+                        enqueue_sync_operation(cursor, user_id, "DELETE", "holdings", filters=close_filters)
                 else:
                     cursor.execute("UPDATE holdings SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND UPPER(symbol) = ?", (rem_qty, user_id, matched_symbol.upper()))
 
@@ -1475,10 +1646,11 @@ def execute_trade(
             # Sync to Supabase
             if is_supabase_enabled() and user_id != "guest":
                 try:
-                    supabase_api("PATCH", f"users?id=eq.{user_id}", payload={"balance": new_balance, "updated_at": datetime.utcnow().isoformat()})
+                    supabase_api("PATCH", f"users?id=eq.{user_id}", payload={"balance": new_balance, "updated_at": datetime.now(timezone.utc).isoformat()})
                     if product_type == "INTRADAY":
                         if rem_qty <= 0.0001:
-                            supabase_api("DELETE", f"positions?user_id=eq.{user_id}&symbol=eq.{urllib.parse.quote(matched_symbol)}")
+                            for v in intra_variants:
+                                supabase_api("DELETE", f"positions?user_id=eq.{user_id}&symbol=eq.{urllib.parse.quote(v)}")
                         else:
                             supabase_api("POST", "positions?on_conflict=user_id,symbol", payload={
                                 "user_id": user_id, "symbol": matched_symbol, "name": name, "asset_type": asset_type,
@@ -1486,12 +1658,13 @@ def execute_trade(
                             })
                     else:
                         if rem_qty <= 0.0001:
-                            close_filters = {
-                                "user_id": f"eq.{user_id}",
-                                "symbol": f"eq.{matched_symbol}"
-                            }
-                            supabase_api("PATCH", "holdings", payload={"quantity": 0, "updated_at": datetime.utcnow().isoformat()}, params=close_filters)
-                            supabase_api("DELETE", "holdings", params=close_filters)
+                            for v in deliv_variants:
+                                close_filters = {
+                                    "user_id": f"eq.{user_id}",
+                                    "symbol": f"eq.{v}"
+                                }
+                                supabase_api("PATCH", "holdings", payload={"quantity": 0, "updated_at": datetime.now(timezone.utc).isoformat()}, params=close_filters)
+                                supabase_api("DELETE", "holdings", params=close_filters)
                         else:
                             supabase_api("POST", "holdings?on_conflict=user_id,symbol", payload={
                                 "user_id": user_id, "symbol": matched_symbol, "name": name, "asset_type": asset_type,
@@ -1755,7 +1928,7 @@ def deposit_funds(amount: float, user_id: str = "default") -> float:
         supabase_api("PATCH", f"users?id=eq.{user_id}", payload={
             "balance": new_balance,
             "total_deposited": new_deposited,
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.now(timezone.utc).isoformat()
         })
     return new_balance
 
@@ -1770,6 +1943,7 @@ def reset_account(initial_balance: float = 1000000.0, user_id: str = "default"):
         cursor.execute("UPDATE account SET balance = ?, total_deposited = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (initial_balance, initial_balance))
     cursor.execute("DELETE FROM holdings WHERE user_id = ?", (user_id,))
     cursor.execute("DELETE FROM holding_tombstones WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM position_tombstones WHERE user_id = ?", (user_id,))
     cursor.execute("DELETE FROM sync_outbox WHERE user_id = ?", (user_id,))
     cursor.execute("DELETE FROM positions WHERE user_id = ?", (user_id,))
     cursor.execute("DELETE FROM orders WHERE user_id = ?", (user_id,))
@@ -1784,7 +1958,7 @@ def reset_account(initial_balance: float = 1000000.0, user_id: str = "default"):
         supabase_api("PATCH", f"users?id=eq.{user_id}", payload={
             "balance": initial_balance,
             "total_deposited": initial_balance,
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.now(timezone.utc).isoformat()
         })
         supabase_api("DELETE", f"holdings?user_id=eq.{user_id}")
         supabase_api("DELETE", f"positions?user_id=eq.{user_id}")
@@ -1807,7 +1981,7 @@ def restore_balance(user_id: str = "default", target_balance: float = 1000000.0)
             supabase_api("PATCH", f"users?id=eq.{user_id}", payload={
                 "balance": target_balance,
                 "total_deposited": target_balance,
-                "updated_at": datetime.utcnow().isoformat()
+                "updated_at": datetime.now(timezone.utc).isoformat()
             })
         except Exception:
             pass
@@ -1820,6 +1994,7 @@ def delete_user(user_id: str) -> bool:
     cursor = conn.cursor()
     cursor.execute("DELETE FROM holdings WHERE user_id = ?", (user_id,))
     cursor.execute("DELETE FROM holding_tombstones WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM position_tombstones WHERE user_id = ?", (user_id,))
     cursor.execute("DELETE FROM sync_outbox WHERE user_id = ?", (user_id,))
     cursor.execute("DELETE FROM positions WHERE user_id = ?", (user_id,))
     cursor.execute("DELETE FROM orders WHERE user_id = ?", (user_id,))
@@ -1831,6 +2006,7 @@ def delete_user(user_id: str) -> bool:
     if user_id == "default":
         cursor.execute("DELETE FROM holdings")
         cursor.execute("DELETE FROM holding_tombstones")
+        cursor.execute("DELETE FROM position_tombstones")
         cursor.execute("DELETE FROM sync_outbox")
         cursor.execute("DELETE FROM positions")
         cursor.execute("DELETE FROM orders")
