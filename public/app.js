@@ -18,6 +18,9 @@ if (localStorage.getItem('stoxify_user_id') === 'default') {
   localStorage.removeItem('stoxify_user_id');
 }
 
+// Enable immediate CSS :active touch states on mobile WebKit/iOS/Android
+document.addEventListener('touchstart', function() {}, { passive: true });
+
 function isGuest() {
   if (localStorage.getItem('stoxify_guest_mode') === 'true') {
     return true;
@@ -828,8 +831,8 @@ async function fetchPortfolioInternal(requestVersion) {
         <div class="mobile-card-item">
           <div class="mobile-card-top">
             <div>
+              <button type="button" class="holding-name-link mobile-holding-title" onclick="openHoldingDetails('${h.symbol}', '${h.asset_type}')" title="View details for ${h.name}">${h.name}</button>
               <div class="mobile-card-symbol">${h.symbol}</div>
-              <button type="button" class="holding-name-link mobile-card-name" onclick="openHoldingDetails('${h.symbol}', '${h.asset_type}')" title="View details for ${h.name}">${h.name}</button>
             </div>
             <div class="mobile-card-price">
               ${formatINR(h.current_value)}
@@ -933,7 +936,7 @@ async function fetchPositionsInternal(requestVersion) {
       return `
         <tr>
           <td>
-            <div style="font-weight: 700;">${p.name}</div>
+            <button type="button" class="holding-name-link" onclick="openHoldingDetails('${p.symbol}', '${p.asset_type || 'STOCK'}')" title="View details for ${p.name}">${p.name}</button>
             <div style="font-size: 0.75rem; color: var(--text-muted);">${p.symbol}</div>
           </td>
           <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem; background: var(--brand-cyan-bg); color: var(--brand-cyan); border-color: rgba(255,107,0,0.3);">Intraday 5x</span></td>
@@ -959,8 +962,8 @@ async function fetchPositionsInternal(requestVersion) {
         <div class="mobile-card-item">
           <div class="mobile-card-top">
             <div>
+              <button type="button" class="holding-name-link mobile-holding-title" onclick="openHoldingDetails('${p.symbol}', '${p.asset_type || 'STOCK'}')" title="View details for ${p.name}">${p.name}</button>
               <div class="mobile-card-symbol">${p.symbol} <span class="pill-btn" style="padding: 1px 5px; font-size: 0.65rem; background: var(--brand-cyan-bg); color: var(--brand-cyan);">MIS 5x</span></div>
-              <div class="mobile-card-name">${p.name}</div>
             </div>
             <div class="mobile-card-price">
               <div class="${isPosItem ? 'text-positive' : 'text-negative'}" style="font-size: 1.1rem; font-weight: 800;">
@@ -1076,7 +1079,10 @@ async function fetchOrders() {
         return `
           <tr>
             <td style="font-size: 0.8rem; color: var(--text-muted);">${o.timestamp || 'Today'}</td>
-            <td><strong>${o.name}</strong><div style="font-size: 0.75rem; color: var(--text-muted);">${o.symbol}</div></td>
+            <td>
+              <button type="button" class="holding-name-link" onclick="openHoldingDetails('${o.symbol}', '${o.asset_type || 'STOCK'}')" title="View details for ${o.name}">${o.name}</button>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">${o.symbol}</div>
+            </td>
             <td><span class="badge-${isBuy ? 'positive' : 'negative'}">${o.order_type}</span></td>
             <td><span class="pill-btn" style="padding: 0.15rem 0.45rem; font-size: 0.7rem;">${o.product_type}</span></td>
             <td><span style="font-size: 0.75rem; color: var(--text-muted);">${o.order_variety || 'MARKET'}</span></td>
@@ -1097,8 +1103,8 @@ async function fetchOrders() {
           <div class="mobile-card-item">
             <div class="mobile-card-top">
               <div>
-                <div class="mobile-card-symbol">${o.symbol} <span class="badge-${isBuy ? 'positive' : 'negative'}" style="font-size: 0.7rem;">${o.order_type}</span></div>
-                <div class="mobile-card-name">${o.name} • ${o.product_type}</div>
+                <button type="button" class="holding-name-link mobile-holding-title" onclick="openHoldingDetails('${o.symbol}', '${o.asset_type || 'STOCK'}')" title="View details for ${o.name}">${o.name}</button>
+                <div class="mobile-card-symbol">${o.symbol} <span class="badge-${isBuy ? 'positive' : 'negative'}" style="font-size: 0.7rem;">${o.order_type}</span> • ${o.product_type}</div>
               </div>
               <div class="mobile-card-price">
                 ${formatINR(o.total_amount)}
@@ -1132,7 +1138,10 @@ async function fetchOrders() {
         return `
           <tr>
             <td>#${o.id}</td>
-            <td><strong>${o.name}</strong><div style="font-size: 0.75rem; color: var(--text-muted);">${o.symbol}</div></td>
+            <td>
+              <button type="button" class="holding-name-link" onclick="openHoldingDetails('${o.symbol}', '${o.asset_type || 'STOCK'}')" title="View details for ${o.name}">${o.name}</button>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">${o.symbol}</div>
+            </td>
             <td><span class="badge-${isBuy ? 'positive' : 'negative'}">${o.order_type}</span></td>
             <td>${o.product_type}</td>
             <td style="font-weight: 600;">${o.quantity}</td>
@@ -1156,8 +1165,8 @@ async function fetchOrders() {
           <div class="mobile-card-item" style="border-left: 4px solid var(--brand-cyan);">
             <div class="mobile-card-top">
               <div>
-                <div class="mobile-card-symbol">${o.symbol} <span class="badge-${isBuy ? 'positive' : 'negative'}">${o.order_type} ${o.order_variety || 'LIMIT'}</span></div>
-                <div class="mobile-card-name">Order #${o.id} • ${o.product_type}</div>
+                <button type="button" class="holding-name-link mobile-holding-title" onclick="openHoldingDetails('${o.symbol}', '${o.asset_type || 'STOCK'}')" title="View details for ${o.name}">${o.name || o.symbol}</button>
+                <div class="mobile-card-symbol">${o.symbol} <span class="badge-${isBuy ? 'positive' : 'negative'}">${o.order_type} ${o.order_variety || 'LIMIT'}</span> • Order #${o.id} • ${o.product_type}</div>
               </div>
               <div class="mobile-card-price">
                 <span style="color: var(--brand-cyan);">${displayPrice}</span>
@@ -2232,6 +2241,14 @@ function navigateTo(path, pushState = true) {
   handleRoute();
 }
 
+function goBackFromAssetPage() {
+  if (window.history.length > 1) {
+    window.history.back();
+  } else {
+    navigateTo('/explore');
+  }
+}
+
 function handleRoute() {
   const path = window.location.pathname;
   const userMenu = document.getElementById('userDropdownMenu');
@@ -2790,7 +2807,30 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
   const pagePane = document.getElementById('pane-asset-detail');
   if (pagePane) pagePane.classList.add('active');
   document.body.classList.add('viewing-asset-detail');
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  window.scrollTo(0, 0);
+
+  const cleanSymInit = (symbol || '').replace('.NS', '').replace('.BO', '');
+  const isMFInit = assetType === 'MUTUAL_FUND' || symbol.match(/^\d+$/);
+  const isIndexInit = (symbol || '').startsWith('^') || assetType === 'INDEX';
+  const indexNameInit = isIndexInit ? (INDEX_NAMES[symbol] || symbol.replace('^', '')) : null;
+
+  document.getElementById('assetBreadcrumbCategory').innerText = isIndexInit ? 'Indices' : (isMFInit ? 'Mutual Funds' : 'Stocks');
+  document.getElementById('pageAssetSymbol').innerText = isIndexInit ? (INDEX_NAMES[symbol] || cleanSymInit) : cleanSymInit;
+  const dSymInit = document.getElementById('drawerAssetSymbol');
+  if (dSymInit) dSymInit.innerText = isIndexInit ? (INDEX_NAMES[symbol] || cleanSymInit) : cleanSymInit;
+
+  const knownInit = (state.exploreData && state.exploreData.all_stocks)
+    ? state.exploreData.all_stocks.find(s => (s.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase() === cleanSymInit.toUpperCase())
+    : null;
+  if (knownInit) {
+    document.getElementById('assetBreadcrumbName').innerText = knownInit.name;
+    document.getElementById('pageAssetTitle').innerText = knownInit.name;
+    document.getElementById('pageAssetPrice').innerText = formatINR(knownInit.price);
+    const dTitle = document.getElementById('drawerAssetTitle');
+    if (dTitle) dTitle.innerText = knownInit.name;
+    const dPrice = document.getElementById('drawerAssetPrice');
+    if (dPrice) dPrice.innerText = formatINR(knownInit.price);
+  }
 
   try {
     const res = await fetch(`/api/quote?symbol=${encodeURIComponent(symbol)}&asset_type=${encodeURIComponent(assetType)}`);

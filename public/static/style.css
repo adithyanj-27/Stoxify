@@ -462,6 +462,12 @@ body {
   background: var(--bg-elevated);
 }
 
+.search-item:hover .search-item-title,
+.search-item:active .search-item-title {
+  color: var(--brand-cyan) !important;
+  text-decoration: underline !important;
+}
+
 .nav-links {
   display: flex;
   align-items: center;
@@ -633,6 +639,22 @@ body {
 
 .tab-pane.active {
   display: block;
+}
+
+#pane-asset-detail.active {
+  display: block;
+  animation: assetPaneFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes assetPaneFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Section Headers */
@@ -819,6 +841,14 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: 1.35;
+  transition: color 0.15s ease, text-decoration 0.15s ease;
+}
+
+.stock-card:hover .card-title,
+.stock-card:focus-visible .card-title,
+.stock-card:active .card-title {
+  color: var(--brand-cyan) !important;
+  text-decoration: underline !important;
 }
 
 .card-subtitle {
@@ -1741,18 +1771,44 @@ body.pwa-installed #mobileInstallBanner {
   font-weight: 700;
   text-align: left;
   cursor: pointer;
+  transition: color 0.15s ease, text-decoration 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
 }
 
 .holding-name-link:hover,
-.holding-name-link:focus-visible {
-  color: var(--brand-cyan);
-  text-decoration: underline;
+.holding-name-link:focus,
+.holding-name-link:focus-visible,
+.holding-name-link:active,
+.mobile-holding-title:hover,
+.mobile-holding-title:focus,
+.mobile-holding-title:focus-visible,
+.mobile-holding-title:active {
+  color: var(--brand-cyan) !important;
+  text-decoration: underline !important;
+}
+
+.mobile-holding-title {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--text-primary);
+  margin-bottom: 0.15rem;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+  transition: color 0.15s ease, text-decoration 0.15s ease;
 }
 
 .mobile-card-symbol {
-  font-size: 1rem;
-  font-weight: 800;
-  color: var(--text-primary);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-muted);
 }
 
 .mobile-card-name {
@@ -2322,8 +2378,9 @@ body.pwa-installed #mobileInstallBanner {
   }
 
   .mobile-card-symbol {
-    font-size: 0.86rem !important;
-    font-weight: 600 !important;
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+    color: var(--text-muted) !important;
   }
 
   .mobile-card-name {
