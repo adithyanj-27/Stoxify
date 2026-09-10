@@ -1516,10 +1516,10 @@ function closeTradeModal() {
 
 async function loadChartTimeframe(tf) {
   state.currentModalTimeframe = tf;
-  document.querySelectorAll('.timeframe-group .tf-btn').forEach(b => b.classList.remove('active'));
-  if (event && event.target && event.target.classList) {
-    event.target.classList.add('active');
-  }
+  document.querySelectorAll('.timeframe-group .tf-btn').forEach(b => {
+    if (b.innerText.trim() === tf) b.classList.add('active');
+    else b.classList.remove('active');
+  });
 
   if (!state.currentModalAsset) return;
   const symbol = state.currentModalAsset.symbol;
@@ -1529,6 +1529,23 @@ async function loadChartTimeframe(tf) {
     const res = await fetch(`/api/history?symbol=${encodeURIComponent(symbol)}&asset_type=${encodeURIComponent(assetType)}&timeframe=${tf}`);
     const points = await res.json();
     renderChart(points);
+
+    const badge = document.getElementById('modalChangeBadge');
+    if (badge && state.currentModalAsset) {
+      if (tf === '1D' || !points || points.length === 0) {
+        const isPos = (state.currentModalAsset.change || 0) >= 0;
+        badge.className = isPos ? 'badge-positive' : 'badge-negative';
+        badge.innerText = formatChange(state.currentModalAsset.change || 0, state.currentModalAsset.change_pct || 0);
+      } else {
+        const firstP = points[0];
+        const firstVal = (firstP.open !== undefined ? firstP.open : (firstP.close !== undefined ? firstP.close : (firstP.value || firstP.price))) || (state.currentModalAsset.price - (state.currentModalAsset.change || 0));
+        const diff = state.currentModalAsset.price - firstVal;
+        const diffPct = firstVal ? (diff / firstVal) * 100 : 0;
+        const isPos = diff >= 0;
+        badge.className = isPos ? 'badge-positive' : 'badge-negative';
+        badge.innerText = formatChange(diff, diffPct);
+      }
+    }
   } catch (err) {
     console.error('Failed to load chart data:', err);
   }
@@ -3058,39 +3075,85 @@ function calculateEMA(prices, period) {
 
 let candleState = null;
 
+function getActiveTimeframeChange() {
+  if (!currentPageAsset) return { diff: 0, diffPct: 0, isPos: true, text: '+0.00 (+0.00%)' };
+
+  if (currentChartRange === '1D' || !currentChartPoints || currentChartPoints.length === 0) {
+    const diff = currentPageAsset.change || 0;
+    const diffPct = currentPageAsset.change_pct || 0;
+    return {
+      diff,
+      diffPct,
+      isPos: diff >= 0,
+      text: formatChange(diff, diffPct)
+    };
+  }
+
+  const firstP = currentChartPoints[0];
+  const baseline = (firstP.open !== undefined ? firstP.open : (firstP.close !== undefined ? firstP.close : (firstP.price !== undefined ? firstP.price : firstP.value))) || (currentPageAsset.price - (currentPageAsset.change || 0));
+  const diff = currentPageAsset.price - baseline;
+  const diffPct = baseline ? (diff / baseline) * 100 : 0;
+  return {
+    diff,
+    diffPct,
+    isPos: diff >= 0,
+    text: formatChange(diff, diffPct)
+  };
+}
+
 function updateHeroPriceForPoint(p) {
   if (!currentPageAsset) return;
   const priceEl = document.getElementById('pageAssetPrice');
   const badgeEl = document.getElementById('pageAssetChangeBadge');
-  if (!priceEl || !badgeEl) return;
+  const drawerPriceEl = document.getElementById('drawerAssetPrice');
+  const drawerBadgeEl = document.getElementById('drawerAssetChange');
+  if (!priceEl && !drawerPriceEl) return;
 
   const pointPrice = p.close !== undefined ? p.close : (p.price !== undefined ? p.price : p.value);
   if (pointPrice === undefined || isNaN(pointPrice)) return;
 
-  priceEl.innerText = formatINR(pointPrice);
+  if (priceEl) priceEl.innerText = formatINR(pointPrice);
+  if (drawerPriceEl) drawerPriceEl.innerText = formatINR(pointPrice);
 
   let baseline = currentPageAsset.price - (currentPageAsset.change || 0);
   if (currentChartRange !== '1D' && currentChartPoints && currentChartPoints.length > 0) {
     const firstP = currentChartPoints[0];
-    baseline = (firstP.close !== undefined ? firstP.close : (firstP.price !== undefined ? firstP.price : firstP.value)) || baseline;
+    baseline = (firstP.open !== undefined ? firstP.open : (firstP.close !== undefined ? firstP.close : (firstP.price !== undefined ? firstP.price : firstP.value))) || baseline;
   }
 
   const diff = pointPrice - baseline;
   const diffPct = baseline ? (diff / baseline) * 100 : 0;
   const isPos = diff >= 0;
-  badgeEl.className = isPos ? 'badge-positive' : 'badge-negative';
-  badgeEl.innerText = `${formatChange(diff, diffPct)} • ${p.time}`;
+  const text = `${formatChange(diff, diffPct)} • ${p.time}`;
+  if (badgeEl) {
+    badgeEl.className = isPos ? 'badge-positive' : 'badge-negative';
+    badgeEl.innerText = text;
+  }
+  if (drawerBadgeEl) {
+    drawerBadgeEl.className = isPos ? 'badge-positive' : 'badge-negative';
+    drawerBadgeEl.innerText = text;
+  }
 }
 
 function resetHeroPrice() {
   if (!currentPageAsset) return;
   const priceEl = document.getElementById('pageAssetPrice');
   const badgeEl = document.getElementById('pageAssetChangeBadge');
-  if (!priceEl || !badgeEl) return;
-  priceEl.innerText = formatINR(currentPageAsset.price);
-  const isPos = (currentPageAsset.change || 0) >= 0;
-  badgeEl.className = isPos ? 'badge-positive' : 'badge-negative';
-  badgeEl.innerText = formatChange(currentPageAsset.change || 0, currentPageAsset.change_pct || 0);
+  const drawerPriceEl = document.getElementById('drawerAssetPrice');
+  const drawerBadgeEl = document.getElementById('drawerAssetChange');
+
+  if (priceEl) priceEl.innerText = formatINR(currentPageAsset.price);
+  if (drawerPriceEl) drawerPriceEl.innerText = formatINR(currentPageAsset.price);
+
+  const tfData = getActiveTimeframeChange();
+  if (badgeEl) {
+    badgeEl.className = tfData.isPos ? 'badge-positive' : 'badge-negative';
+    badgeEl.innerText = tfData.text;
+  }
+  if (drawerBadgeEl) {
+    drawerBadgeEl.className = tfData.isPos ? 'badge-positive' : 'badge-negative';
+    drawerBadgeEl.innerText = tfData.text;
+  }
 }
 
 function renderCandlestickCanvas(canvas, points, hoveredIdx = -1, crosshairY = -1) {
@@ -3513,6 +3576,11 @@ async function loadPageChartTimeframe(range, btnEl = null) {
   if (btnEl) {
     document.querySelectorAll('.asset-chart-card .tf-btn').forEach(b => b.classList.remove('active'));
     btnEl.classList.add('active');
+  } else {
+    document.querySelectorAll('.asset-chart-card .tf-btn').forEach(b => {
+      if (b.innerText.trim() === range) b.classList.add('active');
+      else b.classList.remove('active');
+    });
   }
   currentChartRange = range;
   if (!currentPageAsset) return;
@@ -3521,9 +3589,11 @@ async function loadPageChartTimeframe(range, btnEl = null) {
     const assetType = currentPageAsset.asset_type || 'STOCK';
     const res = await fetch(`/api/history?symbol=${encodeURIComponent(currentPageAsset.symbol)}&asset_type=${encodeURIComponent(assetType)}&range=${range}&timeframe=${range}`);
     const raw = await res.json();
+    if (currentChartRange !== range) return;
     const points = Array.isArray(raw) ? raw : (raw.points || []);
     currentChartPoints = points;
     renderCurrentChart();
+    resetHeroPrice();
   } catch (err) {
     console.error('Failed to load chart:', err);
   }
