@@ -309,6 +309,8 @@ def init_db():
             order_tag TEXT NOT NULL DEFAULT 'NORMAL',
             status TEXT NOT NULL DEFAULT 'EXECUTED',
             realized_pnl REAL DEFAULT 0.0,
+            charges REAL DEFAULT 0.0,
+            net_amount REAL DEFAULT 0.0,
             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -317,7 +319,9 @@ def init_db():
         ("order_variety", "TEXT NOT NULL DEFAULT 'MARKET'"),
         ("limit_price", "REAL DEFAULT 0.0"),
         ("order_tag", "TEXT NOT NULL DEFAULT 'NORMAL'"),
-        ("trigger_price", "REAL DEFAULT 0.0")
+        ("trigger_price", "REAL DEFAULT 0.0"),
+        ("charges", "REAL DEFAULT 0.0"),
+        ("net_amount", "REAL DEFAULT 0.0")
     ]:
         try:
             cursor.execute(f"ALTER TABLE orders ADD COLUMN {col} {definition}")
@@ -1264,6 +1268,86 @@ def get_positions(user_id: str = "default") -> List[Dict[str, Any]]:
     conn.close()
     return valid_rows
 
+def calculate_trade_charges(order_type: str, product_type: str, asset_type: str = "STOCK", amount: float = 0.0) -> Dict[str, float]:
+    """
+    Calculate authentic Indian stock broker charges (Groww / CDSL / SEBI fee schedule).
+    For Equity Delivery Sell:
+      - Brokerage: ₹20 or 0.05% of turnover (whichever is lower)
+      - DP Charges: Flat ₹13.50 (CDSL) + 18% GST (₹15.93 total)
+      - STT: 0.1% of turnover
+      - Exchange Txn Fee: 0.00297% (NSE)
+      - SEBI Turnover Fee: 0.0001% (₹10/crore)
+      - Stamp Duty: ₹0 on Sell (0.015% on Buy only)
+      - GST: 18% on (Brokerage + Exchange Txn + SEBI + DP Charges)
+    For Equity Intraday Sell:
+      - Brokerage: ₹20 or 0.05% (whichever is lower)
+      - DP Charges: ₹0 (not debited from demat)
+      - STT: 0.025% on Sell side
+      - Exchange Txn Fee: 0.00297%
+      - SEBI Turnover Fee: 0.0001%
+      - Stamp Duty: ₹0 on Sell
+      - GST: 18% on (Brokerage + Exchange Txn + SEBI)
+    """
+    amount = float(amount or 0.0)
+    if amount <= 0:
+        return {
+            "brokerage": 0.0, "dp_charges": 0.0, "stt": 0.0,
+            "exchange": 0.0, "sebi": 0.0, "stamp": 0.0,
+            "gst": 0.0, "total": 0.0
+        }
+
+    is_sell = order_type.upper() == "SELL"
+    is_intra = product_type.upper() == "INTRADAY"
+    is_mf = asset_type.upper() == "MUTUAL_FUND"
+
+    if is_mf:
+        # Direct Mutual Funds have zero brokerage, zero STT, zero DP charges on redemption
+        return {
+            "brokerage": 0.0, "dp_charges": 0.0, "stt": 0.0,
+            "exchange": 0.0, "sebi": 0.0, "stamp": 0.0,
+            "gst": 0.0, "total": 0.0
+        }
+
+    # Groww brokerage: min(₹20, 0.05% of order value)
+    brokerage = round(min(20.0, amount * 0.0005), 2)
+
+    # DP Charges: CDSL ₹13.50 flat per delivery sell (charged by depository)
+    dp_charges = 13.50 if (is_sell and not is_intra) else 0.0
+
+    # STT: Delivery sell = 0.1%, Intraday sell = 0.025%, Buy = 0.1% for Delivery, 0 for Intraday
+    if is_sell:
+        stt = round(amount * 0.00025, 2) if is_intra else round(amount * 0.001, 2)
+    else:
+        stt = 0.0 if is_intra else round(amount * 0.001, 2)
+
+    # Exchange transaction fee: NSE 0.00297%
+    exchange = round(amount * 0.0000297, 2)
+
+    # SEBI turnover charge: ₹10 / crore (0.0001%)
+    sebi = round((amount / 10000000.0) * 10.0, 2)
+
+    # Stamp duty: only on BUY in India
+    if is_sell:
+        stamp = 0.0
+    else:
+        stamp = round(amount * (0.00003 if is_intra else 0.00015), 2)
+
+    # GST: 18% on (Brokerage + Exchange + SEBI + DP charges)
+    gst = round((brokerage + exchange + sebi + dp_charges) * 0.18, 2)
+
+    total = round(brokerage + dp_charges + stt + exchange + sebi + stamp + gst, 2)
+
+    return {
+        "brokerage": brokerage,
+        "dp_charges": dp_charges,
+        "stt": stt,
+        "exchange": exchange,
+        "sebi": sebi,
+        "stamp": stamp,
+        "gst": gst,
+        "total": total
+    }
+
 def execute_trade(
     symbol: str, 
     name: str, 
@@ -1505,11 +1589,12 @@ def execute_trade(
                     """, (user_id, symbol, name, asset_type, quantity, effective_price))
                 cursor.execute(f"DELETE FROM holding_tombstones WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
 
+            charges = calculate_trade_charges("BUY", product_type, asset_type, total_amount)
             order_status = "EXECUTED (AMO)" if order_tag == "AMO" else "EXECUTED"
             cursor.execute("""
-                INSERT INTO orders (user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.0)
-            """, (user_id, symbol, name, asset_type, order_type, product_type, quantity, effective_price, total_amount, order_variety, limit_price or 0.0, order_tag, order_status))
+                INSERT INTO orders (user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, charges, net_amount)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.0, ?, ?)
+            """, (user_id, symbol, name, asset_type, order_type, product_type, quantity, effective_price, total_amount, order_variety, limit_price or 0.0, order_tag, order_status, charges["total"], total_amount))
             order_id = cursor.lastrowid
             conn.commit()
             conn.close()
@@ -1610,9 +1695,11 @@ def execute_trade(
                 avg_price = pos["avg_price"]
                 curr_margin = pos["margin_used"]
 
+                charges = calculate_trade_charges("SELL", "INTRADAY", asset_type, round(effective_price * quantity, 2))
                 realized_pnl = round((effective_price - avg_price) * quantity, 2)
                 margin_released = round((quantity / curr_qty) * curr_margin, 2)
-                new_balance = round(balance + margin_released + realized_pnl, 2)
+                net_proceeds = round(margin_released + realized_pnl - charges["total"], 2)
+                new_balance = round(balance + net_proceeds, 2)
                 cursor.execute("UPDATE users SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (new_balance, user_id))
                 if user_id == "default":
                     cursor.execute("UPDATE account SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (new_balance,))
@@ -1648,8 +1735,10 @@ def execute_trade(
                 matched_symbol = deliv_hold["symbol"]
                 curr_qty = deliv_hold["quantity"]
                 avg_price = deliv_hold["avg_price"]
+                charges = calculate_trade_charges("SELL", "DELIVERY", asset_type, total_amount)
                 realized_pnl = round((effective_price - avg_price) * quantity, 2)
-                new_balance = round(balance + total_amount, 2)
+                net_proceeds = max(0.0, round(total_amount - charges["total"], 2))
+                new_balance = round(balance + net_proceeds, 2)
                 cursor.execute("UPDATE users SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (new_balance, user_id))
                 if user_id == "default":
                     cursor.execute("UPDATE account SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (new_balance,))
@@ -1679,9 +1768,9 @@ def execute_trade(
             product_type = actual_product
             order_status = "EXECUTED (AMO)" if order_tag == "AMO" else "EXECUTED"
             cursor.execute("""
-                INSERT INTO orders (user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (user_id, symbol, name, asset_type, order_type, product_type, quantity, effective_price, total_amount, order_variety, limit_price or 0.0, order_tag, order_status, realized_pnl))
+                INSERT INTO orders (user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, charges, net_amount)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (user_id, symbol, name, asset_type, order_type, product_type, quantity, effective_price, total_amount, order_variety, limit_price or 0.0, order_tag, order_status, realized_pnl, charges["total"], net_proceeds))
             order_id = cursor.lastrowid
             conn.commit()
             conn.close()
@@ -1737,7 +1826,16 @@ def execute_trade(
             _REMOTE_SYNC_LAST_AT.pop(f"positions:{user_id}", None)
             _REMOTE_SYNC_LAST_AT.pop(f"orders:{user_id}", None)
             tag_msg = " as After-Market Order (AMO)" if order_tag == "AMO" else ""
-            return {"success": True, "order_id": order_id, "status": order_status, "realized_pnl": realized_pnl, "message": f"Successfully sold {quantity} {symbol} at ₹{effective_price:,.2f}{tag_msg}"}
+            return {
+                "success": True, 
+                "order_id": order_id, 
+                "status": order_status, 
+                "realized_pnl": realized_pnl,
+                "gross_amount": total_amount,
+                "charges": charges,
+                "net_amount": net_proceeds,
+                "message": f"Successfully sold {quantity} {symbol} at ₹{effective_price:,.2f} (Net: ₹{net_proceeds:,.2f}){tag_msg}"
+            }
 
         else:
             conn.close()
@@ -1895,17 +1993,17 @@ def get_orders(limit: int = 100, status_filter: Optional[str] = None, user_id: s
     if status_filter:
         if status_filter.upper() == "EXECUTED":
             cursor.execute("""
-                SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, timestamp
+                SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, charges, net_amount, timestamp
                 FROM orders WHERE user_id = ? AND status LIKE 'EXECUTED%' ORDER BY id DESC LIMIT ?
             """, (user_id, limit))
         else:
             cursor.execute("""
-                SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, timestamp
+                SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, charges, net_amount, timestamp
                 FROM orders WHERE user_id = ? AND status = ? ORDER BY id DESC LIMIT ?
             """, (user_id, status_filter, limit))
     else:
         cursor.execute("""
-            SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, timestamp
+            SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, charges, net_amount, timestamp
             FROM orders WHERE user_id = ? ORDER BY id DESC LIMIT ?
         """, (user_id, limit))
     rows = cursor.fetchall()

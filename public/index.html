@@ -1182,12 +1182,20 @@
               <!-- Margin Calculation Box -->
               <div class="margin-calc-box">
                 <div class="calc-row">
-                  <span class="calc-label">Required Margin</span>
+                  <span class="calc-label" id="pageMarginLabel">Required Margin</span>
                   <strong class="calc-val" id="pageRequiredMargin">₹0.00</strong>
                 </div>
                 <div class="calc-row">
                   <span class="calc-label">Available Balance</span>
                   <span class="calc-sub" id="pageAvailableCash">₹10,00,000.00</span>
+                </div>
+                <div class="calc-row" id="pageChargesRow" style="display: none;">
+                  <span class="calc-label" style="cursor: pointer; text-decoration: underline dotted;" onclick="openPageChargesModal()">Est. Taxes & Charges ℹ️</span>
+                  <span class="calc-sub text-negative" id="pageEstCharges" style="cursor: pointer; font-weight: 600;" onclick="openPageChargesModal()">₹0.00</span>
+                </div>
+                <div class="calc-row" id="pageNetProceedsRow" style="display: none; border-top: 1px dashed var(--border-subtle); padding-top: 0.35rem; margin-top: 0.2rem;">
+                  <span class="calc-label" style="font-weight: 700; color: var(--brand-green);">Net Settlement Credit</span>
+                  <strong class="calc-val text-positive" id="pageNetProceeds">₹0.00</strong>
                 </div>
                 <div class="calc-row" id="pageLeverageHint" style="display: none;">
                   <span style="color: var(--brand-cyan); font-size: 0.75rem;">⚡ 5x Intraday Leverage Applied (Only 20% margin blocked)</span>
@@ -1558,12 +1566,20 @@
         <!-- Margin & Cash Info Summary -->
         <div class="order-calc-card" style="margin-top: 0.75rem;">
           <div class="calc-row">
-            <span>Required Margin</span>
+            <span id="drawerMarginLabel">Required Margin</span>
             <strong class="text-primary" id="drawerRequiredMargin">₹0.00</strong>
           </div>
           <div class="calc-row">
             <span>Available Balance</span>
             <strong class="text-positive" id="drawerAvailableCash">₹10,00,000.00</strong>
+          </div>
+          <div class="calc-row" id="drawerChargesRow" style="display: none;">
+            <span style="cursor: pointer; text-decoration: underline dotted;" onclick="openPageChargesModal()">Est. Taxes & Charges ℹ️</span>
+            <strong class="text-negative" id="drawerEstCharges" style="cursor: pointer;" onclick="openPageChargesModal()">₹0.00</strong>
+          </div>
+          <div class="calc-row" id="drawerNetProceedsRow" style="display: none; border-top: 1px dashed var(--border-subtle); padding-top: 0.35rem; margin-top: 0.2rem;">
+            <span style="font-weight: 700; color: var(--brand-green);">Net Settlement Credit</span>
+            <strong class="text-positive" id="drawerNetProceeds">₹0.00</strong>
           </div>
           <div class="calc-row" id="drawerLeverageHint" style="display: none;">
             <span style="color: var(--brand-cyan); font-size: 0.75rem;">⚡ 5x Intraday Margin Blocked (Only 20%)</span>
@@ -2261,8 +2277,16 @@
           <span class="val" id="orderSuccessPrice">₹2,980.50</span>
         </div>
         <div class="order-success-row total">
-          <span class="label">Total Amount</span>
+          <span class="label" id="orderSuccessTotalLabel">Total Amount</span>
           <span class="val" id="orderSuccessTotal">₹5,961.00</span>
+        </div>
+        <div class="order-success-row" id="orderSuccessChargesRow" style="display: none;">
+          <span class="label">Broker Taxes & Charges</span>
+          <span class="val text-negative" id="orderSuccessCharges">-₹0.00</span>
+        </div>
+        <div class="order-success-row total" id="orderSuccessNetRow" style="display: none; border-top: 1px dashed var(--border-subtle); padding-top: 0.5rem; margin-top: 0.25rem;">
+          <span class="label" style="font-weight: 700; color: var(--brand-green);">Net Balance Credited</span>
+          <span class="val text-positive" id="orderSuccessNet" style="font-size: 1.1rem; font-weight: 800;">₹0.00</span>
         </div>
       </div>
 

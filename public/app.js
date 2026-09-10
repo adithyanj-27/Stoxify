@@ -1088,7 +1088,10 @@ async function fetchOrders() {
             <td><span style="font-size: 0.75rem; color: var(--text-muted);">${o.order_variety || 'MARKET'}</span></td>
             <td style="font-weight: 600;">${o.quantity}</td>
             <td>${formatINR(o.price)}</td>
-            <td style="font-weight: 700;">${formatINR(o.total_amount)}</td>
+            <td style="font-weight: 700;">
+              ${formatINR(o.total_amount)}
+              ${o.charges > 0 ? `<div style="font-size: 0.7rem; color: var(--text-muted); font-weight: normal;">Fee: ₹${Number(o.charges).toFixed(2)}</div>` : ''}
+            </td>
             <td class="${isPnlPos ? 'text-positive' : 'text-negative'}" style="font-weight: 700;">
               ${o.realized_pnl ? (isPnlPos ? '+' : '') + formatINR(o.realized_pnl) : '—'}
             </td>
@@ -1108,6 +1111,7 @@ async function fetchOrders() {
               </div>
               <div class="mobile-card-price">
                 ${formatINR(o.total_amount)}
+                ${o.charges > 0 ? `<div style="font-size: 0.7rem; color: var(--text-muted);">Fee: ₹${Number(o.charges).toFixed(2)}</div>` : ''}
                 <div style="font-size: 0.75rem; color: var(--text-muted);">${o.status}</div>
               </div>
             </div>
@@ -1721,26 +1725,49 @@ function calculateOrderMargin() {
   document.getElementById('orderEstCharges').innerText = `${formatINR(charges.total)} ℹ️`;
 }
 
-function calculateEstimatedCharges(amount, action, product) {
-  const isIntra = product === 'INTRADAY';
-  const isBuy = action === 'BUY';
+function calculateEstimatedCharges(amount, action = 'BUY', product = 'DELIVERY', assetType = 'STOCK') {
+  amount = parseFloat(amount || 0);
+  if (amount <= 0) {
+    return { brokerage: 0, dp_charges: 0, stt: 0, exchange: 0, sebi: 0, stamp: 0, gst: 0, total: 0 };
+  }
+  const isSell = (action || '').toUpperCase() === 'SELL';
+  const isIntra = (product || '').toUpperCase() === 'INTRADAY';
+  const isMf = (assetType || '').toUpperCase() === 'MUTUAL_FUND';
 
-  const brokerage = isIntra ? 20.0 : 0.0;
-  const stt = isIntra ? (isBuy ? 0 : amount * 0.00025) : (amount * 0.001);
-  const exchTxn = amount * 0.0000297;
-  const sebi = (amount / 10000000) * 10;
-  const stamp = isBuy ? amount * 0.00015 : 0;
-  const gst = (brokerage + exchTxn + sebi) * 0.18;
-  const total = brokerage + stt + exchTxn + sebi + stamp + gst;
+  if (isMf) {
+    return { brokerage: 0, dp_charges: 0, stt: 0, exchange: 0, sebi: 0, stamp: 0, gst: 0, total: 0 };
+  }
+
+  // Groww brokerage: min(₹20, 0.05% of order value)
+  const brokerage = roundNumber(Math.min(20.0, amount * 0.0005), 2);
+  // CDSL DP charges: flat ₹13.50 (+18% GST) on delivery sell
+  const dp_charges = (isSell && !isIntra) ? 13.50 : 0.0;
+  // STT: 0.1% on delivery sell / buy, 0.025% on intraday sell, 0 on intraday buy
+  let stt = 0;
+  if (isSell) {
+    stt = isIntra ? roundNumber(amount * 0.00025, 2) : roundNumber(amount * 0.001, 2);
+  } else {
+    stt = isIntra ? 0.0 : roundNumber(amount * 0.001, 2);
+  }
+  // NSE exchange turnover charges: 0.00297%
+  const exchange = roundNumber(amount * 0.0000297, 2);
+  // SEBI turnover fee: ₹10 / crore (0.0001%)
+  const sebi = roundNumber((amount / 10000000) * 10, 2);
+  // Stamp duty: only on BUY (0.015% delivery, 0.003% intraday)
+  const stamp = isSell ? 0.0 : roundNumber(amount * (isIntra ? 0.00003 : 0.00015), 2);
+  // GST: 18% on (Brokerage + Exchange + SEBI + DP charges)
+  const gst = roundNumber((brokerage + exchange + sebi + dp_charges) * 0.18, 2);
+  const total = roundNumber(brokerage + dp_charges + stt + exchange + sebi + stamp + gst, 2);
 
   return {
-    brokerage: roundNumber(brokerage, 2),
-    stt: roundNumber(stt, 2),
-    exchange: roundNumber(exchTxn, 2),
-    sebi: roundNumber(sebi, 2),
-    stamp: roundNumber(stamp, 2),
-    gst: roundNumber(gst, 2),
-    total: roundNumber(total, 2)
+    brokerage,
+    dp_charges,
+    stt,
+    exchange,
+    sebi,
+    stamp,
+    gst,
+    total
   };
 }
 
@@ -1752,19 +1779,75 @@ function openChargesModal() {
     if (lim && lim > 0) price = lim;
   }
   const totalVal = qty * price;
-  const c = calculateEstimatedCharges(totalVal, state.orderAction, state.productType);
+  const assetType = state.currentModalAsset ? state.currentModalAsset.asset_type : 'STOCK';
+  const c = calculateEstimatedCharges(totalVal, state.orderAction, state.productType, assetType);
+  renderChargesModalContent(c, state.orderAction, state.productType, totalVal);
+}
 
+function openPageChargesModal() {
+  if (!currentPageAsset) return;
+  const qtyInput = document.getElementById('pageOrderQuantity');
+  const qty = parseInt((qtyInput ? qtyInput.value : '1') || '1', 10);
+  const limInput = document.getElementById('pageOrderLimitPrice');
+  const trigInput = document.getElementById('pageOrderTriggerPrice');
+
+  let effectivePrice = currentPageAsset.price;
+  if (pageOrderState.variety === 'LIMIT') {
+    const limVal = parseFloat((limInput ? limInput.value : '') || '0');
+    effectivePrice = limVal > 0 ? limVal : currentPageAsset.price;
+  } else if (pageOrderState.variety === 'STOP_LOSS') {
+    const trigVal = parseFloat((trigInput ? trigInput.value : '') || '0');
+    if (pageOrderState.action === 'BUY' && trigVal > 0) {
+      effectivePrice = trigVal;
+    }
+  } else if (pageOrderState.variety === 'GTT') {
+    const limVal = parseFloat((limInput ? limInput.value : '') || '0');
+    const trigVal = parseFloat((trigInput ? trigInput.value : '') || '0');
+    effectivePrice = limVal > 0 ? limVal : (trigVal > 0 ? trigVal : currentPageAsset.price);
+  }
+
+  const totalVal = qty * effectivePrice;
+  const c = calculateEstimatedCharges(totalVal, pageOrderState.action, pageOrderState.product, currentPageAsset.asset_type || 'STOCK');
+  renderChargesModalContent(c, pageOrderState.action, pageOrderState.product, totalVal);
+}
+
+function renderChargesModalContent(c, action, product, totalVal) {
+  const isSell = (action || '').toUpperCase() === 'SELL';
+  const isIntra = (product || '').toUpperCase() === 'INTRADAY';
   const list = document.getElementById('chargesBreakdownList');
-  list.innerHTML = `
-    <div style="display: flex; justify-content: space-between;"><span>Brokerage (${state.productType === 'INTRADAY' ? '₹20 Flat' : 'Zero for Delivery'})</span><strong>${formatINR(c.brokerage)}</strong></div>
+  if (!list) return;
+
+  let html = `
+    <div style="display: flex; justify-content: space-between;"><span>Brokerage (Groww: 0.05% max ₹20)</span><strong>${formatINR(c.brokerage)}</strong></div>
+  `;
+  if (isSell && !isIntra) {
+    html += `
+      <div style="display: flex; justify-content: space-between;"><span>CDSL DP Charges (Depository fee)</span><strong>${formatINR(c.dp_charges)}</strong></div>
+    `;
+  }
+  html += `
     <div style="display: flex; justify-content: space-between;"><span>Securities Transaction Tax (STT)</span><strong>${formatINR(c.stt)}</strong></div>
     <div style="display: flex; justify-content: space-between;"><span>Exchange Turnover Charges (NSE 0.00297%)</span><strong>${formatINR(c.exchange)}</strong></div>
     <div style="display: flex; justify-content: space-between;"><span>SEBI Turnover Charges</span><strong>${formatINR(c.sebi)}</strong></div>
-    <div style="display: flex; justify-content: space-between;"><span>Stamp Duty (State Govt)</span><strong>${formatINR(c.stamp)}</strong></div>
-    <div style="display: flex; justify-content: space-between;"><span>GST (18% on Brokerage & Txn Fee)</span><strong>${formatINR(c.gst)}</strong></div>
+    <div style="display: flex; justify-content: space-between;"><span>Stamp Duty (Govt)</span><strong>${formatINR(c.stamp)}</strong></div>
+    <div style="display: flex; justify-content: space-between;"><span>GST (18% on Brokerage, Txn & DP)</span><strong>${formatINR(c.gst)}</strong></div>
   `;
-  document.getElementById('chargesModalTotal').innerText = formatINR(c.total);
-  document.getElementById('chargesModalOverlay').classList.add('active');
+  list.innerHTML = html;
+
+  const totalEl = document.getElementById('chargesModalTotal');
+  if (totalEl) totalEl.innerText = formatINR(c.total);
+
+  const noteEl = document.getElementById('chargesModalNote');
+  if (noteEl) {
+    if (isSell && !isIntra) {
+      noteEl.innerHTML = `Standard SEBI, CDSL and exchange regulatory charges for Delivery Sell. <strong>Net settlement (${formatINR(Math.max(0, totalVal - c.total))})</strong> is credited to your balance upon sale.`;
+    } else {
+      noteEl.innerText = 'Taxes & regulatory charges are prescribed by SEBI, Exchange (NSE/BSE), and Ministry of Finance.';
+    }
+  }
+
+  const modal = document.getElementById('chargesModalOverlay');
+  if (modal) modal.classList.add('active');
 }
 
 function closeChargesModal() {
@@ -1833,7 +1916,9 @@ async function submitOrder() {
       product: payload.product_type,
       quantity: qty,
       price: payload.price,
-      total: qty * payload.price
+      total: qty * payload.price,
+      charges: result.charges,
+      net_amount: result.net_amount
     });
     showToast(result.message || `Order processed successfully: ${state.orderAction} ${qty} ${payload.symbol}`);
 
@@ -3914,12 +3999,49 @@ function recalcPageMargin() {
   }
 
   const total = qty * effectivePrice;
+  const isSell = pageOrderState.action === 'SELL';
   const margin = pageOrderState.product === 'INTRADAY' ? total * 0.20 : total;
 
+  const pMarginLabel = document.getElementById('pageMarginLabel');
+  if (pMarginLabel) pMarginLabel.innerText = isSell ? (pageOrderState.product === 'INTRADAY' ? 'Intraday Turnover' : 'Gross Value') : 'Required Margin';
+  const dMarginLabel = document.getElementById('drawerMarginLabel');
+  if (dMarginLabel) dMarginLabel.innerText = isSell ? (pageOrderState.product === 'INTRADAY' ? 'Intraday Turnover' : 'Gross Value') : 'Required Margin';
+
   const reqEl = document.getElementById('pageRequiredMargin');
-  if (reqEl) reqEl.innerText = formatINR(margin);
+  if (reqEl) reqEl.innerText = formatINR(isSell ? total : margin);
   const dReqEl = document.getElementById('drawerRequiredMargin');
-  if (dReqEl) dReqEl.innerText = formatINR(margin);
+  if (dReqEl) dReqEl.innerText = formatINR(isSell ? total : margin);
+
+  // Dynamic broker charges and net credit calculation
+  const charges = calculateEstimatedCharges(total, pageOrderState.action, pageOrderState.product, currentPageAsset.asset_type || 'STOCK');
+  const netProceeds = Math.max(0, total - charges.total);
+
+  const pChargesRow = document.getElementById('pageChargesRow');
+  const pChargesVal = document.getElementById('pageEstCharges');
+  const pNetRow = document.getElementById('pageNetProceedsRow');
+  const pNetVal = document.getElementById('pageNetProceeds');
+
+  const dChargesRow = document.getElementById('drawerChargesRow');
+  const dChargesVal = document.getElementById('drawerEstCharges');
+  const dNetRow = document.getElementById('drawerNetProceedsRow');
+  const dNetVal = document.getElementById('drawerNetProceeds');
+
+  if (isSell) {
+    if (pChargesRow) pChargesRow.style.display = 'flex';
+    if (pChargesVal) pChargesVal.innerText = `${formatINR(charges.total)} ℹ️`;
+    if (pNetRow) pNetRow.style.display = 'flex';
+    if (pNetVal) pNetVal.innerText = formatINR(netProceeds);
+
+    if (dChargesRow) dChargesRow.style.display = 'flex';
+    if (dChargesVal) dChargesVal.innerText = `${formatINR(charges.total)} ℹ️`;
+    if (dNetRow) dNetRow.style.display = 'flex';
+    if (dNetVal) dNetVal.innerText = formatINR(netProceeds);
+  } else {
+    if (pChargesRow) pChargesRow.style.display = 'none';
+    if (pNetRow) pNetRow.style.display = 'none';
+    if (dChargesRow) dChargesRow.style.display = 'none';
+    if (dNetRow) dNetRow.style.display = 'none';
+  }
 
   const availCash = state.account ? state.account.balance : (currentUser ? currentUser.balance : 1000000.0);
   const cashEl = document.getElementById('pageAvailableCash');
@@ -4119,7 +4241,9 @@ async function executePageTrade() {
       product: pageOrderState.product,
       quantity: qty,
       price: (pageOrderState.variety === 'LIMIT' || pageOrderState.variety === 'STOP_LOSS') ? (limitPrice || currentPageAsset.price) : currentPageAsset.price,
-      total: qty * ((pageOrderState.variety === 'LIMIT' || pageOrderState.variety === 'STOP_LOSS') ? (limitPrice || currentPageAsset.price) : currentPageAsset.price)
+      total: qty * ((pageOrderState.variety === 'LIMIT' || pageOrderState.variety === 'STOP_LOSS') ? (limitPrice || currentPageAsset.price) : currentPageAsset.price),
+      charges: result.charges,
+      net_amount: result.net_amount
     });
     closeMobileTradeDrawer();
     showToast(result.message || `${pageOrderState.action} order placed successfully!`);
@@ -4662,6 +4786,28 @@ function openOrderSuccessModal(orderData) {
   if (priceEl) priceEl.innerText = formatINR(orderData.price);
   const totalEl = document.getElementById('orderSuccessTotal');
   if (totalEl) totalEl.innerText = formatINR(orderData.total);
+
+  const totalLabel = document.getElementById('orderSuccessTotalLabel');
+  const chargesRow = document.getElementById('orderSuccessChargesRow');
+  const chargesVal = document.getElementById('orderSuccessCharges');
+  const netRow = document.getElementById('orderSuccessNetRow');
+  const netVal = document.getElementById('orderSuccessNet');
+
+  const isSell = (orderData.action || '').toUpperCase() === 'SELL';
+  if (isSell && orderData.charges) {
+    const totalCharges = typeof orderData.charges === 'object' ? (orderData.charges.total || 0) : (parseFloat(orderData.charges) || 0);
+    const netAmount = orderData.net_amount !== undefined ? orderData.net_amount : Math.max(0, orderData.total - totalCharges);
+
+    if (totalLabel) totalLabel.innerText = 'Gross Order Value';
+    if (chargesRow) chargesRow.style.display = 'flex';
+    if (chargesVal) chargesVal.innerText = `-${formatINR(totalCharges)}`;
+    if (netRow) netRow.style.display = 'flex';
+    if (netVal) netVal.innerText = formatINR(netAmount);
+  } else {
+    if (totalLabel) totalLabel.innerText = 'Total Amount';
+    if (chargesRow) chargesRow.style.display = 'none';
+    if (netRow) netRow.style.display = 'none';
+  }
 
   const viewBtn = document.getElementById('orderSuccessViewBtn');
   if (viewBtn) {

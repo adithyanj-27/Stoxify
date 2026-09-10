@@ -8,6 +8,7 @@ from typing import Optional, List, Dict, Any
 
 from database import (
     init_db, get_account, get_holdings, get_positions, execute_trade, 
+    calculate_trade_charges,
     exit_position, cancel_order, check_open_limit_orders,
     get_orders, get_watchlist, add_to_watchlist, remove_from_watchlist,
     deposit_funds, reset_account, restore_balance, delete_user, create_user, update_user, get_user, list_users, find_user_by_identifier,
@@ -785,6 +786,16 @@ def cancel_single_order(req: CancelOrderRequest, request: Request):
     if not res.get("success"):
         raise HTTPException(status_code=400, detail=res.get("error", "Failed to cancel order"))
     return res
+
+@app.get("/api/trade/charges")
+@app.get("/trade/charges")
+def get_charges_estimate(
+    action: str = "SELL",
+    product: str = "DELIVERY",
+    asset_type: str = "STOCK",
+    amount: float = 0.0
+):
+    return calculate_trade_charges(action, product, asset_type, amount)
 
 @app.get("/api/orders")
 def read_orders(request: Request, limit: int = 100, status: Optional[str] = None):

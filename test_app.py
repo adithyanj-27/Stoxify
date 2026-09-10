@@ -107,13 +107,13 @@ def test_all():
     assert pos["margin_used"] == 5000.0
     print(f" ✓ 5x Margin verified: ₹{pos['margin_used']:,.2f} blocked for ₹25,000 position")
 
-    # Exit position at ₹2600 -> P&L = +₹1,000 -> Return ₹5,000 margin + ₹1,000 profit = ₹6,000 added back -> Balance = 1,001,000
+    # Exit position at ₹2600 -> P&L = +₹1,000 -> Return ₹5,000 margin + ₹1,000 profit - ₹22.78 charges = ₹5,977.22 added back -> Balance = 1,000,977.22
     res_exit = database.exit_position(pos["symbol"], 2600.0)
     assert res_exit["success"]
     assert res_exit["realized_pnl"] == 1000.0
     acc_after_exit = database.get_account()
-    assert acc_after_exit["balance"] == 1001000.0, f"Expected 1001000.0, got {acc_after_exit['balance']}"
-    print(f" ✓ Position Exit: P&L +₹{res_exit['realized_pnl']:,.2f}, margin released successfully")
+    assert round(acc_after_exit["balance"], 2) == 1000977.22, f"Expected 1000977.22, got {acc_after_exit['balance']}"
+    print(f" ✓ Position Exit: P&L +₹{res_exit['realized_pnl']:,.2f}, margin released & net charges deducted successfully")
 
     # Test Limit Order & Cancellation
     print("\n[6/6] Testing Limit Orders & Level-2 Market Depth...")
@@ -134,7 +134,7 @@ def test_all():
     res_cancel = database.cancel_order(lim_order["id"])
     assert res_cancel["success"]
     assert len(database.get_orders(status_filter="OPEN")) == 0
-    assert database.get_account()["balance"] == 1001000.0, "Funds should be refunded on order cancellation"
+    assert round(database.get_account()["balance"], 2) == 1000977.22, "Funds should be refunded on order cancellation"
     print(" ✓ Limit Order cancelled and ₹10,000 funds successfully refunded")
 
     # Test Level-2 Market Depth
