@@ -2948,7 +2948,7 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
     if (isMF) onSipSliderChange();
     switchAssetPageTab('overview');
 
-    loadPageChartTimeframe('1M');
+    loadPageChartTimeframe('1D');
 
   } catch (err) {
     console.error('Failed to load asset page:', err);
@@ -3034,7 +3034,7 @@ function renderPageFundamentals(data) {
 let currentChartType = 'line';
 const activeEmas = new Set();
 let currentChartPoints = [];
-let currentChartRange = '1M';
+let currentChartRange = '1D';
 
 function setChartType(type) {
   currentChartType = type;
