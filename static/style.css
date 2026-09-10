@@ -1,6 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap');
 
 :root {
+  --nav-height: 64px;
   --bg-main: #080D14;
   --bg-card: #0F172A;
   --bg-card-hover: #162035;
@@ -643,17 +644,15 @@ body {
 
 #pane-asset-detail.active {
   display: block;
-  animation: assetPaneFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: assetPaneFadeIn 0.2s ease-out forwards;
 }
 
 @keyframes assetPaneFadeIn {
   from {
     opacity: 0;
-    transform: translateY(8px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
@@ -2431,7 +2430,7 @@ body.pwa-installed #mobileInstallBanner {
   .asset-page-grid {
     display: flex !important;
     flex-direction: column !important;
-    gap: 0.85rem !important;
+    gap: 1rem !important;
     width: 100% !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
@@ -2440,26 +2439,49 @@ body.pwa-installed #mobileInstallBanner {
   }
 
   .asset-main-col {
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 0.85rem !important;
+    display: contents !important;
+  }
+
+  .asset-hero-card {
+    order: 1 !important;
     width: 100% !important;
-    max-width: 100% !important;
     box-sizing: border-box !important;
-    overflow-x: hidden !important;
-    min-width: 0 !important;
+  }
+
+  .asset-chart-card {
+    order: 2 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
   }
 
   .asset-sidebar-col {
-    display: none !important; /* Replaced by sticky bottom action bar + slide-up drawer on mobile */
+    order: 3 !important;
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+  }
+
+  .asset-tab-strip {
+    order: 4 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .asset-tab-pane {
+    order: 5 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
   }
 
   body.viewing-asset-detail .mobile-bottom-bar {
-    display: none !important;
+    display: flex !important;
   }
 
   body.viewing-asset-detail {
-    padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
   .asset-page-header-nav {
@@ -3376,33 +3398,12 @@ body.pwa-installed #mobileInstallBanner {
    MOBILE STICKY ACTION BAR & SLIDE-UP TRADING DRAWER
    ======================================================= */
 .mobile-asset-action-bar {
-  display: none;
+  display: none !important;
 }
 
-@media (max-width: 768px) {
-  .mobile-asset-action-bar {
-    display: flex;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    width: 100%;
-    z-index: 1050;
-    background: rgba(15, 23, 42, 0.96);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border-top: 1px solid var(--border-subtle);
-    padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0px)) 1rem;
-    gap: 0.75rem;
-    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45);
-    box-sizing: border-box;
-  }
-
-  [data-theme="light"] .mobile-asset-action-bar {
-    background: rgba(255, 255, 255, 0.96);
-    border-top: 1px solid #E2E8F0;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
-  }
+.mobile-drawer-overlay {
+  display: none !important;
+}
 
   .mob-trade-btn {
     flex: 1;
@@ -4001,7 +4002,8 @@ body.pwa-installed #mobileInstallBanner {
 /* Sticky Order Execution Widget (Groww Style) */
 .asset-sidebar-col {
   position: sticky;
-  top: calc(var(--nav-height) + 1.5rem);
+  top: calc(var(--nav-height, 64px) + 1rem);
+  z-index: 10;
 }
 
 .groww-order-card {
@@ -4872,12 +4874,10 @@ body.pwa-installed #mobileInstallBanner {
   color: var(--danger-red);
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1024px) and (min-width: 769px) {
   .asset-page-grid {
-    grid-template-columns: 1fr;
-  }
-  .asset-sidebar-col {
-    position: static;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 1.25rem;
   }
 }
 

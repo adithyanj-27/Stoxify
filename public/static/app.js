@@ -3018,33 +3018,31 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
           setPageProductType('DELIVERY');
           setPageQuickQuantity(holdingSale.quantity);
           updatePageAvailableHolding(data.symbol);
-          if (window.innerWidth <= 768) openMobileTradeDrawer('SELL');
+          if (window.innerWidth <= 768) {
+            const orderCard = document.querySelector('.asset-sidebar-col');
+            if (orderCard) orderCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
         } else {
           Promise.all([
-          fetch('/api/portfolio').then(r => r.json()).catch(() => ({})),
-          fetch('/api/positions').then(r => r.json()).catch(() => ({}))
-        ]).then(([pData, posData]) => {
-          const holding = (pData.holdings || []).find(h => (h.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase() === cleanSym);
-          const pos = (posData.positions || []).find(p => (p.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase() === cleanSym);
-          if (holding && holding.quantity > 0) {
-            setPageProductType('DELIVERY');
-            setPageQuickQuantity(holding.quantity);
-          } else if (pos && pos.quantity > 0) {
-            setPageProductType('INTRADAY');
-            setPageQuickQuantity(pos.quantity);
-          }
-          updatePageAvailableHolding(data.symbol);
-          if (window.innerWidth <= 768) {
-            openMobileTradeDrawer('SELL');
-          }
-          }).catch(() => {
-          if (window.innerWidth <= 768) {
-            openMobileTradeDrawer('SELL');
-          }
-          });
+            fetch('/api/portfolio').then(r => r.json()).catch(() => ({})),
+            fetch('/api/positions').then(r => r.json()).catch(() => ({}))
+          ]).then(([pData, posData]) => {
+            const holding = (pData.holdings || []).find(h => (h.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase() === cleanSym);
+            const pos = (posData.positions || []).find(p => (p.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase() === cleanSym);
+            if (holding && holding.quantity > 0) {
+              setPageProductType('DELIVERY');
+              setPageQuickQuantity(holding.quantity);
+            } else if (pos && pos.quantity > 0) {
+              setPageProductType('INTRADAY');
+              setPageQuickQuantity(pos.quantity);
+            }
+            updatePageAvailableHolding(data.symbol);
+            if (window.innerWidth <= 768) {
+              const orderCard = document.querySelector('.asset-sidebar-col');
+              if (orderCard) orderCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }).catch(() => {});
         }
-      } else if (window.innerWidth <= 768) {
-        setTimeout(() => openMobileTradeDrawer(preselect), 100);
       }
     }
 
