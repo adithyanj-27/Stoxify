@@ -1,8 +1,10 @@
 import time
 import requests
 import concurrent.futures
-from datetime import datetime, timedelta, time as dtime
+from datetime import datetime, timedelta, time as dtime, timezone
 import yfinance as yf
+
+IST = timezone(timedelta(hours=5, minutes=30))
 from typing import Dict, List, Any, Optional
 
 from stock_master import STOCK_MASTER, MUTUAL_FUND_MASTER
@@ -461,6 +463,68 @@ def get_explore_data() -> Dict[str, Any]:
     set_cached("explore_data_v4", result, ttl=180)
     return result
 
+def _fetch_groww_chart(symbol: str, timeframe: str) -> Optional[List[Dict[str, Any]]]:
+    sym = symbol.strip().upper().replace(".NS", "").replace(".BO", "").replace("^", "")
+    if sym in ("NSEI", "NIFTY50"):
+        sym = "NIFTY"
+    elif sym == "BSESN":
+        sym = "SENSEX"
+
+    exchange = "BSE" if symbol.strip().upper().endswith(".BO") or sym == "SENSEX" else "NSE"
+    tf = timeframe.strip().upper()
+
+    url_map = {
+        "1D": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{exchange}/segment/CASH/{sym}/daily?intervalInMinutes=5",
+        "1W": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{exchange}/segment/CASH/{sym}/weekly?intervalInMinutes=15",
+        "1M": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{exchange}/segment/CASH/{sym}/monthly?intervalInMinutes=60",
+        "3M": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{exchange}/segment/CASH/{sym}/monthly/v2?months=3",
+        "6M": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{exchange}/segment/CASH/{sym}/monthly/v2?months=6",
+        "1Y": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{exchange}/segment/CASH/{sym}/1y?intervalInDays=1",
+        "3Y": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{exchange}/segment/CASH/{sym}/3y?intervalInDays=3",
+        "5Y": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{exchange}/segment/CASH/{sym}/5y?intervalInDays=5",
+        "ALL": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{exchange}/segment/CASH/{sym}/all?noOfCandles=300",
+    }
+    url = url_map.get(tf)
+    if not url:
+        return None
+
+    try:
+        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=3.5)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        candles = data.get("candles", [])
+        if not candles:
+            return None
+
+        closing_ref = data.get("closingPrice")
+
+        points = []
+        for idx, c in enumerate(candles):
+            dt = datetime.fromtimestamp(c[0], tz=IST)
+            if tf == "1D":
+                time_str = dt.strftime("%H:%M")
+            elif tf in ("1W", "1M"):
+                time_str = dt.strftime("%d %b %H:%M")
+            else:
+                time_str = dt.strftime("%d %b %Y")
+
+            open_val = round(float(c[1]), 2)
+            if idx == 0 and closing_ref is not None:
+                open_val = round(float(closing_ref), 2)
+
+            points.append({
+                "time": time_str,
+                "value": round(float(c[4]), 2),
+                "open": open_val,
+                "high": round(float(c[2]), 2),
+                "low": round(float(c[3]), 2),
+                "volume": int(c[5]) if len(c) > 5 else 0
+            })
+        return points
+    except Exception:
+        return None
+
 def get_stock_chart(symbol: str, timeframe: str = "1D") -> List[Dict[str, Any]]:
     formatted_symbol = symbol.strip().upper()
     if not formatted_symbol.endswith(".NS") and not formatted_symbol.endswith(".BO") and not formatted_symbol.startswith("^"):
@@ -474,28 +538,34 @@ def get_stock_chart(symbol: str, timeframe: str = "1D") -> List[Dict[str, Any]]:
 
     now = datetime.now()
 
+    # 1. First priority: Fetch real-time candles from Groww Charting API (exact match with Groww)
+    groww_points = _fetch_groww_chart(symbol, tf_upper)
+    if groww_points:
+        set_cached(cache_key, groww_points, ttl=120)
+        return groww_points
+
+    # 2. Second priority: yfinance with auto_adjust=False (no dividend back-adjustments)
     try:
         t = yf.Ticker(formatted_symbol)
-        if tf_upper == "3Y":
-            three_yrs_ago = (now - timedelta(days=3 * 365)).strftime("%Y-%m-%d")
-            hist = t.history(start=three_yrs_ago, interval="1wk")
-        else:
-            period_map = {
-                "1D": ("1d", "5m"),
-                "1W": ("5d", "15m"),
-                "1M": ("1mo", "1d"),
-                "1Y": ("1y", "1d"),
-                "5Y": ("5y", "1wk"),
-                "ALL": ("max", "1mo")
-            }
-            period, interval = period_map.get(tf_upper, ("1mo", "1d"))
-            hist = t.history(period=period, interval=interval)
+        period_map = {
+            "1D": ("1d", "5m"),
+            "1W": ("5d", "15m"),
+            "1M": ("1mo", "1d"),
+            "3M": ("3mo", "1d"),
+            "6M": ("6mo", "1d"),
+            "1Y": ("1y", "1d"),
+            "3Y": ("3y", "1wk"),
+            "5Y": ("5y", "1wk"),
+            "ALL": ("max", "1mo")
+        }
+        period, interval = period_map.get(tf_upper, ("1mo", "1d"))
+        hist = t.history(period=period, interval=interval, auto_adjust=False)
 
         points = []
         for idx, row in hist.iterrows():
             if tf_upper == "1D":
                 time_str = idx.strftime("%H:%M")
-            elif tf_upper == "1W":
+            elif tf_upper in ("1W", "1M"):
                 time_str = idx.strftime("%d %b %H:%M")
             else:
                 time_str = idx.strftime("%d %b %Y")
@@ -514,7 +584,7 @@ def get_stock_chart(symbol: str, timeframe: str = "1D") -> List[Dict[str, Any]]:
     except Exception:
         pass
 
-    # Smooth curve fallback anchored on actual real-time price
+    # 3. Third priority: Smooth curve fallback anchored on actual real-time price
     quote = get_stock_quote(symbol)
     base_price = quote["price"]
     points = []
@@ -522,7 +592,6 @@ def get_stock_chart(symbol: str, timeframe: str = "1D") -> List[Dict[str, Any]]:
     import math
 
     if tf_upper == "1D":
-        from datetime import time as dtime
         base_time = datetime.combine(now.date(), dtime(9, 15))
         for i in range(count):
             slot_time = base_time + timedelta(minutes=i * 15)
@@ -536,7 +605,7 @@ def get_stock_chart(symbol: str, timeframe: str = "1D") -> List[Dict[str, Any]]:
                 "volume": 12500 + int(abs(math.sin(i)) * 25000)
             })
     else:
-        day_step = 1 if tf_upper in ["1W", "1M"] else (7 if tf_upper in ["1Y", "3Y"] else 30)
+        day_step = 1 if tf_upper in ["1W", "1M"] else (3 if tf_upper in ["3M", "6M"] else (7 if tf_upper in ["1Y", "3Y"] else 30))
         for i in range(count):
             slot_date = now - timedelta(days=(count - 1 - i) * day_step)
             val = base_price * (1.0 + (math.sin(i / 4.0) * 0.012) + ((i - count/2) * 0.0004))
@@ -561,7 +630,7 @@ def get_mf_chart(code: str, timeframe: str = "1M") -> List[Dict[str, Any]]:
         return cached
 
     url = f"https://api.mfapi.in/mf/{code_str}"
-    limit_map = {"1D": 7, "1W": 14, "1M": 30, "1Y": 240, "3Y": 750, "5Y": 1200, "ALL": 1500}
+    limit_map = {"1D": 7, "1W": 14, "1M": 30, "3M": 65, "6M": 130, "1Y": 240, "3Y": 750, "5Y": 1200, "ALL": 1500}
     limit = limit_map.get(tf_upper, 30)
 
     try:
