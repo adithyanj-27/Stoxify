@@ -1816,13 +1816,7 @@ async function submitOrder() {
       return;
     }
 
-    showToast(result.message || `Order processed successfully: ${state.orderAction} ${qty} ${payload.symbol}`);
     closeTradeModal();
-    await fetchAccount();
-    await fetchPortfolio(true);
-    await fetchPositions(true);
-    await fetchOrders();
-
     openOrderSuccessModal({
       symbol: payload.symbol,
       name: payload.name,
@@ -1832,6 +1826,14 @@ async function submitOrder() {
       price: payload.price,
       total: qty * payload.price
     });
+    showToast(result.message || `Order processed successfully: ${state.orderAction} ${qty} ${payload.symbol}`);
+
+    Promise.all([
+      fetchAccount(),
+      fetchPortfolio(true),
+      fetchPositions(true),
+      fetchOrders()
+    ]).catch(e => console.warn('Background sync error:', e));
   } catch (err) {
     console.error('Order submission error:', err);
     showToast('Failed to connect to execution server', true);
@@ -4070,14 +4072,6 @@ async function executePageTrade() {
       return;
     }
 
-    showToast(result.message || `${pageOrderState.action} order placed successfully!`);
-    await fetchAccount();
-    await fetchPortfolio(true);
-    await fetchPositions(true);
-    await fetchOrders();
-    updatePageAvailableHolding(currentPageAsset.symbol);
-    recalcPageMargin();
-
     openOrderSuccessModal({
       symbol: currentPageAsset.symbol,
       name: currentPageAsset.name,
@@ -4088,6 +4082,19 @@ async function executePageTrade() {
       total: qty * ((pageOrderState.variety === 'LIMIT' || pageOrderState.variety === 'STOP_LOSS') ? (limitPrice || currentPageAsset.price) : currentPageAsset.price)
     });
     closeMobileTradeDrawer();
+    showToast(result.message || `${pageOrderState.action} order placed successfully!`);
+
+    Promise.all([
+      fetchAccount(),
+      fetchPortfolio(true),
+      fetchPositions(true),
+      fetchOrders()
+    ]).then(() => {
+      if (currentPageAsset) {
+        updatePageAvailableHolding(currentPageAsset.symbol);
+      }
+      recalcPageMargin();
+    }).catch(e => console.warn('Background sync error:', e));
 
   } catch (err) {
     console.error('executePageTrade error:', err);
@@ -4952,11 +4959,13 @@ async function submitOptionTrade() {
       return;
     }
 
-    showToast(`${currentOptionTrade.action} ${lots} lot(s) executed at ${formatINR(currentOptionTrade.ltp)}!`);
     closeOptionBuyModal();
-    await fetchAccount();
-    await fetchPositions(true);
-    await fetchOrders();
+    showToast(`${currentOptionTrade.action} ${lots} lot(s) executed at ${formatINR(currentOptionTrade.ltp)}!`);
+    Promise.all([
+      fetchAccount(),
+      fetchPositions(true),
+      fetchOrders()
+    ]).catch(e => console.warn('Background sync error:', e));
   } catch (err) {
     showToast('Failed to execute option trade', true);
   } finally {

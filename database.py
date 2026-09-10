@@ -10,6 +10,9 @@ import urllib.request
 import urllib.parse
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
+import concurrent.futures
+
+_TRADE_SYNC_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=4)
 
 # 1. Automatic .env loading (Zero third-party dependency)
 ENV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
@@ -751,8 +754,20 @@ def update_user(
     return updated
 
 def get_user(user_id: str = "default") -> Optional[Dict[str, Any]]:
-    # 1. Try Supabase first if available
-    if is_supabase_enabled() and user_id and user_id != "guest":
+    if not user_id or user_id == "guest":
+        return None
+
+    # 1. Check local SQLite first (instant < 0.5ms)
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return dict(row)
+
+    # 2. Fallback to Supabase if user not found in local SQLite
+    if is_supabase_enabled():
         res = supabase_api("GET", "users", params={"id": f"eq.{user_id}", "select": "*"})
         if res and isinstance(res, list) and len(res) > 0:
             sb_u = res[0]
@@ -783,15 +798,6 @@ def get_user(user_id: str = "default") -> Optional[Dict[str, Any]]:
             except Exception:
                 pass
             return sb_u
-
-    # 2. Local SQLite fallback
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-    row = cursor.fetchone()
-    conn.close()
-    if row:
-        return dict(row)
     if user_id == "default":
         return {
             "id": "default",
@@ -1508,35 +1514,42 @@ def execute_trade(
             conn.commit()
             conn.close()
 
-            # Sync to Supabase
+            # Sync to Supabase in background worker thread (zero user latency)
             if is_supabase_enabled() and user_id != "guest":
-                try:
-                    supabase_api("PATCH", f"users?id=eq.{user_id}", payload={"balance": new_balance, "updated_at": datetime.now(timezone.utc).isoformat()})
-                    if product_type == "INTRADAY":
-                        sb_qty = new_qty if pos else quantity
-                        sb_avg = new_avg if pos else effective_price
-                        sb_margin = new_margin_used if pos else required_margin
-                        sb_sym = matched_sym if pos else symbol
-                        supabase_api("POST", "positions?on_conflict=user_id,symbol", payload={
-                            "user_id": user_id, "symbol": sb_sym, "name": name, "asset_type": asset_type,
-                            "quantity": sb_qty, "avg_price": sb_avg, "margin_used": sb_margin, "product_type": "INTRADAY"
+                def _sync_buy():
+                    try:
+                        supabase_api("PATCH", f"users?id=eq.{user_id}", payload={"balance": new_balance, "updated_at": datetime.now(timezone.utc).isoformat()})
+                        if product_type == "INTRADAY":
+                            sb_qty = new_qty if pos else quantity
+                            sb_avg = new_avg if pos else effective_price
+                            sb_margin = new_margin_used if pos else required_margin
+                            sb_sym = matched_sym if pos else symbol
+                            supabase_api("POST", "positions?on_conflict=user_id,symbol", payload={
+                                "user_id": user_id, "symbol": sb_sym, "name": name, "asset_type": asset_type,
+                                "quantity": sb_qty, "avg_price": sb_avg, "margin_used": sb_margin, "product_type": "INTRADAY"
+                            })
+                        else:
+                            sb_qty = new_qty if existing else quantity
+                            sb_avg = new_avg if existing else effective_price
+                            sb_sym = matched_sym if existing else symbol
+                            supabase_api("POST", "holdings?on_conflict=user_id,symbol", payload={
+                                "user_id": user_id, "symbol": sb_sym, "name": name, "asset_type": asset_type,
+                                "quantity": sb_qty, "avg_price": sb_avg
+                            })
+                        supabase_api("POST", "orders", payload={
+                            "user_id": user_id, "symbol": symbol, "name": name, "asset_type": asset_type,
+                            "order_type": order_type, "product_type": product_type, "quantity": quantity,
+                            "price": effective_price, "total_amount": total_amount, "order_variety": order_variety,
+                            "status": order_status, "realized_pnl": 0.0
                         })
-                    else:
-                        sb_qty = new_qty if existing else quantity
-                        sb_avg = new_avg if existing else effective_price
-                        sb_sym = matched_sym if existing else symbol
-                        supabase_api("POST", "holdings?on_conflict=user_id,symbol", payload={
-                            "user_id": user_id, "symbol": sb_sym, "name": name, "asset_type": asset_type,
-                            "quantity": sb_qty, "avg_price": sb_avg
-                        })
-                    supabase_api("POST", "orders", payload={
-                        "user_id": user_id, "symbol": symbol, "name": name, "asset_type": asset_type,
-                        "order_type": order_type, "product_type": product_type, "quantity": quantity,
-                        "price": effective_price, "total_amount": total_amount, "order_variety": order_variety,
-                        "status": order_status, "realized_pnl": 0.0
-                    })
-                except Exception as sb_e:
-                    print(f"[Supabase Trade Sync Warning] {sb_e}")
+                    except Exception as sb_e:
+                        print(f"[Supabase Trade Sync Warning] {sb_e}")
+                    finally:
+                        _REMOTE_SYNC_LAST_AT.pop(f"holdings:{user_id}", None)
+                        _REMOTE_SYNC_LAST_AT.pop(f"positions:{user_id}", None)
+                        _REMOTE_SYNC_LAST_AT.pop(f"orders:{user_id}", None)
+
+                _TRADE_SYNC_POOL.submit(_sync_buy)
 
             _REMOTE_SYNC_LAST_AT.pop(f"holdings:{user_id}", None)
             _REMOTE_SYNC_LAST_AT.pop(f"positions:{user_id}", None)
@@ -1673,45 +1686,52 @@ def execute_trade(
             conn.commit()
             conn.close()
 
-            # Sync to Supabase
+            # Sync to Supabase in background worker thread (zero user latency)
             if is_supabase_enabled() and user_id != "guest":
-                try:
-                    supabase_api("PATCH", f"users?id=eq.{user_id}", payload={"balance": new_balance, "updated_at": datetime.now(timezone.utc).isoformat()})
-                    if product_type == "INTRADAY":
-                        if rem_qty <= 0.0001:
-                            for v in intra_variants:
-                                filters = {"user_id": f"eq.{user_id}", "symbol": f"eq.{v}"}
-                                supabase_api("PATCH", "positions", payload={"quantity": 0, "margin_used": 0, "updated_at": datetime.now(timezone.utc).isoformat()}, params=filters)
-                                supabase_api("DELETE", "positions", params=filters)
-                                supabase_api("DELETE", "positions", params={"user_id": f"eq.{user_id}", "symbol": f"ilike.{v}"})
+                def _sync_sell():
+                    try:
+                        supabase_api("PATCH", f"users?id=eq.{user_id}", payload={"balance": new_balance, "updated_at": datetime.now(timezone.utc).isoformat()})
+                        if product_type == "INTRADAY":
+                            if rem_qty <= 0.0001:
+                                for v in intra_variants:
+                                    filters = {"user_id": f"eq.{user_id}", "symbol": f"eq.{v}"}
+                                    supabase_api("PATCH", "positions", payload={"quantity": 0, "margin_used": 0, "updated_at": datetime.now(timezone.utc).isoformat()}, params=filters)
+                                    supabase_api("DELETE", "positions", params=filters)
+                                    supabase_api("DELETE", "positions", params={"user_id": f"eq.{user_id}", "symbol": f"ilike.{v}"})
+                            else:
+                                supabase_api("POST", "positions?on_conflict=user_id,symbol", payload={
+                                    "user_id": user_id, "symbol": matched_symbol, "name": name, "asset_type": asset_type,
+                                    "quantity": rem_qty, "avg_price": avg_price, "margin_used": new_margin, "product_type": "INTRADAY"
+                                })
                         else:
-                            supabase_api("POST", "positions?on_conflict=user_id,symbol", payload={
-                                "user_id": user_id, "symbol": matched_symbol, "name": name, "asset_type": asset_type,
-                                "quantity": rem_qty, "avg_price": avg_price, "margin_used": new_margin, "product_type": "INTRADAY"
-                            })
-                    else:
-                        if rem_qty <= 0.0001:
-                            for v in deliv_variants:
-                                close_filters = {
-                                    "user_id": f"eq.{user_id}",
-                                    "symbol": f"eq.{v}"
-                                }
-                                supabase_api("PATCH", "holdings", payload={"quantity": 0, "updated_at": datetime.now(timezone.utc).isoformat()}, params=close_filters)
-                                supabase_api("DELETE", "holdings", params=close_filters)
-                                supabase_api("DELETE", "holdings", params={"user_id": f"eq.{user_id}", "symbol": f"ilike.{v}"})
-                        else:
-                            supabase_api("POST", "holdings?on_conflict=user_id,symbol", payload={
-                                "user_id": user_id, "symbol": matched_symbol, "name": name, "asset_type": asset_type,
-                                "quantity": rem_qty, "avg_price": avg_price
-                            })
-                    supabase_api("POST", "orders", payload={
-                        "user_id": user_id, "symbol": symbol, "name": name, "asset_type": asset_type,
-                        "order_type": order_type, "product_type": product_type, "quantity": quantity,
-                        "price": effective_price, "total_amount": total_amount, "order_variety": order_variety,
-                        "status": order_status, "realized_pnl": realized_pnl
-                    })
-                except Exception as sb_e:
-                    print(f"[Supabase Trade Sync Warning] {sb_e}")
+                            if rem_qty <= 0.0001:
+                                for v in deliv_variants:
+                                    close_filters = {
+                                        "user_id": f"eq.{user_id}",
+                                        "symbol": f"eq.{v}"
+                                    }
+                                    supabase_api("PATCH", "holdings", payload={"quantity": 0, "updated_at": datetime.now(timezone.utc).isoformat()}, params=close_filters)
+                                    supabase_api("DELETE", "holdings", params=close_filters)
+                                    supabase_api("DELETE", "holdings", params={"user_id": f"eq.{user_id}", "symbol": f"ilike.{v}"})
+                            else:
+                                supabase_api("POST", "holdings?on_conflict=user_id,symbol", payload={
+                                    "user_id": user_id, "symbol": matched_symbol, "name": name, "asset_type": asset_type,
+                                    "quantity": rem_qty, "avg_price": avg_price
+                                })
+                        supabase_api("POST", "orders", payload={
+                            "user_id": user_id, "symbol": symbol, "name": name, "asset_type": asset_type,
+                            "order_type": order_type, "product_type": product_type, "quantity": quantity,
+                            "price": effective_price, "total_amount": total_amount, "order_variety": order_variety,
+                            "status": order_status, "realized_pnl": realized_pnl
+                        })
+                    except Exception as sb_e:
+                        print(f"[Supabase Trade Sync Warning] {sb_e}")
+                    finally:
+                        _REMOTE_SYNC_LAST_AT.pop(f"holdings:{user_id}", None)
+                        _REMOTE_SYNC_LAST_AT.pop(f"positions:{user_id}", None)
+                        _REMOTE_SYNC_LAST_AT.pop(f"orders:{user_id}", None)
+
+                _TRADE_SYNC_POOL.submit(_sync_sell)
 
             _REMOTE_SYNC_LAST_AT.pop(f"holdings:{user_id}", None)
             _REMOTE_SYNC_LAST_AT.pop(f"positions:{user_id}", None)

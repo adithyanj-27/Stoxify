@@ -731,16 +731,22 @@ def place_order(order: OrderRequest, request: Request):
 
     exec_price = order.price
     if order.asset_type.upper() == "STOCK":
-        # Always resolve against the live feed for stock orders so that
-        # marketable LIMIT orders fill at the market price (not the stale page
-        # price or the worse limit price) and pending decisions compare against
-        # the real market.
-        try:
-            live_q = market_service.get_stock_quote(order.symbol)
-            if live_q.get("price"):
-                exec_price = live_q["price"]
-        except Exception:
-            pass
+        # Check memory cache first to eliminate yfinance network latency during order execution
+        formatted_sym = order.symbol.strip().upper()
+        if not formatted_sym.endswith(".NS") and not formatted_sym.endswith(".BO") and not formatted_sym.startswith("^"):
+            formatted_sym += ".NS"
+        cached_q = market_service.get_cached(f"quote_{formatted_sym}") or market_service._CACHE.get(f"quote_{formatted_sym}")
+        if cached_q and cached_q.get("price"):
+            exec_price = cached_q["price"]
+        elif order.price > 0:
+            exec_price = order.price
+        else:
+            try:
+                live_q = market_service.get_stock_quote(order.symbol)
+                if live_q.get("price"):
+                    exec_price = live_q["price"]
+            except Exception:
+                pass
 
     result = execute_trade(
         symbol=order.symbol,
