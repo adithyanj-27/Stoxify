@@ -244,6 +244,8 @@ async function toggleSimulationMode(enabled) {
 // --- Navigation Tabs (Desktop & Mobile Synchronized) ---
 function switchTab(tabId, updateUrl = true) {
   document.body.classList.remove('viewing-asset-detail');
+  document.body.classList.remove('viewing-profile');
+  document.documentElement.classList.remove('viewing-profile');
   closeMobileTradeDrawer();
 
   if (updateUrl) {
@@ -2610,6 +2612,8 @@ function goBackFromAssetPage() {
 }
 
 function goBackFromProfilePage() {
+  document.body.classList.remove('viewing-profile');
+  document.documentElement.classList.remove('viewing-profile');
   if (window.history.length > 1) {
     window.history.back();
   } else {
@@ -2619,6 +2623,8 @@ function goBackFromProfilePage() {
 
 function showProfilePage() {
   document.body.classList.remove('viewing-asset-detail');
+  document.body.classList.add('viewing-profile');
+  document.documentElement.classList.add('viewing-profile');
   closeMobileTradeDrawer();
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.mobile-bottom-bar .mobile-nav-item').forEach(btn => btn.classList.remove('active'));
@@ -2632,6 +2638,11 @@ function handleRoute() {
   const path = window.location.pathname;
   const userMenu = document.getElementById('userDropdownMenu');
   if (userMenu) userMenu.style.display = 'none';
+
+  if (path !== '/profile') {
+    document.body.classList.remove('viewing-profile');
+    document.documentElement.classList.remove('viewing-profile');
+  }
 
   if (path.startsWith('/stock/')) {
     const sym = decodeURIComponent(path.replace('/stock/', '')).trim();
@@ -3758,6 +3769,8 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
   
   const pagePane = document.getElementById('pane-asset-detail');
   if (pagePane) pagePane.classList.add('active');
+  document.body.classList.remove('viewing-profile');
+  document.documentElement.classList.remove('viewing-profile');
   document.body.classList.add('viewing-asset-detail');
   window.scrollTo(0, 0);
 
@@ -5174,6 +5187,9 @@ let obUserData = {
 };
 
 function showOnboardingPage() {
+  document.body.classList.remove('viewing-profile');
+  document.documentElement.classList.remove('viewing-profile');
+  document.body.classList.remove('viewing-asset-detail');
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-links .nav-btn').forEach(btn => btn.classList.remove('active'));
   document.querySelectorAll('.mobile-nav-item').forEach(btn => btn.classList.remove('active'));

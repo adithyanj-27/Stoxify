@@ -31,6 +31,9 @@
           document.documentElement.classList.add('user-guest');
           document.documentElement.classList.remove('user-guest');
         }
+        if (window.location.pathname === '/profile') {
+          document.documentElement.classList.add('viewing-profile');
+        }
       } catch(e) {}
     })();
   </script>

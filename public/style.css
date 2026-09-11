@@ -2527,6 +2527,44 @@ body.pwa-installed #mobileInstallBanner {
     padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
+  /* Dedicated Profile Page on Mobile: Cover top navbar, ticker bar, and install banner */
+  html.viewing-profile .navbar,
+  body.viewing-profile .navbar,
+  html.viewing-profile .indices-bar,
+  body.viewing-profile .indices-bar,
+  html.viewing-profile .mobile-install-banner,
+  body.viewing-profile .mobile-install-banner {
+    display: none !important;
+  }
+
+  html.viewing-profile,
+  body.viewing-profile {
+    padding-top: env(safe-area-inset-top, 0px) !important;
+  }
+
+  html.viewing-profile .main-content,
+  body.viewing-profile .main-content {
+    padding-top: 0.25rem !important;
+  }
+
+  html.viewing-profile #pane-profile,
+  body.viewing-profile #pane-profile {
+    padding-top: 0.25rem !important;
+  }
+
+  html.viewing-profile .profile-page-header,
+  body.viewing-profile .profile-page-header {
+    position: sticky;
+    top: 0;
+    z-index: 95;
+    background: var(--bg-main);
+    padding: 0.75rem 0.25rem 0.65rem 0.25rem;
+    margin-bottom: 0.85rem;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
   .asset-page-header-nav {
     display: flex !important;
     align-items: center !important;
@@ -6211,6 +6249,10 @@ html.user-guest #navProfileWrapper {
 /* ==========================================================================
    GROWW-STYLE DEDICATED PROFILE PAGE
    ========================================================================== */
+html.viewing-profile .indices-bar,
+body.viewing-profile .indices-bar {
+  display: none !important;
+}
 .profile-page-header {
   display: flex;
   align-items: center;
