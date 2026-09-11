@@ -552,6 +552,109 @@ def check_username_available(username: str, exclude_user_id: Optional[str] = Non
 
     return True
 
+def sync_user_to_supabase_auth(
+    user_id: str,
+    email: str,
+    password: Optional[str] = None,
+    pin: Optional[str] = None,
+    name: Optional[str] = None,
+    phone: Optional[str] = None,
+    pan: Optional[str] = None,
+    username: Optional[str] = None
+) -> Optional[str]:
+    if not is_supabase_enabled():
+        return None
+    clean_email = (email or "").strip()
+    if not clean_email or "@" not in clean_email:
+        return None
+
+    clean_password = password.strip() if password else None
+    if clean_password and len(clean_password) >= 6:
+        pwd = clean_password
+    elif pin and len(str(pin)) >= 4:
+        pwd = f"stoxify_{pin}" if len(str(pin)) < 6 else str(pin)
+    else:
+        pwd = f"stoxify_{user_id.replace('-', '_')}"
+
+    auth_url = f"{SUPABASE_URL}/auth/v1/signup"
+    auth_payload = {
+        "email": clean_email,
+        "password": pwd,
+        "data": {
+            "name": name or "Trader",
+            "phone": phone or "",
+            "demat": user_id,
+            "pin": str(pin or ""),
+            "pan": pan or "ABCDE1234F",
+            "username": username or ""
+        }
+    }
+    auth_headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    auth_id = None
+    try:
+        req = urllib.request.Request(auth_url, data=json.dumps(auth_payload).encode("utf-8"), headers=auth_headers, method="POST")
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            content = resp.read().decode("utf-8")
+            data = json.loads(content)
+            auth_id = data.get("user", {}).get("id") or data.get("id")
+            print(f"[Supabase Auth] Successfully registered {clean_email} (auth_id: {auth_id}) in Supabase Authentication -> Users")
+    except urllib.error.HTTPError as he:
+        err_body = he.read().decode("utf-8", errors="ignore")
+        if he.code == 422 and "user_already_exists" in err_body:
+            print(f"[Supabase Auth] Email {clean_email} already exists in auth.users. Linking existing auth account...")
+            token_url = f"{SUPABASE_URL}/auth/v1/token?grant_type=password"
+            candidates = [pwd, clean_password, f"stoxify_{pin}" if pin else None, str(pin) if pin else None, f"stoxify_{user_id.replace('-', '_')}"]
+            for test_pwd in candidates:
+                if not test_pwd:
+                    continue
+                try:
+                    tok_req = urllib.request.Request(
+                        token_url,
+                        data=json.dumps({"email": clean_email, "password": test_pwd}).encode("utf-8"),
+                        headers=auth_headers,
+                        method="POST"
+                    )
+                    with urllib.request.urlopen(tok_req, timeout=5) as tok_resp:
+                        tok_data = json.loads(tok_resp.read().decode("utf-8"))
+                        auth_id = tok_data.get("user", {}).get("id")
+                        token = tok_data.get("access_token")
+                        if token:
+                            user_url = f"{SUPABASE_URL}/auth/v1/user"
+                            upd_headers = {
+                                "apikey": SUPABASE_KEY,
+                                "Authorization": f"Bearer {token}",
+                                "Content-Type": "application/json"
+                            }
+                            upd_req = urllib.request.Request(
+                                user_url,
+                                data=json.dumps({"data": auth_payload["data"]}).encode("utf-8"),
+                                headers=upd_headers,
+                                method="PUT"
+                            )
+                            with urllib.request.urlopen(upd_req, timeout=5):
+                                pass
+                        print(f"[Supabase Auth] Successfully linked and updated existing auth account {clean_email} (auth_id: {auth_id})")
+                        break
+                except Exception:
+                    continue
+        else:
+            print(f"[Supabase Auth Note] signup response ({he.code}): {err_body}")
+    except Exception as e:
+        print(f"[Supabase Auth Note] {e}")
+
+    if auth_id and user_id != "default":
+        try:
+            supabase_api("PATCH", "users", payload={"auth_id": auth_id}, params={"id": f"eq.{user_id}"})
+        except Exception:
+            pass
+
+    return auth_id
+
 def create_user(
     name: str, 
     email: str, 
@@ -605,8 +708,21 @@ def create_user(
     user_data = dict(row) if row else {}
     conn.close()
 
-    # 2. Sync directly to Supabase cloud dashboard
+    # 2. Register into Supabase Authentication -> Users (auth.users)
+    auth_id = None
     if is_supabase_enabled():
+        auth_id = sync_user_to_supabase_auth(
+            user_id=user_id,
+            email=email,
+            password=clean_password,
+            pin=pin,
+            name=name,
+            phone=phone,
+            pan=pan,
+            username=clean_username
+        )
+
+        # 3. Sync directly to Supabase cloud public users table
         sb_user_payload = {
             "id": user_id,
             "name": name,
@@ -618,27 +734,14 @@ def create_user(
             "pin": pin,
             "balance": 0.0,
             "total_deposited": 0.0,
-            "bank_balance": 1000000.0,
             "avatar_color": avatar_color
         }
+        if auth_id:
+            sb_user_payload["auth_id"] = auth_id
         if dob:
             sb_user_payload["dob"] = dob.strip()
-        if clean_username:
-            sb_user_payload["username"] = clean_username
-        if clean_password:
-            sb_user_payload["password"] = clean_password
 
         sb_res = supabase_api("POST", "users", payload=sb_user_payload)
-        if sb_res is None:
-            fallback_payload = dict(sb_user_payload)
-            fallback_payload.pop("dob", None)
-            fallback_payload.pop("username", None)
-            fallback_payload.pop("password", None)
-            fallback_payload.pop("bank_balance", None)
-            fallback_payload.pop("bank_ifsc", None)
-            fallback_payload.pop("bank_upi_id", None)
-            sb_res = supabase_api("POST", "users", payload=fallback_payload)
-
         if sb_res is not None:
             print(f"[Supabase] User {user_id} ({name}) successfully saved to Supabase dashboard")
             # Seed default watchlist items to Supabase
@@ -649,47 +752,6 @@ def create_user(
             supabase_api("POST", "watchlist", payload=sb_wl_items)
         else:
             print(f"[Supabase] Warning: could not sync user {user_id} to Supabase")
-
-        # 3. Register user directly into Supabase Authentication -> Users (auth.users)
-        try:
-            auth_url = f"{SUPABASE_URL}/auth/v1/signup"
-            clean_email = (email or "").strip()
-            if clean_email:
-                if clean_password and len(clean_password) >= 6:
-                    pwd = clean_password
-                elif pin and len(str(pin)) >= 4:
-                    pwd = f"stoxify_{pin}" if len(str(pin)) < 6 else str(pin)
-                else:
-                    pwd = f"stoxify_{user_id.replace('-', '_')}"
-                auth_payload = {
-                    "email": clean_email,
-                    "password": pwd,
-                    "data": {
-                        "name": name,
-                        "phone": phone or "",
-                        "demat": user_id,
-                        "pin": str(pin or ""),
-                        "pan": pan or "ABCDE1234F",
-                        "username": clean_username or ""
-                    }
-                }
-                auth_headers = {
-                    "apikey": SUPABASE_KEY,
-                    "Content-Type": "application/json"
-                }
-                auth_req = urllib.request.Request(
-                    auth_url, 
-                    data=json.dumps(auth_payload).encode("utf-8"), 
-                    headers=auth_headers, 
-                    method="POST"
-                )
-                with urllib.request.urlopen(auth_req, timeout=6) as auth_resp:
-                    print(f"[Supabase Auth] Successfully registered {clean_email} in Supabase Authentication -> Users")
-        except urllib.error.HTTPError as he:
-            err_text = he.read().decode("utf-8", errors="ignore")
-            print(f"[Supabase Auth Note] signup response ({he.code}): {err_text}")
-        except Exception as ae:
-            print(f"[Supabase Auth Note] {ae}")
 
     return user_data
 

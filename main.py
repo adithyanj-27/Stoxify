@@ -12,7 +12,7 @@ from database import (
     exit_position, cancel_order, check_open_limit_orders,
     get_orders, get_watchlist, add_to_watchlist, remove_from_watchlist,
     deposit_funds, reset_account, restore_balance, delete_user, create_user, update_user, get_user, list_users, find_user_by_identifier,
-    check_username_available,
+    check_username_available, sync_user_to_supabase_auth,
     place_gtt_order, get_gtt_orders, cancel_gtt_order,
     create_sip, get_user_sips, cancel_sip,
     apply_ipo, get_ipo_bids, cancel_ipo_bid,
@@ -394,6 +394,23 @@ def api_login_user(req: LoginRequest):
 
     if not valid:
         raise HTTPException(status_code=401, detail="Incorrect Password or PIN. Please try again.")
+
+    if not user.get("auth_id") and user.get("email"):
+        try:
+            aid = sync_user_to_supabase_auth(
+                user_id=user["id"],
+                email=user.get("email"),
+                password=user.get("password") or (entered_secret if len(entered_secret) >= 6 else None),
+                pin=user.get("pin") or (entered_secret if len(entered_secret) == 4 else None),
+                name=user.get("name"),
+                phone=user.get("phone"),
+                pan=user.get("pan"),
+                username=user.get("username")
+            )
+            if aid:
+                user["auth_id"] = aid
+        except Exception:
+            pass
 
     return {
         "success": True,
