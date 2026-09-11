@@ -1148,20 +1148,17 @@ def withdraw_wallet_to_bank(user_id: str, amount: float, pin: str) -> Dict[str, 
 def get_bank_account_details(user_id: str) -> Dict[str, Any]:
     if not user_id or user_id == "guest":
         return {}
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-    u = cursor.fetchone()
+    u = get_user(user_id)
     if not u:
-        conn.close()
         return {}
-    u = dict(u)
     bank_name = u.get("bank_name") or "HDFC Bank"
     bank_account = str(u.get("bank_account") or "50100234567890")
     bank_ifsc = u.get("bank_ifsc") or f"{bank_name.split()[0].upper()[:4]}0001234"
     bank_upi_id = u.get("bank_upi_id") or f"{(u.get('username') or user_id).lower()}@{bank_name.split()[0].lower()}bank"
     bank_balance = float(u.get("bank_balance") if u.get("bank_balance") is not None else 1000000.0)
 
+    conn = get_connection()
+    cursor = conn.cursor()
     cursor.execute("""
         SELECT * FROM bank_transactions 
         WHERE user_id = ? 
@@ -1172,14 +1169,18 @@ def get_bank_account_details(user_id: str) -> Dict[str, Any]:
     txs = [dict(r) for r in rows]
     conn.close()
 
+    masked = f"•••• {bank_account[-4:]}" if len(bank_account) >= 4 else bank_account
+
     return {
         "bank_name": bank_name,
         "bank_account": bank_account,
-        "bank_masked_account": f"•••• {bank_account[-4:]}" if len(bank_account) >= 4 else bank_account,
+        "bank_masked_account": masked,
+        "bank_account_masked": masked,
         "bank_ifsc": bank_ifsc,
         "bank_upi_id": bank_upi_id,
         "bank_balance": bank_balance,
         "wallet_balance": float(u.get("balance") or 0.0),
+        "balance": float(u.get("balance") or 0.0),
         "account_holder": u.get("name") or "Trader",
         "transactions": txs
     }

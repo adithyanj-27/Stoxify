@@ -1316,10 +1316,6 @@
               </div>
             </div>
           </div>
-          <button type="button" class="profile-edit-badge-btn" onclick="openEditProfileModal()" title="Edit Profile">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-            <span>Edit</span>
-          </button>
         </div>
 
         <!-- Card 2: Groww Balance / Stoxifyin' Wallet Card -->
@@ -1367,8 +1363,9 @@
               <div class="bank-bal-label">Simulated Bank Balance</div>
               <div class="bank-bal-val text-positive" id="profileBankBalanceDisplay">₹10,00,000.00</div>
             </div>
-            <button type="button" class="btn-subtle" style="font-size: 0.8rem; padding: 0.45rem 0.85rem;" onclick="openBankPassbookModal()">
-              Passbook & History →
+            <button type="button" class="btn-subtle" style="font-size: 0.8rem; padding: 0.45rem 0.75rem; white-space: nowrap; display: inline-flex; align-items: center; gap: 0.35rem; flex-shrink: 0;" onclick="openBankPassbookModal()">
+              <span>Passbook & History</span>
+              <span style="font-size: 0.95rem; line-height: 1;">→</span>
             </button>
           </div>
         </div>
@@ -1512,9 +1509,9 @@
                 <label class="ob-label" style="margin-bottom: 0;">Choose Username <span style="color: var(--brand-cyan); font-size: 0.8rem;">*</span></label>
                 <span id="obUsernameStatus" style="font-size: 0.76rem; font-weight: 600; display: none;"></span>
               </div>
-              <div style="position: relative; display: flex; align-items: center;">
-                <span style="position: absolute; left: 0.85rem; color: var(--text-muted); font-weight: 700; font-size: 0.95rem; pointer-events: none;">@</span>
-                <input type="text" class="ob-input" id="obInputUsername" placeholder="your_unique_username" autocomplete="username" style="padding-left: 2rem; font-family: monospace;" oninput="onUsernameInput(this)">
+              <div class="ob-prefix-input">
+                <span class="input-prefix">@</span>
+                <input type="text" id="obInputUsername" placeholder="your_unique_username" autocomplete="username" style="font-family: monospace; font-size: 0.95rem; font-weight: 600;" oninput="onUsernameInput(this)">
               </div>
               <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem;">3–25 characters, letters, numbers & underscores</div>
             </div>
@@ -2201,9 +2198,9 @@
 
           <div class="ob-form-group" style="margin-bottom: 0.85rem;">
             <label class="ob-label" for="editProfileUsername">Username (@handle)</label>
-            <div style="position: relative; display: flex; align-items: center;">
-              <span style="position: absolute; left: 0.85rem; color: var(--text-muted); font-weight: 700; font-size: 0.95rem; pointer-events: none;">@</span>
-              <input type="text" class="ob-input" id="editProfileUsername" placeholder="username" style="padding-left: 2rem; font-family: monospace;">
+            <div class="ob-prefix-input">
+              <span class="input-prefix">@</span>
+              <input type="text" id="editProfileUsername" placeholder="username" style="font-family: monospace; font-size: 0.95rem; font-weight: 600;">
             </div>
           </div>
 

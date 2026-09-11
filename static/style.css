@@ -4483,6 +4483,43 @@ body.pwa-installed #mobileInstallBanner {
   outline: none;
 }
 
+.ob-prefix-input {
+  display: flex;
+  align-items: center;
+  background: var(--bg-main);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  transition: var(--transition);
+}
+
+.ob-prefix-input:focus-within {
+  border-color: var(--brand-cyan);
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
+}
+
+.ob-prefix-input .input-prefix {
+  padding: 0.75rem 0.95rem;
+  background: var(--bg-elevated);
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: var(--brand-cyan);
+  border-right: 1px solid var(--border-subtle);
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.ob-prefix-input input {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  background: transparent;
+  border: none;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  outline: none;
+  min-width: 0;
+}
+
 .ob-input {
   width: 100%;
   padding: 0.75rem 1rem;
