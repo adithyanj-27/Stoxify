@@ -2527,19 +2527,22 @@ body.pwa-installed #mobileInstallBanner {
     padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
-  /* Dedicated Profile Page on Mobile: Cover top navbar, ticker bar, and install banner */
+  /* Dedicated Profile Page on Mobile: Cover top navbar, ticker bar, install banner, and bottom nav bar */
   html.viewing-profile .navbar,
   body.viewing-profile .navbar,
   html.viewing-profile .indices-bar,
   body.viewing-profile .indices-bar,
   html.viewing-profile .mobile-install-banner,
-  body.viewing-profile .mobile-install-banner {
+  body.viewing-profile .mobile-install-banner,
+  html.viewing-profile .mobile-bottom-bar,
+  body.viewing-profile .mobile-bottom-bar {
     display: none !important;
   }
 
   html.viewing-profile,
   body.viewing-profile {
     padding-top: env(safe-area-inset-top, 0px) !important;
+    padding-bottom: calc(2.5rem + env(safe-area-inset-bottom, 0px)) !important;
   }
 
   html.viewing-profile .main-content,
@@ -6262,6 +6265,12 @@ body.viewing-profile .indices-bar {
   border-bottom: 1px solid var(--border-subtle);
 }
 
+.profile-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .profile-page-title {
   font-size: 1.25rem;
   font-weight: 800;
@@ -6290,14 +6299,16 @@ body.viewing-profile .indices-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
+  gap: 0.75rem;
+  flex-wrap: nowrap;
 }
 
 .profile-user-left {
   display: flex;
   align-items: center;
   gap: 1rem;
+  min-width: 0;
+  flex: 1;
 }
 
 .profile-avatar-large {
@@ -6380,6 +6391,28 @@ body.viewing-profile .indices-bar {
   background: rgba(14, 165, 233, 0.15);
 }
 
+.profile-edit-badge-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(14, 165, 233, 0.1);
+  color: var(--brand-cyan);
+  border: 1px solid rgba(14, 165, 233, 0.25);
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: var(--transition);
+  flex-shrink: 0;
+}
+
+.profile-edit-badge-btn:hover {
+  background: rgba(14, 165, 233, 0.2);
+  border-color: var(--brand-cyan);
+}
+
 .edit-profile-trigger {
   display: inline-flex;
   align-items: center;
@@ -6445,15 +6478,16 @@ body.viewing-profile .indices-bar {
   background: #10b981;
   color: #022c22;
   font-weight: 800;
-  padding: 0.75rem;
+  padding: 0.75rem 0.5rem;
   border-radius: var(--radius-sm);
   border: none;
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
-  font-size: 0.92rem;
+  gap: 0.45rem;
+  font-size: 0.88rem;
+  white-space: nowrap !important;
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
   transition: var(--transition);
 }
@@ -6469,14 +6503,15 @@ body.viewing-profile .indices-bar {
   border: 1px solid var(--border-subtle);
   color: var(--text-primary);
   font-weight: 700;
-  padding: 0.75rem;
+  padding: 0.75rem 0.5rem;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
-  font-size: 0.92rem;
+  gap: 0.45rem;
+  font-size: 0.88rem;
+  white-space: nowrap !important;
   transition: var(--transition);
 }
 
@@ -6488,11 +6523,14 @@ body.viewing-profile .indices-bar {
 .wallet-card-footer {
   display: flex;
   justify-content: space-between;
-  font-size: 0.75rem;
+  align-items: center;
+  font-size: 0.72rem;
   color: var(--text-muted);
   border-top: 1px dashed var(--border-subtle);
   padding-top: 0.6rem;
   margin-top: 0.25rem;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 /* Bank Account Card */
