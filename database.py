@@ -2545,6 +2545,22 @@ def delete_user(user_id: str) -> bool:
 
     if is_supabase_enabled() and user_id != "default":
         try:
+            u_row = get_user(user_id)
+            auth_id = (u_row.get("auth_id") if u_row else None)
+            if auth_id:
+                try:
+                    admin_del_url = f"{SUPABASE_URL}/auth/v1/admin/users/{auth_id}"
+                    admin_headers = {
+                        "apikey": SUPABASE_KEY,
+                        "Authorization": f"Bearer {SUPABASE_KEY}",
+                        "Content-Type": "application/json"
+                    }
+                    del_req = urllib.request.Request(admin_del_url, headers=admin_headers, method="DELETE")
+                    with urllib.request.urlopen(del_req, timeout=5):
+                        print(f"[Supabase Auth] Removed auth user {auth_id} from Supabase Authentication -> Users")
+                except Exception as e:
+                    print(f"[Supabase Auth Delete Note] Could not delete from auth.users (requires service_role key): {e}")
+
             supabase_api("DELETE", f"holdings?user_id=eq.{user_id}")
             supabase_api("DELETE", f"positions?user_id=eq.{user_id}")
             supabase_api("DELETE", f"orders?user_id=eq.{user_id}")
