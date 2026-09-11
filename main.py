@@ -16,7 +16,8 @@ from database import (
     place_gtt_order, get_gtt_orders, cancel_gtt_order,
     create_sip, get_user_sips, cancel_sip,
     apply_ipo, get_ipo_bids, cancel_ipo_bid,
-    get_capital_gains_tax_report, get_sector_allocation
+    get_capital_gains_tax_report, get_sector_allocation,
+    transfer_bank_to_wallet, withdraw_wallet_to_bank, get_bank_account_details
 )
 import market_service
 import market_hours
@@ -24,7 +25,7 @@ import fo_service
 import ipo_service
 from datetime import datetime
 
-app = FastAPI(title="Stoxify", description="Stoxify - Stock & Mutual Fund Broker Platform", version="1.0.0")
+app = FastAPI(title="Stoxifyin", description="Stoxifyin - Stock & Mutual Fund Broker Platform", version="1.0.0")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
@@ -860,6 +861,44 @@ def deposit(req: DepositRequest, request: Request):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"status": "success", "new_balance": new_balance}
+
+class UpiAddFundsRequest(BaseModel):
+    amount: float
+    pin: Optional[str] = ""
+
+@app.post("/api/funds/upi-add")
+@app.post("/funds/upi-add")
+def api_upi_add_funds(req: UpiAddFundsRequest, request: Request):
+    uid = get_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Account required for simulated UPI deposit")
+    res = transfer_bank_to_wallet(uid, req.amount, req.pin or "")
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("message", "UPI transfer failed"))
+    return res
+
+class WithdrawFundsRequest(BaseModel):
+    amount: float
+    pin: Optional[str] = ""
+
+@app.post("/api/funds/withdraw")
+@app.post("/funds/withdraw")
+def api_withdraw_funds(req: WithdrawFundsRequest, request: Request):
+    uid = get_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Account required for withdrawal")
+    res = withdraw_wallet_to_bank(uid, req.amount, req.pin or "")
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("message", "Withdrawal failed"))
+    return res
+
+@app.get("/api/funds/bank-account")
+@app.get("/funds/bank-account")
+def api_get_bank_account(request: Request):
+    uid = get_user_id(request)
+    if not uid:
+        return {}
+    return get_bank_account_details(uid)
 
 @app.post("/api/account/restore")
 @app.post("/account/restore")

@@ -81,7 +81,7 @@ const state = {
   ordersSubnav: 'executed',
   exploreStockFilter: 'all',
   exploreData: null,
-  account: { balance: 1000000.0 },
+  account: { balance: 0.0, bank_balance: 1000000.0 },
   watchlist: getLocalWatchlistSet(),
   currentModalAsset: null,
   currentModalTimeframe: '1D',
@@ -2609,6 +2609,25 @@ function goBackFromAssetPage() {
   }
 }
 
+function goBackFromProfilePage() {
+  if (window.history.length > 1) {
+    window.history.back();
+  } else {
+    navigateTo('/explore');
+  }
+}
+
+function showProfilePage() {
+  document.body.classList.remove('viewing-asset-detail');
+  closeMobileTradeDrawer();
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.mobile-bottom-bar .mobile-nav-item').forEach(btn => btn.classList.remove('active'));
+  const profilePane = document.getElementById('pane-profile');
+  if (profilePane) profilePane.classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  renderProfilePageData();
+}
+
 function handleRoute() {
   const path = window.location.pathname;
   const userMenu = document.getElementById('userDropdownMenu');
@@ -2622,6 +2641,8 @@ function handleRoute() {
     showAssetPage(sym, 'MUTUAL_FUND');
   } else if (path === '/onboarding') {
     showOnboardingPage();
+  } else if (path === '/profile') {
+    showProfilePage();
   } else if (path === '/login') {
     switchTab('explore', false);
     openLoginModal();
@@ -2733,9 +2754,34 @@ function updateNavbarProfile() {
   if (menuDematEl) menuDematEl.innerText = `Demat: STOX-${(currentUser.id || '9876').slice(-6).toUpperCase()}`;
   const last4 = (currentUser.bank_account || '5678').slice(-4);
   if (menuBankEl) menuBankEl.innerText = `${currentUser.bank_name || 'HDFC Bank'} •••• ${last4} (Verified ✓)`;
-  if (menuBalEl) menuBalEl.innerText = formatINR(currentUser.balance || 1000000.0);
+  const walletBal = currentUser.balance !== undefined ? currentUser.balance : 0.0;
+  if (menuBalEl) menuBalEl.innerText = formatINR(walletBal);
   const navBalEl = document.getElementById('navBalanceDisplay');
-  if (navBalEl) navBalEl.innerText = formatINR(currentUser.balance || 1000000.0);
+  if (navBalEl) navBalEl.innerText = formatINR(walletBal);
+
+  // Dedicated Groww-Style Profile Page Elements
+  const profAvatarEl = document.getElementById('profilePageAvatar');
+  const profNameEl = document.getElementById('profilePageName');
+  const profEmailEl = document.getElementById('profilePageEmail');
+  const profDematEl = document.getElementById('profilePageDemat');
+  const profWalletBalEl = document.getElementById('profileWalletBalanceDisplay');
+  const profBankNameEl = document.getElementById('profileBankNameDisplay');
+  const profBankAccEl = document.getElementById('profileBankAccountDisplay');
+  const profBankBalEl = document.getElementById('profileBankBalanceDisplay');
+
+  if (profAvatarEl) {
+    profAvatarEl.innerText = initials;
+    profAvatarEl.style.background = avatarColor;
+  }
+  if (profNameEl) profNameEl.innerText = currentUser.name;
+  if (profEmailEl) profEmailEl.innerText = currentUser.email || '';
+  if (profDematEl) profDematEl.innerText = `Demat: STOX-${(currentUser.id || '9876').slice(-6).toUpperCase()}`;
+  if (profWalletBalEl) profWalletBalEl.innerText = formatINR(walletBal);
+  if (profBankNameEl) profBankNameEl.innerText = currentUser.bank_name || 'HDFC Bank';
+  if (profBankAccEl) profBankAccEl.innerText = `A/C •••• ${last4} • IFSC: ${currentUser.bank_ifsc || 'HDFC0001234'}`;
+  if (profBankBalEl && currentUser.bank_balance !== undefined) {
+    profBankBalEl.innerText = formatINR(currentUser.bank_balance);
+  }
 }
 
 function logoutUser() {
@@ -2754,6 +2800,11 @@ function logoutUser() {
 }
 
 function toggleProfileDropdown() {
+  if (window.innerWidth <= 768) {
+    // Mobile view: Open dedicated Groww-style full profile page
+    navigateTo('/profile');
+    return;
+  }
   const menu = document.getElementById('userDropdownMenu');
   if (!menu) return;
   menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
@@ -2777,6 +2828,18 @@ document.addEventListener('click', (e) => {
   const loginOverlay = document.getElementById('loginModalOverlay');
   if (loginOverlay && e.target === loginOverlay) {
     closeLoginModal();
+  }
+  const upiOverlay = document.getElementById('upiAddMoneyModal');
+  if (upiOverlay && e.target === upiOverlay) {
+    closeAddMoneyModal();
+  }
+  const wdrOverlay = document.getElementById('withdrawMoneyModal');
+  if (wdrOverlay && e.target === wdrOverlay) {
+    closeWithdrawModal();
+  }
+  const pbOverlay = document.getElementById('bankPassbookModal');
+  if (pbOverlay && e.target === pbOverlay) {
+    closeBankPassbookModal();
   }
 });
 
@@ -2975,6 +3038,535 @@ async function saveUserProfile() {
       saveBtn.innerText = 'Save Changes';
     }
   }
+}
+
+// =======================================================
+// DEDICATED GROWW PROFILE & BANK ACCOUNT ENGINE
+// =======================================================
+let enteredUpiPin = '';
+let currentUpiAddAmount = 50000;
+let cachedBankAccount = null;
+
+async function loadBankAccountDetails() {
+  if (isGuest() || !currentUser) return null;
+  try {
+    const res = await fetch('/api/funds/bank-account');
+    if (res.ok) {
+      const data = await res.json();
+      cachedBankAccount = data;
+      return data;
+    }
+  } catch (err) {
+    console.error('Failed to load bank account details:', err);
+  }
+  return null;
+}
+
+async function renderProfilePageData() {
+  if (isGuest() || !currentUser) {
+    const profNameEl = document.getElementById('profilePageName');
+    if (profNameEl) profNameEl.innerText = 'Guest User';
+    const profEmailEl = document.getElementById('profilePageEmail');
+    if (profEmailEl) profEmailEl.innerText = 'Not logged in';
+    const profDematEl = document.getElementById('profilePageDemat');
+    if (profDematEl) profDematEl.innerText = 'Demat: GUEST';
+    const profWalletBalEl = document.getElementById('profileWalletBalanceDisplay');
+    if (profWalletBalEl) profWalletBalEl.innerText = '₹0.00';
+    const profBankBalEl = document.getElementById('profileBankBalanceDisplay');
+    if (profBankBalEl) profBankBalEl.innerText = '₹0.00';
+    return;
+  }
+
+  updateNavbarProfile();
+
+  const data = await loadBankAccountDetails();
+  if (data) {
+    const profBankNameEl = document.getElementById('profileBankNameDisplay');
+    const profBankAccEl = document.getElementById('profileBankAccountDisplay');
+    const profBankBalEl = document.getElementById('profileBankBalanceDisplay');
+    const profWalletBalEl = document.getElementById('profileWalletBalanceDisplay');
+
+    if (profBankNameEl) profBankNameEl.innerText = data.bank_name;
+    if (profBankAccEl) profBankAccEl.innerText = `A/C ${data.bank_account_masked} • IFSC: ${data.bank_ifsc}`;
+    if (profBankBalEl) profBankBalEl.innerText = formatINR(data.bank_balance);
+    if (profWalletBalEl) profWalletBalEl.innerText = formatINR(data.balance);
+  }
+}
+
+function copyDematId() {
+  const dematEl = document.getElementById('profilePageDemat');
+  const text = dematEl ? dematEl.innerText.replace('Demat: ', '') : '';
+  if (text && navigator.clipboard) {
+    navigator.clipboard.writeText(text);
+    showToast(`Copied ${text} to clipboard!`);
+  } else {
+    showToast('Copied Demat ID!');
+  }
+}
+
+// =======================================================
+// SIMULATED UPI DEPOSIT (BANK -> TRADING WALLET)
+// =======================================================
+async function openAddMoneyModal() {
+  const menu = document.getElementById('userDropdownMenu');
+  if (menu) menu.style.display = 'none';
+
+  if (!currentUser || isGuest()) {
+    showToast('Please create or log into your account to add funds.', true);
+    navigateTo('/onboarding');
+    return;
+  }
+
+  const modal = document.getElementById('upiAddMoneyModal');
+  if (!modal) return;
+
+  // Reset to Step 1
+  const stepAmount = document.getElementById('upiStepAmount');
+  const stepPin = document.getElementById('upiStepPin');
+  const stepSuccess = document.getElementById('upiStepSuccess');
+  if (stepAmount) stepAmount.style.display = 'block';
+  if (stepPin) stepPin.style.display = 'none';
+  if (stepSuccess) stepSuccess.style.display = 'none';
+
+  const amountInput = document.getElementById('upiAddAmountInput');
+  if (amountInput) amountInput.value = '50000';
+  currentUpiAddAmount = 50000;
+
+  const btnProceed = document.getElementById('btnProceedToPin');
+  if (btnProceed) {
+    btnProceed.disabled = false;
+    btnProceed.innerText = 'Add ₹50,000 via UPI →';
+  }
+
+  modal.classList.add('active');
+
+  // Load bank info
+  const bankData = await loadBankAccountDetails();
+  if (bankData) {
+    const bName = document.getElementById('upiFromBankName');
+    const bAcc = document.getElementById('upiFromAccNum');
+    const bBal = document.getElementById('upiAvailBankBal');
+    if (bName) bName.innerText = bankData.bank_name;
+    if (bAcc) bAcc.innerText = `A/C ${bankData.bank_account_masked}`;
+    if (bBal) bBal.innerText = `Available: ${formatINR(bankData.bank_balance)}`;
+  }
+  validateUpiAddAmount();
+}
+
+function closeAddMoneyModal() {
+  const modal = document.getElementById('upiAddMoneyModal');
+  if (modal) modal.classList.remove('active');
+  resetUpiPinScreen();
+}
+
+function setUpiQuickAmount(amt) {
+  const amountInput = document.getElementById('upiAddAmountInput');
+  if (amountInput) {
+    amountInput.value = amt;
+    validateUpiAddAmount();
+  }
+}
+
+function validateUpiAddAmount() {
+  const input = document.getElementById('upiAddAmountInput');
+  const btn = document.getElementById('btnProceedToPin');
+  if (!input || !btn) return;
+
+  const val = parseFloat(input.value || '0');
+  currentUpiAddAmount = val;
+
+  const availBank = cachedBankAccount ? cachedBankAccount.bank_balance : 1000000.0;
+
+  if (isNaN(val) || val < 100) {
+    btn.disabled = true;
+    btn.innerText = 'Enter min. ₹100';
+  } else if (val > availBank) {
+    btn.disabled = true;
+    btn.innerText = 'Exceeds Available Bank Balance';
+  } else {
+    btn.disabled = false;
+    btn.innerText = `Add ${formatINR(val)} via UPI →`;
+  }
+}
+
+function proceedToUpiPinScreen() {
+  validateUpiAddAmount();
+  const btn = document.getElementById('btnProceedToPin');
+  if (btn && btn.disabled) return;
+
+  const stepAmount = document.getElementById('upiStepAmount');
+  const stepPin = document.getElementById('upiStepPin');
+  const stepSuccess = document.getElementById('upiStepSuccess');
+  if (stepAmount) stepAmount.style.display = 'none';
+  if (stepPin) stepPin.style.display = 'block';
+  if (stepSuccess) stepSuccess.style.display = 'none';
+
+  const dispAmt = document.getElementById('upiPinDisplayAmount');
+  if (dispAmt) dispAmt.innerText = formatINR(currentUpiAddAmount);
+
+  const dispBank = document.getElementById('upiPinDisplayBank');
+  if (dispBank && cachedBankAccount) {
+    dispBank.innerText = `${cachedBankAccount.bank_name} A/C ${cachedBankAccount.bank_account_masked}`;
+  }
+
+  resetUpiPinScreen();
+  focusUpiPinInput();
+}
+
+function resetUpiPinScreen() {
+  enteredUpiPin = '';
+  updateUpiPinDots();
+  const errEl = document.getElementById('upiPinError');
+  if (errEl) {
+    errEl.innerText = '';
+    errEl.style.display = 'none';
+  }
+  const btn = document.getElementById('btnExecuteUpi');
+  if (btn) {
+    btn.disabled = false;
+    btn.innerText = '✓ Authorize & Transfer';
+  }
+}
+
+function focusUpiPinInput() {
+  const hidden = document.getElementById('upiHiddenPinInput');
+  if (hidden) {
+    hidden.value = '';
+    hidden.focus();
+  }
+}
+
+function onUpiPinInput(val) {
+  const clean = val.replace(/\D/g, '').slice(0, 4);
+  enteredUpiPin = clean;
+  updateUpiPinDots();
+}
+
+function pressUpiKey(num) {
+  if (enteredUpiPin.length < 4) {
+    enteredUpiPin += num;
+    updateUpiPinDots();
+    const hidden = document.getElementById('upiHiddenPinInput');
+    if (hidden) hidden.value = enteredUpiPin;
+  }
+}
+
+function pressUpiBackspace() {
+  if (enteredUpiPin.length > 0) {
+    enteredUpiPin = enteredUpiPin.slice(0, -1);
+    updateUpiPinDots();
+    const hidden = document.getElementById('upiHiddenPinInput');
+    if (hidden) hidden.value = enteredUpiPin;
+  }
+}
+
+function updateUpiPinDots() {
+  for (let i = 1; i <= 4; i++) {
+    const dot = document.getElementById(`upiDot${i}`);
+    if (dot) {
+      if (enteredUpiPin.length >= i) {
+        dot.classList.add('filled');
+      } else {
+        dot.classList.remove('filled');
+      }
+    }
+  }
+  const errEl = document.getElementById('upiPinError');
+  if (errEl) errEl.style.display = 'none';
+}
+
+async function executeUpiPayment() {
+  if (enteredUpiPin.length !== 4) {
+    const errEl = document.getElementById('upiPinError');
+    if (errEl) {
+      errEl.innerText = "Please enter your 4-digit Stoxifyin' PIN";
+      errEl.style.display = 'block';
+    }
+    return;
+  }
+
+  const btn = document.getElementById('btnExecuteUpi');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="loading-spinner small"></span> Authorizing Transfer...`;
+  }
+
+  try {
+    const res = await fetch('/api/funds/upi-add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        amount: currentUpiAddAmount,
+        pin: enteredUpiPin
+      })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      // Transfer success!
+      if (currentUser) {
+        currentUser.balance = data.balance;
+        currentUser.bank_balance = data.bank_balance;
+        localStorage.setItem('stoxify_cached_user', JSON.stringify(currentUser));
+      }
+      if (state.account) {
+        state.account.balance = data.balance;
+        state.account.bank_balance = data.bank_balance;
+      }
+      updateNavbarProfile();
+
+      // Show Step 3 Success
+      const stepAmount = document.getElementById('upiStepAmount');
+      const stepPin = document.getElementById('upiStepPin');
+      const successStep = document.getElementById('upiStepSuccess');
+      if (stepAmount) stepAmount.style.display = 'none';
+      if (stepPin) stepPin.style.display = 'none';
+      if (successStep) successStep.style.display = 'block';
+
+      const sAmt = document.getElementById('upiSuccessAmount');
+      const sRef = document.getElementById('upiSuccessRef');
+      const sSrc = document.getElementById('upiSuccessSource');
+      const sWBal = document.getElementById('upiSuccessWalletBal');
+      const sBBal = document.getElementById('upiSuccessBankBal');
+
+      if (sAmt) sAmt.innerText = formatINR(currentUpiAddAmount);
+      if (sRef) sRef.innerText = data.reference_id || 'UPI/STX/SUCCESS';
+      if (sSrc && cachedBankAccount) sSrc.innerText = `${cachedBankAccount.bank_name} A/C ${cachedBankAccount.bank_account_masked}`;
+      if (sWBal) sWBal.innerText = formatINR(data.balance);
+      if (sBBal) sBBal.innerText = formatINR(data.bank_balance);
+    } else {
+      const errEl = document.getElementById('upiPinError');
+      if (errEl) {
+        errEl.innerText = data.detail || 'PIN verification failed. Please try again.';
+        errEl.style.display = 'block';
+      }
+      enteredUpiPin = '';
+      updateUpiPinDots();
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = '✓ Authorize & Transfer';
+      }
+    }
+  } catch (err) {
+    console.error('UPI Transfer error:', err);
+    const errEl = document.getElementById('upiPinError');
+    if (errEl) {
+      errEl.innerText = 'Network error. Please try again.';
+      errEl.style.display = 'block';
+    }
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = '✓ Authorize & Transfer';
+    }
+  }
+}
+
+function finishUpiSuccess() {
+  closeAddMoneyModal();
+  showToast(`${formatINR(currentUpiAddAmount)} credited to trading wallet successfully!`);
+  if (state.currentTab === 'holdings') fetchPortfolio();
+}
+
+// =======================================================
+// WITHDRAWAL ENGINE (TRADING WALLET -> BANK ACCOUNT)
+// =======================================================
+async function openWithdrawModal() {
+  const menu = document.getElementById('userDropdownMenu');
+  if (menu) menu.style.display = 'none';
+
+  if (!currentUser || isGuest()) {
+    showToast('Please create or log into your account to withdraw funds.', true);
+    navigateTo('/onboarding');
+    return;
+  }
+
+  const modal = document.getElementById('withdrawMoneyModal');
+  if (!modal) return;
+
+  const bankData = await loadBankAccountDetails();
+  const availCash = (currentUser && currentUser.balance !== undefined) ? currentUser.balance : (state.account ? state.account.balance : 0.0);
+
+  const bName = document.getElementById('wdrBankName');
+  const bAcc = document.getElementById('wdrBankAcc');
+  const bCash = document.getElementById('wdrAvailCash');
+  const amtInput = document.getElementById('wdrAmountInput');
+  const pinInput = document.getElementById('wdrPinInput');
+  const errEl = document.getElementById('wdrErrorMsg');
+
+  if (bName && bankData) bName.innerText = bankData.bank_name;
+  if (bAcc && bankData) bAcc.innerText = `A/C ${bankData.bank_account_masked}`;
+  if (bCash) bCash.innerText = formatINR(availCash);
+  if (amtInput) amtInput.value = '';
+  if (pinInput) pinInput.value = '';
+  if (errEl) {
+    errEl.innerText = '';
+    errEl.style.display = 'none';
+  }
+
+  modal.classList.add('active');
+}
+
+function closeWithdrawModal() {
+  const modal = document.getElementById('withdrawMoneyModal');
+  if (modal) modal.classList.remove('active');
+}
+
+async function executeWithdrawal() {
+  const amtInput = document.getElementById('wdrAmountInput');
+  const pinInput = document.getElementById('wdrPinInput');
+  const errEl = document.getElementById('wdrErrorMsg');
+  const btn = document.getElementById('btnExecuteWithdraw');
+
+  const amt = parseFloat(amtInput ? amtInput.value : '0');
+  const pin = pinInput ? pinInput.value.trim() : '';
+
+  if (isNaN(amt) || amt < 100) {
+    if (errEl) {
+      errEl.innerText = 'Minimum withdrawal amount is ₹100';
+      errEl.style.display = 'block';
+    }
+    return;
+  }
+
+  const availCash = (currentUser && currentUser.balance !== undefined) ? currentUser.balance : 0.0;
+  if (amt > availCash) {
+    if (errEl) {
+      errEl.innerText = 'Insufficient cash in trading wallet to withdraw this amount';
+      errEl.style.display = 'block';
+    }
+    return;
+  }
+
+  if (pin.length !== 4) {
+    if (errEl) {
+      errEl.innerText = "Please enter your 4-digit Stoxifyin' PIN";
+      errEl.style.display = 'block';
+    }
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="loading-spinner small"></span> Processing Withdrawal...`;
+  }
+
+  try {
+    const res = await fetch('/api/funds/withdraw', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: amt, pin })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      if (currentUser) {
+        currentUser.balance = data.balance;
+        currentUser.bank_balance = data.bank_balance;
+        localStorage.setItem('stoxify_cached_user', JSON.stringify(currentUser));
+      }
+      if (state.account) {
+        state.account.balance = data.balance;
+        state.account.bank_balance = data.bank_balance;
+      }
+      updateNavbarProfile();
+      closeWithdrawModal();
+      showToast(`₹${Number(amt).toLocaleString('en-IN', {minimumFractionDigits: 2})} withdrawn to your bank account successfully!`);
+    } else {
+      if (errEl) {
+        errEl.innerText = data.detail || 'Withdrawal failed. Check your PIN and balance.';
+        errEl.style.display = 'block';
+      }
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = 'Withdraw Funds Now';
+      }
+    }
+  } catch (err) {
+    console.error('Withdrawal error:', err);
+    if (errEl) {
+      errEl.innerText = 'Network error. Please try again.';
+      errEl.style.display = 'block';
+    }
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = 'Withdraw Funds Now';
+    }
+  }
+}
+
+// =======================================================
+// BANK PASSBOOK & STATEMENT ENGINE
+// =======================================================
+async function openBankPassbookModal() {
+  if (!currentUser || isGuest()) {
+    showToast('Please log in or create an account to view your bank passbook.', true);
+    return;
+  }
+
+  const modal = document.getElementById('bankPassbookModal');
+  if (!modal) return;
+  modal.classList.add('active');
+
+  const titleEl = document.getElementById('pbModalBankTitle');
+  const subEl = document.getElementById('pbModalBankSub');
+  const balEl = document.getElementById('pbModalBalance');
+  const upiEl = document.getElementById('pbModalUpiId');
+  const listEl = document.getElementById('pbModalTxList');
+
+  if (listEl) listEl.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading transactions...</div>';
+
+  const data = await loadBankAccountDetails();
+  if (!data) {
+    if (listEl) listEl.innerHTML = '<div style="text-align: center; color: var(--danger-red); padding: 2rem;">Failed to load bank statement.</div>';
+    return;
+  }
+
+  if (titleEl) titleEl.innerText = `${data.bank_name} Passbook`;
+  if (subEl) subEl.innerText = `A/C ${data.bank_account_masked} • IFSC: ${data.bank_ifsc}`;
+  if (balEl) balEl.innerText = formatINR(data.bank_balance);
+  if (upiEl) upiEl.innerText = `UPI ID: ${data.bank_upi_id}`;
+
+  if (listEl) {
+    if (!data.transactions || data.transactions.length === 0) {
+      listEl.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 2rem;">No transactions found.</div>';
+      return;
+    }
+
+    listEl.innerHTML = data.transactions.map(tx => {
+      const isCredit = tx.type === 'INITIAL_CREDIT' || tx.type === 'WITHDRAWAL' || tx.type === 'CREDIT';
+      const sign = isCredit ? '+' : '-';
+      const colorClass = isCredit ? 'text-positive' : 'text-danger';
+      const icon = isCredit ? '↓' : '↑';
+      const badgeClass = isCredit ? 'credit' : 'debit';
+      const desc = tx.note || tx.description || (isCredit ? 'Credit to Bank Account' : 'UPI Transfer to Trading Wallet');
+      const dateStr = new Date(tx.created_at).toLocaleString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      return `
+        <div class="passbook-tx-item">
+          <div class="tx-item-left">
+            <div class="tx-badge-icon ${badgeClass}">${icon}</div>
+            <div>
+              <div style="font-size: 0.88rem; font-weight: 700; color: var(--text-primary);">${desc}</div>
+              <div style="font-size: 0.72rem; color: var(--text-muted);">${dateStr} • Ref: ${tx.reference_id || 'N/A'}</div>
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <div class="${colorClass}" style="font-size: 0.95rem; font-weight: 800;">${sign}${formatINR(tx.amount)}</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted);">${tx.status || 'SUCCESS'}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+}
+
+function closeBankPassbookModal() {
+  const modal = document.getElementById('bankPassbookModal');
+  if (modal) modal.classList.remove('active');
 }
 
 // --- User Authentication & Login Modal ---
@@ -4319,7 +4911,7 @@ function recalcPageMargin() {
     if (dNetRow) dNetRow.style.display = 'none';
   }
 
-  const availCash = state.account ? state.account.balance : (currentUser ? currentUser.balance : 1000000.0);
+  const availCash = (state.account && state.account.balance !== undefined) ? state.account.balance : (currentUser && currentUser.balance !== undefined ? currentUser.balance : 0.0);
   const cashEl = document.getElementById('pageAvailableCash');
   if (cashEl) cashEl.innerText = formatINR(availCash);
   const dCashEl = document.getElementById('drawerAvailableCash');
@@ -5433,7 +6025,7 @@ function recalcOptionPremium() {
 
   if (qtyEl) qtyEl.innerText = `${totalQty} Qty (${lots} ${lots === 1 ? 'Lot' : 'Lots'})`;
   if (premEl) premEl.innerText = formatINR(totalPremium);
-  const bal = state.account ? state.account.balance : 1000000.0;
+  const bal = (state.account && state.account.balance !== undefined) ? state.account.balance : (currentUser && currentUser.balance !== undefined ? currentUser.balance : 0.0);
   if (cashEl) cashEl.innerText = formatINR(bal);
 }
 
@@ -5659,7 +6251,7 @@ function recalcIpoAmount() {
 
   document.getElementById('ipoModalTotalShares').innerText = `${totalShares} Shares (${lots} ${lots === 1 ? 'Lot' : 'Lots'})`;
   document.getElementById('ipoModalTotalAmount').innerText = formatINR(totalAmount);
-  const bal = state.account ? state.account.balance : 1000000.0;
+  const bal = (state.account && state.account.balance !== undefined) ? state.account.balance : (currentUser && currentUser.balance !== undefined ? currentUser.balance : 0.0);
   document.getElementById('ipoModalAvailableCash').innerText = formatINR(bal);
 }
 

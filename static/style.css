@@ -2499,7 +2499,7 @@ body.pwa-installed #mobileInstallBanner {
 
   .asset-sidebar-col {
     order: 3 !important;
-    display: block !important;
+    display: none !important;
     position: static !important;
     width: 100% !important;
     max-width: 100% !important;
@@ -2520,11 +2520,11 @@ body.pwa-installed #mobileInstallBanner {
   }
 
   body.viewing-asset-detail .mobile-bottom-bar {
-    display: flex !important;
+    display: none !important;
   }
 
   body.viewing-asset-detail {
-    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
   .asset-page-header-nav {
@@ -6153,4 +6153,780 @@ html.user-guest #navProfileWrapper {
   70% { box-shadow: 0 0 0 15px rgba(14, 165, 233, 0); }
   100% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0); }
 }
+
+/* ==========================================================================
+   GROWW-STYLE MOBILE ACTION BAR (STOCKS & MUTUAL FUNDS)
+   ========================================================================== */
+.asset-mobile-action-bar {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .asset-mobile-action-bar {
+    display: flex !important;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1050;
+    background: var(--bg-card);
+    padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--border-subtle);
+    gap: 0.85rem;
+    box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.35);
+  }
+
+  .mob-trade-action-btn {
+    flex: 1;
+    height: 48px;
+    border-radius: var(--radius-sm);
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    transition: transform 0.15s ease, filter 0.15s ease;
+  }
+
+  .mob-trade-action-btn:active {
+    transform: scale(0.97);
+  }
+
+  .mob-trade-action-btn.sell {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border: 1.5px solid rgba(239, 68, 68, 0.4);
+  }
+
+  .mob-trade-action-btn.buy {
+    background: #10b981;
+    color: #022c22;
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+  }
+}
+
+/* ==========================================================================
+   GROWW-STYLE DEDICATED PROFILE PAGE
+   ========================================================================== */
+.profile-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.profile-page-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.profile-page-container {
+  max-width: 680px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-bottom: 4rem;
+}
+
+.groww-profile-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.profile-user-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.profile-user-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.profile-avatar-large {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0ea5e9, #10b981);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  font-weight: 800;
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+  flex-shrink: 0;
+}
+
+.profile-user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.profile-user-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.profile-name {
+  font-size: 1.15rem;
+  font-weight: 800;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.profile-kyc-badge {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  font-size: 0.72rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 20px;
+  font-weight: 700;
+}
+
+.profile-meta-sub {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.profile-demat-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.profile-demat-id {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-family: monospace;
+}
+
+.btn-copy-demat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  color: var(--brand-cyan);
+  font-size: 0.7rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.btn-copy-demat:hover {
+  background: rgba(14, 165, 233, 0.15);
+}
+
+.edit-profile-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  padding: 0.4rem 0.75rem;
+}
+
+/* Wallet Card */
+.profile-wallet-card {
+  background: linear-gradient(145deg, rgba(14, 165, 233, 0.08) 0%, rgba(16, 185, 129, 0.08) 100%);
+  border: 1px solid rgba(14, 165, 233, 0.25);
+}
+
+[data-theme="light"] .profile-wallet-card {
+  background: linear-gradient(145deg, rgba(2, 132, 199, 0.06) 0%, rgba(5, 150, 105, 0.06) 100%);
+  border-color: rgba(2, 132, 199, 0.2);
+}
+
+.wallet-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.wallet-card-sub {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.wallet-card-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.wallet-leverage-tag {
+  font-size: 0.72rem;
+  color: var(--brand-cyan);
+  font-weight: 700;
+  background: rgba(14, 165, 233, 0.15);
+  padding: 0.2rem 0.5rem;
+  border-radius: 12px;
+}
+
+.wallet-balance-amount {
+  font-size: 2.2rem;
+  font-weight: 900;
+  color: var(--text-primary);
+  margin: 0.75rem 0;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.wallet-actions-row {
+  display: flex;
+  gap: 0.85rem;
+  margin: 1rem 0 0.75rem 0;
+}
+
+.btn-wallet-add {
+  flex: 1;
+  background: #10b981;
+  color: #022c22;
+  font-weight: 800;
+  padding: 0.75rem;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-size: 0.92rem;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+  transition: var(--transition);
+}
+
+.btn-wallet-add:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.btn-wallet-withdraw {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  font-weight: 700;
+  padding: 0.75rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-size: 0.92rem;
+  transition: var(--transition);
+}
+
+.btn-wallet-withdraw:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+.wallet-card-footer {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  border-top: 1px dashed var(--border-subtle);
+  padding-top: 0.6rem;
+  margin-top: 0.25rem;
+}
+
+/* Bank Account Card */
+.bank-card-top {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.bank-card-icon {
+  font-size: 1.8rem;
+}
+
+.bank-card-meta {
+  flex: 1;
+}
+
+.bank-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.bank-name-title {
+  font-size: 1rem;
+  font-weight: 800;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.bank-acc-sub {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.bank-balance-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.bank-bal-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.bank-bal-val {
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+/* Menu Items List */
+.profile-menu-card {
+  padding: 0.35rem 0;
+}
+
+.menu-list-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.95rem 1.25rem;
+  background: transparent;
+  border: none;
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  transition: background 0.15s ease;
+}
+
+[data-theme="light"] .profile-menu-item {
+  border-bottom-color: rgba(0, 0, 0, 0.05);
+}
+
+.profile-menu-item:last-child {
+  border-bottom: none;
+}
+
+.profile-menu-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+[data-theme="light"] .profile-menu-item:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.menu-item-left {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.menu-item-icon {
+  font-size: 1.25rem;
+  width: 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.menu-item-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.menu-item-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.menu-item-arrow {
+  font-size: 1.25rem;
+  color: var(--text-muted);
+}
+
+/* Footer Actions */
+.profile-footer-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 1.5rem 0;
+}
+
+.btn-logout-groww {
+  width: 100%;
+  padding: 0.85rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #ef4444;
+  font-weight: 700;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: var(--transition);
+}
+
+.btn-logout-groww:hover {
+  background: rgba(239, 68, 68, 0.18);
+}
+
+.btn-delete-groww {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0.5rem;
+}
+
+.btn-delete-groww:hover {
+  color: var(--danger-red);
+}
+
+.profile-version-tag {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-align: center;
+  margin-top: 0.5rem;
+}
+
+/* ==========================================================================
+   SIMULATED UPI PAYMENT & MODALS
+   ========================================================================== */
+.upi-badge-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 900;
+  font-size: 0.95rem;
+  color: #10b981;
+}
+
+.upi-from-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.85rem 1rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+[data-theme="light"] .upi-from-box {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.upi-amount-input-box {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--bg-surface, rgba(255, 255, 255, 0.03));
+  border: 2px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 0.65rem 1rem;
+  margin: 0.75rem 0;
+  transition: border-color 0.2s ease;
+}
+
+.upi-amount-input-box:focus-within {
+  border-color: var(--brand-cyan);
+}
+
+.upi-currency-symbol {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--text-secondary);
+}
+
+.upi-amount-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  outline: none;
+  font-family: inherit;
+}
+
+.upi-chips-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.upi-chip-btn {
+  flex: 1;
+  min-width: 70px;
+  padding: 0.45rem 0.5rem;
+  border-radius: 20px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.upi-chip-btn:hover {
+  border-color: var(--brand-cyan);
+  color: var(--brand-cyan);
+}
+
+.npci-upi-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 1rem;
+}
+
+.npci-logo {
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.upi-payee-info {
+  text-align: center;
+  padding: 0.25rem 0 0.85rem 0;
+}
+
+.upi-payee-info .payee-name {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.upi-payee-info .payee-amount {
+  font-size: 2rem;
+  font-weight: 900;
+  color: var(--text-primary);
+  margin: 0.25rem 0;
+}
+
+.upi-payee-info .payee-bank {
+  font-size: 0.78rem;
+  color: var(--brand-cyan);
+  font-weight: 600;
+}
+
+.upi-pin-section {
+  text-align: center;
+  margin: 0.75rem 0;
+}
+
+.upi-pin-prompt {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.upi-pin-dots-container {
+  display: flex;
+  justify-content: center;
+  gap: 1.25rem;
+  margin-bottom: 0.65rem;
+  cursor: pointer;
+  padding: 0.5rem;
+}
+
+.upi-pin-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--border-subtle);
+  background: transparent;
+  transition: all 0.15s ease;
+}
+
+.upi-pin-dot.filled {
+  background: var(--brand-cyan);
+  border-color: var(--brand-cyan);
+  box-shadow: 0 0 10px rgba(14, 165, 233, 0.6);
+}
+
+.upi-pin-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.upi-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  max-width: 280px;
+  margin: 1rem auto 0.5rem auto;
+}
+
+.keypad-btn {
+  height: 48px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.1s ease;
+  font-family: inherit;
+}
+
+[data-theme="light"] .keypad-btn {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.keypad-btn:active {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.keypad-btn.cancel {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.keypad-btn.backspace {
+  font-size: 1.15rem;
+  color: var(--danger-red);
+}
+
+.upi-success-circle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #10b981;
+  color: #022c22;
+  font-size: 2.2rem;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+  box-shadow: 0 0 24px rgba(16, 185, 129, 0.45);
+}
+
+.upi-receipt-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+  margin: 1.25rem 0;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+[data-theme="light"] .upi-receipt-card {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.receipt-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+/* Bank Passbook */
+.passbook-hero-balance {
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.1), rgba(16, 185, 129, 0.1));
+  border: 1px solid rgba(14, 165, 233, 0.25);
+  border-radius: var(--radius-sm);
+  padding: 1.25rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.passbook-tx-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.passbook-tx-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.85rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+[data-theme="light"] .passbook-tx-item {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.tx-item-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.tx-badge-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.tx-badge-icon.credit {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.tx-badge-icon.debit {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
 

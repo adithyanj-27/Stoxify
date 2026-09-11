@@ -172,12 +172,37 @@ def init_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    for col in ["dob TEXT", "username TEXT", "password TEXT"]:
+    for col in ["dob TEXT", "username TEXT", "password TEXT", "bank_balance REAL DEFAULT 1000000.0", "bank_ifsc TEXT DEFAULT 'HDFC0001234'", "bank_upi_id TEXT DEFAULT ''"]:
         try:
             cursor.execute(f"ALTER TABLE users ADD COLUMN {col}")
             conn.commit()
         except Exception:
             pass
+
+    # Ensure existing users with NULL bank_balance get initialized to 10L
+    try:
+        cursor.execute("UPDATE users SET bank_balance = 1000000.0 WHERE bank_balance IS NULL")
+        conn.commit()
+    except Exception:
+        pass
+
+    # 1b. Simulated Bank Transactions Ledger (UPI Deposits & Withdrawals)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS bank_transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            type TEXT NOT NULL,
+            amount REAL NOT NULL,
+            from_account TEXT,
+            to_account TEXT,
+            reference_id TEXT UNIQUE,
+            status TEXT DEFAULT 'SUCCESS',
+            note TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_bank_tx_user ON bank_transactions(user_id, id DESC)")
+    conn.commit()
 
     # Ensure default user exists
     cursor.execute("SELECT COUNT(*) FROM users WHERE id = 'default'")
@@ -547,14 +572,22 @@ def create_user(
 
     clean_username = username.strip().lstrip("@").lower() if username else None
     clean_password = password.strip() if password else None
+    bank_ifsc = f"{bank_name.split()[0].upper()[:4]}0001234"
+    bank_upi_id = f"{(clean_username or user_id).lower()}@{bank_name.split()[0].lower()}bank"
 
-    # 1. Insert into local SQLite
+    # 1. Insert into local SQLite (Bank gets ₹10 Lakh initial credit, trading wallet starts at ₹0 until added via UPI)
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT OR REPLACE INTO users (id, name, email, phone, pan, dob, bank_name, bank_account, pin, balance, total_deposited, avatar_color, username, password)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1000000.0, 1000000.0, ?, ?, ?)
-    """, (user_id, name, (email or "").strip(), phone or "", pan or "ABCDE1234F", dob or "", bank_name, bank_account, pin, avatar_color, clean_username, clean_password))
+        INSERT OR REPLACE INTO users (id, name, email, phone, pan, dob, bank_name, bank_account, pin, balance, total_deposited, avatar_color, username, password, bank_balance, bank_ifsc, bank_upi_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0.0, 0.0, ?, ?, ?, 1000000.0, ?, ?)
+    """, (user_id, name, (email or "").strip(), phone or "", pan or "ABCDE1234F", dob or "", bank_name, bank_account, pin, avatar_color, clean_username, clean_password, bank_ifsc, bank_upi_id))
+
+    # Log initial opening deposit in bank_transactions
+    cursor.execute("""
+        INSERT OR IGNORE INTO bank_transactions (user_id, type, amount, from_account, to_account, reference_id, status, note)
+        VALUES (?, 'INITIAL_CREDIT', 1000000.0, 'RBI Simulated Banking Gateway', ?, ?, 'SUCCESS', 'Welcome virtual capital credited to linked bank account')
+    """, (user_id, f"{bank_name} A/C •••• {str(bank_account)[-4:]}", f"BANK-INIT-{user_id}"))
 
     # Seed default watchlist for this new user
     default_items = [
@@ -583,8 +616,9 @@ def create_user(
             "bank_name": bank_name,
             "bank_account": bank_account,
             "pin": pin,
-            "balance": 1000000.0,
-            "total_deposited": 1000000.0,
+            "balance": 0.0,
+            "total_deposited": 0.0,
+            "bank_balance": 1000000.0,
             "avatar_color": avatar_color
         }
         if dob:
@@ -596,11 +630,13 @@ def create_user(
 
         sb_res = supabase_api("POST", "users", payload=sb_user_payload)
         if sb_res is None:
-            # Graceful fallback if new columns haven't been added yet in Supabase
             fallback_payload = dict(sb_user_payload)
             fallback_payload.pop("dob", None)
             fallback_payload.pop("username", None)
             fallback_payload.pop("password", None)
+            fallback_payload.pop("bank_balance", None)
+            fallback_payload.pop("bank_ifsc", None)
+            fallback_payload.pop("bank_upi_id", None)
             sb_res = supabase_api("POST", "users", payload=fallback_payload)
 
         if sb_res is not None:
@@ -779,9 +815,15 @@ def get_user(user_id: str = "default") -> Optional[Dict[str, Any]]:
             try:
                 conn = get_connection()
                 cur = conn.cursor()
+                cur.execute("SELECT bank_balance, bank_ifsc, bank_upi_id FROM users WHERE id = ?", (sb_u.get("id"),))
+                _b_row = cur.fetchone()
+                _b_bal = _b_row["bank_balance"] if _b_row and _b_row["bank_balance"] is not None else float(sb_u.get("bank_balance", 1000000.0))
+                _b_ifsc = _b_row["bank_ifsc"] if _b_row and _b_row["bank_ifsc"] else sb_u.get("bank_ifsc")
+                _b_upi = _b_row["bank_upi_id"] if _b_row and _b_row["bank_upi_id"] else sb_u.get("bank_upi_id")
+
                 cur.execute("""
-                    INSERT OR REPLACE INTO users (id, name, email, phone, pan, bank_name, bank_account, pin, balance, total_deposited, avatar_color, username, password)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT OR REPLACE INTO users (id, name, email, phone, pan, bank_name, bank_account, pin, balance, total_deposited, avatar_color, username, password, bank_balance, bank_ifsc, bank_upi_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     sb_u.get("id"),
                     sb_u.get("name"),
@@ -791,11 +833,12 @@ def get_user(user_id: str = "default") -> Optional[Dict[str, Any]]:
                     sb_u.get("bank_name"),
                     sb_u.get("bank_account"),
                     sb_u.get("pin"),
-                    float(sb_u.get("balance", 1000000.0)),
-                    float(sb_u.get("total_deposited", 1000000.0)),
+                    float(sb_u.get("balance", 0.0)),
+                    float(sb_u.get("total_deposited", 0.0)),
                     sb_u.get("avatar_color", "#0EA5E9"),
                     sb_u.get("username"),
-                    sb_u.get("password")
+                    sb_u.get("password"),
+                    _b_bal, _b_ifsc, _b_upi
                 ))
                 conn.commit()
                 conn.close()
@@ -869,14 +912,21 @@ def find_user_by_identifier(identifier: str) -> Optional[Dict[str, Any]]:
                     try:
                         conn = get_connection()
                         cur = conn.cursor()
+                        cur.execute("SELECT bank_balance, bank_ifsc, bank_upi_id FROM users WHERE id = ?", (sb_u.get("id"),))
+                        _b_row = cur.fetchone()
+                        _b_bal = _b_row["bank_balance"] if _b_row and _b_row["bank_balance"] is not None else float(sb_u.get("bank_balance", 1000000.0))
+                        _b_ifsc = _b_row["bank_ifsc"] if _b_row and _b_row["bank_ifsc"] else sb_u.get("bank_ifsc")
+                        _b_upi = _b_row["bank_upi_id"] if _b_row and _b_row["bank_upi_id"] else sb_u.get("bank_upi_id")
+
                         cur.execute("""
-                            INSERT OR REPLACE INTO users (id, name, email, phone, pan, bank_name, bank_account, pin, balance, total_deposited, avatar_color, username, password)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            INSERT OR REPLACE INTO users (id, name, email, phone, pan, bank_name, bank_account, pin, balance, total_deposited, avatar_color, username, password, bank_balance, bank_ifsc, bank_upi_id)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, (
                             sb_u.get("id"), sb_u.get("name"), sb_u.get("email"), sb_u.get("phone"),
                             sb_u.get("pan"), sb_u.get("bank_name"), sb_u.get("bank_account"), sb_u.get("pin"),
-                            float(sb_u.get("balance", 1000000.0)), float(sb_u.get("total_deposited", 1000000.0)),
-                            sb_u.get("avatar_color", "#0EA5E9"), sb_u.get("username"), sb_u.get("password")
+                            float(sb_u.get("balance", 0.0)), float(sb_u.get("total_deposited", 0.0)),
+                            sb_u.get("avatar_color", "#0EA5E9"), sb_u.get("username"), sb_u.get("password"),
+                            _b_bal, _b_ifsc, _b_upi
                         ))
                         conn.commit()
                         conn.close()
@@ -892,20 +942,247 @@ def find_user_by_identifier(identifier: str) -> Optional[Dict[str, Any]]:
 def get_account(user_id: str = "default") -> Dict[str, Any]:
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT balance, total_deposited FROM users WHERE id = ?", (user_id,))
+    cursor.execute("SELECT balance, total_deposited, bank_balance FROM users WHERE id = ?", (user_id,))
     row = cursor.fetchone()
     if not row and is_supabase_enabled() and user_id and user_id != "guest":
         sync_user_from_supabase_into_cursor(cursor, user_id)
-        cursor.execute("SELECT balance, total_deposited FROM users WHERE id = ?", (user_id,))
+        cursor.execute("SELECT balance, total_deposited, bank_balance FROM users WHERE id = ?", (user_id,))
         row = cursor.fetchone()
     if not row and user_id == "default":
         cursor.execute("SELECT balance, total_deposited FROM account WHERE id = 1")
         row = cursor.fetchone()
     conn.close()
     if row:
-        return {"balance": row["balance"], "total_deposited": row["total_deposited"]}
+        b_bal = float(row["bank_balance"]) if "bank_balance" in row.keys() and row["bank_balance"] is not None else 1000000.0
+        return {"balance": row["balance"], "total_deposited": row["total_deposited"], "bank_balance": b_bal}
 
-    return {"balance": 1000000.0, "total_deposited": 1000000.0}
+    return {"balance": 1000000.0, "total_deposited": 1000000.0, "bank_balance": 1000000.0}
+
+# --- Simulated UPI & Bank Account Gateway ---
+def transfer_bank_to_wallet(user_id: str, amount: float, pin: str) -> Dict[str, Any]:
+    if not user_id or user_id == "guest":
+        return {"success": False, "message": "Authentication required"}
+    if amount <= 0:
+        return {"success": False, "message": "Transfer amount must be greater than zero"}
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    user = cursor.fetchone()
+    if not user:
+        conn.close()
+        return {"success": False, "message": "User account not found"}
+
+    user = dict(user)
+    stored_pin = (user.get("pin") or "").strip()
+    stored_pass = (user.get("password") or "").strip()
+    entered_pin = (pin or "").strip()
+
+    pin_valid = False
+    if stored_pin and entered_pin == stored_pin:
+        pin_valid = True
+    elif not stored_pin and stored_pass and entered_pin == stored_pass:
+        pin_valid = True
+    elif not stored_pin and not stored_pass:
+        pin_valid = True
+
+    if not pin_valid:
+        conn.close()
+        return {"success": False, "message": "Incorrect 4-digit UPI PIN. Please try again."}
+
+    bank_balance = float(user.get("bank_balance") if user.get("bank_balance") is not None else 1000000.0)
+    wallet_balance = float(user.get("balance") or 0.0)
+
+    if bank_balance < amount:
+        conn.close()
+        return {
+            "success": False,
+            "message": f"Insufficient bank balance. Available in {user.get('bank_name', 'Bank')}: ₹{bank_balance:,.2f}"
+        }
+
+    new_bank_balance = round(bank_balance - amount, 2)
+    new_wallet_balance = round(wallet_balance + amount, 2)
+    tx_ref = f"UPI/STX/{random.randint(10000000, 99999999)}"
+
+    cursor.execute("""
+        UPDATE users 
+        SET bank_balance = ?, balance = ?, updated_at = CURRENT_TIMESTAMP 
+        WHERE id = ?
+    """, (new_bank_balance, new_wallet_balance, user_id))
+
+    if user_id == "default":
+        cursor.execute("UPDATE account SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (new_wallet_balance,))
+
+    cursor.execute("""
+        INSERT INTO bank_transactions (user_id, type, amount, from_account, to_account, reference_id, status, note)
+        VALUES (?, 'UPI_DEPOSIT', ?, ?, 'Stoxifyin Trading Wallet', ?, 'SUCCESS', ?)
+    """, (
+        user_id,
+        amount,
+        f"{user.get('bank_name', 'Bank')} •••• {str(user.get('bank_account', ''))[-4:]}",
+        tx_ref,
+        "Simulated UPI transfer to Stoxifyin trading wallet"
+    ))
+
+    conn.commit()
+    conn.close()
+
+    if is_supabase_enabled() and user_id != "guest":
+        try:
+            p = {
+                "bank_balance": new_bank_balance,
+                "balance": new_wallet_balance,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }
+            res = supabase_api("PATCH", f"users?id=eq.{user_id}", payload=p)
+            if res is None:
+                p.pop("bank_balance", None)
+                supabase_api("PATCH", f"users?id=eq.{user_id}", payload=p)
+        except Exception:
+            pass
+
+    return {
+        "success": True,
+        "message": f"₹{amount:,.2f} added to Stoxifyin wallet via simulated UPI!",
+        "amount": amount,
+        "balance": new_wallet_balance,
+        "wallet_balance": new_wallet_balance,
+        "bank_balance": new_bank_balance,
+        "reference_id": tx_ref,
+        "timestamp": datetime.now().strftime("%d %b %Y, %I:%M %p")
+    }
+
+def withdraw_wallet_to_bank(user_id: str, amount: float, pin: str) -> Dict[str, Any]:
+    if not user_id or user_id == "guest":
+        return {"success": False, "message": "Authentication required"}
+    if amount <= 0:
+        return {"success": False, "message": "Withdrawal amount must be greater than zero"}
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    user = cursor.fetchone()
+    if not user:
+        conn.close()
+        return {"success": False, "message": "User account not found"}
+
+    user = dict(user)
+    stored_pin = (user.get("pin") or "").strip()
+    stored_pass = (user.get("password") or "").strip()
+    entered_pin = (pin or "").strip()
+
+    pin_valid = False
+    if stored_pin and entered_pin == stored_pin:
+        pin_valid = True
+    elif not stored_pin and stored_pass and entered_pin == stored_pass:
+        pin_valid = True
+    elif not stored_pin and not stored_pass:
+        pin_valid = True
+
+    if not pin_valid:
+        conn.close()
+        return {"success": False, "message": "Incorrect 4-digit PIN. Please try again."}
+
+    wallet_balance = float(user.get("balance") or 0.0)
+    bank_balance = float(user.get("bank_balance") if user.get("bank_balance") is not None else 1000000.0)
+
+    if wallet_balance < amount:
+        conn.close()
+        return {
+            "success": False,
+            "message": f"Insufficient trading cash balance. Available to withdraw: ₹{wallet_balance:,.2f}"
+        }
+
+    new_wallet_balance = round(wallet_balance - amount, 2)
+    new_bank_balance = round(bank_balance + amount, 2)
+    tx_ref = f"WDR/STX/{random.randint(10000000, 99999999)}"
+
+    cursor.execute("""
+        UPDATE users 
+        SET balance = ?, bank_balance = ?, updated_at = CURRENT_TIMESTAMP 
+        WHERE id = ?
+    """, (new_wallet_balance, new_bank_balance, user_id))
+
+    if user_id == "default":
+        cursor.execute("UPDATE account SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (new_wallet_balance,))
+
+    cursor.execute("""
+        INSERT INTO bank_transactions (user_id, type, amount, from_account, to_account, reference_id, status, note)
+        VALUES (?, 'WITHDRAWAL', ?, 'Stoxifyin Trading Wallet', ?, ?, 'SUCCESS', ?)
+    """, (
+        user_id,
+        amount,
+        f"{user.get('bank_name', 'Bank')} •••• {str(user.get('bank_account', ''))[-4:]}",
+        tx_ref,
+        "Instant simulated withdrawal to linked bank account"
+    ))
+
+    conn.commit()
+    conn.close()
+
+    if is_supabase_enabled() and user_id != "guest":
+        try:
+            p = {
+                "bank_balance": new_bank_balance,
+                "balance": new_wallet_balance,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }
+            res = supabase_api("PATCH", f"users?id=eq.{user_id}", payload=p)
+            if res is None:
+                p.pop("bank_balance", None)
+                supabase_api("PATCH", f"users?id=eq.{user_id}", payload=p)
+        except Exception:
+            pass
+
+    return {
+        "success": True,
+        "message": f"₹{amount:,.2f} withdrawn to your {user.get('bank_name', 'Bank')} account!",
+        "amount": amount,
+        "balance": new_wallet_balance,
+        "wallet_balance": new_wallet_balance,
+        "bank_balance": new_bank_balance,
+        "reference_id": tx_ref,
+        "timestamp": datetime.now().strftime("%d %b %Y, %I:%M %p")
+    }
+
+def get_bank_account_details(user_id: str) -> Dict[str, Any]:
+    if not user_id or user_id == "guest":
+        return {}
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    u = cursor.fetchone()
+    if not u:
+        conn.close()
+        return {}
+    u = dict(u)
+    bank_name = u.get("bank_name") or "HDFC Bank"
+    bank_account = str(u.get("bank_account") or "50100234567890")
+    bank_ifsc = u.get("bank_ifsc") or f"{bank_name.split()[0].upper()[:4]}0001234"
+    bank_upi_id = u.get("bank_upi_id") or f"{(u.get('username') or user_id).lower()}@{bank_name.split()[0].lower()}bank"
+    bank_balance = float(u.get("bank_balance") if u.get("bank_balance") is not None else 1000000.0)
+
+    cursor.execute("""
+        SELECT * FROM bank_transactions 
+        WHERE user_id = ? 
+        ORDER BY id DESC 
+        LIMIT 50
+    """, (user_id,))
+    rows = cursor.fetchall()
+    txs = [dict(r) for r in rows]
+    conn.close()
+
+    return {
+        "bank_name": bank_name,
+        "bank_account": bank_account,
+        "bank_masked_account": f"•••• {bank_account[-4:]}" if len(bank_account) >= 4 else bank_account,
+        "bank_ifsc": bank_ifsc,
+        "bank_upi_id": bank_upi_id,
+        "bank_balance": bank_balance,
+        "wallet_balance": float(u.get("balance") or 0.0),
+        "account_holder": u.get("name") or "Trader",
+        "transactions": txs
+    }
 
 def get_symbol_variants(symbol: str) -> List[str]:
     clean = (symbol or "").strip().upper()
@@ -976,17 +1253,24 @@ def sync_user_from_supabase_into_cursor(cursor, user_id: str) -> Optional[Dict[s
         res = supabase_api("GET", "users", params={"id": f"eq.{user_id}", "select": "*"})
         if res and isinstance(res, list) and len(res) > 0:
             sb_u = res[0]
+            cursor.execute("SELECT bank_balance, bank_ifsc, bank_upi_id FROM users WHERE id = ?", (sb_u.get("id"),))
+            _b_row = cursor.fetchone()
+            _b_bal = _b_row["bank_balance"] if _b_row and _b_row["bank_balance"] is not None else float(sb_u.get("bank_balance", 1000000.0))
+            _b_ifsc = _b_row["bank_ifsc"] if _b_row and _b_row["bank_ifsc"] else sb_u.get("bank_ifsc")
+            _b_upi = _b_row["bank_upi_id"] if _b_row and _b_row["bank_upi_id"] else sb_u.get("bank_upi_id")
+
             cursor.execute("""
                 INSERT OR REPLACE INTO users (
                     id, name, email, phone, pan, bank_name, bank_account, pin, 
-                    balance, total_deposited, avatar_color, dob, username, password, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    balance, total_deposited, avatar_color, dob, username, password, updated_at,
+                    bank_balance, bank_ifsc, bank_upi_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 sb_u.get("id"), sb_u.get("name"), sb_u.get("email"), sb_u.get("phone"),
                 sb_u.get("pan"), sb_u.get("bank_name"), sb_u.get("bank_account"), sb_u.get("pin"),
-                float(sb_u.get("balance", 1000000.0)), float(sb_u.get("total_deposited", 1000000.0)),
+                float(sb_u.get("balance", 0.0)), float(sb_u.get("total_deposited", 0.0)),
                 sb_u.get("avatar_color", "#0EA5E9"), sb_u.get("dob", ""), sb_u.get("username"), sb_u.get("password"),
-                sb_u.get("updated_at")
+                sb_u.get("updated_at"), _b_bal, _b_ifsc, _b_upi
             ))
             return sb_u
     except Exception as sync_e:
