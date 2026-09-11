@@ -2447,7 +2447,7 @@ async function triggerNativeInstallPrompt() {
         document.body.classList.add('pwa-installed');
         updateInstallButtonsVisibility();
         closePwaGuideModal();
-        showToast('Stoxify installed successfully!');
+        showToast("Stoxifyin' installed successfully!");
       }
       deferredInstallPrompt = null;
     } catch (err) {
@@ -2459,7 +2459,7 @@ async function triggerNativeInstallPrompt() {
 async function installPWA() {
   if (isAppInstalled()) {
     updateInstallButtonsVisibility();
-    showToast('Stoxify is already installed on your device!');
+    showToast("Stoxifyin' is already installed on your device!");
     return;
   }
   if (deferredInstallPrompt) {
@@ -2471,7 +2471,7 @@ async function installPWA() {
         document.body.classList.add('pwa-installed');
         updateInstallButtonsVisibility();
         closePwaGuideModal();
-        showToast('Stoxify installed successfully!');
+        showToast("Stoxifyin' installed successfully!");
         deferredInstallPrompt = null;
         return;
       }
@@ -2497,7 +2497,7 @@ window.addEventListener('appinstalled', () => {
   document.body.classList.add('pwa-installed');
   updateInstallButtonsVisibility();
   closePwaGuideModal();
-  showToast('Stoxify installed successfully!');
+  showToast("Stoxifyin' installed successfully!");
 });
 
 // Register Service Worker
@@ -2505,7 +2505,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js', { scope: '/' }).then((reg) => {
       reg.update();
-      console.log('Stoxify PWA Service Worker registered:', reg.scope);
+      console.log('Stoxifyin PWA Service Worker registered:', reg.scope);
     }).catch((err) => {
       console.warn('Service Worker registration skipped:', err);
     });
@@ -5645,7 +5645,7 @@ async function submitObStep5() {
 function finishOnboarding() {
   updateNavbarProfile();
   navigateTo('/explore');
-  showToast(`Welcome to Stoxify, ${currentUser.name}! ₹10,00,000 virtual cash credited!`);
+  showToast(`Welcome to Stoxifyin', ${currentUser.name}! ₹10,00,000 virtual cash ready in your linked bank account!`);
 }
 
 

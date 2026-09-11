@@ -1,5 +1,5 @@
 @echo off
-title Stoxify - Stock & Mutual Fund Broker Platform
+title Stoxifyin' - Stock & Mutual Fund Broker Platform
 echo ========================================
 echo        STARTING STOXIFY PLATFORM
 echo ========================================

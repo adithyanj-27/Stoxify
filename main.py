@@ -96,7 +96,7 @@ def read_root():
     ]:
         if os.path.exists(candidate):
             return FileResponse(candidate, headers=NO_CACHE_HEADERS)
-    return Response(content="<h1>Stoxify is Online</h1>", media_type="text/html", headers=NO_CACHE_HEADERS)
+    return Response(content="<h1>Stoxifyin is Online</h1>", media_type="text/html", headers=NO_CACHE_HEADERS)
 
 @app.get("/static/style.css")
 @app.get("/style.css")
