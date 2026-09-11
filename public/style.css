@@ -6608,6 +6608,7 @@ body.viewing-profile .indices-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 0.75rem;
   margin-top: 1rem;
   padding-top: 0.85rem;
   border-top: 1px solid var(--border-subtle);
