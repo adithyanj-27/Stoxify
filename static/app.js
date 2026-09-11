@@ -926,36 +926,39 @@ async function fetchPortfolioInternal(requestVersion) {
     }
 
     // Render Desktop Table
-    tableBody.innerHTML = data.holdings.map(h => {
-      const isPosTotal = h.total_pnl >= 0;
-      const isPosDay = h.today_pnl >= 0;
-      return `
-        <tr>
-          <td>
-            <button type="button" class="holding-name-link" onclick="openHoldingDetails('${h.symbol}', '${h.asset_type}')" title="View details for ${h.name}">${h.name}</button>
-            <div style="font-size: 0.75rem; color: var(--text-muted);">${h.symbol}</div>
-          </td>
-          <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;">${h.asset_type === 'MUTUAL_FUND' ? 'Mutual Fund' : 'Stock'}</span></td>
-          <td style="font-weight: 600;">${h.quantity}</td>
-          <td>${formatINR(h.avg_price)}</td>
-          <td style="font-weight: 700;">${formatINR(h.current_price)}</td>
-          <td style="font-weight: 700;">${formatINR(h.current_value)}</td>
-          <td class="${isPosTotal ? 'text-positive' : 'text-negative'}" style="font-weight: 700;">
-            ${isPosTotal ? '+' : ''}${formatINR(h.total_pnl)}
-            <div style="font-size: 0.75rem; font-weight: 600;">(${isPosTotal ? '+' : ''}${formatNumber(h.total_pnl_pct)}%)</div>
-          </td>
-          <td class="${isPosDay ? 'text-positive' : 'text-negative'}" style="font-weight: 600;">
-            ${isPosDay ? '+' : ''}${formatINR(h.today_pnl)}
-          </td>
-          <td style="text-align: right;">
-            <button class="btn-danger" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" onclick="startHoldingSale('${h.symbol}', '${h.asset_type}', ${Number(h.quantity) || 0})">Sell</button>
-          </td>
-        </tr>
-      `;
-    }).join('');
+    if (tableBody) {
+      tableBody.innerHTML = (data.holdings || []).map(h => {
+        const isPosTotal = h.total_pnl >= 0;
+        const isPosDay = h.today_pnl >= 0;
+        return `
+          <tr>
+            <td>
+              <button type="button" class="holding-name-link" onclick="openHoldingDetails('${h.symbol}', '${h.asset_type}')" title="View details for ${h.name}">${h.name}</button>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">${h.symbol}</div>
+            </td>
+            <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;">${h.asset_type === 'MUTUAL_FUND' ? 'Mutual Fund' : 'Stock'}</span></td>
+            <td style="font-weight: 600;">${h.quantity}</td>
+            <td>${formatINR(h.avg_price)}</td>
+            <td style="font-weight: 700;">${formatINR(h.current_price)}</td>
+            <td style="font-weight: 700;">${formatINR(h.current_value)}</td>
+            <td class="${isPosTotal ? 'text-positive' : 'text-negative'}" style="font-weight: 700;">
+              ${isPosTotal ? '+' : ''}${formatINR(h.total_pnl)}
+              <div style="font-size: 0.75rem; font-weight: 600;">(${isPosTotal ? '+' : ''}${formatNumber(h.total_pnl_pct)}%)</div>
+            </td>
+            <td class="${isPosDay ? 'text-positive' : 'text-negative'}" style="font-weight: 600;">
+              ${isPosDay ? '+' : ''}${formatINR(h.today_pnl)}
+            </td>
+            <td style="text-align: right;">
+              <button class="btn-danger" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" onclick="startHoldingSale('${h.symbol}', '${h.asset_type}', ${Number(h.quantity) || 0})">Sell</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
 
     // Render Mobile Cards
-    mobileList.innerHTML = data.holdings.map(h => {
+    if (mobileList) {
+      mobileList.innerHTML = (data.holdings || []).map(h => {
       const isPosTotal = h.total_pnl >= 0;
       return `
         <div class="mobile-card-item">
@@ -984,6 +987,7 @@ async function fetchPortfolioInternal(requestVersion) {
         </div>
       `;
     }).join('');
+    }
 
   } catch (err) {
     console.error('Failed to fetch portfolio:', err);
@@ -1026,96 +1030,109 @@ async function fetchPositionsInternal(requestVersion) {
     const navBadge = document.getElementById('navPositionsBadge');
     const mobBadge = document.getElementById('mobPositionsBadge');
     if (positions.length > 0) {
-      navBadge.innerText = positions.length;
-      navBadge.style.display = 'inline-flex';
-      mobBadge.innerText = positions.length;
-      mobBadge.style.display = 'flex';
+      if (navBadge) {
+        navBadge.innerText = positions.length;
+        navBadge.style.display = 'inline-flex';
+      }
+      if (mobBadge) {
+        mobBadge.innerText = positions.length;
+        mobBadge.style.display = 'flex';
+      }
     } else {
-      navBadge.style.display = 'none';
-      mobBadge.style.display = 'none';
+      if (navBadge) navBadge.style.display = 'none';
+      if (mobBadge) mobBadge.style.display = 'none';
     }
 
     // Update summary metrics
-    const isPos = data.total_unrealized_pnl >= 0;
+    const isPos = (data.total_unrealized_pnl || 0) >= 0;
     const pnlEl = document.getElementById('posTotalPnl');
-    pnlEl.innerText = `${isPos ? '+' : ''}${formatINR(data.total_unrealized_pnl)}`;
-    pnlEl.className = `banner-metric-val ${isPos ? 'text-positive' : 'text-negative'}`;
+    if (pnlEl) {
+      pnlEl.innerText = `${isPos ? '+' : ''}${formatINR(data.total_unrealized_pnl || 0)}`;
+      pnlEl.className = `banner-metric-val ${isPos ? 'text-positive' : 'text-negative'}`;
+    }
 
-    document.getElementById('posMarginDeployed').innerText = formatINR(data.total_margin_used);
-    document.getElementById('posActiveCount').innerText = positions.length;
+    const marginEl = document.getElementById('posMarginDeployed');
+    if (marginEl) marginEl.innerText = formatINR(data.total_margin_used || 0);
+    const countEl = document.getElementById('posActiveCount');
+    if (countEl) countEl.innerText = positions.length;
 
     const sqAllBtn = document.getElementById('squareOffAllBtn');
-    sqAllBtn.style.display = positions.length > 0 ? 'inline-block' : 'none';
+    if (sqAllBtn) sqAllBtn.style.display = positions.length > 0 ? 'inline-block' : 'none';
 
     const tableBody = document.getElementById('positionsTableBody');
     const mobileList = document.getElementById('positionsMobileList');
 
     if (positions.length === 0) {
-      tableBody.innerHTML = `
-        <tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 3rem;">No active intraday positions. Intraday trades will appear here with live P&L and 1-click square-off.</td></tr>
-      `;
-      mobileList.innerHTML = `
-        <div style="text-align: center; color: var(--text-muted); padding: 2.5rem;">No active intraday positions.</div>
-      `;
+      if (tableBody) {
+        tableBody.innerHTML = `
+          <tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 3rem;">No active intraday positions. Intraday trades will appear here with live P&L and 1-click square-off.</td></tr>
+        `;
+      }
+      if (mobileList) {
+        mobileList.innerHTML = `
+          <div style="text-align: center; color: var(--text-muted); padding: 2.5rem;">No active intraday positions.</div>
+        `;
+      }
       return;
     }
 
     // Desktop Table
-    tableBody.innerHTML = positions.map(p => {
-      const isPosItem = p.unrealized_pnl >= 0;
-      return `
-        <tr>
-          <td>
-            <button type="button" class="holding-name-link" onclick="openHoldingDetails('${p.symbol}', '${p.asset_type || 'STOCK'}')" title="View details for ${p.name}">${p.name}</button>
-            <div style="font-size: 0.75rem; color: var(--text-muted);">${p.symbol}</div>
-          </td>
-          <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem; background: var(--brand-cyan-bg); color: var(--brand-cyan); border-color: rgba(255,107,0,0.3);">Intraday 5x</span></td>
-          <td style="font-weight: 700;">${p.quantity}</td>
-          <td>${formatINR(p.avg_price)}</td>
-          <td style="font-weight: 700;">${formatINR(p.current_price)}</td>
-          <td>${formatINR(p.margin_used)}</td>
-          <td class="${isPosItem ? 'text-positive' : 'text-negative'}" style="font-weight: 700;">
-            ${isPosItem ? '+' : ''}${formatINR(p.unrealized_pnl)}
-            <div style="font-size: 0.75rem;">(${isPosItem ? '+' : ''}${formatNumber(p.unrealized_pnl_pct)}%)</div>
-          </td>
-          <td style="text-align: right;">
-            <button class="btn-danger" style="padding: 0.35rem 0.85rem; font-size: 0.8rem;" onclick="exitPosition('${p.symbol}')">Exit</button>
-          </td>
-        </tr>
-      `;
-    }).join('');
+    if (tableBody) {
+      tableBody.innerHTML = positions.map(p => {
+        const isPosItem = p.unrealized_pnl >= 0;
+        return `
+          <tr>
+            <td>
+              <button type="button" class="holding-name-link" onclick="openHoldingDetails('${p.symbol}', '${p.asset_type || 'STOCK'}')" title="View details for ${p.name}">${p.name}</button>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">${p.symbol}</div>
+            </td>
+            <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem; background: var(--brand-cyan-bg); color: var(--brand-cyan); border-color: rgba(255,107,0,0.3);">Intraday 5x</span></td>
+            <td style="font-weight: 700;">${p.quantity}</td>
+            <td>${formatINR(p.avg_price)}</td>
+            <td style="font-weight: 700;">${formatINR(p.current_price)}</td>
+            <td>${formatINR(p.margin_used)}</td>
+            <td class="${isPosItem ? 'text-positive' : 'text-negative'}" style="font-weight: 700;">
+              ${isPosItem ? '+' : ''}${formatINR(p.unrealized_pnl)}
+              <div style="font-size: 0.75rem;">(${isPosItem ? '+' : ''}${formatNumber(p.unrealized_pnl_pct)}%)</div>
+            </td>
+            <td style="text-align: right;">
+              <button class="btn-danger" style="padding: 0.35rem 0.85rem; font-size: 0.8rem;" onclick="exitPosition('${p.symbol}')">Exit</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
 
     // Mobile Cards
-    mobileList.innerHTML = positions.map(p => {
-      const isPosItem = p.unrealized_pnl >= 0;
-      return `
-        <div class="mobile-card-item">
-          <div class="mobile-card-top">
-            <div>
-              <button type="button" class="holding-name-link mobile-holding-title" onclick="openHoldingDetails('${p.symbol}', '${p.asset_type || 'STOCK'}')" title="View details for ${p.name}">${p.name}</button>
-              <div class="mobile-card-symbol">${p.symbol} <span class="pill-btn" style="padding: 1px 5px; font-size: 0.65rem; background: var(--brand-cyan-bg); color: var(--brand-cyan);">MIS 5x</span></div>
-            </div>
-            <div class="mobile-card-price">
-              <div class="${isPosItem ? 'text-positive' : 'text-negative'}" style="font-size: 1.1rem; font-weight: 800;">
-                ${isPosItem ? '+' : ''}${formatINR(p.unrealized_pnl)}
+    if (mobileList) {
+      mobileList.innerHTML = positions.map(p => {
+        const isPosItem = p.unrealized_pnl >= 0;
+        return `
+          <div class="mobile-card-item">
+            <div class="mobile-card-top">
+              <div>
+                <button type="button" class="holding-name-link mobile-holding-title" onclick="openHoldingDetails('${p.symbol}', '${p.asset_type || 'STOCK'}')" title="View details for ${p.name}">${p.name}</button>
+                <div class="mobile-card-symbol">${p.symbol} <span class="pill-btn" style="padding: 1px 5px; font-size: 0.65rem; background: var(--brand-cyan-bg); color: var(--brand-cyan);">MIS 5x</span></div>
               </div>
-              <div style="font-size: 0.75rem; color: var(--text-muted);">(${isPosItem ? '+' : ''}${formatNumber(p.unrealized_pnl_pct)}%)</div>
+              <div class="mobile-card-price">
+                <div class="${isPosItem ? 'text-positive' : 'text-negative'}" style="font-size: 1.1rem; font-weight: 800;">
+                  ${isPosItem ? '+' : ''}${formatINR(p.unrealized_pnl)}
+                </div>
+              </div>
+            </div>
+            <div class="mobile-card-grid">
+              <div><span style="color:var(--text-muted);">Shares:</span> <strong>${p.quantity}</strong></div>
+              <div><span style="color:var(--text-muted);">Avg Price:</span> <strong>${formatINR(p.avg_price)}</strong></div>
+              <div><span style="color:var(--text-muted);">LTP:</span> <strong>${formatINR(p.current_price)}</strong></div>
+              <div><span style="color:var(--text-muted);">Margin Used:</span> <strong>${formatINR(p.margin_used)}</strong></div>
+            </div>
+            <div class="mobile-card-actions">
+              <button class="btn-danger" style="padding: 0.35rem 0.85rem; font-size: 0.8rem;" onclick="exitPosition('${p.symbol}')">Square Off Position</button>
             </div>
           </div>
-          <div class="mobile-card-grid">
-            <div><span style="color:var(--text-muted);">Qty:</span> <strong>${p.quantity}</strong></div>
-            <div><span style="color:var(--text-muted);">Avg Buy:</span> <strong>${formatINR(p.avg_price)}</strong></div>
-            <div><span style="color:var(--text-muted);">LTP:</span> <strong>${formatINR(p.current_price)}</strong></div>
-            <div><span style="color:var(--text-muted);">Margin:</span> <strong>${formatINR(p.margin_used)}</strong></div>
-          </div>
-          <div class="mobile-card-actions">
-            <button class="btn-danger" style="width: 100%; justify-content: center; padding: 0.5rem;" onclick="exitPosition('${p.symbol}')">
-              Square Off / Exit Position
-            </button>
-          </div>
-        </div>
-      `;
-    }).join('');
+        `;
+      }).join('');
+    }
 
   } catch (err) {
     console.error('Failed to fetch positions:', err);
@@ -1162,25 +1179,32 @@ async function squareOffAllPositions() {
 async function fetchOrders() {
   try {
     const [execRes, openRes, slRes] = await Promise.all([
-      fetch('/api/orders?status=EXECUTED'),
-      fetch('/api/orders?status=OPEN'),
-      fetch('/api/orders?status=TRIGGER_PENDING')
+      fetch('/api/orders?status=EXECUTED').catch(() => null),
+      fetch('/api/orders?status=OPEN').catch(() => null),
+      fetch('/api/orders?status=TRIGGER_PENDING').catch(() => null)
     ]);
-    const executedOrders = await execRes.json();
+    const execJson = execRes && execRes.ok ? await execRes.json().catch(() => []) : [];
+    const openJson = openRes && openRes.ok ? await openRes.json().catch(() => []) : [];
+    const slJson = slRes && slRes.ok ? await slRes.json().catch(() => []) : [];
+
+    const executedOrders = Array.isArray(execJson) ? execJson : [];
     // Pending stop-loss (TRIGGER_PENDING) orders are open orders too: they can
     // still be cancelled and must not appear in the executed history.
-    const openOrders = [...(await openRes.json()), ...(await slRes.json())]
+    const openOrders = [...(Array.isArray(openJson) ? openJson : []), ...(Array.isArray(slJson) ? slJson : [])]
       .sort((a, b) => (b.id || 0) - (a.id || 0));
 
     // Update Open Orders count badges
-    document.getElementById('openOrdersCount').innerText = openOrders.length;
+    const openOrdersCount = document.getElementById('openOrdersCount');
+    if (openOrdersCount) openOrdersCount.innerText = openOrders.length;
     const navOrdersBadge = document.getElementById('navOrdersBadge');
     const mobOpenOrdersBadge = document.getElementById('mobOpenOrdersBadge');
     const mobOrdersBadge = document.getElementById('mobOrdersBadge');
 
     if (openOrders.length > 0) {
-      navOrdersBadge.innerText = openOrders.length;
-      navOrdersBadge.style.display = 'inline-flex';
+      if (navOrdersBadge) {
+        navOrdersBadge.innerText = openOrders.length;
+        navOrdersBadge.style.display = 'inline-flex';
+      }
       if (mobOpenOrdersBadge) {
         mobOpenOrdersBadge.innerText = openOrders.length;
         mobOpenOrdersBadge.style.display = 'flex';
@@ -1190,7 +1214,7 @@ async function fetchOrders() {
         mobOrdersBadge.style.display = 'inline-flex';
       }
     } else {
-      navOrdersBadge.style.display = 'none';
+      if (navOrdersBadge) navOrdersBadge.style.display = 'none';
       if (mobOpenOrdersBadge) mobOpenOrdersBadge.style.display = 'none';
       if (mobOrdersBadge) mobOrdersBadge.style.display = 'none';
     }
@@ -1199,124 +1223,135 @@ async function fetchOrders() {
     const execTableBody = document.getElementById('ordersTableBody');
     const execMobileList = document.getElementById('ordersMobileList');
 
-    if (executedOrders.length === 0) {
-      execTableBody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 3rem;">No orders placed yet.</td></tr>`;
-      execMobileList.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 2.5rem;">No orders placed yet.</div>`;
-    } else {
-      execTableBody.innerHTML = executedOrders.map(o => {
-        const isBuy = o.order_type === 'BUY';
-        const isPnlPos = o.realized_pnl >= 0;
-        return `
-          <tr>
-            <td style="font-size: 0.8rem; color: var(--text-muted);">${o.timestamp || 'Today'}</td>
-            <td>
-              <button type="button" class="holding-name-link" onclick="openHoldingDetails('${o.symbol}', '${o.asset_type || 'STOCK'}')" title="View details for ${o.name}">${o.name}</button>
-              <div style="font-size: 0.75rem; color: var(--text-muted);">${o.symbol}</div>
-            </td>
-            <td><span class="badge-${isBuy ? 'positive' : 'negative'}">${o.order_type}</span></td>
-            <td><span class="pill-btn" style="padding: 0.15rem 0.45rem; font-size: 0.7rem;">${o.product_type}</span></td>
-            <td><span style="font-size: 0.75rem; color: var(--text-muted);">${o.order_variety || 'MARKET'}</span></td>
-            <td style="font-weight: 600;">${o.quantity}</td>
-            <td>${formatINR(o.price)}</td>
-            <td style="font-weight: 700;">
-              ${formatINR(o.total_amount)}
-              ${o.charges > 0 ? `<div style="font-size: 0.7rem; color: var(--text-muted); font-weight: normal;">Fee: ₹${Number(o.charges).toFixed(2)}</div>` : ''}
-            </td>
-            <td class="${isPnlPos ? 'text-positive' : 'text-negative'}" style="font-weight: 700;">
-              ${o.realized_pnl ? (isPnlPos ? '+' : '') + formatINR(o.realized_pnl) : '—'}
-            </td>
-            <td><span class="pill-btn" style="padding: 0.15rem 0.45rem; font-size: 0.7rem; color: ${o.status.includes('CANCELLED') ? 'var(--danger-red)' : 'var(--accent-green)'};">${o.status}</span></td>
-          </tr>
-        `;
-      }).join('');
-
-      execMobileList.innerHTML = executedOrders.map(o => {
-        const isBuy = o.order_type === 'BUY';
-        return `
-          <div class="mobile-card-item">
-            <div class="mobile-card-top">
-              <div>
-                <button type="button" class="holding-name-link mobile-holding-title" onclick="openHoldingDetails('${o.symbol}', '${o.asset_type || 'STOCK'}')" title="View details for ${o.name}">${o.name}</button>
-                <div class="mobile-card-symbol">${o.symbol} <span class="badge-${isBuy ? 'positive' : 'negative'}" style="font-size: 0.7rem;">${o.order_type}</span> • ${o.product_type}</div>
-              </div>
-              <div class="mobile-card-price">
+    if (execTableBody || execMobileList) {
+      if (executedOrders.length === 0) {
+        if (execTableBody) execTableBody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 3rem;">No orders placed yet.</td></tr>`;
+        if (execMobileList) execMobileList.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 2.5rem;">No orders placed yet.</div>`;
+      } else {
+        const rowsHtml = executedOrders.map(o => {
+          const isBuy = o.order_type === 'BUY';
+          const isPnlPos = o.realized_pnl >= 0;
+          return `
+            <tr>
+              <td style="font-size: 0.8rem; color: var(--text-muted);">${o.timestamp || 'Today'}</td>
+              <td>
+                <button type="button" class="holding-name-link" onclick="openHoldingDetails('${o.symbol}', '${o.asset_type || 'STOCK'}')" title="View details for ${o.name}">${o.name}</button>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">${o.symbol}</div>
+              </td>
+              <td><span class="badge-${isBuy ? 'positive' : 'negative'}">${o.order_type}</span></td>
+              <td><span class="pill-btn" style="padding: 0.15rem 0.45rem; font-size: 0.7rem;">${o.product_type}</span></td>
+              <td><span style="font-size: 0.75rem; color: var(--text-muted);">${o.order_variety || 'MARKET'}</span></td>
+              <td style="font-weight: 600;">${o.quantity}</td>
+              <td>${formatINR(o.price)}</td>
+              <td style="font-weight: 700;">
                 ${formatINR(o.total_amount)}
-                ${o.charges > 0 ? `<div style="font-size: 0.7rem; color: var(--text-muted);">Fee: ₹${Number(o.charges).toFixed(2)}</div>` : ''}
-                <div style="font-size: 0.75rem; color: var(--text-muted);">${o.status}</div>
+                ${o.charges > 0 ? `<div style="font-size: 0.7rem; color: var(--text-muted); font-weight: normal;">Fee: ₹${Number(o.charges).toFixed(2)}</div>` : ''}
+              </td>
+              <td class="${isPnlPos ? 'text-positive' : 'text-negative'}" style="font-weight: 700;">
+                ${o.realized_pnl ? (isPnlPos ? '+' : '') + formatINR(o.realized_pnl) : '—'}
+              </td>
+              <td><span class="pill-btn" style="padding: 0.15rem 0.45rem; font-size: 0.7rem; color: ${o.status.includes('CANCELLED') ? 'var(--danger-red)' : 'var(--accent-green)'};">${o.status}</span></td>
+            </tr>
+          `;
+        }).join('');
+        if (execTableBody) execTableBody.innerHTML = rowsHtml;
+
+        if (execMobileList) {
+          execMobileList.innerHTML = executedOrders.map(o => {
+            const isBuy = o.order_type === 'BUY';
+            return `
+              <div class="mobile-card-item">
+                <div class="mobile-card-top">
+                  <div>
+                    <button type="button" class="holding-name-link mobile-holding-title" onclick="openHoldingDetails('${o.symbol}', '${o.asset_type || 'STOCK'}')" title="View details for ${o.name}">${o.name}</button>
+                    <div class="mobile-card-symbol">${o.symbol} <span class="badge-${isBuy ? 'positive' : 'negative'}" style="font-size: 0.7rem;">${o.order_type}</span> • ${o.product_type}</div>
+                  </div>
+                  <div class="mobile-card-price">
+                    ${formatINR(o.total_amount)}
+                    ${o.charges > 0 ? `<div style="font-size: 0.7rem; color: var(--text-muted);">Fee: ₹${Number(o.charges).toFixed(2)}</div>` : ''}
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">${o.status}</div>
+                  </div>
+                </div>
+                <div class="mobile-card-grid">
+                  <div><span style="color:var(--text-muted);">Qty:</span> <strong>${o.quantity}</strong></div>
+                  <div><span style="color:var(--text-muted);">Exec Price:</span> <strong>${formatINR(o.price)}</strong></div>
+                  <div><span style="color:var(--text-muted);">Variety:</span> <strong>${o.order_variety || 'MARKET'}</strong></div>
+                  <div><span style="color:var(--text-muted);">Time:</span> <strong>${(o.timestamp || 'Today').split(' ')[1] || 'Today'}</strong></div>
+                </div>
               </div>
-            </div>
-            <div class="mobile-card-grid">
-              <div><span style="color:var(--text-muted);">Qty:</span> <strong>${o.quantity}</strong></div>
-              <div><span style="color:var(--text-muted);">Exec Price:</span> <strong>${formatINR(o.price)}</strong></div>
-              <div><span style="color:var(--text-muted);">Variety:</span> <strong>${o.order_variety || 'MARKET'}</strong></div>
-              <div><span style="color:var(--text-muted);">Time:</span> <strong>${(o.timestamp || 'Today').split(' ')[1] || 'Today'}</strong></div>
-            </div>
-          </div>
-        `;
-      }).join('');
+            `;
+          }).join('');
+        }
+      }
     }
 
     // 2. Render Open Orders Table & Mobile Cards
     const openTableBody = document.getElementById('openOrdersTableBody');
     const openMobileList = document.getElementById('openOrdersMobileList');
 
-    if (openOrders.length === 0) {
-      openTableBody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 3rem;">No pending orders.</td></tr>`;
-      openMobileList.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 2.5rem;">No pending orders.</div>`;
-    } else {
-      openTableBody.innerHTML = openOrders.map(o => {
-        const isBuy = o.order_type === 'BUY';
-        const displayPrice = o.order_variety === 'STOP_LOSS'
-          ? (o.trigger_price ? `Trig: ${formatINR(o.trigger_price)}` : formatINR(o.price))
-          : formatINR(o.limit_price || o.price);
-        return `
-          <tr>
-            <td>#${o.id}</td>
-            <td>
-              <button type="button" class="holding-name-link" onclick="openHoldingDetails('${o.symbol}', '${o.asset_type || 'STOCK'}')" title="View details for ${o.name}">${o.name}</button>
-              <div style="font-size: 0.75rem; color: var(--text-muted);">${o.symbol}</div>
-            </td>
-            <td><span class="badge-${isBuy ? 'positive' : 'negative'}">${o.order_type}</span></td>
-            <td>${o.product_type}</td>
-            <td style="font-weight: 600;">${o.quantity}</td>
-            <td style="font-weight: 700; color: var(--brand-cyan);">${displayPrice}</td>
-            <td>${formatINR(o.total_amount)}</td>
-            <td style="font-size: 0.75rem; color: var(--text-muted);">${o.timestamp || 'Today'}</td>
-            <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem; color: var(--brand-cyan);">${o.status}</span></td>
-            <td style="text-align: right;">
-              <button class="btn-danger" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" onclick="cancelOrder(${o.id})">Cancel</button>
-            </td>
-          </tr>
-        `;
-      }).join('');
+    if (openTableBody || openMobileList) {
+      if (openOrders.length === 0) {
+        if (openTableBody) openTableBody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 3rem;">No pending orders.</td></tr>`;
+        if (openMobileList) openMobileList.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 2.5rem;">No pending orders.</div>`;
+      } else {
+        if (openTableBody) {
+          openTableBody.innerHTML = openOrders.map(o => {
+            const isBuy = o.order_type === 'BUY';
+            const displayPrice = o.order_variety === 'STOP_LOSS'
+              ? (o.trigger_price ? `Trig: ${formatINR(o.trigger_price)}` : formatINR(o.price))
+              : formatINR(o.limit_price || o.price);
+            return `
+              <tr>
+                <td>#${o.id}</td>
+                <td>
+                  <button type="button" class="holding-name-link" onclick="openHoldingDetails('${o.symbol}', '${o.asset_type || 'STOCK'}')" title="View details for ${o.name}">${o.name}</button>
+                  <div style="font-size: 0.75rem; color: var(--text-muted);">${o.symbol}</div>
+                </td>
+                <td><span class="badge-${isBuy ? 'positive' : 'negative'}">${o.order_type}</span></td>
+                <td>${o.product_type}</td>
+                <td style="font-weight: 600;">${o.quantity}</td>
+                <td style="font-weight: 700; color: var(--brand-cyan);">${displayPrice}</td>
+                <td>${formatINR(o.total_amount)}</td>
+                <td style="font-size: 0.75rem; color: var(--text-muted);">${o.timestamp || 'Today'}</td>
+                <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem; color: var(--brand-cyan);">${o.status}</span></td>
+                <td style="text-align: right;">
+                  <button class="btn-danger" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" onclick="cancelOrder(${o.id})">Cancel</button>
+                </td>
+              </tr>
+            `;
+          }).join('');
+        }
 
-      openMobileList.innerHTML = openOrders.map(o => {
-        const isBuy = o.order_type === 'BUY';
-        const displayPrice = o.order_variety === 'STOP_LOSS'
-          ? (o.trigger_price ? `Trig: ${formatINR(o.trigger_price)}` : formatINR(o.price))
-          : formatINR(o.limit_price || o.price);
-        return `
-          <div class="mobile-card-item" style="border-left: 4px solid var(--brand-cyan);">
-            <div class="mobile-card-top">
-              <div>
-                <button type="button" class="holding-name-link mobile-holding-title" onclick="openHoldingDetails('${o.symbol}', '${o.asset_type || 'STOCK'}')" title="View details for ${o.name}">${o.name || o.symbol}</button>
-                <div class="mobile-card-symbol">${o.symbol} <span class="badge-${isBuy ? 'positive' : 'negative'}">${o.order_type} ${o.order_variety || 'LIMIT'}</span> • Order #${o.id} • ${o.product_type}</div>
+        if (openMobileList) {
+          openMobileList.innerHTML = openOrders.map(o => {
+            const isBuy = o.order_type === 'BUY';
+            const displayPrice = o.order_variety === 'STOP_LOSS'
+              ? (o.trigger_price ? `Trig: ${formatINR(o.trigger_price)}` : formatINR(o.price))
+              : formatINR(o.limit_price || o.price);
+            return `
+              <div class="mobile-card-item" style="border-left: 4px solid var(--brand-cyan);">
+                <div class="mobile-card-top">
+                  <div>
+                    <button type="button" class="holding-name-link mobile-holding-title" onclick="openHoldingDetails('${o.symbol}', '${o.asset_type || 'STOCK'}')" title="View details for ${o.name}">${o.name || o.symbol}</button>
+                    <div class="mobile-card-symbol">${o.symbol} <span class="badge-${isBuy ? 'positive' : 'negative'}">${o.order_type} ${o.order_variety || 'LIMIT'}</span> • Order #${o.id} • ${o.product_type}</div>
+                  </div>
+                  <div class="mobile-card-price">
+                    <span style="color: var(--brand-cyan);">${displayPrice}</span>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">${o.status === 'TRIGGER_PENDING' ? 'Trigger Pending' : 'Pending Execution'}</div>
+                  </div>
+                </div>
+                <div class="mobile-card-grid">
+                  <div><span style="color:var(--text-muted);">Qty:</span> <strong>${o.quantity}</strong></div>
+                  <div><span style="color:var(--text-muted);">Blocked:</span> <strong>${formatINR(o.total_amount)}</strong></div>
+                </div>
+                <div class="mobile-card-actions">
+                  <button class="btn-danger" style="width: 100%; justify-content: center; padding: 0.45rem;" onclick="cancelOrder(${o.id})">Cancel Order</button>
+                </div>
               </div>
-              <div class="mobile-card-price">
-                <span style="color: var(--brand-cyan);">${displayPrice}</span>
-                <div style="font-size: 0.75rem; color: var(--text-muted);">${o.status === 'TRIGGER_PENDING' ? 'Trigger Pending' : 'Pending Execution'}</div>
-              </div>
-            </div>
-            <div class="mobile-card-grid">
-              <div><span style="color:var(--text-muted);">Qty:</span> <strong>${o.quantity}</strong></div>
-              <div><span style="color:var(--text-muted);">Blocked:</span> <strong>${formatINR(o.total_amount)}</strong></div>
-            </div>
-            <div class="mobile-card-actions">
-              <button class="btn-danger" style="width: 100%; justify-content: center; padding: 0.45rem;" onclick="cancelOrder(${o.id})">Cancel Order</button>
-            </div>
-          </div>
-        `;
-      }).join('');
+            `;
+          }).join('');
+        }
+      }
     }
 
   } catch (err) {
@@ -2131,7 +2166,7 @@ async function submitOrder() {
     }
 
     // Await authoritative backend reflection of portfolio, positions, balance, and orders
-    await Promise.all([
+    await Promise.allSettled([
       fetchAccount(),
       fetchPortfolio(true),
       fetchPositions(true),
@@ -4474,7 +4509,7 @@ async function executePageTrade() {
 
     // Await authoritative backend reflection of portfolio, positions, balance, and orders
     // The loading symbol remains visible and active throughout this lag time
-    await Promise.all([
+    await Promise.allSettled([
       fetchAccount(),
       fetchPortfolio(true),
       fetchPositions(true),
@@ -5442,7 +5477,7 @@ async function submitOptionTrade() {
     }
 
     // Await authoritative backend reflection
-    await Promise.all([
+    await Promise.allSettled([
       fetchAccount(),
       fetchPositions(true),
       fetchOrders()

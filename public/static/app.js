@@ -320,6 +320,7 @@ function switchExploreSubnav(subId) {
   });
 
   if (subId === 'stocks') {
+    renderRecentlyViewedStocks();
     if (!state.exploreData) fetchExploreData();
   } else if (subId === 'fo') {
     fetchOptionChain();
@@ -587,7 +588,135 @@ function renderCardStarBtn(symbol, name, assetType) {
   `;
 }
 
+// --- Recently Viewed Assets (Stocks & Mutual Funds) ---
+function getRecentlyViewed(type) {
+  try {
+    const key = type === 'MUTUAL_FUND' ? 'stoxify_recent_mutual_funds' : 'stoxify_recent_stocks';
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {}
+  return [];
+}
+
+function recordRecentlyViewed(item, type) {
+  if (!item || !item.symbol) return;
+  const key = type === 'MUTUAL_FUND' ? 'stoxify_recent_mutual_funds' : 'stoxify_recent_stocks';
+  try {
+    let list = getRecentlyViewed(type);
+    const cleanSym = (item.symbol || '').toUpperCase();
+    list = list.filter(i => (i.symbol || '').toUpperCase() !== cleanSym);
+    list.unshift({
+      symbol: item.symbol,
+      name: item.name || item.symbol,
+      price: item.price || 0,
+      change: item.change !== undefined ? item.change : 0,
+      change_pct: item.change_pct !== undefined ? item.change_pct : 0,
+      return_1y: item.return_1y,
+      asset_type: type,
+      category: item.category,
+      fund_house: item.fund_house,
+      sector: item.sector,
+      timestamp: Date.now()
+    });
+    if (list.length > 10) list = list.slice(0, 10);
+    localStorage.setItem(key, JSON.stringify(list));
+  } catch (e) {}
+}
+
+function clearRecentlyViewed(type) {
+  const key = type === 'MUTUAL_FUND' ? 'stoxify_recent_mutual_funds' : 'stoxify_recent_stocks';
+  try {
+    localStorage.removeItem(key);
+  } catch (e) {}
+  if (type === 'MUTUAL_FUND') {
+    renderRecentlyViewedMutualFunds();
+  } else {
+    renderRecentlyViewedStocks();
+  }
+}
+window.clearRecentlyViewed = clearRecentlyViewed;
+
+function renderRecentlyViewedStocks() {
+  const sec = document.getElementById('recentStocksSection');
+  const carousel = document.getElementById('recentStocksCarousel');
+  if (!sec || !carousel) return;
+
+  const list = getRecentlyViewed('STOCK');
+  if (!list || list.length === 0) {
+    sec.style.display = 'none';
+    carousel.innerHTML = '';
+    return;
+  }
+
+  sec.style.display = 'block';
+  carousel.innerHTML = list.map(s => {
+    let live = s;
+    if (state.exploreData && state.exploreData.all_stocks) {
+      const match = state.exploreData.all_stocks.find(st => (st.symbol || '').toUpperCase() === (s.symbol || '').toUpperCase());
+      if (match) live = { ...s, price: match.price, change: match.change, change_pct: match.change_pct };
+    }
+    const isPos = (live.change || 0) >= 0;
+    const cleanSym = (live.symbol || '').replace('.NS', '').replace('.BO', '');
+    const badgeClass = isPos ? 'badge-positive' : 'badge-negative';
+    return `
+      <div class="most-bought-card" onclick="openAssetModal('${live.symbol}', 'STOCK')">
+        <div class="mb-top">
+          ${renderAssetAvatar(live, 'STOCK')}
+          <span class="mb-sym-pill">${cleanSym}</span>
+        </div>
+        <div class="mb-name" title="${live.name}">${live.name}</div>
+        <div class="mb-bottom">
+          <span class="mb-price">${formatINR(live.price)}</span>
+          <span class="${badgeClass} mb-badge">${isPos ? '+' : ''}${formatNumber(live.change_pct)}%</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderRecentlyViewedMutualFunds() {
+  const sec = document.getElementById('recentMfSection');
+  const carousel = document.getElementById('recentMfCarousel');
+  if (!sec || !carousel) return;
+
+  const list = getRecentlyViewed('MUTUAL_FUND');
+  if (!list || list.length === 0) {
+    sec.style.display = 'none';
+    carousel.innerHTML = '';
+    return;
+  }
+
+  sec.style.display = 'block';
+  carousel.innerHTML = list.map(mf => {
+    let live = mf;
+    if (state.exploreData && state.exploreData.mutual_funds) {
+      const match = state.exploreData.mutual_funds.find(m => (m.symbol || '').toUpperCase() === (mf.symbol || '').toUpperCase());
+      if (match) live = { ...mf, price: match.price, return_1y: match.return_1y };
+    }
+    const cleanSym = (live.symbol || '').replace('.NS', '').replace('.BO', '');
+    const returnVal = live.return_1y !== undefined ? live.return_1y : live.change_pct;
+    const isPos = (returnVal || 0) >= 0;
+    return `
+      <div class="most-bought-card" onclick="openAssetModal('${live.symbol}', 'MUTUAL_FUND')">
+        <div class="mb-top">
+          ${renderAssetAvatar(live, 'MUTUAL_FUND')}
+          <span class="mb-sym-pill" style="max-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${cleanSym}</span>
+        </div>
+        <div class="mb-name" title="${live.name}">${live.name}</div>
+        <div class="mb-bottom">
+          <span class="mb-price">${formatINR(live.price)}</span>
+          <span class="${isPos ? 'badge-positive' : 'badge-negative'} mb-badge">${isPos ? '+' : ''}${formatNumber(returnVal)}% 1Y</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
 function renderExploreStocks() {
+  renderRecentlyViewedStocks();
   if (!state.exploreData || !state.exploreData.all_stocks) return;
   const grid = document.getElementById('stocksGrid');
   const title = document.getElementById('exploreStocksTitle');
@@ -678,6 +807,7 @@ function renderExploreStocks() {
 }
 
 function renderExploreMutualFunds() {
+  renderRecentlyViewedMutualFunds();
   if (!state.exploreData || !state.exploreData.mutual_funds) return;
   const grid = document.getElementById('mfGrid');
   grid.innerHTML = state.exploreData.mutual_funds.map(mf => {
@@ -796,36 +926,39 @@ async function fetchPortfolioInternal(requestVersion) {
     }
 
     // Render Desktop Table
-    tableBody.innerHTML = data.holdings.map(h => {
-      const isPosTotal = h.total_pnl >= 0;
-      const isPosDay = h.today_pnl >= 0;
-      return `
-        <tr>
-          <td>
-            <button type="button" class="holding-name-link" onclick="openHoldingDetails('${h.symbol}', '${h.asset_type}')" title="View details for ${h.name}">${h.name}</button>
-            <div style="font-size: 0.75rem; color: var(--text-muted);">${h.symbol}</div>
-          </td>
-          <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;">${h.asset_type === 'MUTUAL_FUND' ? 'Mutual Fund' : 'Stock'}</span></td>
-          <td style="font-weight: 600;">${h.quantity}</td>
-          <td>${formatINR(h.avg_price)}</td>
-          <td style="font-weight: 700;">${formatINR(h.current_price)}</td>
-          <td style="font-weight: 700;">${formatINR(h.current_value)}</td>
-          <td class="${isPosTotal ? 'text-positive' : 'text-negative'}" style="font-weight: 700;">
-            ${isPosTotal ? '+' : ''}${formatINR(h.total_pnl)}
-            <div style="font-size: 0.75rem; font-weight: 600;">(${isPosTotal ? '+' : ''}${formatNumber(h.total_pnl_pct)}%)</div>
-          </td>
-          <td class="${isPosDay ? 'text-positive' : 'text-negative'}" style="font-weight: 600;">
-            ${isPosDay ? '+' : ''}${formatINR(h.today_pnl)}
-          </td>
-          <td style="text-align: right;">
-            <button class="btn-danger" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" onclick="startHoldingSale('${h.symbol}', '${h.asset_type}', ${Number(h.quantity) || 0})">Sell</button>
-          </td>
-        </tr>
-      `;
-    }).join('');
+    if (tableBody) {
+      tableBody.innerHTML = (data.holdings || []).map(h => {
+        const isPosTotal = h.total_pnl >= 0;
+        const isPosDay = h.today_pnl >= 0;
+        return `
+          <tr>
+            <td>
+              <button type="button" class="holding-name-link" onclick="openHoldingDetails('${h.symbol}', '${h.asset_type}')" title="View details for ${h.name}">${h.name}</button>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">${h.symbol}</div>
+            </td>
+            <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;">${h.asset_type === 'MUTUAL_FUND' ? 'Mutual Fund' : 'Stock'}</span></td>
+            <td style="font-weight: 600;">${h.quantity}</td>
+            <td>${formatINR(h.avg_price)}</td>
+            <td style="font-weight: 700;">${formatINR(h.current_price)}</td>
+            <td style="font-weight: 700;">${formatINR(h.current_value)}</td>
+            <td class="${isPosTotal ? 'text-positive' : 'text-negative'}" style="font-weight: 700;">
+              ${isPosTotal ? '+' : ''}${formatINR(h.total_pnl)}
+              <div style="font-size: 0.75rem; font-weight: 600;">(${isPosTotal ? '+' : ''}${formatNumber(h.total_pnl_pct)}%)</div>
+            </td>
+            <td class="${isPosDay ? 'text-positive' : 'text-negative'}" style="font-weight: 600;">
+              ${isPosDay ? '+' : ''}${formatINR(h.today_pnl)}
+            </td>
+            <td style="text-align: right;">
+              <button class="btn-danger" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" onclick="startHoldingSale('${h.symbol}', '${h.asset_type}', ${Number(h.quantity) || 0})">Sell</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
 
     // Render Mobile Cards
-    mobileList.innerHTML = data.holdings.map(h => {
+    if (mobileList) {
+      mobileList.innerHTML = (data.holdings || []).map(h => {
       const isPosTotal = h.total_pnl >= 0;
       return `
         <div class="mobile-card-item">
@@ -854,6 +987,7 @@ async function fetchPortfolioInternal(requestVersion) {
         </div>
       `;
     }).join('');
+    }
 
   } catch (err) {
     console.error('Failed to fetch portfolio:', err);
@@ -896,96 +1030,109 @@ async function fetchPositionsInternal(requestVersion) {
     const navBadge = document.getElementById('navPositionsBadge');
     const mobBadge = document.getElementById('mobPositionsBadge');
     if (positions.length > 0) {
-      navBadge.innerText = positions.length;
-      navBadge.style.display = 'inline-flex';
-      mobBadge.innerText = positions.length;
-      mobBadge.style.display = 'flex';
+      if (navBadge) {
+        navBadge.innerText = positions.length;
+        navBadge.style.display = 'inline-flex';
+      }
+      if (mobBadge) {
+        mobBadge.innerText = positions.length;
+        mobBadge.style.display = 'flex';
+      }
     } else {
-      navBadge.style.display = 'none';
-      mobBadge.style.display = 'none';
+      if (navBadge) navBadge.style.display = 'none';
+      if (mobBadge) mobBadge.style.display = 'none';
     }
 
     // Update summary metrics
-    const isPos = data.total_unrealized_pnl >= 0;
+    const isPos = (data.total_unrealized_pnl || 0) >= 0;
     const pnlEl = document.getElementById('posTotalPnl');
-    pnlEl.innerText = `${isPos ? '+' : ''}${formatINR(data.total_unrealized_pnl)}`;
-    pnlEl.className = `banner-metric-val ${isPos ? 'text-positive' : 'text-negative'}`;
+    if (pnlEl) {
+      pnlEl.innerText = `${isPos ? '+' : ''}${formatINR(data.total_unrealized_pnl || 0)}`;
+      pnlEl.className = `banner-metric-val ${isPos ? 'text-positive' : 'text-negative'}`;
+    }
 
-    document.getElementById('posMarginDeployed').innerText = formatINR(data.total_margin_used);
-    document.getElementById('posActiveCount').innerText = positions.length;
+    const marginEl = document.getElementById('posMarginDeployed');
+    if (marginEl) marginEl.innerText = formatINR(data.total_margin_used || 0);
+    const countEl = document.getElementById('posActiveCount');
+    if (countEl) countEl.innerText = positions.length;
 
     const sqAllBtn = document.getElementById('squareOffAllBtn');
-    sqAllBtn.style.display = positions.length > 0 ? 'inline-block' : 'none';
+    if (sqAllBtn) sqAllBtn.style.display = positions.length > 0 ? 'inline-block' : 'none';
 
     const tableBody = document.getElementById('positionsTableBody');
     const mobileList = document.getElementById('positionsMobileList');
 
     if (positions.length === 0) {
-      tableBody.innerHTML = `
-        <tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 3rem;">No active intraday positions. Intraday trades will appear here with live P&L and 1-click square-off.</td></tr>
-      `;
-      mobileList.innerHTML = `
-        <div style="text-align: center; color: var(--text-muted); padding: 2.5rem;">No active intraday positions.</div>
-      `;
+      if (tableBody) {
+        tableBody.innerHTML = `
+          <tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 3rem;">No active intraday positions. Intraday trades will appear here with live P&L and 1-click square-off.</td></tr>
+        `;
+      }
+      if (mobileList) {
+        mobileList.innerHTML = `
+          <div style="text-align: center; color: var(--text-muted); padding: 2.5rem;">No active intraday positions.</div>
+        `;
+      }
       return;
     }
 
     // Desktop Table
-    tableBody.innerHTML = positions.map(p => {
-      const isPosItem = p.unrealized_pnl >= 0;
-      return `
-        <tr>
-          <td>
-            <button type="button" class="holding-name-link" onclick="openHoldingDetails('${p.symbol}', '${p.asset_type || 'STOCK'}')" title="View details for ${p.name}">${p.name}</button>
-            <div style="font-size: 0.75rem; color: var(--text-muted);">${p.symbol}</div>
-          </td>
-          <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem; background: var(--brand-cyan-bg); color: var(--brand-cyan); border-color: rgba(255,107,0,0.3);">Intraday 5x</span></td>
-          <td style="font-weight: 700;">${p.quantity}</td>
-          <td>${formatINR(p.avg_price)}</td>
-          <td style="font-weight: 700;">${formatINR(p.current_price)}</td>
-          <td>${formatINR(p.margin_used)}</td>
-          <td class="${isPosItem ? 'text-positive' : 'text-negative'}" style="font-weight: 700;">
-            ${isPosItem ? '+' : ''}${formatINR(p.unrealized_pnl)}
-            <div style="font-size: 0.75rem;">(${isPosItem ? '+' : ''}${formatNumber(p.unrealized_pnl_pct)}%)</div>
-          </td>
-          <td style="text-align: right;">
-            <button class="btn-danger" style="padding: 0.35rem 0.85rem; font-size: 0.8rem;" onclick="exitPosition('${p.symbol}')">Exit</button>
-          </td>
-        </tr>
-      `;
-    }).join('');
+    if (tableBody) {
+      tableBody.innerHTML = positions.map(p => {
+        const isPosItem = p.unrealized_pnl >= 0;
+        return `
+          <tr>
+            <td>
+              <button type="button" class="holding-name-link" onclick="openHoldingDetails('${p.symbol}', '${p.asset_type || 'STOCK'}')" title="View details for ${p.name}">${p.name}</button>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">${p.symbol}</div>
+            </td>
+            <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem; background: var(--brand-cyan-bg); color: var(--brand-cyan); border-color: rgba(255,107,0,0.3);">Intraday 5x</span></td>
+            <td style="font-weight: 700;">${p.quantity}</td>
+            <td>${formatINR(p.avg_price)}</td>
+            <td style="font-weight: 700;">${formatINR(p.current_price)}</td>
+            <td>${formatINR(p.margin_used)}</td>
+            <td class="${isPosItem ? 'text-positive' : 'text-negative'}" style="font-weight: 700;">
+              ${isPosItem ? '+' : ''}${formatINR(p.unrealized_pnl)}
+              <div style="font-size: 0.75rem;">(${isPosItem ? '+' : ''}${formatNumber(p.unrealized_pnl_pct)}%)</div>
+            </td>
+            <td style="text-align: right;">
+              <button class="btn-danger" style="padding: 0.35rem 0.85rem; font-size: 0.8rem;" onclick="exitPosition('${p.symbol}')">Exit</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
 
     // Mobile Cards
-    mobileList.innerHTML = positions.map(p => {
-      const isPosItem = p.unrealized_pnl >= 0;
-      return `
-        <div class="mobile-card-item">
-          <div class="mobile-card-top">
-            <div>
-              <button type="button" class="holding-name-link mobile-holding-title" onclick="openHoldingDetails('${p.symbol}', '${p.asset_type || 'STOCK'}')" title="View details for ${p.name}">${p.name}</button>
-              <div class="mobile-card-symbol">${p.symbol} <span class="pill-btn" style="padding: 1px 5px; font-size: 0.65rem; background: var(--brand-cyan-bg); color: var(--brand-cyan);">MIS 5x</span></div>
-            </div>
-            <div class="mobile-card-price">
-              <div class="${isPosItem ? 'text-positive' : 'text-negative'}" style="font-size: 1.1rem; font-weight: 800;">
-                ${isPosItem ? '+' : ''}${formatINR(p.unrealized_pnl)}
+    if (mobileList) {
+      mobileList.innerHTML = positions.map(p => {
+        const isPosItem = p.unrealized_pnl >= 0;
+        return `
+          <div class="mobile-card-item">
+            <div class="mobile-card-top">
+              <div>
+                <button type="button" class="holding-name-link mobile-holding-title" onclick="openHoldingDetails('${p.symbol}', '${p.asset_type || 'STOCK'}')" title="View details for ${p.name}">${p.name}</button>
+                <div class="mobile-card-symbol">${p.symbol} <span class="pill-btn" style="padding: 1px 5px; font-size: 0.65rem; background: var(--brand-cyan-bg); color: var(--brand-cyan);">MIS 5x</span></div>
               </div>
-              <div style="font-size: 0.75rem; color: var(--text-muted);">(${isPosItem ? '+' : ''}${formatNumber(p.unrealized_pnl_pct)}%)</div>
+              <div class="mobile-card-price">
+                <div class="${isPosItem ? 'text-positive' : 'text-negative'}" style="font-size: 1.1rem; font-weight: 800;">
+                  ${isPosItem ? '+' : ''}${formatINR(p.unrealized_pnl)}
+                </div>
+              </div>
+            </div>
+            <div class="mobile-card-grid">
+              <div><span style="color:var(--text-muted);">Shares:</span> <strong>${p.quantity}</strong></div>
+              <div><span style="color:var(--text-muted);">Avg Price:</span> <strong>${formatINR(p.avg_price)}</strong></div>
+              <div><span style="color:var(--text-muted);">LTP:</span> <strong>${formatINR(p.current_price)}</strong></div>
+              <div><span style="color:var(--text-muted);">Margin Used:</span> <strong>${formatINR(p.margin_used)}</strong></div>
+            </div>
+            <div class="mobile-card-actions">
+              <button class="btn-danger" style="padding: 0.35rem 0.85rem; font-size: 0.8rem;" onclick="exitPosition('${p.symbol}')">Square Off Position</button>
             </div>
           </div>
-          <div class="mobile-card-grid">
-            <div><span style="color:var(--text-muted);">Qty:</span> <strong>${p.quantity}</strong></div>
-            <div><span style="color:var(--text-muted);">Avg Buy:</span> <strong>${formatINR(p.avg_price)}</strong></div>
-            <div><span style="color:var(--text-muted);">LTP:</span> <strong>${formatINR(p.current_price)}</strong></div>
-            <div><span style="color:var(--text-muted);">Margin:</span> <strong>${formatINR(p.margin_used)}</strong></div>
-          </div>
-          <div class="mobile-card-actions">
-            <button class="btn-danger" style="width: 100%; justify-content: center; padding: 0.5rem;" onclick="exitPosition('${p.symbol}')">
-              Square Off / Exit Position
-            </button>
-          </div>
-        </div>
-      `;
-    }).join('');
+        `;
+      }).join('');
+    }
 
   } catch (err) {
     console.error('Failed to fetch positions:', err);
@@ -1032,25 +1179,32 @@ async function squareOffAllPositions() {
 async function fetchOrders() {
   try {
     const [execRes, openRes, slRes] = await Promise.all([
-      fetch('/api/orders?status=EXECUTED'),
-      fetch('/api/orders?status=OPEN'),
-      fetch('/api/orders?status=TRIGGER_PENDING')
+      fetch('/api/orders?status=EXECUTED').catch(() => null),
+      fetch('/api/orders?status=OPEN').catch(() => null),
+      fetch('/api/orders?status=TRIGGER_PENDING').catch(() => null)
     ]);
-    const executedOrders = await execRes.json();
+    const execJson = execRes && execRes.ok ? await execRes.json().catch(() => []) : [];
+    const openJson = openRes && openRes.ok ? await openRes.json().catch(() => []) : [];
+    const slJson = slRes && slRes.ok ? await slRes.json().catch(() => []) : [];
+
+    const executedOrders = Array.isArray(execJson) ? execJson : [];
     // Pending stop-loss (TRIGGER_PENDING) orders are open orders too: they can
     // still be cancelled and must not appear in the executed history.
-    const openOrders = [...(await openRes.json()), ...(await slRes.json())]
+    const openOrders = [...(Array.isArray(openJson) ? openJson : []), ...(Array.isArray(slJson) ? slJson : [])]
       .sort((a, b) => (b.id || 0) - (a.id || 0));
 
     // Update Open Orders count badges
-    document.getElementById('openOrdersCount').innerText = openOrders.length;
+    const openOrdersCount = document.getElementById('openOrdersCount');
+    if (openOrdersCount) openOrdersCount.innerText = openOrders.length;
     const navOrdersBadge = document.getElementById('navOrdersBadge');
     const mobOpenOrdersBadge = document.getElementById('mobOpenOrdersBadge');
     const mobOrdersBadge = document.getElementById('mobOrdersBadge');
 
     if (openOrders.length > 0) {
-      navOrdersBadge.innerText = openOrders.length;
-      navOrdersBadge.style.display = 'inline-flex';
+      if (navOrdersBadge) {
+        navOrdersBadge.innerText = openOrders.length;
+        navOrdersBadge.style.display = 'inline-flex';
+      }
       if (mobOpenOrdersBadge) {
         mobOpenOrdersBadge.innerText = openOrders.length;
         mobOpenOrdersBadge.style.display = 'flex';
@@ -1060,7 +1214,7 @@ async function fetchOrders() {
         mobOrdersBadge.style.display = 'inline-flex';
       }
     } else {
-      navOrdersBadge.style.display = 'none';
+      if (navOrdersBadge) navOrdersBadge.style.display = 'none';
       if (mobOpenOrdersBadge) mobOpenOrdersBadge.style.display = 'none';
       if (mobOrdersBadge) mobOrdersBadge.style.display = 'none';
     }
@@ -1069,124 +1223,135 @@ async function fetchOrders() {
     const execTableBody = document.getElementById('ordersTableBody');
     const execMobileList = document.getElementById('ordersMobileList');
 
-    if (executedOrders.length === 0) {
-      execTableBody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 3rem;">No orders placed yet.</td></tr>`;
-      execMobileList.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 2.5rem;">No orders placed yet.</div>`;
-    } else {
-      execTableBody.innerHTML = executedOrders.map(o => {
-        const isBuy = o.order_type === 'BUY';
-        const isPnlPos = o.realized_pnl >= 0;
-        return `
-          <tr>
-            <td style="font-size: 0.8rem; color: var(--text-muted);">${o.timestamp || 'Today'}</td>
-            <td>
-              <button type="button" class="holding-name-link" onclick="openHoldingDetails('${o.symbol}', '${o.asset_type || 'STOCK'}')" title="View details for ${o.name}">${o.name}</button>
-              <div style="font-size: 0.75rem; color: var(--text-muted);">${o.symbol}</div>
-            </td>
-            <td><span class="badge-${isBuy ? 'positive' : 'negative'}">${o.order_type}</span></td>
-            <td><span class="pill-btn" style="padding: 0.15rem 0.45rem; font-size: 0.7rem;">${o.product_type}</span></td>
-            <td><span style="font-size: 0.75rem; color: var(--text-muted);">${o.order_variety || 'MARKET'}</span></td>
-            <td style="font-weight: 600;">${o.quantity}</td>
-            <td>${formatINR(o.price)}</td>
-            <td style="font-weight: 700;">
-              ${formatINR(o.total_amount)}
-              ${o.charges > 0 ? `<div style="font-size: 0.7rem; color: var(--text-muted); font-weight: normal;">Fee: ₹${Number(o.charges).toFixed(2)}</div>` : ''}
-            </td>
-            <td class="${isPnlPos ? 'text-positive' : 'text-negative'}" style="font-weight: 700;">
-              ${o.realized_pnl ? (isPnlPos ? '+' : '') + formatINR(o.realized_pnl) : '—'}
-            </td>
-            <td><span class="pill-btn" style="padding: 0.15rem 0.45rem; font-size: 0.7rem; color: ${o.status.includes('CANCELLED') ? 'var(--danger-red)' : 'var(--accent-green)'};">${o.status}</span></td>
-          </tr>
-        `;
-      }).join('');
-
-      execMobileList.innerHTML = executedOrders.map(o => {
-        const isBuy = o.order_type === 'BUY';
-        return `
-          <div class="mobile-card-item">
-            <div class="mobile-card-top">
-              <div>
-                <button type="button" class="holding-name-link mobile-holding-title" onclick="openHoldingDetails('${o.symbol}', '${o.asset_type || 'STOCK'}')" title="View details for ${o.name}">${o.name}</button>
-                <div class="mobile-card-symbol">${o.symbol} <span class="badge-${isBuy ? 'positive' : 'negative'}" style="font-size: 0.7rem;">${o.order_type}</span> • ${o.product_type}</div>
-              </div>
-              <div class="mobile-card-price">
+    if (execTableBody || execMobileList) {
+      if (executedOrders.length === 0) {
+        if (execTableBody) execTableBody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 3rem;">No orders placed yet.</td></tr>`;
+        if (execMobileList) execMobileList.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 2.5rem;">No orders placed yet.</div>`;
+      } else {
+        const rowsHtml = executedOrders.map(o => {
+          const isBuy = o.order_type === 'BUY';
+          const isPnlPos = o.realized_pnl >= 0;
+          return `
+            <tr>
+              <td style="font-size: 0.8rem; color: var(--text-muted);">${o.timestamp || 'Today'}</td>
+              <td>
+                <button type="button" class="holding-name-link" onclick="openHoldingDetails('${o.symbol}', '${o.asset_type || 'STOCK'}')" title="View details for ${o.name}">${o.name}</button>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">${o.symbol}</div>
+              </td>
+              <td><span class="badge-${isBuy ? 'positive' : 'negative'}">${o.order_type}</span></td>
+              <td><span class="pill-btn" style="padding: 0.15rem 0.45rem; font-size: 0.7rem;">${o.product_type}</span></td>
+              <td><span style="font-size: 0.75rem; color: var(--text-muted);">${o.order_variety || 'MARKET'}</span></td>
+              <td style="font-weight: 600;">${o.quantity}</td>
+              <td>${formatINR(o.price)}</td>
+              <td style="font-weight: 700;">
                 ${formatINR(o.total_amount)}
-                ${o.charges > 0 ? `<div style="font-size: 0.7rem; color: var(--text-muted);">Fee: ₹${Number(o.charges).toFixed(2)}</div>` : ''}
-                <div style="font-size: 0.75rem; color: var(--text-muted);">${o.status}</div>
+                ${o.charges > 0 ? `<div style="font-size: 0.7rem; color: var(--text-muted); font-weight: normal;">Fee: ₹${Number(o.charges).toFixed(2)}</div>` : ''}
+              </td>
+              <td class="${isPnlPos ? 'text-positive' : 'text-negative'}" style="font-weight: 700;">
+                ${o.realized_pnl ? (isPnlPos ? '+' : '') + formatINR(o.realized_pnl) : '—'}
+              </td>
+              <td><span class="pill-btn" style="padding: 0.15rem 0.45rem; font-size: 0.7rem; color: ${o.status.includes('CANCELLED') ? 'var(--danger-red)' : 'var(--accent-green)'};">${o.status}</span></td>
+            </tr>
+          `;
+        }).join('');
+        if (execTableBody) execTableBody.innerHTML = rowsHtml;
+
+        if (execMobileList) {
+          execMobileList.innerHTML = executedOrders.map(o => {
+            const isBuy = o.order_type === 'BUY';
+            return `
+              <div class="mobile-card-item">
+                <div class="mobile-card-top">
+                  <div>
+                    <button type="button" class="holding-name-link mobile-holding-title" onclick="openHoldingDetails('${o.symbol}', '${o.asset_type || 'STOCK'}')" title="View details for ${o.name}">${o.name}</button>
+                    <div class="mobile-card-symbol">${o.symbol} <span class="badge-${isBuy ? 'positive' : 'negative'}" style="font-size: 0.7rem;">${o.order_type}</span> • ${o.product_type}</div>
+                  </div>
+                  <div class="mobile-card-price">
+                    ${formatINR(o.total_amount)}
+                    ${o.charges > 0 ? `<div style="font-size: 0.7rem; color: var(--text-muted);">Fee: ₹${Number(o.charges).toFixed(2)}</div>` : ''}
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">${o.status}</div>
+                  </div>
+                </div>
+                <div class="mobile-card-grid">
+                  <div><span style="color:var(--text-muted);">Qty:</span> <strong>${o.quantity}</strong></div>
+                  <div><span style="color:var(--text-muted);">Exec Price:</span> <strong>${formatINR(o.price)}</strong></div>
+                  <div><span style="color:var(--text-muted);">Variety:</span> <strong>${o.order_variety || 'MARKET'}</strong></div>
+                  <div><span style="color:var(--text-muted);">Time:</span> <strong>${(o.timestamp || 'Today').split(' ')[1] || 'Today'}</strong></div>
+                </div>
               </div>
-            </div>
-            <div class="mobile-card-grid">
-              <div><span style="color:var(--text-muted);">Qty:</span> <strong>${o.quantity}</strong></div>
-              <div><span style="color:var(--text-muted);">Exec Price:</span> <strong>${formatINR(o.price)}</strong></div>
-              <div><span style="color:var(--text-muted);">Variety:</span> <strong>${o.order_variety || 'MARKET'}</strong></div>
-              <div><span style="color:var(--text-muted);">Time:</span> <strong>${(o.timestamp || 'Today').split(' ')[1] || 'Today'}</strong></div>
-            </div>
-          </div>
-        `;
-      }).join('');
+            `;
+          }).join('');
+        }
+      }
     }
 
     // 2. Render Open Orders Table & Mobile Cards
     const openTableBody = document.getElementById('openOrdersTableBody');
     const openMobileList = document.getElementById('openOrdersMobileList');
 
-    if (openOrders.length === 0) {
-      openTableBody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 3rem;">No pending orders.</td></tr>`;
-      openMobileList.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 2.5rem;">No pending orders.</div>`;
-    } else {
-      openTableBody.innerHTML = openOrders.map(o => {
-        const isBuy = o.order_type === 'BUY';
-        const displayPrice = o.order_variety === 'STOP_LOSS'
-          ? (o.trigger_price ? `Trig: ${formatINR(o.trigger_price)}` : formatINR(o.price))
-          : formatINR(o.limit_price || o.price);
-        return `
-          <tr>
-            <td>#${o.id}</td>
-            <td>
-              <button type="button" class="holding-name-link" onclick="openHoldingDetails('${o.symbol}', '${o.asset_type || 'STOCK'}')" title="View details for ${o.name}">${o.name}</button>
-              <div style="font-size: 0.75rem; color: var(--text-muted);">${o.symbol}</div>
-            </td>
-            <td><span class="badge-${isBuy ? 'positive' : 'negative'}">${o.order_type}</span></td>
-            <td>${o.product_type}</td>
-            <td style="font-weight: 600;">${o.quantity}</td>
-            <td style="font-weight: 700; color: var(--brand-cyan);">${displayPrice}</td>
-            <td>${formatINR(o.total_amount)}</td>
-            <td style="font-size: 0.75rem; color: var(--text-muted);">${o.timestamp || 'Today'}</td>
-            <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem; color: var(--brand-cyan);">${o.status}</span></td>
-            <td style="text-align: right;">
-              <button class="btn-danger" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" onclick="cancelOrder(${o.id})">Cancel</button>
-            </td>
-          </tr>
-        `;
-      }).join('');
+    if (openTableBody || openMobileList) {
+      if (openOrders.length === 0) {
+        if (openTableBody) openTableBody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 3rem;">No pending orders.</td></tr>`;
+        if (openMobileList) openMobileList.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 2.5rem;">No pending orders.</div>`;
+      } else {
+        if (openTableBody) {
+          openTableBody.innerHTML = openOrders.map(o => {
+            const isBuy = o.order_type === 'BUY';
+            const displayPrice = o.order_variety === 'STOP_LOSS'
+              ? (o.trigger_price ? `Trig: ${formatINR(o.trigger_price)}` : formatINR(o.price))
+              : formatINR(o.limit_price || o.price);
+            return `
+              <tr>
+                <td>#${o.id}</td>
+                <td>
+                  <button type="button" class="holding-name-link" onclick="openHoldingDetails('${o.symbol}', '${o.asset_type || 'STOCK'}')" title="View details for ${o.name}">${o.name}</button>
+                  <div style="font-size: 0.75rem; color: var(--text-muted);">${o.symbol}</div>
+                </td>
+                <td><span class="badge-${isBuy ? 'positive' : 'negative'}">${o.order_type}</span></td>
+                <td>${o.product_type}</td>
+                <td style="font-weight: 600;">${o.quantity}</td>
+                <td style="font-weight: 700; color: var(--brand-cyan);">${displayPrice}</td>
+                <td>${formatINR(o.total_amount)}</td>
+                <td style="font-size: 0.75rem; color: var(--text-muted);">${o.timestamp || 'Today'}</td>
+                <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem; color: var(--brand-cyan);">${o.status}</span></td>
+                <td style="text-align: right;">
+                  <button class="btn-danger" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" onclick="cancelOrder(${o.id})">Cancel</button>
+                </td>
+              </tr>
+            `;
+          }).join('');
+        }
 
-      openMobileList.innerHTML = openOrders.map(o => {
-        const isBuy = o.order_type === 'BUY';
-        const displayPrice = o.order_variety === 'STOP_LOSS'
-          ? (o.trigger_price ? `Trig: ${formatINR(o.trigger_price)}` : formatINR(o.price))
-          : formatINR(o.limit_price || o.price);
-        return `
-          <div class="mobile-card-item" style="border-left: 4px solid var(--brand-cyan);">
-            <div class="mobile-card-top">
-              <div>
-                <button type="button" class="holding-name-link mobile-holding-title" onclick="openHoldingDetails('${o.symbol}', '${o.asset_type || 'STOCK'}')" title="View details for ${o.name}">${o.name || o.symbol}</button>
-                <div class="mobile-card-symbol">${o.symbol} <span class="badge-${isBuy ? 'positive' : 'negative'}">${o.order_type} ${o.order_variety || 'LIMIT'}</span> • Order #${o.id} • ${o.product_type}</div>
+        if (openMobileList) {
+          openMobileList.innerHTML = openOrders.map(o => {
+            const isBuy = o.order_type === 'BUY';
+            const displayPrice = o.order_variety === 'STOP_LOSS'
+              ? (o.trigger_price ? `Trig: ${formatINR(o.trigger_price)}` : formatINR(o.price))
+              : formatINR(o.limit_price || o.price);
+            return `
+              <div class="mobile-card-item" style="border-left: 4px solid var(--brand-cyan);">
+                <div class="mobile-card-top">
+                  <div>
+                    <button type="button" class="holding-name-link mobile-holding-title" onclick="openHoldingDetails('${o.symbol}', '${o.asset_type || 'STOCK'}')" title="View details for ${o.name}">${o.name || o.symbol}</button>
+                    <div class="mobile-card-symbol">${o.symbol} <span class="badge-${isBuy ? 'positive' : 'negative'}">${o.order_type} ${o.order_variety || 'LIMIT'}</span> • Order #${o.id} • ${o.product_type}</div>
+                  </div>
+                  <div class="mobile-card-price">
+                    <span style="color: var(--brand-cyan);">${displayPrice}</span>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">${o.status === 'TRIGGER_PENDING' ? 'Trigger Pending' : 'Pending Execution'}</div>
+                  </div>
+                </div>
+                <div class="mobile-card-grid">
+                  <div><span style="color:var(--text-muted);">Qty:</span> <strong>${o.quantity}</strong></div>
+                  <div><span style="color:var(--text-muted);">Blocked:</span> <strong>${formatINR(o.total_amount)}</strong></div>
+                </div>
+                <div class="mobile-card-actions">
+                  <button class="btn-danger" style="width: 100%; justify-content: center; padding: 0.45rem;" onclick="cancelOrder(${o.id})">Cancel Order</button>
+                </div>
               </div>
-              <div class="mobile-card-price">
-                <span style="color: var(--brand-cyan);">${displayPrice}</span>
-                <div style="font-size: 0.75rem; color: var(--text-muted);">${o.status === 'TRIGGER_PENDING' ? 'Trigger Pending' : 'Pending Execution'}</div>
-              </div>
-            </div>
-            <div class="mobile-card-grid">
-              <div><span style="color:var(--text-muted);">Qty:</span> <strong>${o.quantity}</strong></div>
-              <div><span style="color:var(--text-muted);">Blocked:</span> <strong>${formatINR(o.total_amount)}</strong></div>
-            </div>
-            <div class="mobile-card-actions">
-              <button class="btn-danger" style="width: 100%; justify-content: center; padding: 0.45rem;" onclick="cancelOrder(${o.id})">Cancel Order</button>
-            </div>
-          </div>
-        `;
-      }).join('');
+            `;
+          }).join('');
+        }
+      }
     }
 
   } catch (err) {
@@ -1304,56 +1469,120 @@ async function toggleWatchlistItem(symbol, name, assetType) {
 }
 window.toggleWatchlist = toggleWatchlistItem;
 
-// --- Search Auto-Complete ---
+// --- Search Auto-Complete & Dismiss Handling ---
 const searchInput = document.getElementById('globalSearchInput');
 const searchDropdown = document.getElementById('searchResultsDropdown');
 let searchDebounceTimer = null;
 
-searchInput.addEventListener('input', (e) => {
-  const query = e.target.value.trim();
-  clearTimeout(searchDebounceTimer);
-  if (!query) {
-    searchDropdown.style.display = 'none';
-    return;
+function closeSearchBar(e) {
+  if (e) {
+    e.stopPropagation();
+    e.preventDefault();
   }
-  searchDebounceTimer = setTimeout(async () => {
-    try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-      const results = await res.json();
-      if (results.length === 0) {
-        searchDropdown.innerHTML = `<div style="padding: 1rem; color: var(--text-muted); font-size: 0.85rem;">No securities found matching "${query}"</div>`;
-      } else {
-        searchDropdown.innerHTML = results.map(r => `
-          <div class="search-item" onclick="selectSearchResult('${r.symbol}', '${r.asset_type}')">
-            <div style="display: flex; align-items: center; gap: 0.75rem;">
-              ${renderAssetAvatar(r, r.asset_type)}
-              <div>
-                <div class="search-item-title" style="font-weight: 700; font-size: 0.9rem;">${r.name}</div>
-                <div class="search-item-sub" style="font-size: 0.75rem; color: var(--text-muted);">${r.subtext}</div>
-              </div>
-            </div>
-            <span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;">
-              ${r.asset_type === 'MUTUAL_FUND' ? 'Mutual Fund' : 'Stock'}
-            </span>
-          </div>
-        `).join('');
-      }
-      searchDropdown.style.display = 'block';
-    } catch (err) {
-      console.error('Search error:', err);
-    }
-  }, 180);
-});
+  const input = document.getElementById('globalSearchInput');
+  const dropdown = document.getElementById('searchResultsDropdown');
+  const wrapper = document.querySelector('.search-wrapper');
+  if (input) {
+    input.value = '';
+    const box = input.closest('.search-input-box');
+    if (box) box.classList.remove('has-text');
+    input.blur();
+  }
+  if (dropdown) {
+    dropdown.style.display = 'none';
+  }
+  if (wrapper && wrapper.classList.contains('mobile-open')) {
+    wrapper.classList.remove('mobile-open');
+  }
+}
+window.closeSearchBar = closeSearchBar;
 
-document.addEventListener('click', (e) => {
-  if (!searchInput.contains(e.target) && !searchDropdown.contains(e.target)) {
-    searchDropdown.style.display = 'none';
+if (searchInput) {
+  searchInput.addEventListener('input', (e) => {
+    const query = e.target.value.trim();
+    const box = searchInput.closest('.search-input-box');
+    if (box) {
+      if (query.length > 0) {
+        box.classList.add('has-text');
+      } else {
+        box.classList.remove('has-text');
+      }
+    }
+    clearTimeout(searchDebounceTimer);
+    if (!query) {
+      searchDropdown.style.display = 'none';
+      return;
+    }
+    searchDebounceTimer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+        const results = await res.json();
+        if (results.length === 0) {
+          searchDropdown.innerHTML = `<div style="padding: 1rem; color: var(--text-muted); font-size: 0.85rem;">No securities found matching "${query}"</div>`;
+        } else {
+          searchDropdown.innerHTML = results.map(r => `
+            <div class="search-item" onclick="selectSearchResult('${r.symbol}', '${r.asset_type}')">
+              <div style="display: flex; align-items: center; gap: 0.75rem;">
+                ${renderAssetAvatar(r, r.asset_type)}
+                <div>
+                  <div class="search-item-title" style="font-weight: 700; font-size: 0.9rem;">${r.name}</div>
+                  <div class="search-item-sub" style="font-size: 0.75rem; color: var(--text-muted);">${r.subtext}</div>
+                </div>
+              </div>
+              <span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;">
+                ${r.asset_type === 'MUTUAL_FUND' ? 'Mutual Fund' : 'Stock'}
+              </span>
+            </div>
+          `).join('');
+        }
+        searchDropdown.style.display = 'block';
+      } catch (err) {
+        console.error('Search error:', err);
+      }
+    }, 180);
+  });
+}
+
+function handleOutsideSearch(e) {
+  const input = document.getElementById('globalSearchInput');
+  const dropdown = document.getElementById('searchResultsDropdown');
+  const wrapper = document.querySelector('.search-wrapper');
+  const mobileBtn = document.getElementById('mobileSearchBtn');
+
+  // Close dropdown if clicked outside input and dropdown
+  if (dropdown && dropdown.style.display !== 'none' && input) {
+    if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+      dropdown.style.display = 'none';
+    }
   }
-});
+
+  // Mobile View Only: Dismiss mobile search bar when touching/clicking elsewhere on screen
+  if (wrapper && wrapper.classList.contains('mobile-open')) {
+    if (!wrapper.contains(e.target) && (!mobileBtn || !mobileBtn.contains(e.target))) {
+      wrapper.classList.remove('mobile-open');
+      if (dropdown) dropdown.style.display = 'none';
+      if (input) {
+        input.blur();
+      }
+    }
+  }
+}
+
+document.addEventListener('pointerdown', handleOutsideSearch);
+document.addEventListener('touchstart', handleOutsideSearch, { passive: true });
+document.addEventListener('click', handleOutsideSearch);
 
 function selectSearchResult(symbol, assetType) {
   searchDropdown.style.display = 'none';
-  searchInput.value = '';
+  if (searchInput) {
+    searchInput.value = '';
+    const box = searchInput.closest('.search-input-box');
+    if (box) box.classList.remove('has-text');
+  }
+  const wrapper = document.querySelector('.search-wrapper');
+  if (wrapper && wrapper.classList.contains('mobile-open')) {
+    wrapper.classList.remove('mobile-open');
+  }
   openAssetModal(symbol, assetType);
 }
 
@@ -1858,6 +2087,31 @@ function roundNumber(num, dec) {
   return Math.round(num * Math.pow(10, dec)) / Math.pow(10, dec);
 }
 
+function setOrderExecutionLoading(isLoading, action = 'BUY') {
+  const pageBtn = document.getElementById('pageOrderExecuteBtn');
+  const drawerBtn = document.getElementById('drawerOrderExecuteBtn');
+  const tradeModalBtn = document.getElementById('tradeExecuteBtn');
+  const optBtn = document.getElementById('optExecuteBtn');
+
+  const btns = [pageBtn, drawerBtn, tradeModalBtn, optBtn].filter(Boolean);
+  btns.forEach(btn => {
+    if (isLoading) {
+      if (!btn.dataset.originalHtml) {
+        btn.dataset.originalHtml = btn.innerHTML;
+      }
+      btn.disabled = true;
+      btn.innerHTML = `<span class="btn-spinner"></span> <span>Executing ${action || 'Order'}...</span>`;
+    } else {
+      btn.disabled = false;
+      if (btn.dataset.originalHtml) {
+        btn.innerHTML = btn.dataset.originalHtml;
+        delete btn.dataset.originalHtml;
+      }
+    }
+  });
+}
+window.setOrderExecutionLoading = setOrderExecutionLoading;
+
 async function submitOrder() {
   if (isGuest()) {
     closeTradeModal();
@@ -1895,6 +2149,8 @@ async function submitOrder() {
     limit_price: limitPrice
   };
 
+  setOrderExecutionLoading(true, payload.order_type);
+
   try {
     const res = await fetch('/api/order', {
       method: 'POST',
@@ -1904,11 +2160,33 @@ async function submitOrder() {
     const result = await res.json();
 
     if (!res.ok || !result.success) {
+      setOrderExecutionLoading(false);
       showToast(result.detail || result.error || 'Order rejected by broker engine', true);
       return;
     }
 
+    // Await authoritative backend reflection of portfolio, positions, balance, and orders
+    await Promise.allSettled([
+      fetchAccount(),
+      fetchPortfolio(true),
+      fetchPositions(true),
+      fetchOrders()
+    ]);
+
+    if (currentUser && state.account && state.account.balance !== undefined) {
+      currentUser.balance = state.account.balance;
+      try {
+        localStorage.setItem('stoxify_cached_user', JSON.stringify(currentUser));
+      } catch (e) {}
+    }
+
+    setOrderExecutionLoading(false);
     closeTradeModal();
+
+    const confirmedBalance = (result.balance !== undefined)
+      ? result.balance
+      : (state.account ? state.account.balance : undefined);
+
     openOrderSuccessModal({
       symbol: payload.symbol,
       name: payload.name,
@@ -1918,18 +2196,15 @@ async function submitOrder() {
       price: payload.price,
       total: qty * payload.price,
       charges: result.charges,
-      net_amount: result.net_amount
+      net_amount: result.net_amount,
+      status: result.status,
+      balance: confirmedBalance
     });
     showToast(result.message || `Order processed successfully: ${state.orderAction} ${qty} ${payload.symbol}`);
 
-    Promise.all([
-      fetchAccount(),
-      fetchPortfolio(true),
-      fetchPositions(true),
-      fetchOrders()
-    ]).catch(e => console.warn('Background sync error:', e));
   } catch (err) {
     console.error('Order submission error:', err);
+    setOrderExecutionLoading(false);
     showToast('Failed to connect to execution server', true);
   }
 }
@@ -2927,6 +3202,9 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
     const indexName = isIndex ? (INDEX_NAMES[data.symbol] || data.name || data.symbol.replace('^', '')) : null;
     const cleanSym = isIndex ? (INDEX_NAMES[data.symbol] || data.symbol.replace('^', '')) : (data.symbol || '').replace('.NS', '').replace('.BO', '');
     const isMF = data.asset_type === 'MUTUAL_FUND';
+    if (!isIndex) {
+      recordRecentlyViewed(data, isMF ? 'MUTUAL_FUND' : 'STOCK');
+    }
     
     document.getElementById('assetBreadcrumbCategory').innerText = isIndex ? 'Indices' : (isMF ? 'Mutual Funds' : 'Stocks');
     document.getElementById('assetBreadcrumbName').innerText = isIndex ? indexName : data.name;
@@ -4186,11 +4464,7 @@ async function executePageTrade() {
     return;
   }
 
-  const originalBtnText = execBtn ? execBtn.innerText : '';
-  if (execBtn) {
-    execBtn.disabled = true;
-    execBtn.innerText = 'Executing Order...';
-  }
+  setOrderExecutionLoading(true, pageOrderState.action);
 
   try {
     let res, result;
@@ -4228,9 +4502,38 @@ async function executePageTrade() {
     }
 
     if (!res.ok || !result.success) {
+      setOrderExecutionLoading(false);
       showToast(result.detail || result.error || 'Trade execution failed', true);
       return;
     }
+
+    // Await authoritative backend reflection of portfolio, positions, balance, and orders
+    // The loading symbol remains visible and active throughout this lag time
+    await Promise.allSettled([
+      fetchAccount(),
+      fetchPortfolio(true),
+      fetchPositions(true),
+      fetchOrders()
+    ]);
+
+    if (currentUser && state.account && state.account.balance !== undefined) {
+      currentUser.balance = state.account.balance;
+      try {
+        localStorage.setItem('stoxify_cached_user', JSON.stringify(currentUser));
+      } catch (e) {}
+    }
+
+    if (currentPageAsset) {
+      updatePageAvailableHolding(currentPageAsset.symbol);
+    }
+    recalcPageMargin();
+
+    setOrderExecutionLoading(false);
+    closeMobileTradeDrawer();
+
+    const confirmedBalance = (result.balance !== undefined)
+      ? result.balance
+      : (state.account ? state.account.balance : undefined);
 
     openOrderSuccessModal({
       symbol: currentPageAsset.symbol,
@@ -4241,31 +4544,18 @@ async function executePageTrade() {
       price: (pageOrderState.variety === 'LIMIT' || pageOrderState.variety === 'STOP_LOSS') ? (limitPrice || currentPageAsset.price) : currentPageAsset.price,
       total: qty * ((pageOrderState.variety === 'LIMIT' || pageOrderState.variety === 'STOP_LOSS') ? (limitPrice || currentPageAsset.price) : currentPageAsset.price),
       charges: result.charges,
-      net_amount: result.net_amount
+      net_amount: result.net_amount,
+      status: result.status,
+      balance: confirmedBalance
     });
-    closeMobileTradeDrawer();
     showToast(result.message || `${pageOrderState.action} order placed successfully!`);
-
-    Promise.all([
-      fetchAccount(),
-      fetchPortfolio(true),
-      fetchPositions(true),
-      fetchOrders()
-    ]).then(() => {
-      if (currentPageAsset) {
-        updatePageAvailableHolding(currentPageAsset.symbol);
-      }
-      recalcPageMargin();
-    }).catch(e => console.warn('Background sync error:', e));
 
   } catch (err) {
     console.error('executePageTrade error:', err);
+    setOrderExecutionLoading(false);
     showToast('Failed to connect to trade server', true);
   } finally {
-    if (execBtn) {
-      execBtn.disabled = false;
-      execBtn.innerText = originalBtnText;
-    }
+    setOrderExecutionLoading(false);
   }
 }
 
@@ -4774,6 +5064,51 @@ function openOrderSuccessModal(orderData) {
   const modal = document.getElementById('orderSuccessModal');
   if (!modal) return;
 
+  const titleEl = document.getElementById('orderSuccessTitle');
+  const subtitleEl = document.getElementById('orderSuccessSubtitle');
+  const viewBtn = document.getElementById('orderSuccessViewBtn');
+  const status = (orderData.status || '').toUpperCase();
+
+  if (status === 'OPEN') {
+    if (titleEl) titleEl.innerText = 'Limit Order Placed!';
+    if (subtitleEl) subtitleEl.innerText = 'Your order is OPEN and will execute automatically when the market reaches your limit price.';
+    if (viewBtn) {
+      viewBtn.innerText = 'View in Orders →';
+      viewBtn.onclick = () => {
+        closeOrderSuccessModal();
+        navigateTo('/orders');
+      };
+    }
+  } else if (status === 'TRIGGER_PENDING') {
+    if (titleEl) titleEl.innerText = 'Stop-Loss Order Placed!';
+    if (subtitleEl) subtitleEl.innerText = 'Your trigger is PENDING and will activate when the market reaches your trigger price.';
+    if (viewBtn) {
+      viewBtn.innerText = 'View in Orders →';
+      viewBtn.onclick = () => {
+        closeOrderSuccessModal();
+        navigateTo('/orders');
+      };
+    }
+  } else {
+    if (titleEl) titleEl.innerText = 'Order Executed!';
+    if (subtitleEl) subtitleEl.innerText = 'Your paper trade was filled and is now reflected in your portfolio.';
+    if (viewBtn) {
+      if (orderData.product === 'INTRADAY') {
+        viewBtn.innerText = 'View in Positions →';
+        viewBtn.onclick = () => {
+          closeOrderSuccessModal();
+          navigateTo('/positions');
+        };
+      } else {
+        viewBtn.innerText = 'View in Holdings →';
+        viewBtn.onclick = () => {
+          closeOrderSuccessModal();
+          navigateTo('/holdings');
+        };
+      }
+    }
+  }
+
   const assetEl = document.getElementById('orderSuccessAsset');
   if (assetEl) assetEl.innerText = `${orderData.name} (${orderData.symbol})`;
   const typeEl = document.getElementById('orderSuccessType');
@@ -4807,21 +5142,14 @@ function openOrderSuccessModal(orderData) {
     if (netRow) netRow.style.display = 'none';
   }
 
-  const viewBtn = document.getElementById('orderSuccessViewBtn');
-  if (viewBtn) {
-    if (orderData.product === 'INTRADAY') {
-      viewBtn.innerText = 'View in Positions →';
-      viewBtn.onclick = () => {
-        closeOrderSuccessModal();
-        navigateTo('/positions');
-      };
-    } else {
-      viewBtn.innerText = 'View in Holdings →';
-      viewBtn.onclick = () => {
-        closeOrderSuccessModal();
-        navigateTo('/holdings');
-      };
-    }
+  // Authoritative confirmed balance display
+  const balRow = document.getElementById('orderSuccessBalanceRow');
+  const balVal = document.getElementById('orderSuccessBalance');
+  if (orderData.balance !== undefined && balRow && balVal) {
+    balRow.style.display = 'flex';
+    balVal.innerText = formatINR(orderData.balance);
+  } else if (balRow) {
+    balRow.style.display = 'none';
   }
 
   modal.classList.add('active');
@@ -5116,9 +5444,10 @@ async function submitOptionTrade() {
   const symbol = `${currentOptionTrade.underlying}_${currentOptionTrade.strike}_${currentOptionTrade.optType}`;
 
   const execBtn = document.getElementById('optExecuteBtn');
+  const originalHtml = execBtn ? execBtn.innerHTML : '';
   if (execBtn) {
     execBtn.disabled = true;
-    execBtn.innerText = 'Executing Option Trade...';
+    execBtn.innerHTML = '<span class="btn-spinner"></span> <span>Executing Option Trade...</span>';
   }
 
   try {
@@ -5139,21 +5468,37 @@ async function submitOptionTrade() {
 
     const result = await res.json();
     if (!res.ok || !result.success) {
+      if (execBtn) {
+        execBtn.disabled = false;
+        execBtn.innerHTML = originalHtml;
+      }
       showToast(result.detail || result.error || 'Option execution failed', true);
       return;
     }
 
-    closeOptionBuyModal();
-    showToast(`${currentOptionTrade.action} ${lots} lot(s) executed at ${formatINR(currentOptionTrade.ltp)}!`);
-    Promise.all([
+    // Await authoritative backend reflection
+    await Promise.allSettled([
       fetchAccount(),
       fetchPositions(true),
       fetchOrders()
-    ]).catch(e => console.warn('Background sync error:', e));
+    ]);
+
+    if (currentUser && state.account && state.account.balance !== undefined) {
+      currentUser.balance = state.account.balance;
+      try {
+        localStorage.setItem('stoxify_cached_user', JSON.stringify(currentUser));
+      } catch (e) {}
+    }
+
+    closeOptionBuyModal();
+    showToast(`${currentOptionTrade.action} ${lots} lot(s) executed at ${formatINR(currentOptionTrade.ltp)}!`);
   } catch (err) {
     showToast('Failed to execute option trade', true);
   } finally {
-    if (execBtn) execBtn.disabled = false;
+    if (execBtn) {
+      execBtn.disabled = false;
+      execBtn.innerHTML = originalHtml;
+    }
   }
 }
 

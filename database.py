@@ -1036,49 +1036,34 @@ def sync_holdings_from_supabase_into_cursor(cursor, user_id: str):
     try:
         res = supabase_api("GET", "holdings", params={"user_id": f"eq.{user_id}", "quantity": "gt.0", "select": "symbol,name,asset_type,quantity,avg_price,updated_at"})
         if res is not None and isinstance(res, list):
-            cursor.execute("SELECT symbol FROM holding_tombstones WHERE user_id = ?", (user_id,))
-            tombstone_variants = {
-                variant.upper()
-                for row in cursor.fetchall()
-                for variant in get_symbol_variants(row["symbol"])
-            }
             cursor.execute("SELECT symbol, name, asset_type, quantity, avg_price, updated_at FROM holdings WHERE user_id = ? AND quantity > 0", (user_id,))
             local_rows = cursor.fetchall()
             local_map = {(r["symbol"] or "").upper(): dict(r) for r in local_rows}
 
             sb_symbols = set()
-            purged_variants = set()
 
             for h in res:
                 h_sym = (h.get("symbol") or "").strip()
                 variants = get_symbol_variants(h_sym)
                 upper_variants = [v.upper() for v in variants]
-                ledger_quantity = get_executed_delivery_quantity(cursor, user_id, h_sym)
-                is_tombstoned = any(v in tombstone_variants for v in upper_variants)
-                is_sold_out = (ledger_quantity is not None and ledger_quantity <= 0.0001)
+                h_qty = float(h.get("quantity", 0))
 
-                if is_tombstoned or is_sold_out or float(h.get("quantity", 0)) <= 0.0001:
-                    # 1. Purge ALL variants from local holdings & enforce tombstones
+                if h_qty <= 0.0001:
                     for v in upper_variants:
                         cursor.execute("DELETE FROM holdings WHERE user_id = ? AND UPPER(symbol) = ?", (user_id, v))
                         cursor.execute("""
                             INSERT OR REPLACE INTO holding_tombstones (user_id, symbol, deleted_at)
                             VALUES (?, ?, CURRENT_TIMESTAMP)
                         """, (user_id, v))
-                        purged_variants.add(v)
-                        sb_symbols.add(v)
-                    # 2. Purge from Supabase for all variants (both exact and ilike)
                     for v in variants:
                         filters = {"user_id": f"eq.{user_id}", "symbol": f"eq.{v}"}
-                        supabase_api("PATCH", "holdings", payload={"quantity": 0, "updated_at": datetime.now(timezone.utc).isoformat()}, params=filters)
                         supabase_api("DELETE", "holdings", params=filters)
-                        supabase_api("DELETE", "holdings", params={"user_id": f"eq.{user_id}", "symbol": f"ilike.{v}"})
-                        enqueue_sync_operation(cursor, user_id, "PATCH", "holdings", filters=filters, payload={"quantity": 0, "updated_at": datetime.now(timezone.utc).isoformat()})
-                        enqueue_sync_operation(cursor, user_id, "DELETE", "holdings", filters=filters)
                     continue
 
+                # Active holding with positive quantity: clean up any stale tombstone
                 for v in upper_variants:
                     sb_symbols.add(v)
+                    cursor.execute("DELETE FROM holding_tombstones WHERE user_id = ? AND UPPER(symbol) = ?", (user_id, v))
                     cursor.execute("DELETE FROM holdings WHERE user_id = ? AND UPPER(symbol) = ? AND symbol != ?", (user_id, v, h_sym))
 
                 cursor.execute("""
@@ -1089,7 +1074,7 @@ def sync_holdings_from_supabase_into_cursor(cursor, user_id: str):
                     h["symbol"], 
                     h.get("name", h["symbol"]), 
                     h.get("asset_type", "STOCK"), 
-                    float(h["quantity"]), 
+                    h_qty, 
                     float(h["avg_price"]), 
                     h.get("updated_at")
                 ))
@@ -1115,46 +1100,34 @@ def sync_positions_from_supabase_into_cursor(cursor, user_id: str):
     try:
         res = supabase_api("GET", "positions", params={"user_id": f"eq.{user_id}", "quantity": "gt.0", "select": "symbol,name,asset_type,quantity,avg_price,margin_used,product_type,updated_at"})
         if res is not None and isinstance(res, list):
-            cursor.execute("SELECT symbol FROM position_tombstones WHERE user_id = ?", (user_id,))
-            tombstone_variants = {
-                variant.upper()
-                for row in cursor.fetchall()
-                for variant in get_symbol_variants(row["symbol"])
-            }
             cursor.execute("SELECT symbol, name, asset_type, quantity, avg_price, margin_used, product_type, updated_at FROM positions WHERE user_id = ? AND quantity > 0", (user_id,))
             local_rows = cursor.fetchall()
             local_map = {(r["symbol"] or "").upper(): dict(r) for r in local_rows}
 
             sb_symbols = set()
-            purged_variants = set()
 
             for p in res:
                 p_sym = (p.get("symbol") or "").strip()
                 variants = get_symbol_variants(p_sym)
                 upper_variants = [v.upper() for v in variants]
-                ledger_quantity = get_executed_intraday_quantity(cursor, user_id, p_sym)
-                is_tombstoned = any(v in tombstone_variants for v in upper_variants)
-                is_squared_off = (ledger_quantity is not None and ledger_quantity <= 0.0001)
+                p_qty = float(p.get("quantity", 0))
 
-                if is_tombstoned or is_squared_off or float(p.get("quantity", 0)) <= 0.0001:
+                if p_qty <= 0.0001:
                     for v in upper_variants:
                         cursor.execute("DELETE FROM positions WHERE user_id = ? AND UPPER(symbol) = ?", (user_id, v))
                         cursor.execute("""
                             INSERT OR REPLACE INTO position_tombstones (user_id, symbol, deleted_at)
                             VALUES (?, ?, CURRENT_TIMESTAMP)
                         """, (user_id, v))
-                        purged_variants.add(v)
-                        sb_symbols.add(v)
                     for v in variants:
                         filters = {"user_id": f"eq.{user_id}", "symbol": f"eq.{v}"}
-                        supabase_api("PATCH", "positions", payload={"quantity": 0, "margin_used": 0, "updated_at": datetime.now(timezone.utc).isoformat()}, params=filters)
                         supabase_api("DELETE", "positions", params=filters)
-                        supabase_api("DELETE", "positions", params={"user_id": f"eq.{user_id}", "symbol": f"ilike.{v}"})
-                        enqueue_sync_operation(cursor, user_id, "DELETE", "positions", filters=filters)
                     continue
 
+                # Active position: remove any stale tombstone
                 for v in upper_variants:
                     sb_symbols.add(v)
+                    cursor.execute("DELETE FROM position_tombstones WHERE user_id = ? AND UPPER(symbol) = ?", (user_id, v))
                     cursor.execute("DELETE FROM positions WHERE user_id = ? AND UPPER(symbol) = ? AND symbol != ?", (user_id, v, p_sym))
 
                 cursor.execute("""
@@ -1165,7 +1138,7 @@ def sync_positions_from_supabase_into_cursor(cursor, user_id: str):
                     p["symbol"], 
                     p.get("name", p["symbol"]), 
                     p.get("asset_type", "STOCK"), 
-                    float(p["quantity"]), 
+                    p_qty, 
                     float(p["avg_price"]), 
                     float(p.get("margin_used", 0.0)), 
                     p.get("product_type", "INTRADAY"), 
@@ -1201,15 +1174,9 @@ def get_holdings(user_id: str = "default") -> List[Dict[str, Any]]:
         except Exception:
             pass
 
-    # 2. SQLite read with tombstone and ledger filtering
+    # 2. SQLite read
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT symbol FROM holding_tombstones WHERE user_id = ?", (user_id,))
-    tombstone_variants = {
-        variant.upper()
-        for row in cursor.fetchall()
-        for variant in get_symbol_variants(row["symbol"])
-    }
     cursor.execute("""
         SELECT symbol, name, asset_type, quantity, avg_price, updated_at 
         FROM holdings WHERE user_id = ? AND quantity > 0.0001
@@ -1217,24 +1184,14 @@ def get_holdings(user_id: str = "default") -> List[Dict[str, Any]]:
     rows = cursor.fetchall()
 
     valid_rows = []
-    purged_symbols = []
     for r in rows:
         sym = (r["symbol"] or "").upper()
-        variants = [v.upper() for v in get_symbol_variants(sym)]
-        if any(v in tombstone_variants for v in variants):
-            purged_symbols.append(r["symbol"])
-            continue
-        ledger_qty = get_executed_delivery_quantity(cursor, user_id, r["symbol"])
-        if ledger_qty is not None and ledger_qty <= 0.0001:
-            purged_symbols.append(r["symbol"])
-            continue
+        # Clean any stale tombstones for owned symbols
+        for v in get_symbol_variants(sym):
+            cursor.execute("DELETE FROM holding_tombstones WHERE user_id = ? AND UPPER(symbol) = ?", (user_id, v.upper()))
         valid_rows.append(dict(r))
 
-    if purged_symbols:
-        for ps in purged_symbols:
-            cursor.execute("DELETE FROM holdings WHERE user_id = ? AND UPPER(symbol) = ?", (user_id, ps.upper()))
-        conn.commit()
-
+    conn.commit()
     conn.close()
     return valid_rows
 
@@ -1252,15 +1209,9 @@ def get_positions(user_id: str = "default") -> List[Dict[str, Any]]:
         except Exception:
             pass
 
-    # 2. SQLite read with tombstone and ledger filtering
+    # 2. SQLite read
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT symbol FROM position_tombstones WHERE user_id = ?", (user_id,))
-    tombstone_variants = {
-        variant.upper()
-        for row in cursor.fetchall()
-        for variant in get_symbol_variants(row["symbol"])
-    }
     cursor.execute("""
         SELECT symbol, name, asset_type, quantity, avg_price, margin_used, product_type, updated_at 
         FROM positions WHERE user_id = ? AND quantity > 0.0001
@@ -1268,24 +1219,14 @@ def get_positions(user_id: str = "default") -> List[Dict[str, Any]]:
     rows = cursor.fetchall()
 
     valid_rows = []
-    purged_symbols = []
     for r in rows:
         sym = (r["symbol"] or "").upper()
-        variants = [v.upper() for v in get_symbol_variants(sym)]
-        if any(v in tombstone_variants for v in variants):
-            purged_symbols.append(r["symbol"])
-            continue
-        ledger_qty = get_executed_intraday_quantity(cursor, user_id, r["symbol"])
-        if ledger_qty is not None and ledger_qty <= 0.0001:
-            purged_symbols.append(r["symbol"])
-            continue
+        # Clean any stale tombstones for owned symbols
+        for v in get_symbol_variants(sym):
+            cursor.execute("DELETE FROM position_tombstones WHERE user_id = ? AND UPPER(symbol) = ?", (user_id, v.upper()))
         valid_rows.append(dict(r))
 
-    if purged_symbols:
-        for ps in purged_symbols:
-            cursor.execute("DELETE FROM positions WHERE user_id = ? AND UPPER(symbol) = ?", (user_id, ps.upper()))
-        conn.commit()
-
+    conn.commit()
     conn.close()
     return valid_rows
 
