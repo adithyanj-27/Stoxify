@@ -52,11 +52,17 @@
     <!-- Search Bar with Dropdown -->
     <div class="search-wrapper">
       <div class="search-input-box">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-muted);">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-muted); flex-shrink: 0;">
           <circle cx="11" cy="11" r="8"></circle>
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         </svg>
         <input type="text" id="globalSearchInput" placeholder="Search stocks, mutual funds (e.g. Tata Motors, Parag Parikh)..." autocomplete="off">
+        <button type="button" class="search-clear-btn" id="searchClearBtn" aria-label="Close search" onclick="closeSearchBar(event)" title="Close search">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
       </div>
       <div class="search-results-dropdown" id="searchResultsDropdown"></div>
     </div>
@@ -281,6 +287,18 @@
       <!-- Stocks Sub-view -->
       <div id="explore-stocks-container">
 
+        <!-- Recently Viewed Stocks Horizontal Carousel -->
+        <div class="groww-section-block" id="recentStocksSection" style="display: none; margin-bottom: 1.25rem;">
+          <div class="groww-section-header">
+            <div>
+              <h3 class="groww-section-title">Recently Viewed</h3>
+              <span class="groww-section-sub">Stocks you checked out recently</span>
+            </div>
+            <button type="button" class="btn-subtle" onclick="clearRecentlyViewed('STOCK')" style="padding: 0.25rem 0.65rem; font-size: 0.75rem; border-radius: 6px;" title="Clear recently viewed stocks">Clear</button>
+          </div>
+          <div class="most-bought-carousel" id="recentStocksCarousel"></div>
+        </div>
+
         <!-- Groww "Most Bought on Stoxify" Horizontal Carousel -->
         <div class="groww-section-block" id="mostBoughtSection">
           <div class="groww-section-header">
@@ -393,6 +411,18 @@
 
       <!-- Mutual Funds Sub-view -->
       <div id="explore-mf-container" style="display: none;">
+        <!-- Recently Viewed Mutual Funds Horizontal Carousel -->
+        <div class="groww-section-block" id="recentMfSection" style="display: none; margin-bottom: 1.25rem;">
+          <div class="groww-section-header">
+            <div>
+              <h3 class="groww-section-title">Recently Viewed</h3>
+              <span class="groww-section-sub">Mutual funds you checked out recently</span>
+            </div>
+            <button type="button" class="btn-subtle" onclick="clearRecentlyViewed('MUTUAL_FUND')" style="padding: 0.25rem 0.65rem; font-size: 0.75rem; border-radius: 6px;" title="Clear recently viewed funds">Clear</button>
+          </div>
+          <div class="most-bought-carousel" id="recentMfCarousel"></div>
+        </div>
+
         <div class="section-header">
           <div>
             <h2 class="section-title">Popular Mutual Funds</h2>
@@ -2281,6 +2311,10 @@
         <div class="order-success-row total" id="orderSuccessNetRow" style="display: none; border-top: 1px dashed var(--border-subtle); padding-top: 0.5rem; margin-top: 0.25rem;">
           <span class="label" style="font-weight: 700; color: var(--brand-green);">Net Balance Credited</span>
           <span class="val text-positive" id="orderSuccessNet" style="font-size: 1.1rem; font-weight: 800;">₹0.00</span>
+        </div>
+        <div class="order-success-row" id="orderSuccessBalanceRow" style="display: none; border-top: 1px dashed var(--border-subtle); padding-top: 0.5rem; margin-top: 0.25rem;">
+          <span class="label">Updated Balance</span>
+          <span class="val" id="orderSuccessBalance" style="font-weight: 700; color: var(--brand-cyan);">₹0.00</span>
         </div>
       </div>
 

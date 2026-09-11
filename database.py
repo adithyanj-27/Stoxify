@@ -890,12 +890,14 @@ def find_user_by_identifier(identifier: str) -> Optional[Dict[str, Any]]:
 
 # --- Account & Balances ---
 def get_account(user_id: str = "default") -> Dict[str, Any]:
-    # Local trade transactions are authoritative for the active process. Do not
-    # overwrite a just-updated balance with a slower cloud replica response.
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT balance, total_deposited FROM users WHERE id = ?", (user_id,))
     row = cursor.fetchone()
+    if not row and is_supabase_enabled() and user_id and user_id != "guest":
+        sync_user_from_supabase_into_cursor(cursor, user_id)
+        cursor.execute("SELECT balance, total_deposited FROM users WHERE id = ?", (user_id,))
+        row = cursor.fetchone()
     if not row and user_id == "default":
         cursor.execute("SELECT balance, total_deposited FROM account WHERE id = 1")
         row = cursor.fetchone()
@@ -903,11 +905,6 @@ def get_account(user_id: str = "default") -> Dict[str, Any]:
     if row:
         return {"balance": row["balance"], "total_deposited": row["total_deposited"]}
 
-    # A new serverless instance may not have a local user row yet.
-    if is_supabase_enabled() and user_id and user_id != "guest":
-        res = supabase_api("GET", "users", params={"id": f"eq.{user_id}", "select": "balance,total_deposited"})
-        if res and isinstance(res, list) and len(res) > 0:
-            return {"balance": float(res[0].get("balance", 1000000.0)), "total_deposited": float(res[0].get("total_deposited", 1000000.0))}
     return {"balance": 1000000.0, "total_deposited": 1000000.0}
 
 def get_symbol_variants(symbol: str) -> List[str]:
@@ -971,6 +968,30 @@ def get_executed_intraday_quantity(cursor, user_id: str, symbol: str) -> Optiona
     if totals.get("BUY", 0.0) <= 0.0001:
         return None
     return totals.get("BUY", 0.0) - totals.get("SELL", 0.0)
+
+def sync_user_from_supabase_into_cursor(cursor, user_id: str) -> Optional[Dict[str, Any]]:
+    if not is_supabase_enabled() or not user_id or user_id in ["guest"]:
+        return None
+    try:
+        res = supabase_api("GET", "users", params={"id": f"eq.{user_id}", "select": "*"})
+        if res and isinstance(res, list) and len(res) > 0:
+            sb_u = res[0]
+            cursor.execute("""
+                INSERT OR REPLACE INTO users (
+                    id, name, email, phone, pan, bank_name, bank_account, pin, 
+                    balance, total_deposited, avatar_color, dob, username, password, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                sb_u.get("id"), sb_u.get("name"), sb_u.get("email"), sb_u.get("phone"),
+                sb_u.get("pan"), sb_u.get("bank_name"), sb_u.get("bank_account"), sb_u.get("pin"),
+                float(sb_u.get("balance", 1000000.0)), float(sb_u.get("total_deposited", 1000000.0)),
+                sb_u.get("avatar_color", "#0EA5E9"), sb_u.get("dob", ""), sb_u.get("username"), sb_u.get("password"),
+                sb_u.get("updated_at")
+            ))
+            return sb_u
+    except Exception as sync_e:
+        print(f"[Supabase User Sync Warning] {sync_e}")
+    return None
 
 def sync_orders_from_supabase_into_cursor(cursor, user_id: str):
     if not is_supabase_enabled() or not user_id or user_id in ["guest"]:
@@ -1419,6 +1440,10 @@ def execute_trade(
     cursor = conn.cursor()
 
     try:
+        # Sync user balance from Supabase if enabled to ensure fresh, authoritative state
+        if is_supabase_enabled() and user_id and user_id != "guest":
+            sync_user_from_supabase_into_cursor(cursor, user_id)
+
         # Fetch current balance
         cursor.execute("SELECT balance FROM users WHERE id = ?", (user_id,))
         acc_row = cursor.fetchone()
@@ -1429,6 +1454,16 @@ def execute_trade(
             """, (user_id, "Default Trader" if user_id == "default" else "Trader"))
             cursor.execute("SELECT balance FROM users WHERE id = ?", (user_id,))
             acc_row = cursor.fetchone()
+            if is_supabase_enabled() and user_id != "guest":
+                try:
+                    supabase_api("POST", "users?on_conflict=id", payload={
+                        "id": user_id, "name": "Default Trader" if user_id == "default" else "Trader",
+                        "email": "trader@stoxify.com", "phone": "9876543210", "pan": "ABCDE1234F",
+                        "bank_name": "HDFC Bank", "bank_account": "50100234567890", "pin": "",
+                        "balance": 1000000.0, "total_deposited": 1000000.0, "avatar_color": "#0EA5E9"
+                    })
+                except Exception:
+                    pass
         balance = acc_row["balance"] if acc_row else 1000000.0
 
         sym_variants = get_symbol_variants(symbol)
@@ -1436,6 +1471,7 @@ def execute_trade(
         sym_params = [v.upper() for v in sym_variants]
 
         if is_pending_limit:
+            new_balance = balance
             if order_type == "BUY":
                 if balance < required_margin:
                     conn.close()
@@ -1479,15 +1515,25 @@ def execute_trade(
             order_id = cursor.lastrowid
             conn.commit()
             conn.close()
+
+            if is_supabase_enabled() and user_id != "guest" and order_type == "BUY":
+                try:
+                    supabase_api("PATCH", f"users?id=eq.{user_id}", payload={"balance": new_balance, "updated_at": datetime.now(timezone.utc).isoformat()})
+                except Exception as sb_e:
+                    print(f"[Supabase Limit Margin Sync Warning] {sb_e}")
+
             return {
                 "success": True, 
                 "order_id": order_id, 
                 "status": "OPEN", 
+                "balance": new_balance,
+                "new_balance": new_balance,
                 "message": f"Limit {order_type} order placed for {quantity} {symbol} at ₹{effective_price:,.2f} (Status: Open)"
             }
 
         # Stop-Loss Orders (SL-Limit) handling
         if is_pending_sl:
+            new_balance = balance
             if order_type == "BUY":
                 if balance < required_margin:
                     conn.close()
@@ -1530,10 +1576,19 @@ def execute_trade(
             order_id = cursor.lastrowid
             conn.commit()
             conn.close()
+
+            if is_supabase_enabled() and user_id != "guest" and order_type == "BUY":
+                try:
+                    supabase_api("PATCH", f"users?id=eq.{user_id}", payload={"balance": new_balance, "updated_at": datetime.now(timezone.utc).isoformat()})
+                except Exception as sb_e:
+                    print(f"[Supabase SL Margin Sync Warning] {sb_e}")
+
             return {
                 "success": True, 
                 "order_id": order_id, 
                 "status": "TRIGGER_PENDING", 
+                "balance": new_balance,
+                "new_balance": new_balance,
                 "message": f"Stop-Loss {order_type} placed for {quantity} {symbol}. Trigger Price: ₹{trigger_price:,.2f} (Status: Trigger Pending)"
             }
 
@@ -1599,7 +1654,7 @@ def execute_trade(
             conn.commit()
             conn.close()
 
-            # Sync to Supabase in background worker thread (zero user latency)
+            # Sync to Supabase synchronously so cloud state is consistent and immune to serverless freezing
             if is_supabase_enabled() and user_id != "guest":
                 def _sync_buy():
                     try:
@@ -1634,13 +1689,22 @@ def execute_trade(
                         _REMOTE_SYNC_LAST_AT.pop(f"positions:{user_id}", None)
                         _REMOTE_SYNC_LAST_AT.pop(f"orders:{user_id}", None)
 
-                _TRADE_SYNC_POOL.submit(_sync_buy)
+                _sync_buy()
 
             _REMOTE_SYNC_LAST_AT.pop(f"holdings:{user_id}", None)
             _REMOTE_SYNC_LAST_AT.pop(f"positions:{user_id}", None)
             _REMOTE_SYNC_LAST_AT.pop(f"orders:{user_id}", None)
             tag_msg = " as After-Market Order (AMO)" if order_tag == "AMO" else ""
-            return {"success": True, "order_id": order_id, "status": order_status, "message": f"Successfully purchased {quantity} {symbol} at ₹{effective_price:,.2f}{tag_msg}"}
+            return {
+                "success": True, 
+                "order_id": order_id, 
+                "status": order_status, 
+                "balance": new_balance,
+                "new_balance": new_balance,
+                "charges": charges,
+                "net_amount": total_amount,
+                "message": f"Successfully purchased {quantity} {symbol} at ₹{effective_price:,.2f}{tag_msg}"
+            }
 
         elif order_type == "SELL":
             # Fetch both positions (Intraday) and holdings (Delivery)
@@ -1775,7 +1839,7 @@ def execute_trade(
             conn.commit()
             conn.close()
 
-            # Sync to Supabase in background worker thread (zero user latency)
+            # Sync to Supabase synchronously so cloud state is consistent and immune to serverless freezing
             if is_supabase_enabled() and user_id != "guest":
                 def _sync_sell():
                     try:
@@ -1820,7 +1884,7 @@ def execute_trade(
                         _REMOTE_SYNC_LAST_AT.pop(f"positions:{user_id}", None)
                         _REMOTE_SYNC_LAST_AT.pop(f"orders:{user_id}", None)
 
-                _TRADE_SYNC_POOL.submit(_sync_sell)
+                _sync_sell()
 
             _REMOTE_SYNC_LAST_AT.pop(f"holdings:{user_id}", None)
             _REMOTE_SYNC_LAST_AT.pop(f"positions:{user_id}", None)
@@ -1834,6 +1898,8 @@ def execute_trade(
                 "gross_amount": total_amount,
                 "charges": charges,
                 "net_amount": net_proceeds,
+                "balance": new_balance,
+                "new_balance": new_balance,
                 "message": f"Successfully sold {quantity} {symbol} at ₹{effective_price:,.2f} (Net: ₹{net_proceeds:,.2f}){tag_msg}"
             }
 
@@ -1916,8 +1982,18 @@ def cancel_order(order_id: int, user_id: str = "default") -> Dict[str, Any]:
             cursor.execute("UPDATE users SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (new_bal, o_user))
             if o_user == "default":
                 cursor.execute("UPDATE account SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (new_bal,))
+            if is_supabase_enabled() and o_user != "guest":
+                try:
+                    supabase_api("PATCH", f"users?id=eq.{o_user}", payload={"balance": new_bal, "updated_at": datetime.now(timezone.utc).isoformat()})
+                except Exception as sb_e:
+                    print(f"[Supabase Cancel Margin Sync Warning] {sb_e}")
 
         cursor.execute("UPDATE orders SET status = 'CANCELLED' WHERE id = ?", (order_id,))
+        if is_supabase_enabled() and o_user != "guest":
+            try:
+                supabase_api("PATCH", "orders", params={"id": f"eq.{order_id}"}, payload={"status": "CANCELLED"})
+            except Exception:
+                pass
         conn.commit()
         conn.close()
         return {"success": True, "message": f"Order #{order_id} for {order['symbol']} cancelled successfully"}
@@ -2128,6 +2204,12 @@ def restore_balance(user_id: str = "default", target_balance: float = 1000000.0)
     """, (target_balance, target_balance, user_id))
     if user_id == "default":
         cursor.execute("UPDATE account SET balance = ?, total_deposited = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (target_balance, target_balance))
+    
+    # Clear active holdings and positions when restoring balance to prevent balance duplication arbitrage
+    cursor.execute("DELETE FROM holdings WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM positions WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM holding_tombstones WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM position_tombstones WHERE user_id = ?", (user_id,))
     conn.commit()
     conn.close()
 
@@ -2138,8 +2220,12 @@ def restore_balance(user_id: str = "default", target_balance: float = 1000000.0)
                 "total_deposited": target_balance,
                 "updated_at": datetime.now(timezone.utc).isoformat()
             })
+            supabase_api("DELETE", "holdings", params={"user_id": f"eq.{user_id}"})
+            supabase_api("DELETE", "positions", params={"user_id": f"eq.{user_id}"})
         except Exception:
             pass
+    _REMOTE_SYNC_LAST_AT.pop(f"holdings:{user_id}", None)
+    _REMOTE_SYNC_LAST_AT.pop(f"positions:{user_id}", None)
     return target_balance
 
 def delete_user(user_id: str) -> bool:

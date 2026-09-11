@@ -320,6 +320,7 @@ function switchExploreSubnav(subId) {
   });
 
   if (subId === 'stocks') {
+    renderRecentlyViewedStocks();
     if (!state.exploreData) fetchExploreData();
   } else if (subId === 'fo') {
     fetchOptionChain();
@@ -587,7 +588,135 @@ function renderCardStarBtn(symbol, name, assetType) {
   `;
 }
 
+// --- Recently Viewed Assets (Stocks & Mutual Funds) ---
+function getRecentlyViewed(type) {
+  try {
+    const key = type === 'MUTUAL_FUND' ? 'stoxify_recent_mutual_funds' : 'stoxify_recent_stocks';
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {}
+  return [];
+}
+
+function recordRecentlyViewed(item, type) {
+  if (!item || !item.symbol) return;
+  const key = type === 'MUTUAL_FUND' ? 'stoxify_recent_mutual_funds' : 'stoxify_recent_stocks';
+  try {
+    let list = getRecentlyViewed(type);
+    const cleanSym = (item.symbol || '').toUpperCase();
+    list = list.filter(i => (i.symbol || '').toUpperCase() !== cleanSym);
+    list.unshift({
+      symbol: item.symbol,
+      name: item.name || item.symbol,
+      price: item.price || 0,
+      change: item.change !== undefined ? item.change : 0,
+      change_pct: item.change_pct !== undefined ? item.change_pct : 0,
+      return_1y: item.return_1y,
+      asset_type: type,
+      category: item.category,
+      fund_house: item.fund_house,
+      sector: item.sector,
+      timestamp: Date.now()
+    });
+    if (list.length > 10) list = list.slice(0, 10);
+    localStorage.setItem(key, JSON.stringify(list));
+  } catch (e) {}
+}
+
+function clearRecentlyViewed(type) {
+  const key = type === 'MUTUAL_FUND' ? 'stoxify_recent_mutual_funds' : 'stoxify_recent_stocks';
+  try {
+    localStorage.removeItem(key);
+  } catch (e) {}
+  if (type === 'MUTUAL_FUND') {
+    renderRecentlyViewedMutualFunds();
+  } else {
+    renderRecentlyViewedStocks();
+  }
+}
+window.clearRecentlyViewed = clearRecentlyViewed;
+
+function renderRecentlyViewedStocks() {
+  const sec = document.getElementById('recentStocksSection');
+  const carousel = document.getElementById('recentStocksCarousel');
+  if (!sec || !carousel) return;
+
+  const list = getRecentlyViewed('STOCK');
+  if (!list || list.length === 0) {
+    sec.style.display = 'none';
+    carousel.innerHTML = '';
+    return;
+  }
+
+  sec.style.display = 'block';
+  carousel.innerHTML = list.map(s => {
+    let live = s;
+    if (state.exploreData && state.exploreData.all_stocks) {
+      const match = state.exploreData.all_stocks.find(st => (st.symbol || '').toUpperCase() === (s.symbol || '').toUpperCase());
+      if (match) live = { ...s, price: match.price, change: match.change, change_pct: match.change_pct };
+    }
+    const isPos = (live.change || 0) >= 0;
+    const cleanSym = (live.symbol || '').replace('.NS', '').replace('.BO', '');
+    const badgeClass = isPos ? 'badge-positive' : 'badge-negative';
+    return `
+      <div class="most-bought-card" onclick="openAssetModal('${live.symbol}', 'STOCK')">
+        <div class="mb-top">
+          ${renderAssetAvatar(live, 'STOCK')}
+          <span class="mb-sym-pill">${cleanSym}</span>
+        </div>
+        <div class="mb-name" title="${live.name}">${live.name}</div>
+        <div class="mb-bottom">
+          <span class="mb-price">${formatINR(live.price)}</span>
+          <span class="${badgeClass} mb-badge">${isPos ? '+' : ''}${formatNumber(live.change_pct)}%</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderRecentlyViewedMutualFunds() {
+  const sec = document.getElementById('recentMfSection');
+  const carousel = document.getElementById('recentMfCarousel');
+  if (!sec || !carousel) return;
+
+  const list = getRecentlyViewed('MUTUAL_FUND');
+  if (!list || list.length === 0) {
+    sec.style.display = 'none';
+    carousel.innerHTML = '';
+    return;
+  }
+
+  sec.style.display = 'block';
+  carousel.innerHTML = list.map(mf => {
+    let live = mf;
+    if (state.exploreData && state.exploreData.mutual_funds) {
+      const match = state.exploreData.mutual_funds.find(m => (m.symbol || '').toUpperCase() === (mf.symbol || '').toUpperCase());
+      if (match) live = { ...mf, price: match.price, return_1y: match.return_1y };
+    }
+    const cleanSym = (live.symbol || '').replace('.NS', '').replace('.BO', '');
+    const returnVal = live.return_1y !== undefined ? live.return_1y : live.change_pct;
+    const isPos = (returnVal || 0) >= 0;
+    return `
+      <div class="most-bought-card" onclick="openAssetModal('${live.symbol}', 'MUTUAL_FUND')">
+        <div class="mb-top">
+          ${renderAssetAvatar(live, 'MUTUAL_FUND')}
+          <span class="mb-sym-pill" style="max-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${cleanSym}</span>
+        </div>
+        <div class="mb-name" title="${live.name}">${live.name}</div>
+        <div class="mb-bottom">
+          <span class="mb-price">${formatINR(live.price)}</span>
+          <span class="${isPos ? 'badge-positive' : 'badge-negative'} mb-badge">${isPos ? '+' : ''}${formatNumber(returnVal)}% 1Y</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
 function renderExploreStocks() {
+  renderRecentlyViewedStocks();
   if (!state.exploreData || !state.exploreData.all_stocks) return;
   const grid = document.getElementById('stocksGrid');
   const title = document.getElementById('exploreStocksTitle');
@@ -678,6 +807,7 @@ function renderExploreStocks() {
 }
 
 function renderExploreMutualFunds() {
+  renderRecentlyViewedMutualFunds();
   if (!state.exploreData || !state.exploreData.mutual_funds) return;
   const grid = document.getElementById('mfGrid');
   grid.innerHTML = state.exploreData.mutual_funds.map(mf => {
@@ -1304,56 +1434,120 @@ async function toggleWatchlistItem(symbol, name, assetType) {
 }
 window.toggleWatchlist = toggleWatchlistItem;
 
-// --- Search Auto-Complete ---
+// --- Search Auto-Complete & Dismiss Handling ---
 const searchInput = document.getElementById('globalSearchInput');
 const searchDropdown = document.getElementById('searchResultsDropdown');
 let searchDebounceTimer = null;
 
-searchInput.addEventListener('input', (e) => {
-  const query = e.target.value.trim();
-  clearTimeout(searchDebounceTimer);
-  if (!query) {
-    searchDropdown.style.display = 'none';
-    return;
+function closeSearchBar(e) {
+  if (e) {
+    e.stopPropagation();
+    e.preventDefault();
   }
-  searchDebounceTimer = setTimeout(async () => {
-    try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-      const results = await res.json();
-      if (results.length === 0) {
-        searchDropdown.innerHTML = `<div style="padding: 1rem; color: var(--text-muted); font-size: 0.85rem;">No securities found matching "${query}"</div>`;
-      } else {
-        searchDropdown.innerHTML = results.map(r => `
-          <div class="search-item" onclick="selectSearchResult('${r.symbol}', '${r.asset_type}')">
-            <div style="display: flex; align-items: center; gap: 0.75rem;">
-              ${renderAssetAvatar(r, r.asset_type)}
-              <div>
-                <div class="search-item-title" style="font-weight: 700; font-size: 0.9rem;">${r.name}</div>
-                <div class="search-item-sub" style="font-size: 0.75rem; color: var(--text-muted);">${r.subtext}</div>
-              </div>
-            </div>
-            <span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;">
-              ${r.asset_type === 'MUTUAL_FUND' ? 'Mutual Fund' : 'Stock'}
-            </span>
-          </div>
-        `).join('');
-      }
-      searchDropdown.style.display = 'block';
-    } catch (err) {
-      console.error('Search error:', err);
-    }
-  }, 180);
-});
+  const input = document.getElementById('globalSearchInput');
+  const dropdown = document.getElementById('searchResultsDropdown');
+  const wrapper = document.querySelector('.search-wrapper');
+  if (input) {
+    input.value = '';
+    const box = input.closest('.search-input-box');
+    if (box) box.classList.remove('has-text');
+    input.blur();
+  }
+  if (dropdown) {
+    dropdown.style.display = 'none';
+  }
+  if (wrapper && wrapper.classList.contains('mobile-open')) {
+    wrapper.classList.remove('mobile-open');
+  }
+}
+window.closeSearchBar = closeSearchBar;
 
-document.addEventListener('click', (e) => {
-  if (!searchInput.contains(e.target) && !searchDropdown.contains(e.target)) {
-    searchDropdown.style.display = 'none';
+if (searchInput) {
+  searchInput.addEventListener('input', (e) => {
+    const query = e.target.value.trim();
+    const box = searchInput.closest('.search-input-box');
+    if (box) {
+      if (query.length > 0) {
+        box.classList.add('has-text');
+      } else {
+        box.classList.remove('has-text');
+      }
+    }
+    clearTimeout(searchDebounceTimer);
+    if (!query) {
+      searchDropdown.style.display = 'none';
+      return;
+    }
+    searchDebounceTimer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+        const results = await res.json();
+        if (results.length === 0) {
+          searchDropdown.innerHTML = `<div style="padding: 1rem; color: var(--text-muted); font-size: 0.85rem;">No securities found matching "${query}"</div>`;
+        } else {
+          searchDropdown.innerHTML = results.map(r => `
+            <div class="search-item" onclick="selectSearchResult('${r.symbol}', '${r.asset_type}')">
+              <div style="display: flex; align-items: center; gap: 0.75rem;">
+                ${renderAssetAvatar(r, r.asset_type)}
+                <div>
+                  <div class="search-item-title" style="font-weight: 700; font-size: 0.9rem;">${r.name}</div>
+                  <div class="search-item-sub" style="font-size: 0.75rem; color: var(--text-muted);">${r.subtext}</div>
+                </div>
+              </div>
+              <span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;">
+                ${r.asset_type === 'MUTUAL_FUND' ? 'Mutual Fund' : 'Stock'}
+              </span>
+            </div>
+          `).join('');
+        }
+        searchDropdown.style.display = 'block';
+      } catch (err) {
+        console.error('Search error:', err);
+      }
+    }, 180);
+  });
+}
+
+function handleOutsideSearch(e) {
+  const input = document.getElementById('globalSearchInput');
+  const dropdown = document.getElementById('searchResultsDropdown');
+  const wrapper = document.querySelector('.search-wrapper');
+  const mobileBtn = document.getElementById('mobileSearchBtn');
+
+  // Close dropdown if clicked outside input and dropdown
+  if (dropdown && dropdown.style.display !== 'none' && input) {
+    if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+      dropdown.style.display = 'none';
+    }
   }
-});
+
+  // Mobile View Only: Dismiss mobile search bar when touching/clicking elsewhere on screen
+  if (wrapper && wrapper.classList.contains('mobile-open')) {
+    if (!wrapper.contains(e.target) && (!mobileBtn || !mobileBtn.contains(e.target))) {
+      wrapper.classList.remove('mobile-open');
+      if (dropdown) dropdown.style.display = 'none';
+      if (input) {
+        input.blur();
+      }
+    }
+  }
+}
+
+document.addEventListener('pointerdown', handleOutsideSearch);
+document.addEventListener('touchstart', handleOutsideSearch, { passive: true });
+document.addEventListener('click', handleOutsideSearch);
 
 function selectSearchResult(symbol, assetType) {
   searchDropdown.style.display = 'none';
-  searchInput.value = '';
+  if (searchInput) {
+    searchInput.value = '';
+    const box = searchInput.closest('.search-input-box');
+    if (box) box.classList.remove('has-text');
+  }
+  const wrapper = document.querySelector('.search-wrapper');
+  if (wrapper && wrapper.classList.contains('mobile-open')) {
+    wrapper.classList.remove('mobile-open');
+  }
   openAssetModal(symbol, assetType);
 }
 
@@ -1858,6 +2052,31 @@ function roundNumber(num, dec) {
   return Math.round(num * Math.pow(10, dec)) / Math.pow(10, dec);
 }
 
+function setOrderExecutionLoading(isLoading, action = 'BUY') {
+  const pageBtn = document.getElementById('pageOrderExecuteBtn');
+  const drawerBtn = document.getElementById('drawerOrderExecuteBtn');
+  const tradeModalBtn = document.getElementById('tradeExecuteBtn');
+  const optBtn = document.getElementById('optExecuteBtn');
+
+  const btns = [pageBtn, drawerBtn, tradeModalBtn, optBtn].filter(Boolean);
+  btns.forEach(btn => {
+    if (isLoading) {
+      if (!btn.dataset.originalHtml) {
+        btn.dataset.originalHtml = btn.innerHTML;
+      }
+      btn.disabled = true;
+      btn.innerHTML = `<span class="btn-spinner"></span> <span>Executing ${action || 'Order'}...</span>`;
+    } else {
+      btn.disabled = false;
+      if (btn.dataset.originalHtml) {
+        btn.innerHTML = btn.dataset.originalHtml;
+        delete btn.dataset.originalHtml;
+      }
+    }
+  });
+}
+window.setOrderExecutionLoading = setOrderExecutionLoading;
+
 async function submitOrder() {
   if (isGuest()) {
     closeTradeModal();
@@ -1895,6 +2114,8 @@ async function submitOrder() {
     limit_price: limitPrice
   };
 
+  setOrderExecutionLoading(true, payload.order_type);
+
   try {
     const res = await fetch('/api/order', {
       method: 'POST',
@@ -1904,11 +2125,33 @@ async function submitOrder() {
     const result = await res.json();
 
     if (!res.ok || !result.success) {
+      setOrderExecutionLoading(false);
       showToast(result.detail || result.error || 'Order rejected by broker engine', true);
       return;
     }
 
+    // Await authoritative backend reflection of portfolio, positions, balance, and orders
+    await Promise.all([
+      fetchAccount(),
+      fetchPortfolio(true),
+      fetchPositions(true),
+      fetchOrders()
+    ]);
+
+    if (currentUser && state.account && state.account.balance !== undefined) {
+      currentUser.balance = state.account.balance;
+      try {
+        localStorage.setItem('stoxify_cached_user', JSON.stringify(currentUser));
+      } catch (e) {}
+    }
+
+    setOrderExecutionLoading(false);
     closeTradeModal();
+
+    const confirmedBalance = (result.balance !== undefined)
+      ? result.balance
+      : (state.account ? state.account.balance : undefined);
+
     openOrderSuccessModal({
       symbol: payload.symbol,
       name: payload.name,
@@ -1918,18 +2161,15 @@ async function submitOrder() {
       price: payload.price,
       total: qty * payload.price,
       charges: result.charges,
-      net_amount: result.net_amount
+      net_amount: result.net_amount,
+      status: result.status,
+      balance: confirmedBalance
     });
     showToast(result.message || `Order processed successfully: ${state.orderAction} ${qty} ${payload.symbol}`);
 
-    Promise.all([
-      fetchAccount(),
-      fetchPortfolio(true),
-      fetchPositions(true),
-      fetchOrders()
-    ]).catch(e => console.warn('Background sync error:', e));
   } catch (err) {
     console.error('Order submission error:', err);
+    setOrderExecutionLoading(false);
     showToast('Failed to connect to execution server', true);
   }
 }
@@ -2927,6 +3167,9 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
     const indexName = isIndex ? (INDEX_NAMES[data.symbol] || data.name || data.symbol.replace('^', '')) : null;
     const cleanSym = isIndex ? (INDEX_NAMES[data.symbol] || data.symbol.replace('^', '')) : (data.symbol || '').replace('.NS', '').replace('.BO', '');
     const isMF = data.asset_type === 'MUTUAL_FUND';
+    if (!isIndex) {
+      recordRecentlyViewed(data, isMF ? 'MUTUAL_FUND' : 'STOCK');
+    }
     
     document.getElementById('assetBreadcrumbCategory').innerText = isIndex ? 'Indices' : (isMF ? 'Mutual Funds' : 'Stocks');
     document.getElementById('assetBreadcrumbName').innerText = isIndex ? indexName : data.name;
@@ -4186,11 +4429,7 @@ async function executePageTrade() {
     return;
   }
 
-  const originalBtnText = execBtn ? execBtn.innerText : '';
-  if (execBtn) {
-    execBtn.disabled = true;
-    execBtn.innerText = 'Executing Order...';
-  }
+  setOrderExecutionLoading(true, pageOrderState.action);
 
   try {
     let res, result;
@@ -4228,9 +4467,38 @@ async function executePageTrade() {
     }
 
     if (!res.ok || !result.success) {
+      setOrderExecutionLoading(false);
       showToast(result.detail || result.error || 'Trade execution failed', true);
       return;
     }
+
+    // Await authoritative backend reflection of portfolio, positions, balance, and orders
+    // The loading symbol remains visible and active throughout this lag time
+    await Promise.all([
+      fetchAccount(),
+      fetchPortfolio(true),
+      fetchPositions(true),
+      fetchOrders()
+    ]);
+
+    if (currentUser && state.account && state.account.balance !== undefined) {
+      currentUser.balance = state.account.balance;
+      try {
+        localStorage.setItem('stoxify_cached_user', JSON.stringify(currentUser));
+      } catch (e) {}
+    }
+
+    if (currentPageAsset) {
+      updatePageAvailableHolding(currentPageAsset.symbol);
+    }
+    recalcPageMargin();
+
+    setOrderExecutionLoading(false);
+    closeMobileTradeDrawer();
+
+    const confirmedBalance = (result.balance !== undefined)
+      ? result.balance
+      : (state.account ? state.account.balance : undefined);
 
     openOrderSuccessModal({
       symbol: currentPageAsset.symbol,
@@ -4241,31 +4509,18 @@ async function executePageTrade() {
       price: (pageOrderState.variety === 'LIMIT' || pageOrderState.variety === 'STOP_LOSS') ? (limitPrice || currentPageAsset.price) : currentPageAsset.price,
       total: qty * ((pageOrderState.variety === 'LIMIT' || pageOrderState.variety === 'STOP_LOSS') ? (limitPrice || currentPageAsset.price) : currentPageAsset.price),
       charges: result.charges,
-      net_amount: result.net_amount
+      net_amount: result.net_amount,
+      status: result.status,
+      balance: confirmedBalance
     });
-    closeMobileTradeDrawer();
     showToast(result.message || `${pageOrderState.action} order placed successfully!`);
-
-    Promise.all([
-      fetchAccount(),
-      fetchPortfolio(true),
-      fetchPositions(true),
-      fetchOrders()
-    ]).then(() => {
-      if (currentPageAsset) {
-        updatePageAvailableHolding(currentPageAsset.symbol);
-      }
-      recalcPageMargin();
-    }).catch(e => console.warn('Background sync error:', e));
 
   } catch (err) {
     console.error('executePageTrade error:', err);
+    setOrderExecutionLoading(false);
     showToast('Failed to connect to trade server', true);
   } finally {
-    if (execBtn) {
-      execBtn.disabled = false;
-      execBtn.innerText = originalBtnText;
-    }
+    setOrderExecutionLoading(false);
   }
 }
 
@@ -4774,6 +5029,51 @@ function openOrderSuccessModal(orderData) {
   const modal = document.getElementById('orderSuccessModal');
   if (!modal) return;
 
+  const titleEl = document.getElementById('orderSuccessTitle');
+  const subtitleEl = document.getElementById('orderSuccessSubtitle');
+  const viewBtn = document.getElementById('orderSuccessViewBtn');
+  const status = (orderData.status || '').toUpperCase();
+
+  if (status === 'OPEN') {
+    if (titleEl) titleEl.innerText = 'Limit Order Placed!';
+    if (subtitleEl) subtitleEl.innerText = 'Your order is OPEN and will execute automatically when the market reaches your limit price.';
+    if (viewBtn) {
+      viewBtn.innerText = 'View in Orders →';
+      viewBtn.onclick = () => {
+        closeOrderSuccessModal();
+        navigateTo('/orders');
+      };
+    }
+  } else if (status === 'TRIGGER_PENDING') {
+    if (titleEl) titleEl.innerText = 'Stop-Loss Order Placed!';
+    if (subtitleEl) subtitleEl.innerText = 'Your trigger is PENDING and will activate when the market reaches your trigger price.';
+    if (viewBtn) {
+      viewBtn.innerText = 'View in Orders →';
+      viewBtn.onclick = () => {
+        closeOrderSuccessModal();
+        navigateTo('/orders');
+      };
+    }
+  } else {
+    if (titleEl) titleEl.innerText = 'Order Executed!';
+    if (subtitleEl) subtitleEl.innerText = 'Your paper trade was filled and is now reflected in your portfolio.';
+    if (viewBtn) {
+      if (orderData.product === 'INTRADAY') {
+        viewBtn.innerText = 'View in Positions →';
+        viewBtn.onclick = () => {
+          closeOrderSuccessModal();
+          navigateTo('/positions');
+        };
+      } else {
+        viewBtn.innerText = 'View in Holdings →';
+        viewBtn.onclick = () => {
+          closeOrderSuccessModal();
+          navigateTo('/holdings');
+        };
+      }
+    }
+  }
+
   const assetEl = document.getElementById('orderSuccessAsset');
   if (assetEl) assetEl.innerText = `${orderData.name} (${orderData.symbol})`;
   const typeEl = document.getElementById('orderSuccessType');
@@ -4807,21 +5107,14 @@ function openOrderSuccessModal(orderData) {
     if (netRow) netRow.style.display = 'none';
   }
 
-  const viewBtn = document.getElementById('orderSuccessViewBtn');
-  if (viewBtn) {
-    if (orderData.product === 'INTRADAY') {
-      viewBtn.innerText = 'View in Positions →';
-      viewBtn.onclick = () => {
-        closeOrderSuccessModal();
-        navigateTo('/positions');
-      };
-    } else {
-      viewBtn.innerText = 'View in Holdings →';
-      viewBtn.onclick = () => {
-        closeOrderSuccessModal();
-        navigateTo('/holdings');
-      };
-    }
+  // Authoritative confirmed balance display
+  const balRow = document.getElementById('orderSuccessBalanceRow');
+  const balVal = document.getElementById('orderSuccessBalance');
+  if (orderData.balance !== undefined && balRow && balVal) {
+    balRow.style.display = 'flex';
+    balVal.innerText = formatINR(orderData.balance);
+  } else if (balRow) {
+    balRow.style.display = 'none';
   }
 
   modal.classList.add('active');
@@ -5116,9 +5409,10 @@ async function submitOptionTrade() {
   const symbol = `${currentOptionTrade.underlying}_${currentOptionTrade.strike}_${currentOptionTrade.optType}`;
 
   const execBtn = document.getElementById('optExecuteBtn');
+  const originalHtml = execBtn ? execBtn.innerHTML : '';
   if (execBtn) {
     execBtn.disabled = true;
-    execBtn.innerText = 'Executing Option Trade...';
+    execBtn.innerHTML = '<span class="btn-spinner"></span> <span>Executing Option Trade...</span>';
   }
 
   try {
@@ -5139,21 +5433,37 @@ async function submitOptionTrade() {
 
     const result = await res.json();
     if (!res.ok || !result.success) {
+      if (execBtn) {
+        execBtn.disabled = false;
+        execBtn.innerHTML = originalHtml;
+      }
       showToast(result.detail || result.error || 'Option execution failed', true);
       return;
     }
 
-    closeOptionBuyModal();
-    showToast(`${currentOptionTrade.action} ${lots} lot(s) executed at ${formatINR(currentOptionTrade.ltp)}!`);
-    Promise.all([
+    // Await authoritative backend reflection
+    await Promise.all([
       fetchAccount(),
       fetchPositions(true),
       fetchOrders()
-    ]).catch(e => console.warn('Background sync error:', e));
+    ]);
+
+    if (currentUser && state.account && state.account.balance !== undefined) {
+      currentUser.balance = state.account.balance;
+      try {
+        localStorage.setItem('stoxify_cached_user', JSON.stringify(currentUser));
+      } catch (e) {}
+    }
+
+    closeOptionBuyModal();
+    showToast(`${currentOptionTrade.action} ${lots} lot(s) executed at ${formatINR(currentOptionTrade.ltp)}!`);
   } catch (err) {
     showToast('Failed to execute option trade', true);
   } finally {
-    if (execBtn) execBtn.disabled = false;
+    if (execBtn) {
+      execBtn.disabled = false;
+      execBtn.innerHTML = originalHtml;
+    }
   }
 }
 
