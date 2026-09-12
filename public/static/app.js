@@ -6301,7 +6301,7 @@ function switchFoUnderlying(sym) {
 }
 
 async function fetchOptionChain() {
-  const tbody = document.getElementById('foTableBody');
+  const tbody = document.getElementById('optionChainTableBody');
   if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 3rem;">Calculating Black-Scholes Greeks & Option Matrix...</td></tr>';
 
   try {
@@ -6332,7 +6332,7 @@ async function fetchOptionChain() {
 }
 
 function renderOptionChain(data) {
-  const tbody = document.getElementById('foTableBody');
+  const tbody = document.getElementById('optionChainTableBody');
   if (!tbody) return;
 
   const lotSize = data.lot_size || 25;
@@ -6709,8 +6709,12 @@ async function submitIpoApplication() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        // IPOApplyRequest requires ipo_name and shares; omitting them made every
+        // bid fail validation. `shares` is the lot size (backend multiplies it).
         ipo_id: currentIpoModalData.id,
+        ipo_name: currentIpoModalData.name,
         lots: lots,
+        shares: currentIpoModalData.lot_size,
         bid_price: currentIpoModalData.max_price,
         upi_id: upiId
       })
@@ -6802,15 +6806,21 @@ async function submitSipSchedule() {
   }
 
   const sym = currentPageAsset ? currentPageAsset.symbol : (fundInput.split('(')[1]?.replace(')', '') || fundInput);
+  // The API model is SIPRequest(fund_id, fund_name, monthly_amount, sip_day).
+  // Sending symbol/amount/installment_day made Pydantic reject every request.
+  const fundName = (currentPageAsset && currentPageAsset.name)
+    || fundInput.replace(/\s*\([^)]*\)\s*$/, '').trim()
+    || 'Mutual Fund';
 
   try {
     const res = await fetch('/api/mf/sip', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        symbol: sym,
-        amount: amount,
-        installment_day: day
+        fund_id: String(sym || fundInput).trim(),
+        fund_name: fundName,
+        monthly_amount: amount,
+        sip_day: day
       })
     });
 
@@ -6911,7 +6921,7 @@ async function loadPortfolioAnalytics() {
     // 1. Sector Allocation
     const secRes = await fetch('/api/analytics/sector-allocation');
     const secData = await secRes.json();
-    const secContainer = document.getElementById('sectorDiversificationBars');
+    const secContainer = document.getElementById('sectorAllocationContainer');
 
     if (secContainer && Array.isArray(secData) && secData.length > 0) {
       const colors = ['#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#06b6d4', '#14b8a6'];
@@ -6939,11 +6949,14 @@ async function loadPortfolioAnalytics() {
     const taxRes = await fetch('/api/analytics/tax-report');
     const taxData = await taxRes.json();
     
-    const stcgRealized = document.getElementById('taxStcgRealized');
-    const stcgPayable = document.getElementById('taxStcgPayable');
-    const ltcgRealized = document.getElementById('taxLtcgRealized');
+    // NOTE: the element ids below are the ones actually present in index.html.
+    // They previously read taxStcgRealized/taxStcgPayable/taxLtcgRealized/
+    // taxLtcgPayable, which do not exist, so the whole tax card stayed at ₹0.00.
+    const stcgRealized = document.getElementById('taxStcgGain');
+    const stcgPayable = document.getElementById('taxStcgLiability');
+    const ltcgRealized = document.getElementById('taxLtcgGain');
     const ltcgTaxable = document.getElementById('taxLtcgTaxable');
-    const ltcgPayable = document.getElementById('taxLtcgPayable');
+    const ltcgPayable = document.getElementById('taxLtcgLiability');
     const totalLiability = document.getElementById('taxTotalLiability');
 
     const sRealized = taxData.stcg_realized_gain ?? taxData.net_stcg ?? 0;

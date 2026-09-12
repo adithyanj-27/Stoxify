@@ -1,6 +1,7 @@
 import time
 import requests
 import concurrent.futures
+import zlib
 from datetime import datetime, timedelta, time as dtime, timezone
 import yfinance as yf
 
@@ -340,7 +341,10 @@ def _get_default_stock_quote(symbol: str, name: str = "", sector: str = "NSE Equ
     if base_info:
         price, change, change_pct = base_info
     else:
-        h = abs(hash(symbol)) % 2500 + 120
+        # Python salts str hashing per interpreter (PYTHONHASHSEED), so hash()
+        # gave a symbol a different fallback price after every restart. Use a
+        # stable digest so the synthetic price is reproducible.
+        h = (zlib.crc32(symbol.encode("utf-8")) % 2500) + 120
         price = float(h)
         change = round(price * 0.012, 2)
         change_pct = 1.20
@@ -817,7 +821,7 @@ def get_stock_peers(symbol: str) -> List[Dict[str, Any]]:
         q = get_stock_quote(p["symbol"])
         raw_mcap = q.get("market_cap", 50000.0)
         pe_val = q.get("pe_ratio", 24.5)
-        div_y = q.get("div_yield", 0.8)
+        div_y = q.get("dividend_yield", 0.8)
         chg_pct = q.get("change_pct", 0.0)
         
         # Format market cap for display (e.g. "₹17.89L Cr" or "₹3,977 Cr")
@@ -832,8 +836,10 @@ def get_stock_peers(symbol: str) -> List[Dict[str, Any]]:
         # Simulated 1-year return based on change_pct as a proxy
         import random
         hash_seed = sum(ord(c) for c in p["symbol"])
-        random.seed(hash_seed)
-        ret_1y = round(random.uniform(-10.0, 45.0), 1)
+        # A private RNG: random.seed() reseeded the shared module-level generator,
+        # which also drives order-depth quantities and transaction references.
+        rng = random.Random(hash_seed)
+        ret_1y = round(rng.uniform(-10.0, 45.0), 1)
         return_1y_str = f"+{ret_1y}%" if ret_1y >= 0 else f"{ret_1y}%"
         
         peers.append({

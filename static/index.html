@@ -85,6 +85,11 @@
 
     <!-- Nav Right Controls -->
     <div class="nav-actions">
+      <!-- Live Market Status Pill (ids consumed by fetchMarketStatus() in app.js) -->
+      <button class="market-status-pill desktop-only" id="marketStatusPill" onclick="openMarketHoursModal()" title="Market timings &amp; simulation mode">
+        <span class="pulse-dot gray" id="marketPulseDot"></span>
+        <span id="marketStatusText">Checking market&hellip;</span>
+      </button>
       <!-- Mobile Search Toggle Button -->
       <button class="icon-btn mobile-only" id="mobileSearchBtn" onclick="toggleMobileSearch()" title="Search">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">

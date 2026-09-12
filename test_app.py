@@ -44,7 +44,12 @@ def test_all():
     res_buy = database.execute_trade("TATAMOTORS.NS", "Tata Motors Ltd", "STOCK", "BUY", "DELIVERY", 10, 1000.0)
     assert res_buy["success"], f"Buy failed: {res_buy}"
     acc_after_buy = database.get_account()
-    assert acc_after_buy["balance"] == 990000.0, f"Expected 990000.0, got {acc_after_buy['balance']}"
+    # Cash out = gross order value + the buy-side charge sheet (brokerage, STT,
+    # stamp duty, exchange/SEBI fees and GST are debited on the trade date).
+    buy_charges = res_buy["charges"]["total"]
+    expected_after_buy = round(1000000.0 - 10000.0 - buy_charges, 2)
+    assert round(acc_after_buy["balance"], 2) == expected_after_buy, \
+        f"Expected {expected_after_buy} (₹10,000 value + ₹{buy_charges} charges), got {acc_after_buy['balance']}"
 
     # Buy 5 more at ₹1300 -> 15 shares @ avg ((10*1000)+(5*1300))/15 = 1100
     res_buy2 = database.execute_trade("TATAMOTORS.NS", "Tata Motors Ltd", "STOCK", "BUY", "DELIVERY", 5, 1300.0)
@@ -96,7 +101,10 @@ def test_all():
     res_intra = database.execute_trade("RELIANCE.NS", "Reliance Industries", "STOCK", "BUY", "INTRADAY", 10, 2500.0)
     assert res_intra["success"], f"Intraday buy failed: {res_intra}"
     acc_intra = database.get_account()
-    assert acc_intra["balance"] == 995000.0, f"Expected 995000.0 margin used, got {acc_intra['balance']}"
+    intra_charges = res_intra["charges"]["total"]
+    expected_after_intra = round(1000000.0 - 5000.0 - intra_charges, 2)
+    assert round(acc_intra["balance"], 2) == expected_after_intra, \
+        f"Expected {expected_after_intra} (₹5,000 margin + ₹{intra_charges} charges), got {acc_intra['balance']}"
     
     # Check open positions
     positions = database.get_positions()
@@ -107,17 +115,21 @@ def test_all():
     assert pos["margin_used"] == 5000.0
     print(f" ✓ 5x Margin verified: ₹{pos['margin_used']:,.2f} blocked for ₹25,000 position")
 
-    # Exit position at ₹2600 -> P&L = +₹1,000 -> Return ₹5,000 margin + ₹1,000 profit - ₹22.78 charges = ₹5,977.22 added back -> Balance = 1,000,977.22
+    # Exit position at ₹2600 -> released margin + ₹1,000 P&L - exit charges.
     res_exit = database.exit_position(pos["symbol"], 2600.0)
     assert res_exit["success"]
     assert res_exit["realized_pnl"] == 1000.0
     acc_after_exit = database.get_account()
-    assert round(acc_after_exit["balance"], 2) == 1000977.22, f"Expected 1000977.22, got {acc_after_exit['balance']}"
+    expected_after_exit = round(
+        expected_after_intra + 5000.0 + 1000.0 - res_exit["charges"]["total"], 2)
+    assert round(acc_after_exit["balance"], 2) == expected_after_exit, \
+        f"Expected {expected_after_exit}, got {acc_after_exit['balance']}"
     print(f" ✓ Position Exit: P&L +₹{res_exit['realized_pnl']:,.2f}, margin released & net charges deducted successfully")
 
     # Test Limit Order & Cancellation
     print("\n[6/6] Testing Limit Orders & Level-2 Market Depth...")
     # Place Limit BUY for 5 shares @ ₹2000 (below market price ₹2100) -> ₹10,000 blocked
+    balance_before_limit = round(database.get_account()["balance"], 2)
     res_limit = database.execute_trade(
         "INFY.NS", "Infosys Ltd", "STOCK", "BUY", "DELIVERY", 5, 2100.0,
         order_variety="LIMIT", limit_price=2000.0
@@ -134,7 +146,10 @@ def test_all():
     res_cancel = database.cancel_order(lim_order["id"])
     assert res_cancel["success"]
     assert len(database.get_orders(status_filter="OPEN")) == 0
-    assert round(database.get_account()["balance"], 2) == 1000977.22, "Funds should be refunded on order cancellation"
+    # Cancelling must return the wallet to EXACTLY where it was before the order.
+    assert round(database.get_account()["balance"], 2) == balance_before_limit, \
+        f"Funds should be refunded on order cancellation (expected {balance_before_limit}, " \
+        f"got {database.get_account()['balance']})"
     print(" ✓ Limit Order cancelled and ₹10,000 funds successfully refunded")
 
     # Test Level-2 Market Depth

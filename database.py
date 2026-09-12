@@ -3,6 +3,7 @@ import shutil
 import sqlite3
 import json
 import uuid
+import calendar
 import random
 import re
 import time
@@ -135,6 +136,10 @@ def ensure_db_initialized():
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         cursor.execute("SELECT 1 FROM users LIMIT 1")
+        # A database written by an earlier build can already have `users` while
+        # missing columns added later (init_db() only runs its ALTERs when it is
+        # actually invoked). Probe a column the current code selects.
+        cursor.execute("SELECT blocked_amount FROM orders LIMIT 1")
         conn.close()
         _db_initialized = True
     except Exception:
@@ -338,6 +343,7 @@ def init_db():
             realized_pnl REAL DEFAULT 0.0,
             charges REAL DEFAULT 0.0,
             net_amount REAL DEFAULT 0.0,
+            blocked_amount REAL DEFAULT 0.0,
             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -348,7 +354,8 @@ def init_db():
         ("order_tag", "TEXT NOT NULL DEFAULT 'NORMAL'"),
         ("trigger_price", "REAL DEFAULT 0.0"),
         ("charges", "REAL DEFAULT 0.0"),
-        ("net_amount", "REAL DEFAULT 0.0")
+        ("net_amount", "REAL DEFAULT 0.0"),
+        ("blocked_amount", "REAL DEFAULT 0.0")
     ]:
         try:
             cursor.execute(f"ALTER TABLE orders ADD COLUMN {col} {definition}")
@@ -1123,9 +1130,11 @@ def get_account(user_id: str = "default") -> Dict[str, Any]:
     conn.close()
     if row:
         b_bal = float(row["bank_balance"]) if "bank_balance" in row.keys() and row["bank_balance"] is not None else 1000000.0
-        return {"balance": row["balance"], "total_deposited": row["total_deposited"], "bank_balance": b_bal}
+        return {"balance": row["balance"], "total_deposited": row["total_deposited"], "bank_balance": b_bal, "exists": True}
 
-    return {"balance": 1000000.0, "total_deposited": 1000000.0, "bank_balance": 1000000.0}
+    # No row for this user id. Returning ₹10,00,000 here made an unknown or stale
+    # user id look like a fully funded account.
+    return {"balance": 0.0, "total_deposited": 0.0, "bank_balance": 0.0, "exists": False}
 
 # --- Simulated UPI & Bank Account Gateway ---
 def transfer_bank_to_wallet(user_id: str, amount: float, pin: str) -> Dict[str, Any]:
@@ -1535,7 +1544,34 @@ def sync_holdings_from_supabase_into_cursor(cursor, user_id: str):
                         supabase_api("DELETE", "holdings", params=filters)
                     continue
 
-                # Active holding with positive quantity: clean up any stale tombstone
+                # A positive cloud row can still be stale. A full local sale writes a
+                # tombstone; if that sale happened after the cloud row was updated,
+                # the local ledger wins and the row is reconciled to zero. Previously
+                # the tombstone was simply dropped and the sold holding was restored,
+                # handing the user inventory they no longer owned.
+                tombstone_at = None
+                for v in upper_variants:
+                    cursor.execute(
+                        "SELECT deleted_at FROM holding_tombstones WHERE user_id = ? AND UPPER(symbol) = ?",
+                        (user_id, v))
+                    t_row = cursor.fetchone()
+                    if t_row and t_row["deleted_at"]:
+                        tombstone_at = t_row["deleted_at"]
+                        break
+
+                if tombstone_at is not None:
+                    sold_dt = _parse_order_dt(tombstone_at)
+                    remote_dt = _parse_order_dt(h.get("updated_at"))
+                    if sold_dt and (remote_dt is None or sold_dt >= remote_dt):
+                        for v in upper_variants:
+                            cursor.execute("DELETE FROM holdings WHERE user_id = ? AND UPPER(symbol) = ?", (user_id, v))
+                        supabase_api("PATCH", "holdings", payload={
+                            "quantity": 0,
+                            "updated_at": datetime.now(timezone.utc).isoformat()
+                        }, params={"user_id": f"eq.{user_id}", "symbol": f"eq.{h_sym}"})
+                        continue
+
+                # Genuine acquisition (cloud row is newer): clear the stale tombstone
                 for v in upper_variants:
                     sb_symbols.add(v)
                     cursor.execute("DELETE FROM holding_tombstones WHERE user_id = ? AND UPPER(symbol) = ?", (user_id, v))
@@ -1599,7 +1635,32 @@ def sync_positions_from_supabase_into_cursor(cursor, user_id: str):
                         supabase_api("DELETE", "positions", params=filters)
                     continue
 
-                # Active position: remove any stale tombstone
+                # Same stale-cloud-row guard as holdings: a square-off that happened
+                # after the cloud row was written must not be undone by the sync.
+                tombstone_at = None
+                for v in upper_variants:
+                    cursor.execute(
+                        "SELECT deleted_at FROM position_tombstones WHERE user_id = ? AND UPPER(symbol) = ?",
+                        (user_id, v))
+                    t_row = cursor.fetchone()
+                    if t_row and t_row["deleted_at"]:
+                        tombstone_at = t_row["deleted_at"]
+                        break
+
+                if tombstone_at is not None:
+                    closed_dt = _parse_order_dt(tombstone_at)
+                    remote_dt = _parse_order_dt(p.get("updated_at"))
+                    if closed_dt and (remote_dt is None or closed_dt >= remote_dt):
+                        for v in upper_variants:
+                            cursor.execute("DELETE FROM positions WHERE user_id = ? AND UPPER(symbol) = ?", (user_id, v))
+                        supabase_api("PATCH", "positions", payload={
+                            "quantity": 0,
+                            "margin_used": 0,
+                            "updated_at": datetime.now(timezone.utc).isoformat()
+                        }, params={"user_id": f"eq.{user_id}", "symbol": f"eq.{p_sym}"})
+                        continue
+
+                # Genuine re-entry (cloud row is newer): clear the stale tombstone
                 for v in upper_variants:
                     sb_symbols.add(v)
                     cursor.execute("DELETE FROM position_tombstones WHERE user_id = ? AND UPPER(symbol) = ?", (user_id, v))
@@ -1888,11 +1949,16 @@ def execute_trade(
 
         if is_pending_limit:
             new_balance = balance
+            blocked_amount = 0.0
             if order_type == "BUY":
-                if balance < required_margin:
+                # A resting BUY has to reserve the margin AND the charges that will
+                # be payable when it fills, otherwise the fill itself can fail.
+                pending_charges = calculate_trade_charges("BUY", product_type, asset_type, total_amount)
+                blocked_amount = round(required_margin + pending_charges["total"], 2)
+                if balance < blocked_amount:
                     conn.close()
-                    return {"success": False, "error": f"Insufficient margin for Limit BUY. Required: ₹{required_margin:,.2f}, Available: ₹{balance:,.2f}"}
-                new_balance = round(balance - required_margin, 2)
+                    return {"success": False, "error": f"Insufficient margin for Limit BUY. Required: ₹{blocked_amount:,.2f}, Available: ₹{balance:,.2f}"}
+                new_balance = round(balance - blocked_amount, 2)
                 cursor.execute("UPDATE users SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (new_balance, user_id))
                 if user_id == "default":
                     cursor.execute("UPDATE account SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (new_balance,))
@@ -1925,9 +1991,9 @@ def execute_trade(
                         return {"success": False, "error": f"Insufficient quantity to place Limit SELL. Available: {avail}, Requested: {quantity}"}
 
             cursor.execute("""
-                INSERT INTO orders (user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, trigger_price, order_tag, status, realized_pnl)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', 0.0)
-            """, (user_id, symbol, name, asset_type, order_type, product_type, quantity, effective_price, required_margin, order_variety, limit_price, trigger_price or 0.0, order_tag))
+                INSERT INTO orders (user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, trigger_price, order_tag, status, realized_pnl, blocked_amount)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', 0.0, ?)
+            """, (user_id, symbol, name, asset_type, order_type, product_type, quantity, effective_price, total_amount, order_variety, limit_price, trigger_price or 0.0, order_tag, blocked_amount))
             order_id = cursor.lastrowid
             conn.commit()
             conn.close()
@@ -1950,11 +2016,14 @@ def execute_trade(
         # Stop-Loss Orders (SL-Limit) handling
         if is_pending_sl:
             new_balance = balance
+            blocked_amount = 0.0
             if order_type == "BUY":
-                if balance < required_margin:
+                pending_charges = calculate_trade_charges("BUY", product_type, asset_type, total_amount)
+                blocked_amount = round(required_margin + pending_charges["total"], 2)
+                if balance < blocked_amount:
                     conn.close()
-                    return {"success": False, "error": f"Insufficient margin for Stop-Loss BUY. Required: ₹{required_margin:,.2f}, Available: ₹{balance:,.2f}"}
-                new_balance = round(balance - required_margin, 2)
+                    return {"success": False, "error": f"Insufficient margin for Stop-Loss BUY. Required: ₹{blocked_amount:,.2f}, Available: ₹{balance:,.2f}"}
+                new_balance = round(balance - blocked_amount, 2)
                 cursor.execute("UPDATE users SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (new_balance, user_id))
                 if user_id == "default":
                     cursor.execute("UPDATE account SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (new_balance,))
@@ -1986,9 +2055,9 @@ def execute_trade(
                         return {"success": False, "error": f"Insufficient quantity to place Stop-Loss SELL. Available: {avail}, Requested: {quantity}"}
 
             cursor.execute("""
-                INSERT INTO orders (user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, trigger_price, order_tag, status, realized_pnl)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'TRIGGER_PENDING', 0.0)
-            """, (user_id, symbol, name, asset_type, order_type, product_type, quantity, effective_price, required_margin, order_variety, limit_price or effective_price, trigger_price, order_tag))
+                INSERT INTO orders (user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, trigger_price, order_tag, status, realized_pnl, blocked_amount)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'TRIGGER_PENDING', 0.0, ?)
+            """, (user_id, symbol, name, asset_type, order_type, product_type, quantity, effective_price, total_amount, order_variety, limit_price or effective_price, trigger_price, order_tag, blocked_amount))
             order_id = cursor.lastrowid
             conn.commit()
             conn.close()
@@ -2010,11 +2079,17 @@ def execute_trade(
 
         # Immediate Execution
         if order_type == "BUY":
-            if balance < required_margin:
+            # Statutory charges settle on the trade date: brokerage, STT, stamp
+            # duty, exchange/SEBI fees and GST leave the wallet together with the
+            # margin. They used to be written onto the contract note but never
+            # debited, so every BUY overstated the account's cash.
+            charges = calculate_trade_charges("BUY", product_type, asset_type, total_amount)
+            required_cash = round(required_margin + charges["total"], 2)
+            if balance < required_cash:
                 conn.close()
-                return {"success": False, "error": f"Insufficient margin. Required: ₹{required_margin:,.2f} (5x leverage applied if Intraday), Available: ₹{balance:,.2f}"}
+                return {"success": False, "error": f"Insufficient margin. Required: ₹{required_cash:,.2f} (margin ₹{required_margin:,.2f} + charges ₹{charges['total']:,.2f}; 5x leverage applied if Intraday), Available: ₹{balance:,.2f}"}
 
-            new_balance = round(balance - required_margin, 2)
+            new_balance = round(balance - required_cash, 2)
             cursor.execute("UPDATE users SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (new_balance, user_id))
             if user_id == "default":
                 cursor.execute("UPDATE account SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (new_balance,))
@@ -2060,7 +2135,6 @@ def execute_trade(
                     """, (user_id, symbol, name, asset_type, quantity, effective_price))
                 cursor.execute(f"DELETE FROM holding_tombstones WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
 
-            charges = calculate_trade_charges("BUY", product_type, asset_type, total_amount)
             order_status = "EXECUTED (AMO)" if order_tag == "AMO" else "EXECUTED"
             cursor.execute("""
                 INSERT INTO orders (user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, charges, net_amount)
@@ -2366,7 +2440,7 @@ def cancel_order(order_id: int, user_id: str = "default") -> Dict[str, Any]:
 
     try:
         cursor.execute("""
-            SELECT id, user_id, symbol, order_type, total_amount, status
+            SELECT id, user_id, symbol, order_type, total_amount, blocked_amount, status
             FROM orders WHERE id = ? AND user_id = ?
         """, (order_id, user_id))
         order = cursor.fetchone()
@@ -2394,7 +2468,14 @@ def cancel_order(order_id: int, user_id: str = "default") -> Dict[str, Any]:
             cursor.execute("SELECT balance FROM users WHERE id = ?", (o_user,))
             acc = cursor.fetchone()
             curr_bal = acc["balance"] if acc else 1000000.0
-            new_bal = round(curr_bal + order["total_amount"], 2)
+            # Refund exactly what was withheld. `blocked_amount` is the margin plus
+            # the buy-leg charges reserved when the order was accepted;
+            # `total_amount` is the order value and is only a fallback for rows
+            # written before that column existed.
+            refund = float(order["blocked_amount"] or 0.0)
+            if refund <= 0:
+                refund = float(order["total_amount"] or 0.0)
+            new_bal = round(curr_bal + refund, 2)
             cursor.execute("UPDATE users SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (new_bal, o_user))
             if o_user == "default":
                 cursor.execute("UPDATE account SET balance = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (new_bal,))
@@ -2419,19 +2500,42 @@ def cancel_order(order_id: int, user_id: str = "default") -> Dict[str, Any]:
         conn.close()
         return {"success": False, "error": str(e)}
 
+def get_pending_order_symbols(user_id: str) -> List[str]:
+    """Distinct symbols of resting orders, read straight from the local ledger.
+
+    Used by the matching loop so it does not have to pull full order lists (which
+    would hit the cloud) just to learn which symbols need a price check.
+    """
+    if not user_id:
+        return []
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT DISTINCT symbol FROM orders
+        WHERE user_id = ? AND status IN ('OPEN', 'TRIGGER_PENDING')
+    """, (user_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [r["symbol"] for r in rows if r["symbol"]]
+
+
 def check_open_limit_orders(symbol: str, current_price: float, user_id: Optional[str] = None):
     conn = get_connection()
     cursor = conn.cursor()
+    # Match on symbol variants: callers may pass 'RELIANCE' while the stored row
+    # says 'RELIANCE.NS', and an exact comparison silently matched nothing.
+    variants = [v.upper() for v in get_symbol_variants(symbol)]
+    clause = " OR ".join(["UPPER(symbol) = ?"] * len(variants))
     if user_id:
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, limit_price, trigger_price, total_amount, status 
-            FROM orders WHERE status IN ('OPEN', 'TRIGGER_PENDING') AND symbol = ? AND user_id = ?
-        """, (symbol, user_id))
+            FROM orders WHERE status IN ('OPEN', 'TRIGGER_PENDING') AND ({clause}) AND user_id = ?
+        """, variants + [user_id])
     else:
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, limit_price, trigger_price, total_amount, status 
-            FROM orders WHERE status IN ('OPEN', 'TRIGGER_PENDING') AND symbol = ?
-        """, (symbol,))
+            FROM orders WHERE status IN ('OPEN', 'TRIGGER_PENDING') AND ({clause})
+        """, variants)
     pending_orders = [dict(r) for r in cursor.fetchall()]
     conn.close()
 
@@ -2485,17 +2589,17 @@ def get_orders(limit: int = 100, status_filter: Optional[str] = None, user_id: s
     if status_filter:
         if status_filter.upper() == "EXECUTED":
             cursor.execute("""
-                SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, charges, net_amount, timestamp
+                SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, charges, net_amount, blocked_amount, timestamp
                 FROM orders WHERE user_id = ? AND status LIKE 'EXECUTED%' ORDER BY id DESC LIMIT ?
             """, (user_id, limit))
         else:
             cursor.execute("""
-                SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, charges, net_amount, timestamp
+                SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, charges, net_amount, blocked_amount, timestamp
                 FROM orders WHERE user_id = ? AND status = ? ORDER BY id DESC LIMIT ?
             """, (user_id, status_filter, limit))
     else:
         cursor.execute("""
-            SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, charges, net_amount, timestamp
+            SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, charges, net_amount, blocked_amount, timestamp
             FROM orders WHERE user_id = ? ORDER BY id DESC LIMIT ?
         """, (user_id, limit))
     rows = cursor.fetchall()
@@ -2626,11 +2730,23 @@ def restore_balance(user_id: str = "default", target_balance: float = 1000000.0)
     cursor.execute("DELETE FROM positions WHERE user_id = ?", (user_id,))
     cursor.execute("DELETE FROM holding_tombstones WHERE user_id = ?", (user_id,))
     cursor.execute("DELETE FROM position_tombstones WHERE user_id = ?", (user_id,))
+    # Resting orders have already had their margin released by the balance reset
+    # above. Leaving them OPEN let a later cancel refund the same margin a second
+    # time, so "Restore full balance" followed by "cancel order" minted cash.
+    # Retire them rather than deleting the rows so history stays auditable.
+    cursor.execute("""
+        UPDATE orders SET status = 'CANCELLED'
+        WHERE user_id = ? AND status IN ('OPEN', 'TRIGGER_PENDING', 'CANCELLING')
+    """, (user_id,))
     conn.commit()
     conn.close()
 
     if is_supabase_enabled() and user_id and user_id != "guest":
         try:
+            supabase_api("PATCH", "orders", payload={"status": "CANCELLED"}, params={
+                "user_id": f"eq.{user_id}",
+                "status": "in.(OPEN,TRIGGER_PENDING,CANCELLING)"
+            })
             supabase_api("PATCH", f"users?id=eq.{user_id}", payload={
                 "balance": target_balance,
                 "total_deposited": target_balance,
@@ -2647,6 +2763,13 @@ def restore_balance(user_id: str = "default", target_balance: float = 1000000.0)
 def delete_user(user_id: str) -> bool:
     if not user_id or user_id == "guest":
         return False
+
+    # Resolve the account (and its Supabase auth id) BEFORE the local row is
+    # removed. get_user() re-hydrates a missing local row from Supabase, so
+    # looking the account up after the delete resurrected the very row we had
+    # just deleted and the account reappeared on the next read.
+    u_row = get_user(user_id) if is_supabase_enabled() else None
+
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM holdings WHERE user_id = ?", (user_id,))
@@ -2673,7 +2796,6 @@ def delete_user(user_id: str) -> bool:
 
     if is_supabase_enabled() and user_id != "default":
         try:
-            u_row = get_user(user_id)
             auth_id = (u_row.get("auth_id") if u_row else None)
             admin_headers = {
                 "apikey": SUPABASE_SERVICE_ROLE_KEY,
@@ -2751,9 +2873,14 @@ def get_gtt_orders(user_id: str = "default") -> List[Dict[str, Any]]:
 def cancel_gtt_order(user_id: str, gtt_id: int) -> Dict[str, Any]:
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE gtt_orders SET status = 'CANCELLED' WHERE id = ? AND user_id = ?", (gtt_id, user_id))
+    cursor.execute("UPDATE gtt_orders SET status = 'CANCELLED' WHERE id = ? AND user_id = ? AND status = 'ACTIVE'", (gtt_id, user_id))
+    cancelled = cursor.rowcount
     conn.commit()
     conn.close()
+    if not cancelled:
+        # Without a rowcount check this reported success for ids that do not
+        # exist or were already cancelled.
+        return {"success": False, "error": f"Active GTT order #{gtt_id} not found"}
     return {"success": True, "message": f"GTT Order #{gtt_id} cancelled"}
 
 # --- SIP (Systematic Investment Plans) ---
@@ -2761,18 +2888,23 @@ def create_sip(user_id: str, fund_id: str, fund_name: str, monthly_amount: float
     conn = get_connection()
     cursor = conn.cursor()
     now = datetime.now()
-    if now.day < sip_day:
-        next_dt = datetime(now.year, now.month, sip_day)
-    else:
-        month = now.month + 1 if now.month < 12 else 1
-        year = now.year if now.month < 12 else now.year + 1
-        next_dt = datetime(year, month, sip_day)
+    # A SIP day of 29/30/31 does not exist in every month and datetime() raises
+    # ValueError for those, which surfaced as an HTTP 500 instead of a schedule.
+    # Roll to the next month and clamp to that month's last valid day.
+    day = max(1, min(int(sip_day or 5), 31))
+    year, month = now.year, now.month
+    if now.day >= day:
+        month += 1
+        if month > 12:
+            month, year = 1, year + 1
+    last_day_of_month = calendar.monthrange(year, month)[1]
+    next_dt = datetime(year, month, min(day, last_day_of_month))
     next_date_str = next_dt.strftime("%d %b %Y")
 
     cursor.execute("""
         INSERT INTO sips (user_id, fund_id, fund_name, monthly_amount, sip_day, status, next_installment_date)
         VALUES (?, ?, ?, ?, ?, 'ACTIVE', ?)
-    """, (user_id, fund_id, fund_name, monthly_amount, sip_day, next_date_str))
+    """, (user_id, fund_id, fund_name, monthly_amount, day, next_date_str))
     sip_id = cursor.lastrowid
     conn.commit()
     conn.close()
@@ -2789,9 +2921,12 @@ def get_user_sips(user_id: str = "default") -> List[Dict[str, Any]]:
 def cancel_sip(user_id: str, sip_id: int) -> Dict[str, Any]:
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE sips SET status = 'CANCELLED' WHERE id = ? AND user_id = ?", (sip_id, user_id))
+    cursor.execute("UPDATE sips SET status = 'CANCELLED' WHERE id = ? AND user_id = ? AND status = 'ACTIVE'", (sip_id, user_id))
+    cancelled = cursor.rowcount
     conn.commit()
     conn.close()
+    if not cancelled:
+        return {"success": False, "error": f"Active SIP #{sip_id} not found"}
     return {"success": True, "message": f"SIP #{sip_id} cancelled"}
 
 # --- IPO Application Bidding ---
@@ -2858,8 +2993,22 @@ def cancel_ipo_bid(user_id: str, bid_id: int) -> Dict[str, Any]:
 
 # --- Capital Gains Tax (Budget 2024 Rules: STCG 20%, LTCG 12.5%) ---
 def _parse_order_dt(value) -> Optional[datetime]:
+    """Parse both SQLite ('YYYY-MM-DD HH:MM:SS') and Supabase ISO-8601 stamps.
+
+    Rows pulled from Supabase come back as '2026-01-01T10:00:00.123456+00:00'.
+    Slicing the first 19 characters leaves the literal 'T' in place, so a
+    strptime-only parser returned None for every cloud-synced order and the
+    holding period silently collapsed to zero (everything became STCG).
+    """
+    text = str(value or "").strip()
+    if not text:
+        return None
     try:
-        return datetime.strptime(str(value)[:19], "%Y-%m-%d %H:%M:%S")
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).replace(tzinfo=None)
+    except Exception:
+        pass
+    try:
+        return datetime.strptime(text[:19], "%Y-%m-%d %H:%M:%S")
     except Exception:
         return None
 

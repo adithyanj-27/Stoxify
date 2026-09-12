@@ -14,6 +14,7 @@ from database import (
     deposit_funds, reset_account, restore_balance, delete_user, create_user, update_user, get_user, list_users, find_user_by_identifier,
     check_username_available, sync_user_to_supabase_auth, mark_tour_completed,
     place_gtt_order, get_gtt_orders, cancel_gtt_order,
+    get_pending_order_symbols,
     create_sip, get_user_sips, cancel_sip,
     apply_ipo, get_ipo_bids, cancel_ipo_bid,
     get_capital_gains_tax_report, get_sector_allocation,
@@ -485,8 +486,12 @@ def toggle_simulation(req: SimulationToggleRequest):
 def read_account(request: Request):
     uid = get_user_id(request)
     if not uid:
-        return {"balance": 0.0, "total_deposited": 0.0, "is_guest": True}
-    return get_account(uid)
+        return {"balance": 0.0, "total_deposited": 0.0, "bank_balance": 0.0, "is_guest": True}
+    account = get_account(uid)
+    if not account.get("exists", True):
+        # Stale/unknown client-side user id: never present phantom capital.
+        return {"balance": 0.0, "total_deposited": 0.0, "bank_balance": 0.0, "is_guest": True}
+    return account
 
 @app.get("/api/indices")
 @app.get("/indices")
@@ -848,16 +853,50 @@ def get_charges_estimate(
 ):
     return calculate_trade_charges(action, product, asset_type, amount)
 
+def service_pending_orders(uid: str) -> int:
+    """Evaluate resting LIMIT / STOP-LOSS orders against the latest quote.
+
+    Resting orders are only actionable while something re-checks them against the
+    market. That previously happened only as a side effect of placing another
+    order for the same symbol, so an order could sit OPEN forever.
+    """
+    try:
+        symbols = get_pending_order_symbols(uid)
+    except Exception:
+        return 0
+
+    checked = 0
+    for symbol in symbols:
+        try:
+            quote = market_service.get_stock_quote(symbol)
+            price = float(quote.get("price") or 0.0)
+            if price <= 0:
+                continue
+            # A fill is claimed atomically inside cancel_order() (a guarded
+            # OPEN/TRIGGER_PENDING -> CANCELLING update), so repeated or
+            # concurrent calls cannot double-fill the same order.
+            check_open_limit_orders(symbol, price, user_id=uid)
+            checked += 1
+        except Exception:
+            continue
+    return checked
+
+
 @app.get("/api/orders")
 def read_orders(request: Request, limit: int = 100, status: Optional[str] = None):
     uid = get_user_id(request)
     if not uid:
         return []
+    # The Orders tab is the natural heartbeat for the simulated matching engine.
+    service_pending_orders(uid)
     return get_orders(limit=limit, status_filter=status, user_id=uid)
 
 @app.get("/api/watchlist")
 def read_watchlist(request: Request):
     uid = get_user_id(request)
+    # Read and write must use the SAME fallback owner. Reads used "default" while
+    # add/remove used "guest", so a signed-out visitor could never see the symbol
+    # they had just starred.
     items = get_watchlist(uid or "default")
     results = []
     for item in items:
@@ -884,14 +923,14 @@ class WatchlistRequest(BaseModel):
 @app.post("/api/watchlist")
 @app.post("/watchlist")
 def add_watchlist(item: WatchlistRequest, request: Request):
-    uid = get_user_id(request) or "guest"
+    uid = get_user_id(request) or "default"
     add_to_watchlist(item.symbol, item.name, item.asset_type, user_id=uid)
     return {"status": "success"}
 
 @app.delete("/api/watchlist/{symbol}")
 @app.delete("/watchlist/{symbol}")
 def delete_watchlist(symbol: str, request: Request):
-    uid = get_user_id(request) or "guest"
+    uid = get_user_id(request) or "default"
     remove_from_watchlist(symbol, user_id=uid)
     return {"status": "success"}
 
@@ -1044,6 +1083,9 @@ def api_create_sip(req: SIPRequest, request: Request):
         raise HTTPException(status_code=401, detail="Account required to create SIP")
     if req.monthly_amount < 500:
         raise HTTPException(status_code=400, detail="Minimum monthly SIP amount is ₹500")
+    if not 1 <= int(req.sip_day) <= 31:
+        # Out-of-range days made create_sip raise ValueError (HTTP 500).
+        raise HTTPException(status_code=400, detail="SIP date must be a day between 1 and 31")
     return create_sip(uid, req.fund_id, req.fund_name, req.monthly_amount, req.sip_day)
 
 @app.get("/api/mf/sips")

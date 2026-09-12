@@ -19,6 +19,11 @@ database.init_db()
 USER = "trade-test"
 database.create_user("Lifecycle Tester", "life@example.test", "9999999999", "ABCDE1234F", "Test Bank", "1234567890", "1234", user_id=USER)
 
+# Onboarding credits the simulated *bank* account; the trading wallet only receives
+# money when the user moves it across (UPI / "Add funds"). Fund the wallet here so
+# the lifecycle assertions below start from a tradable balance.
+assert database.transfer_bank_to_wallet(USER, 1000000.0, "1234")["success"]
+
 assert database.execute_trade("TCS.NS", "TCS", "STOCK", "BUY", "DELIVERY", 10, 1000, user_id=USER)["success"]
 
 # A pending sell reserves the shares, so a second sell cannot overcommit them.

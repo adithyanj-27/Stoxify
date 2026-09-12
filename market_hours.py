@@ -48,7 +48,7 @@ def get_market_status() -> Dict[str, Any]:
 
 
     if is_weekday:
-        if 540 <= total_minutes < 548:
+        if 540 <= total_minutes < 555:
             return {
                 "is_open": False,
                 "session": "PRE_MARKET",
