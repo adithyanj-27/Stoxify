@@ -2429,9 +2429,10 @@ function bootApp() {
   if (window.__stoxify_booted) return;
   window.__stoxify_booted = true;
 
-  // Clear stale install flag from localStorage so browser view always displays install buttons
+  // Clear stale install flag and saved accounts from localStorage
   try {
     localStorage.removeItem('stoxify_app_installed');
+    localStorage.removeItem('stoxify_recent_accounts');
   } catch (e) {}
 
   // Instant synchronous session hydration: 0ms cold-start latency
@@ -3616,8 +3617,9 @@ async function openLoginModal(prefilledIdentifier) {
   if (pinInput) pinInput.value = '';
 
   overlay.classList.add('active');
-
-  loadSavedLoginAccounts();
+  try {
+    localStorage.removeItem('stoxify_recent_accounts');
+  } catch (e) {}
 
   setTimeout(() => {
     if (identInput && !identInput.value) {
@@ -3633,75 +3635,9 @@ function closeLoginModal() {
   if (overlay) overlay.classList.remove('active');
 }
 
-function saveRecentAccount(u) {
-  if (!u || !u.id || u.id === 'default' || u.id === 'guest') return;
-  try {
-    let recent = JSON.parse(localStorage.getItem('stoxify_recent_accounts') || '[]');
-    recent = recent.filter(item => item.id !== u.id && item.email !== u.email);
-    recent.unshift({
-      id: u.id,
-      name: u.name,
-      username: u.username || '',
-      email: u.email || u.phone || '',
-      avatar_color: u.avatar_color || '#0EA5E9'
-    });
-    if (recent.length > 5) recent = recent.slice(0, 5);
-    localStorage.setItem('stoxify_recent_accounts', JSON.stringify(recent));
-  } catch (e) {}
-}
-
-function loadSavedLoginAccounts() {
-  const section = document.getElementById('loginSavedAccountsSection');
-  const list = document.getElementById('loginSavedAccountsList');
-  if (!section || !list) return;
-
-  try {
-    const raw = localStorage.getItem('stoxify_recent_accounts');
-    const validUsers = raw ? JSON.parse(raw) : [];
-
-    if (!validUsers || validUsers.length === 0) {
-      section.style.display = 'none';
-      return;
-    }
-
-    section.style.display = 'block';
-    list.innerHTML = validUsers.map(u => {
-      const inits = (u.name || 'Trader').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
-      const col = u.avatar_color || '#0EA5E9';
-      const demat = (u.id || '').replace('STOX-', '').slice(-6).toUpperCase();
-      const email = u.email || '';
-      const userHandle = u.username ? `@${u.username} • ` : '';
-      return `
-        <div class="login-account-card" onclick="selectLoginAccount('${u.username || u.id}', '${(u.name || '').replace(/'/g, "\\'")}', '${email}')">
-          <div style="width: 38px; height: 38px; border-radius: 50%; background: ${col}; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.95rem; flex-shrink: 0;">
-            ${inits}
-          </div>
-          <div style="flex: 1; min-width: 0;">
-            <div style="font-weight: 800; font-size: 0.92rem; color: var(--text-primary);">${u.name}</div>
-            <div style="font-size: 0.72rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-              ${userHandle}${email} • Demat: STOX-${demat}
-            </div>
-          </div>
-          <div style="color: var(--brand-cyan); font-weight: 700; font-size: 0.78rem; display: flex; align-items: center; gap: 3px; flex-shrink: 0;">
-            Log In →
-          </div>
-        </div>
-      `;
-    }).join('');
-  } catch (err) {
-    section.style.display = 'none';
-  }
-}
-
-function selectLoginAccount(id, name, email) {
-  const identInput = document.getElementById('loginIdentifierInput');
-  const pinInput = document.getElementById('loginPinInput');
-  if (identInput) identInput.value = id || email;
-  if (pinInput) {
-    pinInput.focus();
-    pinInput.placeholder = 'Enter Password or 4-digit PIN';
-  }
-}
+function saveRecentAccount(u) {}
+function loadSavedLoginAccounts() {}
+function selectLoginAccount(id, name, email) {}
 
 async function submitLogin() {
   const identInput = document.getElementById('loginIdentifierInput');
