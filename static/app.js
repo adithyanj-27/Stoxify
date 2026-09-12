@@ -890,10 +890,13 @@ async function fetchPortfolioInternal(requestVersion) {
       totalPctEl.innerHTML = `<span class="${isTotalPos ? 'text-positive' : 'text-negative'}">${isTotalPos ? '+' : ''}${formatNumber(totalPnlPct)}%</span>`;
     }
 
-    const isDayPos = todayPnl >= 0;
+    const isDayPos = todayPnl > 0;
+    const isDayNeg = todayPnl < 0;
+    const daySign = isDayPos ? '+' : '';
+    const dayColorClass = isDayPos ? 'text-positive' : (isDayNeg ? 'text-negative' : 'text-muted');
     const dayPnlEl = document.getElementById('summaryTodayPnl');
     if (dayPnlEl) {
-      dayPnlEl.innerHTML = `<span class="${isDayPos ? 'text-positive' : 'text-negative'}">1D: ${isDayPos ? '+' : ''}${formatINR(todayPnl)} (${isDayPos ? '+' : ''}${formatNumber(todayPnlPct)}%)</span>`;
+      dayPnlEl.innerHTML = `<span class="${dayColorClass}">1D: ${daySign}${formatINR(todayPnl)} (${daySign}${formatNumber(todayPnlPct)}%)</span>`;
     }
 
     const tableBody = document.getElementById('holdingsTableBody');
@@ -917,8 +920,15 @@ async function fetchPortfolioInternal(requestVersion) {
     // Render Desktop Table
     if (tableBody) {
       tableBody.innerHTML = (data.holdings || []).map(h => {
-        const isPosTotal = h.total_pnl >= 0;
-        const isPosDay = h.today_pnl >= 0;
+        const isPosTotal = h.total_pnl > 0;
+        const isNegTotal = h.total_pnl < 0;
+        const totalClass = isPosTotal ? 'text-positive' : (isNegTotal ? 'text-negative' : 'text-muted');
+        const totalSign = isPosTotal ? '+' : '';
+
+        const isPosDay = h.today_pnl > 0;
+        const isNegDay = h.today_pnl < 0;
+        const dayClass = isPosDay ? 'text-positive' : (isNegDay ? 'text-negative' : 'text-muted');
+        const daySign = isPosDay ? '+' : '';
         return `
           <tr>
             <td>
@@ -930,12 +940,12 @@ async function fetchPortfolioInternal(requestVersion) {
             <td>${formatINR(h.avg_price)}</td>
             <td style="font-weight: 700;">${formatINR(h.current_price)}</td>
             <td style="font-weight: 700;">${formatINR(h.current_value)}</td>
-            <td class="${isPosTotal ? 'text-positive' : 'text-negative'}" style="font-weight: 700;">
-              ${isPosTotal ? '+' : ''}${formatINR(h.total_pnl)}
-              <div style="font-size: 0.75rem; font-weight: 600;">(${isPosTotal ? '+' : ''}${formatNumber(h.total_pnl_pct)}%)</div>
+            <td class="${totalClass}" style="font-weight: 700;">
+              ${totalSign}${formatINR(h.total_pnl)}
+              <div style="font-size: 0.75rem; font-weight: 600;">(${totalSign}${formatNumber(h.total_pnl_pct)}%)</div>
             </td>
-            <td class="${isPosDay ? 'text-positive' : 'text-negative'}" style="font-weight: 600;">
-              ${isPosDay ? '+' : ''}${formatINR(h.today_pnl)}
+            <td class="${dayClass}" style="font-weight: 600;">
+              ${daySign}${formatINR(h.today_pnl)}
             </td>
             <td style="text-align: right;">
               <button class="btn-danger" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" onclick="startHoldingSale('${h.symbol}', '${h.asset_type}', ${Number(h.quantity) || 0})">Sell</button>

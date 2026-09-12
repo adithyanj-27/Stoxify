@@ -24,7 +24,7 @@ import market_service
 import market_hours
 import fo_service
 import ipo_service
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 app = FastAPI(title="Stoxifyin", description="Stoxifyin - Stock & Mutual Fund Broker Platform", version="1.0.0")
 
@@ -617,6 +617,9 @@ def read_portfolio(request: Request):
     else:
         quotes = [get_holding_quote(h) for h in raw_holdings]
 
+    ist_tz = timezone(timedelta(hours=5, minutes=30))
+    today_ist_date = datetime.now(ist_tz).date()
+
     for h, quote in zip(raw_holdings, quotes):
 
         cur_price = quote.get("price", h["avg_price"])
@@ -627,7 +630,37 @@ def read_portfolio(request: Request):
         cur_val = round(h["quantity"] * cur_price, 2)
         pnl = round(cur_val - inv_val, 2)
         pnl_pct = round((pnl / inv_val) * 100, 2) if inv_val > 0 else 0.0
-        day_pnl = round(h["quantity"] * chg, 2)
+
+        # Check if holding was acquired today (T-day purchase)
+        is_bought_today = False
+        up_str = str(h.get("updated_at") or "").strip()
+        if up_str:
+            try:
+                if "T" in up_str:
+                    dt = datetime.fromisoformat(up_str)
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    holding_date = dt.astimezone(ist_tz).date()
+                elif " " in up_str:
+                    dt = datetime.strptime(up_str.split(".")[0], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+                    holding_date = dt.astimezone(ist_tz).date()
+                else:
+                    holding_date = datetime.strptime(up_str[:10], "%Y-%m-%d").date()
+                if holding_date == today_ist_date:
+                    is_bought_today = True
+            except Exception:
+                if len(up_str) >= 10 and up_str[:10] == str(today_ist_date):
+                    is_bought_today = True
+
+        if is_bought_today:
+            # Acquired today: 1D return is relative to the purchase cost basis (avg_price),
+            # NOT the stock's previous day close from before the user owned it.
+            day_pnl = round(h["quantity"] * (cur_price - h["avg_price"]), 2)
+            today_pnl_pct = round(((cur_price - h["avg_price"]) / h["avg_price"]) * 100, 2) if h["avg_price"] > 0 else 0.0
+        else:
+            # Acquired on a previous trading day (held overnight): 1D return is relative to yesterday's close
+            day_pnl = round(h["quantity"] * chg, 2)
+            today_pnl_pct = chg_pct
 
         total_invested_val += inv_val
         total_current_val += cur_val
@@ -645,7 +678,8 @@ def read_portfolio(request: Request):
             "total_pnl": pnl,
             "total_pnl_pct": pnl_pct,
             "today_pnl": day_pnl,
-            "today_pnl_pct": chg_pct,
+            "today_pnl_pct": today_pnl_pct,
+            "is_bought_today": is_bought_today,
             "updated_at": h["updated_at"]
         })
 
