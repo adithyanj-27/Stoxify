@@ -5921,8 +5921,8 @@ function openOrderConfirmModal(spec) {
 
   const submitBtn = document.getElementById('btnSubmitConfirmedOrder');
   if (submitBtn) {
-    submitBtn.innerText = isBuy ? 'Confirm & Place Buy Order →' : 'Confirm & Place Sell Order →';
-    submitBtn.className = `btn-trade-execute ${isBuy ? 'buy' : 'sell'}`;
+    submitBtn.innerText = isBuy ? 'Place Buy Order →' : 'Place Sell Order →';
+    submitBtn.className = `btn-confirm-execute ${isBuy ? 'buy' : 'sell'}`;
     submitBtn.disabled = false;
   }
 
@@ -6014,7 +6014,8 @@ async function executeConfirmedOrder() {
     if (!res.ok || !result.success) {
       if (submitBtn) {
         submitBtn.disabled = false;
-        submitBtn.innerText = spec.action === 'BUY' ? 'Confirm & Place Buy Order →' : 'Confirm & Place Sell Order →';
+        submitBtn.innerText = spec.action === 'BUY' ? 'Place Buy Order →' : 'Place Sell Order →';
+        submitBtn.className = `btn-confirm-execute ${spec.action === 'BUY' ? 'buy' : 'sell'}`;
       }
       const errMsg = result.detail || result.error || 'Trade execution failed';
       if (errorEl) {
@@ -6076,7 +6077,8 @@ async function executeConfirmedOrder() {
     console.error('executeConfirmedOrder error:', err);
     if (submitBtn) {
       submitBtn.disabled = false;
-      submitBtn.innerText = spec.action === 'BUY' ? 'Confirm & Place Buy Order →' : 'Confirm & Place Sell Order →';
+      submitBtn.innerText = spec.action === 'BUY' ? 'Place Buy Order →' : 'Place Sell Order →';
+      submitBtn.className = `btn-confirm-execute ${spec.action === 'BUY' ? 'buy' : 'sell'}`;
     }
     if (errorEl) {
       errorEl.innerText = 'Failed to connect to trade server';

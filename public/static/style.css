@@ -7411,6 +7411,163 @@ body.viewing-profile .indices-bar {
   margin-bottom: 1.25rem;
 }
 
+/* Order Confirmation Modal Action Buttons */
+.confirm-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+}
+
+.btn-confirm-modify {
+  flex: 0 0 100px;
+  height: 48px;
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border-medium);
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0 1rem;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.btn-confirm-modify:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-active);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.btn-confirm-modify:active {
+  transform: scale(0.98);
+}
+
+.btn-confirm-execute {
+  flex: 1;
+  height: 48px;
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border: none;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  padding: 0 1.25rem;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.btn-confirm-execute.buy {
+  background: var(--accent-green);
+  color: #052e16;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.35);
+}
+
+.btn-confirm-execute.buy:hover {
+  background: var(--accent-green-hover);
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
+}
+
+.btn-confirm-execute.sell {
+  background: var(--danger-red);
+  color: #ffffff;
+  box-shadow: 0 4px 16px rgba(244, 63, 94, 0.35);
+}
+
+.btn-confirm-execute.sell:hover {
+  background: #e11d48;
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(244, 63, 94, 0.45);
+}
+
+.btn-confirm-execute:active {
+  transform: scale(0.98);
+}
+
+.btn-confirm-execute:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+#orderConfirmModal .btn-trade-execute {
+  height: 48px !important;
+  min-height: 48px !important;
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  white-space: nowrap !important;
+  border-radius: 12px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 1.25rem !important;
+  box-sizing: border-box !important;
+}
+
+#orderConfirmModal .btn-subtle {
+  height: 48px !important;
+  min-height: 48px !important;
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  border-radius: 12px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 1rem !important;
+  box-sizing: border-box !important;
+}
+
+[data-theme="light"] .btn-confirm-modify {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+[data-theme="light"] .btn-confirm-modify:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+}
+
+[data-theme="light"] .btn-confirm-execute.buy {
+  background: #00d09c;
+  color: #ffffff;
+}
+
+[data-theme="light"] .btn-confirm-execute.buy:hover {
+  background: #00b386;
+}
+
+.loading-spinner-small {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: currentColor;
+  animation: spinBtn 0.75s linear infinite;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
 
 
 

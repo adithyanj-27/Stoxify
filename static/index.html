@@ -2513,12 +2513,12 @@
         <div id="confirmOrderError" style="display: none; color: var(--danger-red); background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 8px; padding: 0.65rem 0.85rem; font-size: 0.82rem; font-weight: 600; margin-bottom: 1rem;"></div>
 
         <!-- Buttons -->
-        <div style="display: flex; gap: 0.75rem;">
-          <button type="button" class="btn-subtle" style="flex: 1; padding: 0.85rem;" onclick="closeOrderConfirmModal()">
+        <div class="confirm-modal-actions">
+          <button type="button" class="btn-confirm-modify" onclick="closeOrderConfirmModal()">
             Modify
           </button>
-          <button type="button" class="btn-trade-execute buy" style="flex: 2; padding: 0.85rem;" id="btnSubmitConfirmedOrder" onclick="executeConfirmedOrder()">
-            Confirm & Place Order →
+          <button type="button" class="btn-confirm-execute buy" id="btnSubmitConfirmedOrder" onclick="executeConfirmedOrder()">
+            Place Buy Order →
           </button>
         </div>
       </div>
