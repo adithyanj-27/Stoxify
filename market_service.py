@@ -1,9 +1,13 @@
+import os
 import time
 import requests
 import concurrent.futures
 import zlib
 from datetime import datetime, timedelta, time as dtime, timezone
 import yfinance as yf
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, "static")
 
 IST = timezone(timedelta(hours=5, minutes=30))
 from typing import Dict, List, Any, Optional
@@ -166,6 +170,13 @@ def _refresh_stock_quote_sync(formatted_symbol: str) -> Dict[str, Any]:
         roe = info.get("returnOnEquity")
         book_value = info.get("bookValue")
         industry = info.get("industry") or sector
+        website = info.get("website")
+        clean_sym = formatted_symbol.replace(".NS", "").replace(".BO", "").upper()
+        local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_sym}.png")
+        if os.path.exists(local_logo):
+            logo_url = f"/static/logos/{clean_sym}.png"
+        else:
+            logo_url = f"https://images.financialmodelingprep.com/symbol/{clean_sym}.NS.png"
 
         data = {
             "symbol": formatted_symbol,
@@ -196,7 +207,9 @@ def _refresh_stock_quote_sync(formatted_symbol: str) -> Dict[str, Any]:
             "book_value": round(float(book_value), 2) if book_value else None,
             "volume": int(volume) if volume else 1000000,
             "sector": sector,
-            "industry": industry
+            "industry": industry,
+            "website": website,
+            "logo_url": logo_url
         }
         set_cached(cache_key, data, ttl=60)
         return data
@@ -712,10 +725,14 @@ def search_market(query: str) -> List[Dict[str, Any]]:
         if q in sym_clean or q in name_clean or alias_match:
             if s["symbol"] not in seen_symbols:
                 seen_symbols.add(s["symbol"])
+                clean_s = s["symbol"].upper().replace(".NS", "").replace(".BO", "")
+                local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_s}.png")
+                logo_url = f"/static/logos/{clean_s}.png" if os.path.exists(local_logo) else f"https://images.financialmodelingprep.com/symbol/{clean_s}.NS.png"
                 results.append({
                     "symbol": s["symbol"],
                     "name": s["name"],
                     "asset_type": "STOCK",
+                    "logo_url": logo_url,
                     "subtext": f"NSE • {s['sector']}"
                 })
 
@@ -723,10 +740,14 @@ def search_market(query: str) -> List[Dict[str, Any]]:
         if q in mf["name"].lower() or q in mf["category"].lower() or q in mf["fund_house"].lower() or q == mf["code"]:
             if mf["code"] not in seen_symbols:
                 seen_symbols.add(mf["code"])
+                clean_code = str(mf["code"])
+                local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_code}.png")
+                logo_url = f"/static/logos/{clean_code}.png" if os.path.exists(local_logo) else ""
                 results.append({
                     "symbol": mf["code"],
                     "name": mf["name"],
                     "asset_type": "MUTUAL_FUND",
+                    "logo_url": logo_url,
                     "subtext": f"Mutual Fund • {mf['category']}"
                 })
 
@@ -746,10 +767,14 @@ def search_market(query: str) -> List[Dict[str, Any]]:
                             short_name = item.get("shortname") or item.get("longname") or sym
                             exch_label = "NSE" if sym.endswith(".NS") or exchange in ["NSI", "NSE"] else "BSE"
                             sector_label = item.get("sectorDisp") or item.get("industryDisp") or "Equity"
+                            clean_item_sym = sym.upper().replace(".NS", "").replace(".BO", "")
+                            local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_item_sym}.png")
+                            logo_url = f"/static/logos/{clean_item_sym}.png" if os.path.exists(local_logo) else f"https://images.financialmodelingprep.com/symbol/{clean_item_sym}.NS.png"
                             results.append({
                                 "symbol": sym,
                                 "name": short_name,
                                 "asset_type": "STOCK",
+                                "logo_url": logo_url,
                                 "subtext": f"{exch_label} • {sector_label}"
                             })
         except Exception:

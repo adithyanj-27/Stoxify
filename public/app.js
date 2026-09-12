@@ -640,6 +640,29 @@ const SYMBOL_DOMAINS = {
 };
 window.SYMBOL_DOMAINS = SYMBOL_DOMAINS;
 
+const LOCAL_LOGOS = new Set([
+  "118989","119598","120503","120828","122639","125354","ADANIENT","ADANIGREEN",
+  "ADANIPORTS","ADANIPOWER","APOLLOHOSP","ASHOKLEY","ASIANPAINT","AXISBANK","BAJAJ-AUTO",
+  "BAJFINANCE","BANKBARODA","BDL","BEL","BHARTIARTL","BHEL","BSE","CANBK","CDSL",
+  "CIPLA","COALINDIA","COCHINSHIP","DRREDDY","EICHERMOT","ETERNAL","FEDERALBNK","GRSE",
+  "HAL","HDFCBANK","HINDALCO","HINDUNILVR","ICICIBANK","IDFCFIRSTB","INFY","IRCTC",
+  "IREDA","IRFC","ITC","JIOFIN","JSWSTEEL","KOTAKBANK","LT","M&M","MARUTI","MAZDOCK",
+  "NHPC","NTPC","ONGC","PAYTM","PFC","PNB","POWERGRID","RAILTEL","RECLTD","RELIANCE",
+  "RVNL","SBIN","SUNPHARMA","SUZLON","TATAELXSI","TATAPOWER","TATASTEEL","TATATECH",
+  "TCS","TITAN","TMCV","TMPV","TRENT","TVSMOTOR","ULTRACEMCO","VEDL","WIPRO","YESBANK"
+]);
+
+function getAssetLogoUrl(sym, item) {
+  if (!sym) return '';
+  if (item && item.logo_url) return item.logo_url;
+  const cleanSym = sym.toUpperCase().replace('.NS', '').replace('.BO', '').trim();
+  if (LOCAL_LOGOS.has(cleanSym)) {
+    return `/static/logos/${cleanSym}.png`;
+  }
+  // High-resolution real corporate logo CDN covering all NSE Indian equities
+  return `https://images.financialmodelingprep.com/symbol/${cleanSym}.NS.png`;
+}
+
 // Automated Logo Error Handler: Cascades through high-reliability CDN sources before falling back to initial badge
 function handleLogoError(img) {
   if (!img) return;
@@ -654,22 +677,22 @@ function handleLogoError(img) {
   }
 
   const step = parseInt(img.getAttribute('data-logo-step') || '0', 10);
-  const cleanTicker = sym.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const cleanTicker = sym.toUpperCase().replace(/[^A-Z0-9]/g, '');
   const rawDomain = img.getAttribute('data-website') || (window.SYMBOL_DOMAINS && window.SYMBOL_DOMAINS[sym]) || '';
   const domain = rawDomain.replace(/^https?:\/\//i, '').replace(/\/.*$/, '').replace(/^www\./i, '');
 
   const sources = [
-    // 1. TradingView High-Res Vector SVG (covers hundreds of Indian equities)
-    `https://s3-symbol-logo.tradingview.com/${cleanTicker}--big.svg`,
-    // 2. Official Corporate Domain via Google Favicon CDN (128px high-res)
+    // 1. FMP High-Res Symbol Logo with .NS
+    `https://images.financialmodelingprep.com/symbol/${cleanTicker}.NS.png`,
+    // 2. FMP High-Res Symbol Logo without .NS
+    `https://images.financialmodelingprep.com/symbol/${cleanTicker}.png`,
+    // 3. Clearbit Logo API via corporate domain mapping
+    ...(domain ? [`https://logo.clearbit.com/${domain}`] : []),
+    // 4. Google Favicon CDN 128px via official domain
     ...(domain ? [`https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.${domain}&size=128`] : []),
-    // 3. TradingView Ticker Vector
-    `https://s3-symbol-logo.tradingview.com/crypto/XTVC${sym}.svg`,
-    // 4. Inferred company domains (.com and .in) via Google Favicon CDN
-    `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.${cleanTicker}.com&size=128`,
-    `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.${cleanTicker}.in&size=128`,
-    // 5. DuckDuckGo icon fallback
-    `https://icons.duckduckgo.com/ip3/www.${cleanTicker}.com.ico`
+    // 5. Inferred domains via Google Favicon CDN
+    `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.${cleanTicker.toLowerCase()}.com&size=128`,
+    `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.${cleanTicker.toLowerCase()}.in&size=128`
   ];
 
   if (step < sources.length) {
@@ -693,13 +716,13 @@ function getCleanInitial(name, symbol) {
   return clean.charAt(0).toUpperCase();
 }
 
-function renderAssetAvatar(item, assetType) {
+function renderAssetAvatar(item, assetType, isHero = false) {
   const sym = item.symbol || '';
   const isIndex = sym.startsWith('^') || assetType === 'INDEX';
   const isMF = assetType === 'MUTUAL_FUND' || item.asset_type === 'MUTUAL_FUND';
   const cleanSym = sym.replace('.NS', '').replace('.BO', '');
   const initial = isIndex ? 'IDX' : getCleanInitial(item.name, item.symbol);
-  const logoUrl = isIndex ? '' : `/static/logos/${cleanSym}.png`;
+  const logoUrl = isIndex ? '' : getAssetLogoUrl(sym, item);
 
   const palettes = [
     { bg: 'rgba(14, 165, 233, 0.12)', text: '#38BDF8', border: 'rgba(14, 165, 233, 0.3)' },
@@ -721,12 +744,35 @@ function renderAssetAvatar(item, assetType) {
       : initial);
 
   if (isIndex) {
+    if (isHero) {
+      return `
+        <span style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-weight: 800; color: #38BDF8;">
+          ${fallbackHtml}
+        </span>
+      `;
+    }
     return `
       <div class="card-avatar avatar-index" style="background: ${p.bg}; color: ${p.text}; border-color: ${p.border};">
         <span style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-weight: 800;">
           ${fallbackHtml}
         </span>
       </div>
+    `;
+  }
+
+  if (isHero) {
+    return `
+      <img src="${logoUrl}" 
+           alt="${item.name || cleanSym}" 
+           loading="lazy"
+           data-symbol="${cleanSym}"
+           data-website="${item.website || ''}"
+           data-logo-step="0"
+           onerror="handleLogoError(this)"
+           style="width: 42px; height: 42px; object-fit: contain; border-radius: 8px;">
+      <span style="display: none; align-items: center; justify-content: center; width: 100%; height: 100%; font-weight: 800; font-size: 1.4rem; color: ${p.text};">
+        ${fallbackHtml}
+      </span>
     `;
   }
 
@@ -1824,7 +1870,7 @@ async function legacyOpenAssetModal(symbol, assetType = 'STOCK', preselectAction
     const cleanSym = isIndex ? (INDEX_NAMES[data.symbol] || data.symbol.replace('^', '')) : (data.symbol || '').replace('.NS', '').replace('.BO', '');
     const isMF = data.asset_type === 'MUTUAL_FUND';
     const initial = isIndex ? 'IDX' : getCleanInitial(data.name, data.symbol);
-    const logoUrl = isIndex ? '' : `/static/logos/${cleanSym}.png`;
+    const logoUrl = isIndex ? '' : getAssetLogoUrl(cleanSym, data);
     const fallbackHtml = isIndex
       ? `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>`
       : (isMF
@@ -4258,7 +4304,7 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
     document.getElementById('assetBreadcrumbCategory').innerText = isIndex ? 'Indices' : (isMF ? 'Mutual Funds' : 'Stocks');
     document.getElementById('assetBreadcrumbName').innerText = isIndex ? indexName : data.name;
 
-    document.getElementById('pageAssetAvatar').innerHTML = renderAssetAvatar(data, isIndex ? 'INDEX' : data.asset_type);
+    document.getElementById('pageAssetAvatar').innerHTML = renderAssetAvatar(data, isIndex ? 'INDEX' : data.asset_type, true);
     document.getElementById('pageAssetTitle').innerText = isIndex ? indexName : data.name;
     document.getElementById('pageAssetSymbol').innerText = isIndex ? (INDEX_NAMES[data.symbol] || cleanSym) : cleanSym;
     document.getElementById('pageAssetBadge').innerText = isIndex ? 'INDEX' : (isMF ? 'Mutual Fund' : (data.exchange || 'NSE'));
