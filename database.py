@@ -33,7 +33,8 @@ DEFAULT_SUPABASE_KEY = "sb_publishable__ywLDIS3oh2MnKdoXcnkYg_rNjN_tHw"
 SUPABASE_URL = (os.environ.get("SUPABASE_URL") or DEFAULT_SUPABASE_URL).rstrip("/")
 if SUPABASE_URL.endswith("/rest/v1"):
     SUPABASE_URL = SUPABASE_URL[:-8].rstrip("/")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_ANON_KEY") or DEFAULT_SUPABASE_KEY
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_ANON_KEY") or DEFAULT_SUPABASE_KEY
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 
 def supabase_api(method: str, table_or_endpoint: str, payload: Optional[Any] = None, params: Optional[Dict[str, str]] = None) -> Optional[Any]:
     if not is_supabase_enabled():
@@ -596,56 +597,132 @@ def sync_user_to_supabase_auth(
     }
 
     auth_id = None
-    try:
-        req = urllib.request.Request(auth_url, data=json.dumps(auth_payload).encode("utf-8"), headers=auth_headers, method="POST")
-        with urllib.request.urlopen(req, timeout=6) as resp:
-            content = resp.read().decode("utf-8")
-            data = json.loads(content)
-            auth_id = data.get("user", {}).get("id") or data.get("id")
-            print(f"[Supabase Auth] Successfully registered {clean_email} (auth_id: {auth_id}) in Supabase Authentication -> Users")
-    except urllib.error.HTTPError as he:
-        err_body = he.read().decode("utf-8", errors="ignore")
-        if he.code == 422 and "user_already_exists" in err_body:
-            print(f"[Supabase Auth] Email {clean_email} already exists in auth.users. Linking existing auth account...")
-            token_url = f"{SUPABASE_URL}/auth/v1/token?grant_type=password"
-            candidates = [pwd, clean_password, f"stoxify_{pin}" if pin else None, str(pin) if pin else None, f"stoxify_{user_id.replace('-', '_')}"]
-            for test_pwd in candidates:
-                if not test_pwd:
-                    continue
+    # 1. Prefer Admin API via service_role key if available for instant confirmation and no rate limits
+    if SUPABASE_SERVICE_ROLE_KEY:
+        try:
+            admin_url = f"{SUPABASE_URL}/auth/v1/admin/users"
+            admin_headers = {
+                "apikey": SUPABASE_SERVICE_ROLE_KEY,
+                "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+                "Content-Type": "application/json"
+            }
+            admin_payload = {
+                "email": clean_email,
+                "password": pwd,
+                "email_confirm": True,
+                "user_metadata": {
+                    "name": name or "Trader",
+                    "phone": phone or "",
+                    "demat": user_id,
+                    "pin": str(pin or ""),
+                    "pan": pan or "ABCDE1234F",
+                    "username": username or ""
+                }
+            }
+            req = urllib.request.Request(admin_url, data=json.dumps(admin_payload).encode("utf-8"), headers=admin_headers, method="POST")
+            with urllib.request.urlopen(req, timeout=6) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                auth_id = data.get("id") or data.get("user", {}).get("id")
+                print(f"[Supabase Auth Admin] Successfully created {clean_email} (auth_id: {auth_id}) in Supabase Authentication -> Users")
+        except urllib.error.HTTPError as he:
+            err_body = he.read().decode("utf-8", errors="ignore")
+            if he.code == 422 and "user_already_exists" in err_body:
+                print(f"[Supabase Auth Admin] User {clean_email} already exists. Searching and updating...")
                 try:
-                    tok_req = urllib.request.Request(
-                        token_url,
-                        data=json.dumps({"email": clean_email, "password": test_pwd}).encode("utf-8"),
-                        headers=auth_headers,
-                        method="POST"
-                    )
-                    with urllib.request.urlopen(tok_req, timeout=5) as tok_resp:
-                        tok_data = json.loads(tok_resp.read().decode("utf-8"))
-                        auth_id = tok_data.get("user", {}).get("id")
-                        token = tok_data.get("access_token")
-                        if token:
-                            user_url = f"{SUPABASE_URL}/auth/v1/user"
-                            upd_headers = {
-                                "apikey": SUPABASE_KEY,
-                                "Authorization": f"Bearer {token}",
-                                "Content-Type": "application/json"
-                            }
-                            upd_req = urllib.request.Request(
-                                user_url,
-                                data=json.dumps({"data": auth_payload["data"]}).encode("utf-8"),
-                                headers=upd_headers,
-                                method="PUT"
-                            )
-                            with urllib.request.urlopen(upd_req, timeout=5):
-                                pass
-                        print(f"[Supabase Auth] Successfully linked and updated existing auth account {clean_email} (auth_id: {auth_id})")
-                        break
-                except Exception:
-                    continue
-        else:
-            print(f"[Supabase Auth Note] signup response ({he.code}): {err_body}")
-    except Exception as e:
-        print(f"[Supabase Auth Note] {e}")
+                    # Find user auth_id from user list
+                    list_req = urllib.request.Request(admin_url, headers=admin_headers)
+                    with urllib.request.urlopen(list_req, timeout=5) as list_resp:
+                        u_list = json.loads(list_resp.read().decode("utf-8")).get("users", [])
+                        for au in u_list:
+                            if au.get("email", "").lower() == clean_email.lower():
+                                auth_id = au["id"]
+                                upd_req = urllib.request.Request(
+                                    f"{admin_url}/{auth_id}",
+                                    data=json.dumps({"password": pwd, "user_metadata": admin_payload["user_metadata"]}).encode("utf-8"),
+                                    headers=admin_headers,
+                                    method="PUT"
+                                )
+                                with urllib.request.urlopen(upd_req, timeout=5):
+                                    pass
+                                print(f"[Supabase Auth Admin] Successfully updated existing user {clean_email} (auth_id: {auth_id})")
+                                break
+                except Exception as ex:
+                    print(f"[Supabase Auth Admin Note] Update error: {ex}")
+            else:
+                print(f"[Supabase Auth Admin Note] ({he.code}): {err_body}")
+        except Exception as e:
+            print(f"[Supabase Auth Admin Note] {e}")
+
+    # 2. Fallback to public GoTrue signup if Admin API was not executed
+    if not auth_id:
+        try:
+            auth_url = f"{SUPABASE_URL}/auth/v1/signup"
+            auth_payload = {
+                "email": clean_email,
+                "password": pwd,
+                "data": {
+                    "name": name or "Trader",
+                    "phone": phone or "",
+                    "demat": user_id,
+                    "pin": str(pin or ""),
+                    "pan": pan or "ABCDE1234F",
+                    "username": username or ""
+                }
+            }
+            auth_headers = {
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {SUPABASE_KEY}",
+                "Content-Type": "application/json"
+            }
+            req = urllib.request.Request(auth_url, data=json.dumps(auth_payload).encode("utf-8"), headers=auth_headers, method="POST")
+            with urllib.request.urlopen(req, timeout=6) as resp:
+                content = resp.read().decode("utf-8")
+                data = json.loads(content)
+                auth_id = data.get("user", {}).get("id") or data.get("id")
+                print(f"[Supabase Auth] Successfully registered {clean_email} (auth_id: {auth_id}) in Supabase Authentication -> Users")
+        except urllib.error.HTTPError as he:
+            err_body = he.read().decode("utf-8", errors="ignore")
+            if he.code == 422 and "user_already_exists" in err_body:
+                print(f"[Supabase Auth] Email {clean_email} already exists in auth.users. Linking existing auth account...")
+                token_url = f"{SUPABASE_URL}/auth/v1/token?grant_type=password"
+                candidates = [pwd, clean_password, f"stoxify_{pin}" if pin else None, str(pin) if pin else None, f"stoxify_{user_id.replace('-', '_')}"]
+                for test_pwd in candidates:
+                    if not test_pwd:
+                        continue
+                    try:
+                        tok_req = urllib.request.Request(
+                            token_url,
+                            data=json.dumps({"email": clean_email, "password": test_pwd}).encode("utf-8"),
+                            headers=auth_headers,
+                            method="POST"
+                        )
+                        with urllib.request.urlopen(tok_req, timeout=5) as tok_resp:
+                            tok_data = json.loads(tok_resp.read().decode("utf-8"))
+                            auth_id = tok_data.get("user", {}).get("id")
+                            token = tok_data.get("access_token")
+                            if token:
+                                user_url = f"{SUPABASE_URL}/auth/v1/user"
+                                upd_headers = {
+                                    "apikey": SUPABASE_KEY,
+                                    "Authorization": f"Bearer {token}",
+                                    "Content-Type": "application/json"
+                                }
+                                upd_req = urllib.request.Request(
+                                    user_url,
+                                    data=json.dumps({"data": auth_payload["data"]}).encode("utf-8"),
+                                    headers=upd_headers,
+                                    method="PUT"
+                                )
+                                with urllib.request.urlopen(upd_req, timeout=5):
+                                    pass
+                            print(f"[Supabase Auth] Successfully linked and updated existing auth account {clean_email} (auth_id: {auth_id})")
+                            break
+                    except Exception:
+                        continue
+            else:
+                print(f"[Supabase Auth Note] signup response ({he.code}): {err_body}")
+        except Exception as e:
+            print(f"[Supabase Auth Note] {e}")
 
     if auth_id and user_id != "default":
         try:
@@ -2547,19 +2624,35 @@ def delete_user(user_id: str) -> bool:
         try:
             u_row = get_user(user_id)
             auth_id = (u_row.get("auth_id") if u_row else None)
+            admin_headers = {
+                "apikey": SUPABASE_SERVICE_ROLE_KEY,
+                "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+                "Content-Type": "application/json"
+            }
             if auth_id:
                 try:
                     admin_del_url = f"{SUPABASE_URL}/auth/v1/admin/users/{auth_id}"
-                    admin_headers = {
-                        "apikey": SUPABASE_KEY,
-                        "Authorization": f"Bearer {SUPABASE_KEY}",
-                        "Content-Type": "application/json"
-                    }
                     del_req = urllib.request.Request(admin_del_url, headers=admin_headers, method="DELETE")
                     with urllib.request.urlopen(del_req, timeout=5):
-                        print(f"[Supabase Auth] Removed auth user {auth_id} from Supabase Authentication -> Users")
+                        print(f"[Supabase Auth Admin] Removed auth user {auth_id} from Supabase Authentication -> Users")
                 except Exception as e:
-                    print(f"[Supabase Auth Delete Note] Could not delete from auth.users (requires service_role key): {e}")
+                    print(f"[Supabase Auth Delete Note]: {e}")
+            elif u_row and u_row.get("email"):
+                try:
+                    search_email = u_row["email"].strip().lower()
+                    admin_users_url = f"{SUPABASE_URL}/auth/v1/admin/users"
+                    list_req = urllib.request.Request(admin_users_url, headers=admin_headers)
+                    with urllib.request.urlopen(list_req, timeout=5) as list_resp:
+                        u_list = json.loads(list_resp.read().decode("utf-8")).get("users", [])
+                        for au in u_list:
+                            if au.get("email", "").lower() == search_email:
+                                target_aid = au["id"]
+                                del_req = urllib.request.Request(f"{admin_users_url}/{target_aid}", headers=admin_headers, method="DELETE")
+                                with urllib.request.urlopen(del_req, timeout=5):
+                                    print(f"[Supabase Auth Admin] Found and removed auth user {target_aid} ({search_email})")
+                                break
+                except Exception as e:
+                    print(f"[Supabase Auth Delete Note]: {e}")
 
             supabase_api("DELETE", f"holdings?user_id=eq.{user_id}")
             supabase_api("DELETE", f"positions?user_id=eq.{user_id}")
