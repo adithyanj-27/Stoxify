@@ -5251,12 +5251,16 @@ function showOnboardingPage() {
   if (nameInput) nameInput.value = '';
   const dobInput = document.getElementById('obInputDob');
   if (dobInput) {
-    const tenYearsAgo = new Date();
-    tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10);
-    const maxAllowedDob = tenYearsAgo.toISOString().split('T')[0];
+    const thirteenYearsAgo = new Date();
+    thirteenYearsAgo.setFullYear(thirteenYearsAgo.getFullYear() - 13);
+    const maxAllowedDob = thirteenYearsAgo.toISOString().split('T')[0];
     dobInput.max = maxAllowedDob;
     dobInput.value = '2000-01-01';
   }
+  const ageInput = document.getElementById('obInputAge');
+  if (ageInput) ageInput.value = '24';
+  const expInput = document.getElementById('obInputExperience');
+  if (expInput) expInput.value = 'None / Total Beginner';
   const accInput = document.getElementById('obInputAccount');
   if (accInput) accInput.value = '';
   const accConfInput = document.getElementById('obInputAccountConfirm');
@@ -5347,14 +5351,25 @@ function goToObStep(stepNum) {
 
   if (stepNum === 3) {
     const dobInput = document.getElementById('obInputDob');
+    const ageInput = document.getElementById('obInputAge');
     if (dobInput) {
-      const tenYearsAgo = new Date();
-      tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10);
-      const maxAllowedDob = tenYearsAgo.toISOString().split('T')[0];
+      const thirteenYearsAgo = new Date();
+      thirteenYearsAgo.setFullYear(thirteenYearsAgo.getFullYear() - 13);
+      const maxAllowedDob = thirteenYearsAgo.toISOString().split('T')[0];
       dobInput.max = maxAllowedDob;
-      if (!dobInput.value || new Date(dobInput.value) > tenYearsAgo) {
+      if (!dobInput.value || new Date(dobInput.value) > thirteenYearsAgo) {
         dobInput.value = '2000-01-01';
       }
+      dobInput.onchange = () => {
+        if (dobInput.value) {
+          const b = new Date(dobInput.value);
+          const now = new Date();
+          let calculatedAge = now.getFullYear() - b.getFullYear();
+          const m = now.getMonth() - b.getMonth();
+          if (m < 0 || (m === 0 && now.getDate() < b.getDate())) calculatedAge--;
+          if (ageInput && calculatedAge >= 13) ageInput.value = calculatedAge;
+        }
+      };
     }
   }
 
@@ -5533,6 +5548,8 @@ function submitObStep3() {
   const gender = document.getElementById('obInputGender').value;
   const occupation = document.getElementById('obInputOccupation')?.value || 'Private Sector';
   const income = document.getElementById('obInputIncome')?.value || '₹1L - ₹5L';
+  const ageInput = document.getElementById('obInputAge');
+  const expInput = document.getElementById('obInputExperience');
 
   if (!pan || pan.length !== 10) {
     showToast('Please enter a 10-digit PAN (e.g. ABCDE1234F)', true);
@@ -5552,7 +5569,7 @@ function submitObStep3() {
 
   const birthDate = new Date(dob);
   const cutoffDate = new Date();
-  cutoffDate.setFullYear(cutoffDate.getFullYear() - 10);
+  cutoffDate.setFullYear(cutoffDate.getFullYear() - 13);
 
   if (isNaN(birthDate.getTime())) {
     showToast('Please enter a valid Date of Birth', true);
@@ -5560,11 +5577,14 @@ function submitObStep3() {
     return;
   }
 
-  if (birthDate > cutoffDate) {
-    showToast('You must be at least 10 years of age to register', true);
-    document.getElementById('obInputDob').focus();
+  const ageVal = parseInt(ageInput ? ageInput.value : '18', 10);
+  if (isNaN(ageVal) || ageVal < 13) {
+    showToast('You must be at least 13 years of age to register', true);
+    if (ageInput) ageInput.focus();
     return;
   }
+
+  const expVal = expInput ? expInput.value : 'None / Total Beginner';
 
   obUserData.pan = pan;
   obUserData.name = name;
@@ -5572,6 +5592,8 @@ function submitObStep3() {
   obUserData.gender = gender;
   obUserData.occupation = occupation;
   obUserData.income = income;
+  obUserData.age = ageVal;
+  obUserData.experience = expVal;
 
   showToast(`PAN ${pan} verified for ${name}! ✓`);
   goToObStep(4);
@@ -5659,7 +5681,9 @@ async function submitObStep5() {
         dob: obUserData.dob,
         bank_name: obUserData.bank_name,
         bank_account: obUserData.bank_account,
-        pin: obUserData.pin
+        pin: obUserData.pin,
+        age: obUserData.age || 18,
+        experience: obUserData.experience || 'None / Total Beginner'
       })
     });
     const result = await res.json();
@@ -5695,12 +5719,313 @@ async function submitObStep5() {
   }
 }
 
-
 function finishOnboarding() {
   updateNavbarProfile();
   navigateTo('/explore');
   showToast(`Welcome to Stoxifyin', ${currentUser.name}! ₹10,00,000 virtual cash ready in your linked bank account!`);
+  checkAndLaunchTour();
 }
+
+/* =======================================================
+   AGE- & EXPERIENCE-ADAPTIVE ONBOARDING & TOUR ENGINE
+   ======================================================= */
+let sandboxMockState = {
+  balance: 10000.0,
+  qty: 10,
+  price: 260.0,
+  hasExecuted: false
+};
+let currentTourStep = 0;
+
+function checkAndLaunchTour() {
+  if (!currentUser || currentUser.id === 'guest') return;
+
+  const exp = (currentUser.experience || 'None / Total Beginner').trim();
+  const isExperienced = (exp === '1–2 Years' || exp === '1-2 Years' || exp === '2+ Years');
+
+  if (isExperienced || currentUser.has_completed_tour) {
+    if (!currentUser.has_completed_tour) {
+      markTourCompleteOnServer();
+    }
+    return;
+  }
+
+  // Beginner tiers: "None / Total Beginner" or "< 1 Year"
+  const promptModal = document.getElementById('tourPromptModal');
+  if (promptModal) {
+    setTimeout(() => {
+      promptModal.style.display = 'flex';
+    }, 600);
+  }
+}
+
+function skipTour() {
+  const promptModal = document.getElementById('tourPromptModal');
+  if (promptModal) promptModal.style.display = 'none';
+  markTourCompleteOnServer();
+  showToast('Tour skipped. You can always practice anytime!');
+}
+
+function acceptTour() {
+  const promptModal = document.getElementById('tourPromptModal');
+  if (promptModal) promptModal.style.display = 'none';
+
+  const userAge = parseInt(currentUser.age, 10) || 18;
+  if (userAge < 18) {
+    openSandboxModal();
+  } else {
+    startDashboardTour();
+  }
+}
+
+async function markTourCompleteOnServer() {
+  if (!currentUser || currentUser.id === 'guest') return;
+  currentUser.has_completed_tour = true;
+  localStorage.setItem('stoxify_cached_user', JSON.stringify(currentUser));
+  try {
+    await fetch('/api/user/complete-tour', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: currentUser.id })
+    });
+  } catch (e) {}
+}
+
+/* Gamified Sandbox Logic (Age < 18) */
+function openSandboxModal() {
+  sandboxMockState = {
+    balance: 10000.0,
+    qty: 10,
+    price: 260.0,
+    hasExecuted: false
+  };
+  updateSandboxUI();
+  const modal = document.getElementById('sandboxTradeModal');
+  const celebBox = document.getElementById('sandboxCelebrationBox');
+  const actionWrap = document.getElementById('sandboxActionWrap');
+  const stepBanner = document.getElementById('sandboxStepBanner');
+
+  if (celebBox) celebBox.style.display = 'none';
+  if (actionWrap) actionWrap.style.display = 'block';
+  if (stepBanner) {
+    stepBanner.innerHTML = '<span class="sandbox-step-chip" id="sandboxStepChip">Step 1 of 3</span> <span class="sandbox-instruction" id="sandboxStepInstruction">Enter how many shares you\'d like to test buy:</span>';
+  }
+  const qtyInput = document.getElementById('sandboxQtyInput');
+  if (qtyInput) qtyInput.value = 10;
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeSandboxModal() {
+  const modal = document.getElementById('sandboxTradeModal');
+  if (modal) modal.style.display = 'none';
+  markTourCompleteOnServer();
+}
+
+function adjustSandboxQty(delta) {
+  if (sandboxMockState.hasExecuted) return;
+  let q = sandboxMockState.qty + delta;
+  if (q < 1) q = 1;
+  if (q > 38) q = 38;
+  sandboxMockState.qty = q;
+  const inp = document.getElementById('sandboxQtyInput');
+  if (inp) inp.value = q;
+  updateSandboxUI();
+}
+
+function onSandboxQtyChange(val) {
+  if (sandboxMockState.hasExecuted) return;
+  let q = parseInt(val, 10);
+  if (isNaN(q) || q < 1) q = 1;
+  if (q > 38) q = 38;
+  sandboxMockState.qty = q;
+  updateSandboxUI();
+}
+
+function updateSandboxUI() {
+  const cost = sandboxMockState.qty * sandboxMockState.price;
+  const remain = sandboxMockState.balance - (sandboxMockState.hasExecuted ? 0 : cost);
+  const costEl = document.getElementById('sandboxCostText');
+  const remEl = document.getElementById('sandboxRemainBal');
+  const btnEl = document.getElementById('sandboxBtnText');
+  const balEl = document.getElementById('sandboxBalText');
+
+  if (costEl) costEl.innerText = `₹${cost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  if (remEl) remEl.innerText = `₹${Math.max(0, remain).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  if (btnEl) btnEl.innerText = `BUY ${sandboxMockState.qty} ETERNAL @ ₹260.00`;
+  if (balEl) balEl.innerText = `₹${sandboxMockState.balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+}
+
+function executeSandboxTrade() {
+  if (sandboxMockState.hasExecuted) return;
+  sandboxMockState.hasExecuted = true;
+  const cost = sandboxMockState.qty * sandboxMockState.price;
+  sandboxMockState.balance -= cost;
+
+  const actionWrap = document.getElementById('sandboxActionWrap');
+  const celebBox = document.getElementById('sandboxCelebrationBox');
+  const finalCashEl = document.getElementById('sandboxFinalCash');
+  const stepBanner = document.getElementById('sandboxStepBanner');
+
+  if (actionWrap) actionWrap.style.display = 'none';
+  if (finalCashEl) finalCashEl.innerText = `₹${sandboxMockState.balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  if (stepBanner) {
+    stepBanner.innerHTML = '<span class="sandbox-step-chip" style="background:#10b981;">Complete ✓</span> <span class="sandbox-instruction" style="color:#10b981; font-weight:700;">Order filled instantly with ₹0 risk!</span>';
+  }
+  if (celebBox) {
+    celebBox.style.display = 'block';
+    triggerSandboxConfetti();
+  }
+  updateSandboxUI();
+}
+
+function triggerSandboxConfetti() {
+  const holder = document.getElementById('sandboxConfettiHolder');
+  if (!holder) return;
+  holder.innerHTML = '';
+  const colors = ['#0ea5e9', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6'];
+  for (let i = 0; i < 40; i++) {
+    const p = document.createElement('div');
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    const left = Math.random() * 95;
+    const size = Math.random() * 8 + 6;
+    const dur = Math.random() * 1.5 + 1.2;
+    p.style.cssText = `
+      position: absolute;
+      top: -10px;
+      left: ${left}%;
+      width: ${size}px;
+      height: ${size * 0.6}px;
+      background: ${color};
+      border-radius: 2px;
+      opacity: 0.95;
+      transform: rotate(${Math.random() * 360}deg);
+      animation: confettiFall ${dur}s linear forwards;
+      pointer-events: none;
+      z-index: 10;
+    `;
+    holder.appendChild(p);
+  }
+}
+
+function finishSandboxTour() {
+  closeSandboxModal();
+  showToast(`🎉 Practice complete! Welcome to Stoxifyin', ${currentUser.name}!`);
+  navigateTo('/explore');
+}
+
+/* Dashboard Spotlight Tour Logic (Age >= 18) */
+const TOUR_STEPS = [
+  {
+    targetId: 'pane-explore',
+    title: 'Explore & Watchlist',
+    body: 'Track real-time market indices like Nifty 50 & Sensex, search popular stocks and mutual funds, and monitor top gainers.',
+    preferredPosition: 'top'
+  },
+  {
+    targetId: 'navProfileWrapper',
+    fallbackId: 'navUserAvatarBtn',
+    title: 'Virtual Bank & Cash Balance',
+    body: 'Your account is credited with ₹10,00,000 virtual cash in your linked simulated bank. Transfer funds instantly to your trading wallet via UPI anytime!',
+    preferredPosition: 'bottom'
+  },
+  {
+    targetId: 'stockWatchlistContainer',
+    fallbackId: 'pane-explore',
+    title: 'Instant Order Execution',
+    body: 'Click any stock to view live candlestick charts, open the trade ticket, and practice Market, Limit, or Stop-Loss orders with zero real money risk.',
+    preferredPosition: 'top'
+  }
+];
+
+function startDashboardTour() {
+  currentTourStep = 0;
+  const overlay = document.getElementById('dashboardTourOverlay');
+  if (overlay) overlay.style.display = 'block';
+  renderTourStep(0);
+}
+
+function renderTourStep(stepIdx) {
+  document.querySelectorAll('.tour-spotlight-active').forEach(el => el.classList.remove('tour-spotlight-active'));
+
+  if (stepIdx >= TOUR_STEPS.length) {
+    endDashboardTour();
+    return;
+  }
+
+  const step = TOUR_STEPS[stepIdx];
+  let target = document.getElementById(step.targetId);
+  if ((!target || target.offsetParent === null) && step.fallbackId) {
+    target = document.getElementById(step.fallbackId);
+  }
+
+  const counterEl = document.getElementById('tourStepCounter');
+  const titleEl = document.getElementById('tourStepTitle');
+  const bodyEl = document.getElementById('tourStepBody');
+  const nextBtn = document.getElementById('tourStepNextBtn');
+  const card = document.getElementById('tourStepCard');
+
+  if (counterEl) counterEl.innerText = `Step ${stepIdx + 1} of ${TOUR_STEPS.length}`;
+  if (titleEl) titleEl.innerText = step.title;
+  if (bodyEl) bodyEl.innerText = step.body;
+  if (nextBtn) nextBtn.innerText = stepIdx === TOUR_STEPS.length - 1 ? 'Finish Tour ✓' : 'Next Step →';
+
+  const dots = document.querySelectorAll('#tourStepDots .tour-dot');
+  dots.forEach((d, idx) => {
+    if (idx === stepIdx) d.classList.add('active');
+    else d.classList.remove('active');
+  });
+
+  if (target) {
+    target.classList.add('tour-spotlight-active');
+    positionTourCard(card, target, step.preferredPosition);
+  } else if (card) {
+    card.style.top = '50%';
+    card.style.left = '50%';
+    card.style.transform = 'translate(-50%, -50%)';
+  }
+}
+
+function positionTourCard(card, target, preferredPos) {
+  if (!card || !target) return;
+  const rect = target.getBoundingClientRect();
+  const cardW = Math.min(360, window.innerWidth * 0.9);
+  const cardH = 200;
+
+  let top = 0;
+  let left = Math.max(16, Math.min(window.innerWidth - cardW - 16, rect.left + (rect.width / 2) - (cardW / 2)));
+
+  if (preferredPos === 'bottom' && rect.bottom + cardH + 20 < window.innerHeight) {
+    top = rect.bottom + 12;
+  } else if (rect.top - cardH - 20 > 0) {
+    top = rect.top - cardH - 12;
+  } else if (rect.bottom + cardH + 20 < window.innerHeight) {
+    top = rect.bottom + 12;
+  } else {
+    top = Math.max(16, (window.innerHeight - cardH) / 2);
+  }
+
+  card.style.top = `${Math.round(top)}px`;
+  card.style.left = `${Math.round(left)}px`;
+  card.style.transform = 'none';
+}
+
+function nextDashboardTourStep() {
+  currentTourStep++;
+  if (currentTourStep >= TOUR_STEPS.length) {
+    endDashboardTour();
+  } else {
+    renderTourStep(currentTourStep);
+  }
+}
+
+function endDashboardTour() {
+  const overlay = document.getElementById('dashboardTourOverlay');
+  if (overlay) overlay.style.display = 'none';
+  document.querySelectorAll('.tour-spotlight-active').forEach(el => el.classList.remove('tour-spotlight-active'));
+  markTourCompleteOnServer();
+  showToast('🎉 Tour completed! You\'re all set to trade.');
+}
+
 
 
 /* =======================================================

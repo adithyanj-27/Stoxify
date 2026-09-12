@@ -12,7 +12,7 @@ from database import (
     exit_position, cancel_order, check_open_limit_orders,
     get_orders, get_watchlist, add_to_watchlist, remove_from_watchlist,
     deposit_funds, reset_account, restore_balance, delete_user, create_user, update_user, get_user, list_users, find_user_by_identifier,
-    check_username_available, sync_user_to_supabase_auth,
+    check_username_available, sync_user_to_supabase_auth, mark_tour_completed,
     place_gtt_order, get_gtt_orders, cancel_gtt_order,
     create_sip, get_user_sips, cancel_sip,
     apply_ipo, get_ipo_bids, cancel_ipo_bid,
@@ -217,6 +217,8 @@ class CreateUserRequest(BaseModel):
     pin: Optional[str] = None
     id: Optional[str] = None
     dob: Optional[str] = None
+    age: Optional[int] = 18
+    experience: Optional[str] = "None / Total Beginner"
 
 @app.post("/api/user/create")
 def api_create_user(req: CreateUserRequest):
@@ -229,13 +231,29 @@ def api_create_user(req: CreateUserRequest):
             from datetime import date, datetime
             birth_d = datetime.strptime(req.dob.strip(), "%Y-%m-%d").date()
             today = date.today()
-            age = today.year - birth_d.year - ((today.month, today.day) < (birth_d.month, birth_d.day))
-            if age < 10:
-                raise HTTPException(status_code=400, detail="You must be at least 10 years of age to register")
+            calc_age = today.year - birth_d.year - ((today.month, today.day) < (birth_d.month, birth_d.day))
+            if calc_age < 13:
+                raise HTTPException(status_code=400, detail="You must be at least 13 years of age to register")
         except HTTPException:
             raise
         except Exception:
             pass
+
+    clean_age = 18
+    if req.age is not None:
+        try:
+            clean_age = int(req.age)
+            if clean_age < 13:
+                raise HTTPException(status_code=400, detail="You must be at least 13 years of age to register")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Age must be an integer of at least 13")
+
+    clean_exp = (req.experience or "None / Total Beginner").strip()
+    valid_exp_tiers = ["None / Total Beginner", "< 1 Year", "1–2 Years", "1-2 Years", "2+ Years"]
+    if clean_exp not in valid_exp_tiers:
+        clean_exp = "None / Total Beginner"
+    if clean_exp == "1-2 Years":
+        clean_exp = "1–2 Years"
 
     clean_username = None
     if req.username and req.username.strip():
@@ -265,9 +283,22 @@ def api_create_user(req: CreateUserRequest):
         user_id=req.id,
         dob=(req.dob or "").strip(),
         username=clean_username,
-        password=clean_password
+        password=clean_password,
+        age=clean_age,
+        experience=clean_exp
     )
     return {"success": True, "user": u}
+
+class CompleteTourRequest(BaseModel):
+    id: Optional[str] = None
+
+@app.post("/api/user/complete-tour")
+def api_complete_tour(req: CompleteTourRequest, request: Request):
+    uid = req.id or get_user_id(request)
+    if not uid or uid == "guest":
+        raise HTTPException(status_code=401, detail="Valid user session required")
+    success = mark_tour_completed(uid)
+    return {"success": success, "user_id": uid, "has_completed_tour": True}
 
 class UpdateProfileRequest(BaseModel):
     id: Optional[str] = None
@@ -282,6 +313,8 @@ class UpdateProfileRequest(BaseModel):
     bank_account: Optional[str] = None
     pin: Optional[str] = None
     avatar_color: Optional[str] = None
+    age: Optional[int] = None
+    experience: Optional[str] = None
 
 @app.post("/api/user/update")
 @app.put("/api/user/update")

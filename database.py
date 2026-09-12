@@ -173,7 +173,7 @@ def init_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    for col in ["dob TEXT", "username TEXT", "password TEXT", "bank_balance REAL DEFAULT 1000000.0", "bank_ifsc TEXT DEFAULT 'HDFC0001234'", "bank_upi_id TEXT DEFAULT ''"]:
+    for col in ["dob TEXT", "username TEXT", "password TEXT", "bank_balance REAL DEFAULT 1000000.0", "bank_ifsc TEXT DEFAULT 'HDFC0001234'", "bank_upi_id TEXT DEFAULT ''", "age INTEGER DEFAULT 18", "experience TEXT DEFAULT 'None / Total Beginner'", "has_completed_tour INTEGER DEFAULT 0"]:
         try:
             cursor.execute(f"ALTER TABLE users ADD COLUMN {col}")
             conn.commit()
@@ -183,6 +183,7 @@ def init_db():
     # Ensure existing users with NULL bank_balance get initialized to 10L
     try:
         cursor.execute("UPDATE users SET bank_balance = 1000000.0 WHERE bank_balance IS NULL")
+        cursor.execute("UPDATE users SET has_completed_tour = 1 WHERE has_completed_tour IS NULL")
         conn.commit()
     except Exception:
         pass
@@ -561,7 +562,10 @@ def sync_user_to_supabase_auth(
     name: Optional[str] = None,
     phone: Optional[str] = None,
     pan: Optional[str] = None,
-    username: Optional[str] = None
+    username: Optional[str] = None,
+    age: Optional[int] = 18,
+    experience: Optional[str] = "None / Total Beginner",
+    has_completed_tour: Optional[bool] = False
 ) -> Optional[str]:
     if not is_supabase_enabled():
         return None
@@ -577,23 +581,19 @@ def sync_user_to_supabase_auth(
     else:
         pwd = f"stoxify_{user_id.replace('-', '_')}"
 
-    auth_url = f"{SUPABASE_URL}/auth/v1/signup"
-    auth_payload = {
-        "email": clean_email,
-        "password": pwd,
-        "data": {
-            "name": name or "Trader",
-            "phone": phone or "",
-            "demat": user_id,
-            "pin": str(pin or ""),
-            "pan": pan or "ABCDE1234F",
-            "username": username or ""
-        }
-    }
-    auth_headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
-        "Content-Type": "application/json"
+    clean_age = int(age) if age is not None else 18
+    clean_exp = (experience or "None / Total Beginner").strip()
+
+    user_meta = {
+        "name": name or "Trader",
+        "phone": phone or "",
+        "demat": user_id,
+        "pin": str(pin or ""),
+        "pan": pan or "ABCDE1234F",
+        "username": username or "",
+        "age": clean_age,
+        "experience": clean_exp,
+        "has_completed_tour": bool(has_completed_tour)
     }
 
     auth_id = None
@@ -610,14 +610,7 @@ def sync_user_to_supabase_auth(
                 "email": clean_email,
                 "password": pwd,
                 "email_confirm": True,
-                "user_metadata": {
-                    "name": name or "Trader",
-                    "phone": phone or "",
-                    "demat": user_id,
-                    "pin": str(pin or ""),
-                    "pan": pan or "ABCDE1234F",
-                    "username": username or ""
-                }
+                "user_metadata": user_meta
             }
             req = urllib.request.Request(admin_url, data=json.dumps(admin_payload).encode("utf-8"), headers=admin_headers, method="POST")
             with urllib.request.urlopen(req, timeout=6) as resp:
@@ -638,7 +631,7 @@ def sync_user_to_supabase_auth(
                                 auth_id = au["id"]
                                 upd_req = urllib.request.Request(
                                     f"{admin_url}/{auth_id}",
-                                    data=json.dumps({"password": pwd, "user_metadata": admin_payload["user_metadata"]}).encode("utf-8"),
+                                    data=json.dumps({"password": pwd, "user_metadata": user_meta}).encode("utf-8"),
                                     headers=admin_headers,
                                     method="PUT"
                                 )
@@ -660,14 +653,7 @@ def sync_user_to_supabase_auth(
             auth_payload = {
                 "email": clean_email,
                 "password": pwd,
-                "data": {
-                    "name": name or "Trader",
-                    "phone": phone or "",
-                    "demat": user_id,
-                    "pin": str(pin or ""),
-                    "pan": pan or "ABCDE1234F",
-                    "username": username or ""
-                }
+                "data": user_meta
             }
             auth_headers = {
                 "apikey": SUPABASE_KEY,
@@ -743,7 +729,9 @@ def create_user(
     user_id: Optional[str] = None,
     dob: Optional[str] = None,
     username: Optional[str] = None,
-    password: Optional[str] = None
+    password: Optional[str] = None,
+    age: Optional[int] = 18,
+    experience: Optional[str] = "None / Total Beginner"
 ) -> Dict[str, Any]:
     if not user_id:
         user_id = f"STOX-{random.randint(100000, 999999)}"
@@ -754,14 +742,20 @@ def create_user(
     clean_password = password.strip() if password else None
     bank_ifsc = f"{bank_name.split()[0].upper()[:4]}0001234"
     bank_upi_id = f"{(clean_username or user_id).lower()}@{bank_name.split()[0].lower()}bank"
+    clean_age = int(age) if age is not None else 18
+    clean_exp = (experience or "None / Total Beginner").strip()
+    if clean_exp in ["1–2 Years", "1-2 Years", "2+ Years"]:
+        has_completed_tour = 1
+    else:
+        has_completed_tour = 0
 
     # 1. Insert into local SQLite (Bank gets ₹10 Lakh initial credit, trading wallet starts at ₹0 until added via UPI)
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT OR REPLACE INTO users (id, name, email, phone, pan, dob, bank_name, bank_account, pin, balance, total_deposited, avatar_color, username, password, bank_balance, bank_ifsc, bank_upi_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0.0, 0.0, ?, ?, ?, 1000000.0, ?, ?)
-    """, (user_id, name, (email or "").strip(), phone or "", pan or "ABCDE1234F", dob or "", bank_name, bank_account, pin, avatar_color, clean_username, clean_password, bank_ifsc, bank_upi_id))
+        INSERT OR REPLACE INTO users (id, name, email, phone, pan, dob, bank_name, bank_account, pin, balance, total_deposited, avatar_color, username, password, bank_balance, bank_ifsc, bank_upi_id, age, experience, has_completed_tour)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0.0, 0.0, ?, ?, ?, 1000000.0, ?, ?, ?, ?, ?)
+    """, (user_id, name, (email or "").strip(), phone or "", pan or "ABCDE1234F", dob or "", bank_name, bank_account, pin, avatar_color, clean_username, clean_password, bank_ifsc, bank_upi_id, clean_age, clean_exp, has_completed_tour))
 
     # Log initial opening deposit in bank_transactions
     cursor.execute("""
@@ -796,7 +790,10 @@ def create_user(
             name=name,
             phone=phone,
             pan=pan,
-            username=clean_username
+            username=clean_username,
+            age=clean_age,
+            experience=clean_exp,
+            has_completed_tour=bool(has_completed_tour)
         )
 
         # 3. Sync directly to Supabase cloud public users table
@@ -811,7 +808,10 @@ def create_user(
             "pin": pin,
             "balance": 0.0,
             "total_deposited": 0.0,
-            "avatar_color": avatar_color
+            "avatar_color": avatar_color,
+            "age": clean_age,
+            "experience": clean_exp,
+            "has_completed_tour": bool(has_completed_tour)
         }
         if auth_id:
             sb_user_payload["auth_id"] = auth_id
@@ -819,6 +819,14 @@ def create_user(
             sb_user_payload["dob"] = dob.strip()
 
         sb_res = supabase_api("POST", "users", payload=sb_user_payload)
+        if sb_res is None:
+            # Fallback without extra columns in case Supabase schema lacks them
+            sb_fallback = dict(sb_user_payload)
+            sb_fallback.pop("age", None)
+            sb_fallback.pop("experience", None)
+            sb_fallback.pop("has_completed_tour", None)
+            sb_res = supabase_api("POST", "users", payload=sb_fallback)
+
         if sb_res is not None:
             print(f"[Supabase] User {user_id} ({name}) successfully saved to Supabase dashboard")
             # Seed default watchlist items to Supabase
@@ -831,6 +839,21 @@ def create_user(
             print(f"[Supabase] Warning: could not sync user {user_id} to Supabase")
 
     return user_data
+
+def mark_tour_completed(user_id: str) -> bool:
+    if not user_id or user_id == "guest":
+        return False
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET has_completed_tour = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+    if is_supabase_enabled() and user_id != "default":
+        try:
+            supabase_api("PATCH", "users", payload={"has_completed_tour": True}, params={"id": f"eq.{user_id}"})
+        except Exception:
+            pass
+    return True
 
 def update_user(
     user_id: str,

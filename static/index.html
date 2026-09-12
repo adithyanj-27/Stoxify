@@ -1606,6 +1606,22 @@
               </div>
             </div>
 
+            <div class="ob-row-2">
+              <div class="ob-form-group">
+                <label class="ob-label">Age (Years)</label>
+                <input type="number" class="ob-input" id="obInputAge" min="13" max="120" placeholder="e.g. 24" value="24" required>
+              </div>
+              <div class="ob-form-group">
+                <label class="ob-label">Trading Experience</label>
+                <select class="ob-input" id="obInputExperience">
+                  <option value="None / Total Beginner">None / Total Beginner</option>
+                  <option value="< 1 Year">&lt; 1 Year</option>
+                  <option value="1–2 Years">1–2 Years</option>
+                  <option value="2+ Years">2+ Years</option>
+                </select>
+              </div>
+            </div>
+
             <button class="ob-btn-primary" onclick="submitObStep3()">Confirm Details →</button>
           </div>
 
@@ -2926,6 +2942,177 @@
         <button class="btn-trade-execute buy" style="margin-top: 1.25rem;" onclick="submitSipSchedule()">
           CONFIRM & START MONTHLY SIP
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1. TOUR PROMPT MODAL (For None / Total Beginner or < 1 Year) -->
+  <div class="modal-overlay" id="tourPromptModal" style="display: none;">
+    <div class="modal-card tour-prompt-card">
+      <div class="tour-prompt-header">
+        <div class="tour-badge-pill">✨ Guided Experience</div>
+        <button class="modal-close-btn" onclick="skipTour()" aria-label="Close">✕</button>
+      </div>
+      <div class="tour-prompt-body">
+        <div class="tour-icon-ring">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+          </svg>
+        </div>
+        <h2 class="tour-prompt-title">Welcome to Stoxifyin'!</h2>
+        <p class="tour-prompt-desc">Would you like a quick interactive tour to explore the app and learn how to trade risk-free?</p>
+        <div class="tour-prompt-features">
+          <div class="tour-feat-item">
+            <span class="tour-feat-icon">⚡</span>
+            <span>Discover live stocks, mutual funds & market depth</span>
+          </div>
+          <div class="tour-feat-item">
+            <span class="tour-feat-icon">🛡️</span>
+            <span>100% risk-free practice with virtual bank balance</span>
+          </div>
+        </div>
+      </div>
+      <div class="tour-prompt-actions">
+        <button type="button" class="btn-subtle tour-btn-skip" onclick="skipTour()">Skip</button>
+        <button type="button" class="btn-primary tour-btn-start" onclick="acceptTour()">Let's Go 🚀</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. GAMIFIED SANDBOX TRADE MODAL (Age < 18) -->
+  <div class="modal-overlay" id="sandboxTradeModal" style="display: none;">
+    <div class="modal-card sandbox-modal-card">
+      <div class="modal-header sandbox-header">
+        <div class="sandbox-title-wrap">
+          <div class="sandbox-badge">🎮 Gamified Trading Sandbox • Under 18 Practice Mode</div>
+          <h3 class="sandbox-modal-title">Practice Your First Mock Trade</h3>
+        </div>
+        <button class="modal-close-btn" onclick="closeSandboxModal()" aria-label="Close">✕</button>
+      </div>
+
+      <div class="sandbox-body">
+        <!-- Virtual Sandbox Balance Banner -->
+        <div class="sandbox-balance-banner">
+          <div class="sandbox-bal-left">
+            <span class="sandbox-bal-label">Mock Practice Balance</span>
+            <span class="sandbox-bal-val" id="sandboxBalText">₹10,000.00</span>
+          </div>
+          <div class="sandbox-tag">Zero Risk • In-Memory</div>
+        </div>
+
+        <!-- Walkthrough Step Indicator Banner -->
+        <div class="sandbox-step-banner" id="sandboxStepBanner">
+          <span class="sandbox-step-chip" id="sandboxStepChip">Step 1 of 3</span>
+          <span class="sandbox-instruction" id="sandboxStepInstruction">Enter how many shares you'd like to test buy:</span>
+        </div>
+
+        <!-- Mock Asset Card -->
+        <div class="sandbox-asset-card">
+          <div class="sandbox-asset-left">
+            <div class="sandbox-asset-logo">Z</div>
+            <div>
+              <div class="sandbox-asset-symbol">ETERNAL (Zomato Ltd)</div>
+              <div class="sandbox-asset-sub">NSE Equities • Real-Time Mock Quote</div>
+            </div>
+          </div>
+          <div class="sandbox-asset-right">
+            <div class="sandbox-asset-price" id="sandboxPrice">₹260.00</div>
+            <div class="sandbox-asset-change text-positive">+₹4.20 (+1.64%)</div>
+          </div>
+        </div>
+
+        <!-- Interactive Sandbox Controls -->
+        <div class="sandbox-controls-grid">
+          <div class="sandbox-field-group" id="sandboxQtyGroup">
+            <label class="sandbox-label">
+              <span>Quantity (Shares)</span>
+              <span class="sandbox-hint-bubble pulse-ring" id="sandboxQtyHint">👉 Try 10 shares</span>
+            </label>
+            <div class="sandbox-stepper">
+              <button type="button" class="sandbox-stepper-btn" onclick="adjustSandboxQty(-1)">−</button>
+              <input type="number" class="sandbox-input" id="sandboxQtyInput" min="1" max="38" value="10" oninput="onSandboxQtyChange(this.value)">
+              <button type="button" class="sandbox-stepper-btn" onclick="adjustSandboxQty(1)">+</button>
+            </div>
+          </div>
+
+          <div class="sandbox-field-group" id="sandboxOrderTypeGroup">
+            <label class="sandbox-label">Order Type</label>
+            <div class="sandbox-order-pill">MARKET (Instant Fill)</div>
+          </div>
+        </div>
+
+        <!-- Order Summary & Cost Calc -->
+        <div class="sandbox-calc-box">
+          <div class="sandbox-calc-row">
+            <span>Required Mock Margin</span>
+            <span class="sandbox-calc-val" id="sandboxCostText">₹2,600.00</span>
+          </div>
+          <div class="sandbox-calc-row">
+            <span>Brokerage & Taxes</span>
+            <span class="badge-positive" style="font-size: 0.75rem;">₹0.00 (Waived for Sandbox)</span>
+          </div>
+          <div class="sandbox-calc-row" style="border-top: 1px dashed var(--border-color); padding-top: 6px; margin-top: 4px;">
+            <span>Remaining Balance After Trade</span>
+            <span class="sandbox-calc-val text-brand" id="sandboxRemainBal">₹7,400.00</span>
+          </div>
+        </div>
+
+        <!-- Action Button with animated highlight -->
+        <div class="sandbox-action-wrap" id="sandboxActionWrap">
+          <button type="button" class="btn-trade-execute buy pulse-button" id="sandboxExecuteBtn" onclick="executeSandboxTrade()">
+            <span class="btn-trade-text" id="sandboxBtnText">BUY 10 ETERNAL @ ₹260.00</span>
+          </button>
+        </div>
+
+        <!-- Celebration & Confirmation Banner (Hidden initially) -->
+        <div class="sandbox-celebration-box" id="sandboxCelebrationBox" style="display: none;">
+          <div class="confetti-canvas-holder" id="sandboxConfettiHolder"></div>
+          <div class="celebration-icon">🎉</div>
+          <h4 class="celebration-title">Practice Trade Executed!</h4>
+          <p class="celebration-desc">You just bought <strong>10 shares of Zomato Ltd</strong> at ₹260.00 in your practice sandbox. Real orders in Stoxifyin' execute with the exact same simplicity!</p>
+          <div class="celebration-portfolio-preview">
+            <div class="preview-item">
+              <span class="preview-label">Mock Holding</span>
+              <span class="preview-val">10 × ETERNAL</span>
+            </div>
+            <div class="preview-item">
+              <span class="preview-label">Invested Mock Funds</span>
+              <span class="preview-val">₹2,600.00</span>
+            </div>
+            <div class="preview-item">
+              <span class="preview-label">Remaining Mock Cash</span>
+              <span class="preview-val text-positive" id="sandboxFinalCash">₹7,400.00</span>
+            </div>
+          </div>
+          <button type="button" class="ob-btn-primary celebration-done-btn" onclick="finishSandboxTour()">
+            Complete Practice & Enter Dashboard →
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. DASHBOARD SPOTLIGHT TOUR OVERLAY (Age >= 18) -->
+  <div class="dashboard-tour-overlay" id="dashboardTourOverlay" style="display: none;">
+    <!-- Floating Tour Step Card -->
+    <div class="tour-step-card" id="tourStepCard">
+      <div class="tour-step-header">
+        <span class="tour-step-badge" id="tourStepCounter">Step 1 of 3</span>
+        <button type="button" class="tour-close-link" onclick="endDashboardTour()" aria-label="Close tour">✕</button>
+      </div>
+      <h4 class="tour-step-title" id="tourStepTitle">Explore & Watchlist</h4>
+      <p class="tour-step-body" id="tourStepBody">Browse live Nifty 50 stocks, indices, and top mutual funds with real-time price updates and technical charts.</p>
+      
+      <div class="tour-step-dots" id="tourStepDots">
+        <span class="tour-dot active"></span>
+        <span class="tour-dot"></span>
+        <span class="tour-dot"></span>
+      </div>
+
+      <div class="tour-step-actions">
+        <button type="button" class="btn-subtle tour-step-skip" onclick="endDashboardTour()">Skip Tour</button>
+        <button type="button" class="btn-primary tour-step-next" id="tourStepNextBtn" onclick="nextDashboardTourStep()">Next Step →</button>
       </div>
     </div>
   </div>
