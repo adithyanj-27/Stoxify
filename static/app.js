@@ -2301,8 +2301,9 @@ function updateInstallButtonsVisibility() {
   const mobBanner = document.getElementById('mobileInstallBanner');
   const mobDismissed = sessionStorage.getItem('stoxify_mob_install_dismissed') === '1';
 
-  // Desktop and mobile navbar header button is visible in browser view, hidden only in standalone PWA
-  if (topBtn) topBtn.style.display = installed ? 'none' : 'inline-flex';
+  // Desktop navbar header button is visible in browser view, hidden on mobile or standalone PWA
+  const isMobile = window.innerWidth <= 768;
+  if (topBtn) topBtn.style.display = (installed || isMobile) ? 'none' : 'inline-flex';
   if (dropdownItem) dropdownItem.style.display = installed ? 'none' : 'flex';
 
   // Mobile banner is visible on mobile browsers unless running in standalone PWA or dismissed in this session
@@ -4633,6 +4634,7 @@ async function loadPageChartTimeframe(range, btnEl = null) {
 
 let chartResizeTimeout = null;
 window.addEventListener('resize', () => {
+  updateInstallButtonsVisibility();
   if (chartResizeTimeout) clearTimeout(chartResizeTimeout);
   chartResizeTimeout = setTimeout(() => {
     const detailPane = document.getElementById('pane-asset-detail');

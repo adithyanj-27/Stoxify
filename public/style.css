@@ -2089,42 +2089,10 @@ body.pwa-installed #mobileInstallBanner {
     flex-shrink: 0;
   }
 
-  .btn-install-app {
-    display: inline-flex !important;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 0.28rem 0.6rem;
-    font-size: 0.72rem;
-    font-weight: 700;
-    border-radius: 20px;
-    background: linear-gradient(135deg, rgba(14, 165, 233, 0.2) 0%, rgba(16, 185, 129, 0.15) 100%);
-    border: 1px solid rgba(14, 165, 233, 0.5);
-    color: #38bdf8;
-    white-space: nowrap;
-    flex-shrink: 0;
-    cursor: pointer;
-    box-shadow: 0 0 8px rgba(14, 165, 233, 0.2);
-    transition: all 0.2s ease;
-  }
-
-  .btn-install-app svg {
-    width: 13px;
-    height: 13px;
-    flex-shrink: 0;
-  }
-
-  .btn-install-text-desktop {
+  /* Top header Install App button is hidden on mobile so Login/Register button fits on screen */
+  .btn-install-app,
+  #btnInstallApp {
     display: none !important;
-  }
-
-  .btn-install-text-mobile {
-    display: inline !important;
-  }
-
-  @media (max-width: 350px) {
-    .btn-install-text-mobile {
-      display: none !important;
-    }
   }
 
   /* Compact Start Investing / Login button on mobile */
@@ -2142,6 +2110,7 @@ body.pwa-installed #mobileInstallBanner {
     align-items: center !important;
     justify-content: center !important;
     box-sizing: border-box !important;
+    max-width: none !important;
   }
 
   .btn-get-started svg,
@@ -2150,6 +2119,23 @@ body.pwa-installed #mobileInstallBanner {
     width: 14px !important;
     height: 14px !important;
     flex-shrink: 0 !important;
+  }
+
+  @media (max-width: 380px) {
+    .btn-get-started,
+    #navAuthBtn {
+      padding: 0 0.6rem !important;
+      font-size: 0.74rem !important;
+      gap: 0.25rem !important;
+    }
+  }
+
+  @media (max-width: 340px) {
+    .btn-get-started,
+    #navAuthBtn {
+      padding: 0 0.45rem !important;
+      font-size: 0.70rem !important;
+    }
   }
 
   .icon-btn {
@@ -6301,11 +6287,13 @@ html.user-guest #navProfileWrapper {
   transform: translateY(-1px);
 }
 
-/* Ensure Install App button on mobile header remains visible in browser view */
+/* Top header Install App button is hidden on mobile so Login/Register button fits cleanly */
 @media (max-width: 768px) {
   body:not(.pwa-installed) .btn-install-app,
-  body:not(.pwa-installed) #btnInstallApp {
-    display: inline-flex !important;
+  body:not(.pwa-installed) #btnInstallApp,
+  .btn-install-app,
+  #btnInstallApp {
+    display: none !important;
   }
 }
 
