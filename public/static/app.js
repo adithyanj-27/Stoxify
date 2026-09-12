@@ -5,9 +5,9 @@
   try {
     const keys = ['user_id', 'cached_user', 'theme', 'guest_mode', 'watchlist_cache', 'recent_accounts', 'app_installed', 'explore_cache'];
     keys.forEach(k => {
-      const oldVal = localStorage.getItem('stoxify_' + k);
-      if (oldVal !== null && localStorage.getItem('stoxify_' + k) === null) {
-        localStorage.setItem('stoxify_' + k, oldVal);
+      const legacyVal = localStorage.getItem(k);
+      if (legacyVal !== null && localStorage.getItem('stoxify_' + k) === null) {
+        localStorage.setItem('stoxify_' + k, legacyVal);
       }
     });
   } catch (e) {}
@@ -18,30 +18,59 @@ if (localStorage.getItem('stoxify_user_id') === 'default') {
   localStorage.removeItem('stoxify_user_id');
 }
 
+// Ensure active user never inherits a contradictory stale guest flag
+(function sanitizeGuestMode() {
+  try {
+    const uid = localStorage.getItem('stoxify_user_id');
+    if (uid && uid !== 'default' && uid !== 'guest') {
+      localStorage.removeItem('stoxify_guest_mode');
+    }
+  } catch (e) {}
+})();
+
 // Enable immediate CSS :active touch states on mobile WebKit/iOS/Android
 document.addEventListener('touchstart', function() {}, { passive: true });
 
 function isGuest() {
+  const uid = localStorage.getItem('stoxify_user_id');
+  if (uid && uid !== 'default' && uid !== 'guest') {
+    return false;
+  }
+  if (currentUser && currentUser.id && currentUser.id !== 'default' && currentUser.id !== 'guest' && !currentUser.is_guest) {
+    return false;
+  }
   if (localStorage.getItem('stoxify_guest_mode') === 'true') {
     return true;
   }
-  const uid = localStorage.getItem('stoxify_user_id');
   return (!uid || uid === 'default' || uid === 'guest') && (!currentUser || currentUser.is_guest);
 }
 
 let currentUser = null;
 
+// Synchronous session hydration on script execution so UI renders logged-in without delay
+try {
+  const cachedUserStr = localStorage.getItem('stoxify_cached_user');
+  const storedUid = localStorage.getItem('stoxify_user_id');
+  if (cachedUserStr && storedUid && storedUid !== 'default' && storedUid !== 'guest') {
+    currentUser = JSON.parse(cachedUserStr);
+    document.documentElement.classList.add('user-logged-in');
+    document.documentElement.classList.remove('user-guest');
+  }
+} catch (e) {}
+
 // --- Active User Session & X-User-Id HTTP Interceptor ---
 const _nativeFetch = window.fetch;
 window.fetch = function(input, init = {}) {
   init = init || {};
-  init.headers = init.headers || {};
-  const uid = localStorage.getItem('stoxify_user_id');
+  const uid = localStorage.getItem('stoxify_user_id') || (currentUser && currentUser.id);
   if (uid && uid !== 'default' && uid !== 'guest') {
     if (init.headers instanceof Headers) {
-      init.headers.set('X-User-Id', uid);
+      if (!init.headers.has('X-User-Id')) init.headers.set('X-User-Id', uid);
+    } else if (Array.isArray(init.headers)) {
+      init.headers.push(['X-User-Id', uid]);
     } else {
-      init.headers['X-User-Id'] = uid;
+      init.headers = init.headers || {};
+      if (!init.headers['X-User-Id']) init.headers['X-User-Id'] = uid;
     }
   }
   return _nativeFetch(input, init);
@@ -2822,6 +2851,10 @@ function bootApp() {
 
   // Instant synchronous session hydration: 0ms cold-start latency
   try {
+    const storedUid = localStorage.getItem('stoxify_user_id');
+    if (storedUid && storedUid !== 'default' && storedUid !== 'guest') {
+      localStorage.removeItem('stoxify_guest_mode');
+    }
     const cachedUserStr = localStorage.getItem('stoxify_cached_user');
     const guestFlag = localStorage.getItem('stoxify_guest_mode') === 'true';
     if (cachedUserStr && !guestFlag) {
@@ -2983,7 +3016,13 @@ window.addEventListener('popstate', () => handleRoute());
    USER SESSION & NAVBAR PROFILE ENGINE
    ======================================================= */
 async function fetchCurrentUser() {
-  if (localStorage.getItem('stoxify_guest_mode') === 'true') {
+  const storedUid = localStorage.getItem('stoxify_user_id');
+  if (storedUid && storedUid !== 'default' && storedUid !== 'guest') {
+    localStorage.removeItem('stoxify_guest_mode');
+  }
+
+  const isExplicitGuest = localStorage.getItem('stoxify_guest_mode') === 'true' && !storedUid;
+  if (isExplicitGuest) {
     currentUser = null;
     localStorage.removeItem('stoxify_cached_user');
     document.documentElement.classList.remove('user-logged-in');
@@ -2991,29 +3030,67 @@ async function fetchCurrentUser() {
     updateNavbarProfile();
     return;
   }
+
+  // Pre-hydrate from localStorage cache so UI remains logged-in during reload
+  if (!currentUser) {
+    try {
+      const cached = localStorage.getItem('stoxify_cached_user');
+      if (cached) {
+        currentUser = JSON.parse(cached);
+        if (currentUser && currentUser.id && currentUser.id !== 'default' && currentUser.id !== 'guest') {
+          if (currentUser.balance !== undefined) state.account.balance = Number(currentUser.balance);
+          if (currentUser.bank_balance !== undefined) state.account.bank_balance = Number(currentUser.bank_balance);
+          document.documentElement.classList.add('user-logged-in');
+          document.documentElement.classList.remove('user-guest');
+          updateNavbarProfile();
+        }
+      }
+    } catch (e) {}
+  }
+
   try {
     const res = await fetch('/api/user/current');
-    const u = await res.json();
-    if (u && u.id && !u.is_guest) {
-      currentUser = u;
-      if (u.balance !== undefined) {
-        state.account.balance = Number(u.balance);
-        if (u.bank_balance !== undefined) state.account.bank_balance = Number(u.bank_balance);
+    if (res.ok) {
+      const u = await res.json();
+      if (u && u.id && !u.is_guest && u.id !== 'guest') {
+        currentUser = u;
+        if (u.balance !== undefined) {
+          state.account.balance = Number(u.balance);
+          if (u.bank_balance !== undefined) state.account.bank_balance = Number(u.bank_balance);
+        }
+        localStorage.setItem('stoxify_user_id', u.id);
+        localStorage.setItem('stoxify_cached_user', JSON.stringify(u));
+        localStorage.removeItem('stoxify_guest_mode');
+        document.documentElement.classList.add('user-logged-in');
+        document.documentElement.classList.remove('user-guest');
+      } else if (u && u.is_guest) {
+        // If the server returns guest, but the client had an active stored user ID,
+        // do NOT destroy the local session immediately. The server might have reloaded or
+        // had a momentary cloud sync delay. Only clear if the client had no stored session.
+        if (!storedUid) {
+          currentUser = null;
+          localStorage.removeItem('stoxify_user_id');
+          localStorage.removeItem('stoxify_cached_user');
+          document.documentElement.classList.remove('user-logged-in');
+          document.documentElement.classList.add('user-guest');
+        } else {
+          console.warn('Server reported guest for active stored user ID', storedUid, '- keeping local session intact.');
+        }
       }
-      localStorage.setItem('stoxify_user_id', u.id);
-      localStorage.setItem('stoxify_cached_user', JSON.stringify(u));
-      localStorage.removeItem('stoxify_guest_mode');
-      document.documentElement.classList.add('user-logged-in');
-      document.documentElement.classList.remove('user-guest');
-    } else {
+    } else if (res.status === 401 || res.status === 403) {
+      // Explicit 401/403 authorization rejection
       currentUser = null;
       localStorage.removeItem('stoxify_user_id');
       localStorage.removeItem('stoxify_cached_user');
       document.documentElement.classList.remove('user-logged-in');
       document.documentElement.classList.add('user-guest');
+    } else {
+      // 5xx error, 502, 503, 404, or server reload hiccup: preserve local session!
+      console.warn('Server status on /api/user/current:', res.status, '- preserving local session.');
     }
   } catch (err) {
-    console.error('Failed to fetch user:', err);
+    // Network failure / offline: preserve local session!
+    console.warn('Network hiccup fetching user:', err, '- preserving local session.');
   }
   updateNavbarProfile();
 }
