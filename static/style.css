@@ -2429,9 +2429,12 @@ body.pwa-installed #mobileInstallBanner {
   }
 
   .most-bought-card {
-    min-width: 135px !important;
-    max-width: 150px !important;
-    flex: 0 0 auto !important;
+    width: 145px !important;
+    min-width: 145px !important;
+    max-width: 145px !important;
+    flex: 0 0 145px !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
     border-radius: 14px !important;
     padding: 0.75rem 0.70rem !important;
     border: 1px solid var(--border-subtle) !important;
@@ -2442,21 +2445,37 @@ body.pwa-installed #mobileInstallBanner {
   .most-bought-card .mb-sym-pill {
     font-size: 0.65rem !important;
     font-weight: 500 !important;
+    max-width: 60px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
 
   .most-bought-card .mb-name {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
     font-size: 0.78rem !important;
     font-weight: 500 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    display: block !important;
   }
 
   .most-bought-card .mb-price {
     font-size: 0.86rem !important;
     font-weight: 600 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
 
   .most-bought-card .mb-badge {
     font-size: 0.68rem !important;
     font-weight: 500 !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
   }
 
   /* Portfolio Summary Banner on Mobile */
@@ -6113,7 +6132,12 @@ html.user-guest #navProfileWrapper {
 }
 
 .most-bought-card {
-  flex: 0 0 155px;
+  width: 165px;
+  min-width: 165px;
+  max-width: 165px;
+  flex: 0 0 165px;
+  box-sizing: border-box;
+  overflow: hidden;
   scroll-snap-align: start;
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
@@ -6136,6 +6160,7 @@ html.user-guest #navProfileWrapper {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
   margin-bottom: 0.6rem;
 }
 
@@ -6146,9 +6171,16 @@ html.user-guest #navProfileWrapper {
   background: var(--bg-main);
   padding: 0.15rem 0.4rem;
   border-radius: 4px;
+  max-width: 75px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .mb-name {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   font-size: 0.82rem;
   font-weight: 700;
   color: var(--text-primary);
@@ -6156,12 +6188,14 @@ html.user-guest #navProfileWrapper {
   overflow: hidden;
   text-overflow: ellipsis;
   margin-bottom: 0.6rem;
+  display: block;
 }
 
 .mb-bottom {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  width: 100%;
   gap: 0.3rem;
 }
 
@@ -6169,6 +6203,9 @@ html.user-guest #navProfileWrapper {
   font-size: 0.88rem;
   font-weight: 800;
   color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .mb-badge {
@@ -6176,6 +6213,8 @@ html.user-guest #navProfileWrapper {
   font-weight: 700;
   padding: 0.15rem 0.35rem;
   border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* Mobile Install Banner Enhancement */
