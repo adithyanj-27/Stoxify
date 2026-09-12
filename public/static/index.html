@@ -2321,7 +2321,6 @@
       <div id="upiStepPin" style="display: none;">
         <div class="transfer-modal-header">
           <button type="button" class="btn-subtle transfer-back-btn" onclick="backToAmountStep()">← Back</button>
-          <div class="transfer-security-tag">🔒 256-Bit Bank Encryption</div>
           <button type="button" class="modal-close-btn" onclick="closeAddMoneyModal()" aria-label="Close">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -2349,36 +2348,20 @@
           </div>
 
           <!-- PIN Entry Container -->
-          <div class="transfer-pin-container">
+          <div class="transfer-pin-container" onclick="focusUpiPinInput()">
             <div class="transfer-pin-title">ENTER 4-DIGIT SECURITY PIN</div>
-            <div class="transfer-pin-dots" onclick="focusUpiPinInput()">
+            <div class="transfer-pin-dots">
               <div class="transfer-pin-dot" id="upiDot1"></div>
               <div class="transfer-pin-dot" id="upiDot2"></div>
               <div class="transfer-pin-dot" id="upiDot3"></div>
               <div class="transfer-pin-dot" id="upiDot4"></div>
             </div>
-            <input type="password" id="upiHiddenPinInput" maxlength="4" autocomplete="off" oninput="onUpiPinInput(this.value)" class="transfer-hidden-input">
+            <input type="password" id="upiHiddenPinInput" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="one-time-code" oninput="onUpiPinInput(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();executeUpiPayment();}" class="transfer-hidden-input">
             <div class="transfer-pin-helper">Enter your 4-digit security PIN to authorize this transfer</div>
             <div id="upiPinError" class="transfer-error-text" style="display: none;"></div>
           </div>
 
-          <!-- Keypad -->
-          <div class="transfer-keypad">
-            <button type="button" class="keypad-btn" onclick="pressUpiKey('1')">1</button>
-            <button type="button" class="keypad-btn" onclick="pressUpiKey('2')">2</button>
-            <button type="button" class="keypad-btn" onclick="pressUpiKey('3')">3</button>
-            <button type="button" class="keypad-btn" onclick="pressUpiKey('4')">4</button>
-            <button type="button" class="keypad-btn" onclick="pressUpiKey('5')">5</button>
-            <button type="button" class="keypad-btn" onclick="pressUpiKey('6')">6</button>
-            <button type="button" class="keypad-btn" onclick="pressUpiKey('7')">7</button>
-            <button type="button" class="keypad-btn" onclick="pressUpiKey('8')">8</button>
-            <button type="button" class="keypad-btn" onclick="pressUpiKey('9')">9</button>
-            <button type="button" class="keypad-btn backspace" onclick="pressUpiBackspace()" title="Backspace" aria-label="Backspace">⌫</button>
-            <button type="button" class="keypad-btn" onclick="pressUpiKey('0')">0</button>
-            <button type="button" class="keypad-btn keypad-submit" onclick="executeUpiPayment()" title="Authorize & Transfer" aria-label="Authorize & Transfer">✓</button>
-          </div>
-
-          <button type="button" class="btn-trade-execute buy transfer-submit-btn" id="btnExecuteUpi" onclick="executeUpiPayment()">
+          <button type="button" class="btn-trade-execute buy transfer-submit-btn" id="btnExecuteUpi" onclick="executeUpiPayment()" style="margin-top: 1.25rem;">
             ✓ Authorize & Transfer Funds
           </button>
         </div>

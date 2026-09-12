@@ -3322,7 +3322,9 @@ function proceedToUpiPinScreen() {
   }
 
   resetUpiPinScreen();
-  focusUpiPinInput();
+  setTimeout(() => {
+    focusUpiPinInput();
+  }, 100);
 }
 
 let isTransferringFunds = false;
@@ -3330,6 +3332,8 @@ let isTransferringFunds = false;
 function resetUpiPinScreen() {
   isTransferringFunds = false;
   enteredUpiPin = '';
+  const hidden = document.getElementById('upiHiddenPinInput');
+  if (hidden) hidden.value = '';
   updateUpiPinDots();
   const errEl = document.getElementById('upiPinError');
   if (errEl) {
@@ -3346,7 +3350,6 @@ function resetUpiPinScreen() {
 function focusUpiPinInput() {
   const hidden = document.getElementById('upiHiddenPinInput');
   if (hidden) {
-    hidden.value = '';
     hidden.focus();
   }
 }

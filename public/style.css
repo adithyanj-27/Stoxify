@@ -7067,7 +7067,10 @@ body.viewing-profile .indices-bar {
 }
 
 .transfer-pin-container {
+  position: relative;
+  cursor: pointer;
   text-align: center;
+  padding: 0.75rem 0 0.5rem 0;
   margin-bottom: 1rem;
 }
 
@@ -7108,75 +7111,25 @@ body.viewing-profile .indices-bar {
 }
 
 .transfer-hidden-input {
-  opacity: 0;
   position: absolute;
-  pointer-events: auto;
-  width: 1px;
-  height: 1px;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  font-size: 16px;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: transparent;
+  z-index: 5;
 }
 
 .transfer-pin-helper {
   font-size: 0.75rem;
   color: var(--text-muted);
   margin-top: 0.25rem;
-}
-
-.transfer-keypad {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.6rem;
-  max-width: 290px;
-  margin: 0.75rem auto 1.25rem auto;
-}
-
-.transfer-keypad .keypad-btn {
-  height: 48px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
-  border-radius: 12px;
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  cursor: pointer;
-  transition: background 0.15s, transform 0.1s;
-}
-
-[data-theme="light"] .transfer-keypad .keypad-btn {
-  background: rgba(0, 0, 0, 0.04);
-}
-
-.transfer-keypad .keypad-btn:active {
-  background: rgba(16, 185, 129, 0.25);
-  transform: scale(0.96);
-}
-
-.transfer-keypad .keypad-btn.cancel {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
-.transfer-keypad .keypad-btn.backspace {
-  font-size: 1.25rem;
-  color: #ef4444;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.transfer-keypad .keypad-btn.keypad-submit {
-  font-size: 1.35rem;
-  font-weight: 900;
-  color: #10b981;
-  background: rgba(16, 185, 129, 0.15);
-  border-color: rgba(16, 185, 129, 0.35);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.transfer-keypad .keypad-btn.keypad-submit:active {
-  background: #10b981;
-  color: #ffffff;
 }
 
 /* Step 3: Success Screen */
