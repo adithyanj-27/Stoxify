@@ -156,13 +156,13 @@
                 <div class="funds-card-label">Trading Cash Balance</div>
                 <div class="funds-card-sub">Stoxifyin' Trading Wallet</div>
               </div>
-              <span class="funds-badge-pill" style="margin: 0;">UPI Enabled</span>
+              <span class="funds-badge-pill" style="margin: 0;">Instant Transfer</span>
             </div>
             <div class="funds-card-amount" id="menuUserBalance">₹0.00</div>
             <span id="navBalanceDisplay" style="display: none;">₹0.00</span>
             <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
               <button type="button" class="btn-wallet-add" style="padding: 0.45rem 0.6rem; font-size: 0.78rem;" onclick="openAddMoneyModal()">
-                + Add Money (UPI)
+                + Add Money
               </button>
               <button type="button" class="btn-wallet-withdraw" style="padding: 0.45rem 0.6rem; font-size: 0.78rem;" onclick="openWithdrawModal()">
                 Withdraw
@@ -1341,8 +1341,8 @@
           </div>
 
           <div class="wallet-card-footer">
-            <span>Simulated UPI Gateway</span>
-            <span class="text-positive" style="font-weight: 700; white-space: nowrap;">Instant Transfers ✓</span>
+            <span>Instant Fund Transfer Gateway</span>
+            <span class="text-positive" style="font-weight: 700; white-space: nowrap;">Protected by 4-Digit PIN ✓</span>
           </div>
         </div>
 
@@ -1352,10 +1352,10 @@
             <div class="bank-card-icon">🏛️</div>
             <div class="bank-card-meta">
               <div class="bank-title-row">
-                <h3 class="bank-name-title" id="profileBankNameDisplay">HDFC Bank</h3>
+                <h3 class="bank-name-title" id="profileBankNameDisplay">Federal Bank</h3>
                 <span class="badge-positive" style="font-size: 0.7rem;">Primary ✓</span>
               </div>
-              <div class="bank-acc-sub" id="profileBankAccountDisplay">A/C •••• 5678 • IFSC: HDFC0001234</div>
+              <div class="bank-acc-sub" id="profileBankAccountDisplay">A/C •••• 8910 • Verified</div>
             </div>
           </div>
           <div class="bank-balance-row">
@@ -1410,7 +1410,7 @@
               <div class="menu-item-left">
                 <span class="menu-item-icon">🔒</span>
                 <div>
-                  <div class="menu-item-title">4-Digit Security & UPI PIN</div>
+                  <div class="menu-item-title">4-Digit Security PIN</div>
                   <div class="menu-item-sub">Update trading PIN and login password</div>
                 </div>
               </div>
@@ -2298,99 +2298,107 @@
     </div>
   </div>
 
-  <!-- Simulated Authentic UPI Add Money Modal -->
+  <!-- Bank Fund Deposit (Bank -> Trading Wallet) Modal -->
   <div class="modal-overlay" id="upiAddMoneyModal" onclick="if(event.target===this)closeAddMoneyModal()">
-    <div class="modal-card upi-modal-card">
+    <div class="modal-card transfer-modal-card">
+      
       <!-- Step 1: Amount Selection -->
       <div id="upiStepAmount">
-        <div class="modal-header">
-          <div style="display: flex; align-items: center; gap: 0.6rem;">
-            <div class="upi-badge-logo">UPI</div>
-            <h3 style="font-size: 1.15rem; font-weight: 800; margin: 0;">Add Money via UPI</h3>
+        <div class="transfer-modal-header">
+          <div class="transfer-header-title-wrap">
+            <div class="transfer-badge-icon">🏛️</div>
+            <div>
+              <h3 class="transfer-modal-title">Add Funds</h3>
+              <p class="transfer-modal-sub">Deposit virtual funds from your linked bank to trading wallet</p>
+            </div>
           </div>
-          <button type="button" class="icon-btn" onclick="closeAddMoneyModal()" aria-label="Close">✕</button>
+          <button type="button" class="modal-close-btn" onclick="closeAddMoneyModal()" aria-label="Close">✕</button>
         </div>
 
-        <div class="modal-body" style="padding: 1.25rem 1.5rem;">
-          <div class="upi-from-box">
-            <div style="display: flex; align-items: center; gap: 0.65rem;">
-              <span style="font-size: 1.5rem;">🏛️</span>
+        <div class="transfer-modal-body">
+          <!-- Linked Bank Card -->
+          <div class="transfer-bank-card">
+            <div class="transfer-bank-left">
+              <div class="transfer-bank-icon-box">🏛️</div>
               <div>
-                <div style="font-size: 0.85rem; font-weight: 800; color: var(--text-primary);" id="upiSourceBankName">HDFC Bank</div>
-                <div style="font-size: 0.75rem; color: var(--text-muted);" id="upiSourceBankAcc">A/C •••• 5678</div>
+                <div class="transfer-bank-name" id="upiSourceBankName">Linked Bank</div>
+                <div class="transfer-bank-acc" id="upiSourceBankAcc">A/C •••• ----</div>
               </div>
             </div>
-            <div style="text-align: right;">
-              <div style="font-size: 0.72rem; color: var(--text-muted);">Bank Balance</div>
-              <div style="font-size: 0.92rem; font-weight: 800; color: var(--accent-green);" id="upiSourceBankBal">₹10,00,000.00</div>
+            <div class="transfer-bank-right">
+              <span class="transfer-bank-bal-label">Available Bank Balance</span>
+              <span class="transfer-bank-bal-val" id="upiSourceBankBal">₹10,00,000.00</span>
             </div>
           </div>
 
-          <div style="margin-top: 1.25rem;">
-            <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); display: block; margin-bottom: 0.4rem;">Enter Amount (₹)</label>
-            <div class="upi-amount-input-box">
-              <span class="upi-currency-symbol">₹</span>
-              <input type="number" id="upiAddAmountInput" class="upi-large-input" placeholder="0" min="100" step="100" oninput="validateUpiAddAmount()">
+          <!-- Enter Amount Input -->
+          <div class="transfer-input-section">
+            <label class="transfer-input-label">Enter Amount to Transfer (₹)</label>
+            <div class="transfer-amount-input-box">
+              <span class="transfer-currency-symbol">₹</span>
+              <input type="number" id="upiAddAmountInput" class="transfer-amount-input" placeholder="0" min="100" step="100" oninput="validateUpiAddAmount()">
             </div>
           </div>
 
-          <div class="quick-qty-chips" style="margin-top: 0.85rem; justify-content: flex-start; gap: 0.45rem;">
-            <button type="button" class="qty-chip" onclick="setUpiQuickAmount(10000)">+₹10,000</button>
-            <button type="button" class="qty-chip" onclick="setUpiQuickAmount(25000)">+₹25,000</button>
-            <button type="button" class="qty-chip" onclick="setUpiQuickAmount(50000)">+₹50,000</button>
-            <button type="button" class="qty-chip" onclick="setUpiQuickAmount(100000)">+₹1,00,000</button>
-            <button type="button" class="qty-chip" onclick="setUpiQuickAmount(500000)">+₹5,00,000</button>
+          <!-- Quick Amount Chips -->
+          <div class="transfer-chips-wrap">
+            <button type="button" class="transfer-chip" onclick="setUpiQuickAmount(10000)">+₹10,000</button>
+            <button type="button" class="transfer-chip" onclick="setUpiQuickAmount(25000)">+₹25,000</button>
+            <button type="button" class="transfer-chip" onclick="setUpiQuickAmount(50000)">+₹50,000</button>
+            <button type="button" class="transfer-chip" onclick="setUpiQuickAmount(100000)">+₹1,00,000</button>
+            <button type="button" class="transfer-chip" onclick="setUpiQuickAmount(500000)">+₹5,00,000</button>
           </div>
 
-          <div id="upiAmountError" style="color: var(--danger-red); font-size: 0.78rem; margin-top: 0.5rem; display: none;"></div>
+          <div id="upiAmountError" class="transfer-error-text" style="display: none;"></div>
 
-          <button type="button" class="btn-trade-execute buy" id="btnProceedToUpiPin" style="margin-top: 1.5rem; width: 100%;" onclick="proceedToUpiPinScreen()">
-            Proceed to Pay →
+          <button type="button" class="btn-trade-execute buy transfer-submit-btn" id="btnProceedToUpiPin" onclick="proceedToUpiPinScreen()">
+            Proceed to Enter PIN →
           </button>
         </div>
       </div>
 
-      <!-- Step 2: Authentic UPI PIN Screen -->
+      <!-- Step 2: PIN Authorization Screen -->
       <div id="upiStepPin" style="display: none;">
-        <div class="npci-header">
-          <div class="npci-brand">
-            <span class="npci-text">NPCI</span>
-            <span class="upi-sub-text">Unified Payments Interface</span>
-          </div>
-          <div class="upi-ssl-tag">🔒 256-Bit Encrypted</div>
+        <div class="transfer-modal-header">
+          <button type="button" class="btn-subtle transfer-back-btn" onclick="backToAmountStep()">← Back</button>
+          <div class="transfer-security-tag">🔒 256-Bit Bank Encryption</div>
+          <button type="button" class="modal-close-btn" onclick="closeAddMoneyModal()" aria-label="Close">✕</button>
         </div>
 
-        <div class="upi-pin-body">
-          <div class="upi-payee-card">
-            <div class="payee-row">
-              <span class="payee-label">Paying to</span>
-              <strong class="payee-val">Stoxifyin' Securities Ltd</strong>
+        <div class="transfer-modal-body" style="padding-top: 0.25rem;">
+          <!-- Transfer Summary Details -->
+          <div class="transfer-summary-box">
+            <div class="summary-row">
+              <span class="summary-label">Transfer Amount</span>
+              <span class="summary-amount-highlight" id="upiPinDisplayAmount">₹50,000.00</span>
             </div>
-            <div class="payee-row">
-              <span class="payee-label">Amount</span>
-              <strong class="payee-amount" id="upiPinDisplayAmount">₹0.00</strong>
+            <div class="summary-divider"></div>
+            <div class="summary-row">
+              <span class="summary-label">Debiting From</span>
+              <span class="summary-val" id="upiPinDisplayBank">Federal Bank A/C •••• 8910</span>
             </div>
-            <div class="payee-row">
-              <span class="payee-label">Debiting from</span>
-              <span class="payee-bank" id="upiPinDisplayBank">HDFC Bank A/C •••• 5678</span>
+            <div class="summary-row">
+              <span class="summary-label">Crediting To</span>
+              <span class="summary-val text-brand">Stoxifyin' Trading Wallet</span>
             </div>
           </div>
 
-          <div class="upi-pin-section">
-            <div class="upi-pin-prompt">ENTER 4-DIGIT STOXIFYIN' UPI PIN</div>
-            <div class="upi-pin-dots-container" onclick="focusUpiPinInput()">
-              <div class="upi-pin-dot" id="upiDot1"></div>
-              <div class="upi-pin-dot" id="upiDot2"></div>
-              <div class="upi-pin-dot" id="upiDot3"></div>
-              <div class="upi-pin-dot" id="upiDot4"></div>
+          <!-- PIN Entry Container -->
+          <div class="transfer-pin-container">
+            <div class="transfer-pin-title">ENTER 4-DIGIT SECURITY PIN</div>
+            <div class="transfer-pin-dots" onclick="focusUpiPinInput()">
+              <div class="transfer-pin-dot" id="upiDot1"></div>
+              <div class="transfer-pin-dot" id="upiDot2"></div>
+              <div class="transfer-pin-dot" id="upiDot3"></div>
+              <div class="transfer-pin-dot" id="upiDot4"></div>
             </div>
-            <input type="password" id="upiHiddenPinInput" maxlength="4" autocomplete="off" oninput="onUpiPinInput(this.value)" style="opacity: 0; position: absolute; pointer-events: auto; width: 1px; height: 1px;">
-            <div class="upi-pin-hint">Use your 4-digit Stoxifyin' app PIN to authorize this transfer</div>
-            <div id="upiPinError" style="color: var(--danger-red); font-size: 0.8rem; margin-top: 0.5rem; font-weight: 700; display: none;"></div>
+            <input type="password" id="upiHiddenPinInput" maxlength="4" autocomplete="off" oninput="onUpiPinInput(this.value)" class="transfer-hidden-input">
+            <div class="transfer-pin-helper">Enter your 4-digit security PIN to authorize this transfer</div>
+            <div id="upiPinError" class="transfer-error-text" style="display: none;"></div>
           </div>
 
-          <!-- Numeric Keypad -->
-          <div class="upi-keypad">
+          <!-- Keypad -->
+          <div class="transfer-keypad">
             <button type="button" class="keypad-btn" onclick="pressUpiKey('1')">1</button>
             <button type="button" class="keypad-btn" onclick="pressUpiKey('2')">2</button>
             <button type="button" class="keypad-btn" onclick="pressUpiKey('3')">3</button>
@@ -2400,48 +2408,51 @@
             <button type="button" class="keypad-btn" onclick="pressUpiKey('7')">7</button>
             <button type="button" class="keypad-btn" onclick="pressUpiKey('8')">8</button>
             <button type="button" class="keypad-btn" onclick="pressUpiKey('9')">9</button>
-            <button type="button" class="keypad-btn cancel" onclick="resetUpiPinScreen()">Cancel</button>
+            <button type="button" class="keypad-btn cancel" onclick="resetUpiPinScreen()">Clear</button>
             <button type="button" class="keypad-btn" onclick="pressUpiKey('0')">0</button>
             <button type="button" class="keypad-btn backspace" onclick="pressUpiBackspace()">⌫</button>
           </div>
 
-          <button type="button" class="btn-trade-execute buy" id="btnExecuteUpi" style="margin-top: 1rem; width: 100%;" onclick="executeUpiPayment()">
-            ✓ Authorize & Transfer
+          <button type="button" class="btn-trade-execute buy transfer-submit-btn" id="btnExecuteUpi" onclick="executeUpiPayment()">
+            ✓ Authorize & Transfer Funds
           </button>
         </div>
       </div>
 
       <!-- Step 3: Success Screen -->
-      <div id="upiStepSuccess" style="display: none; padding: 2rem 1.5rem; text-align: center;">
-        <div class="upi-success-circle">✓</div>
-        <h3 style="font-size: 1.35rem; font-weight: 800; margin-top: 1rem;">Payment Successful!</h3>
-        <p style="color: var(--text-muted); font-size: 0.88rem; margin-top: 0.35rem;">
-          <strong id="upiSuccessAmount" class="text-positive" style="font-size: 1.25rem;">₹0.00</strong> credited to your Stoxifyin' Trading Wallet.
-        </p>
+      <div id="upiStepSuccess" style="display: none;">
+        <div class="transfer-success-body">
+          <div class="transfer-success-icon">✓</div>
+          <h3 class="transfer-success-title">Deposit Successful!</h3>
+          <p class="transfer-success-sub">
+            <strong id="upiSuccessAmount" class="text-positive" style="font-size: 1.35rem;">₹0.00</strong> credited to your Stoxifyin' Trading Wallet.
+          </p>
 
-        <div class="upi-receipt-card">
-          <div class="receipt-row">
-            <span>Transaction Ref</span>
-            <strong id="upiSuccessRef">UPI/STX/00000000</strong>
+          <div class="transfer-receipt-box">
+            <div class="receipt-row">
+              <span>Transaction Ref</span>
+              <strong id="upiSuccessRef">TXN/STX/00000000</strong>
+            </div>
+            <div class="receipt-row">
+              <span>Debited Account</span>
+              <span id="upiSuccessSource">Bank A/C •••• ----</span>
+            </div>
+            <div class="receipt-row">
+              <span>New Wallet Balance</span>
+              <strong class="text-positive" id="upiSuccessWalletBal">₹0.00</strong>
+            </div>
+            <div class="receipt-row">
+              <span>Remaining Bank Balance</span>
+              <span id="upiSuccessBankBal">₹0.00</span>
+            </div>
           </div>
-          <div class="receipt-row">
-            <span>Debited Account</span>
-            <span id="upiSuccessSource">Bank A/C •••• 5678</span>
-          </div>
-          <div class="receipt-row">
-            <span>New Wallet Balance</span>
-            <strong class="text-positive" id="upiSuccessWalletBal">₹0.00</strong>
-          </div>
-          <div class="receipt-row">
-            <span>Remaining Bank Balance</span>
-            <span id="upiSuccessBankBal">₹0.00</span>
-          </div>
+
+          <button type="button" class="btn-primary transfer-submit-btn" onclick="finishUpiSuccess()">
+            Done & Return to Portfolio →
+          </button>
         </div>
-
-        <button type="button" class="btn-primary" style="width: 100%; justify-content: center; margin-top: 1.5rem; padding: 0.85rem;" onclick="finishUpiSuccess()">
-          Done & Return to Portfolio →
-        </button>
       </div>
+
     </div>
   </div>
 
@@ -2453,11 +2464,11 @@
         <button type="button" class="icon-btn" onclick="closeWithdrawModal()" aria-label="Close">✕</button>
       </div>
       <div class="modal-body" style="padding: 1.5rem;">
-        <div class="upi-from-box" style="margin-bottom: 1.25rem;">
+        <div class="transfer-bank-card" style="margin-bottom: 1.25rem;">
           <div>
             <div style="font-size: 0.75rem; color: var(--text-muted);">Crediting to</div>
-            <div style="font-size: 0.92rem; font-weight: 800;" id="wdrBankName">HDFC Bank</div>
-            <div style="font-size: 0.75rem; color: var(--text-muted);" id="wdrBankAcc">A/C •••• 5678</div>
+            <div style="font-size: 0.95rem; font-weight: 800;" id="wdrBankName">Linked Bank</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);" id="wdrBankAcc">A/C •••• ----</div>
           </div>
           <div style="text-align: right;">
             <div style="font-size: 0.75rem; color: var(--text-muted);">Available Cash</div>
@@ -2491,8 +2502,8 @@
         <div style="display: flex; align-items: center; gap: 0.5rem;">
           <span style="font-size: 1.4rem;">🏛️</span>
           <div>
-            <h3 style="font-size: 1.15rem; font-weight: 800; margin: 0;" id="pbModalBankTitle">HDFC Bank Passbook</h3>
-            <div style="font-size: 0.75rem; color: var(--text-muted);" id="pbModalBankSub">A/C •••• 5678 • IFSC: HDFC0001234</div>
+            <h3 style="font-size: 1.15rem; font-weight: 800; margin: 0;" id="pbModalBankTitle">Bank Passbook</h3>
+            <div style="font-size: 0.75rem; color: var(--text-muted);" id="pbModalBankSub">A/C •••• ---- • IFSC: ----</div>
           </div>
         </div>
         <button type="button" class="icon-btn" onclick="closeBankPassbookModal()" aria-label="Close">✕</button>
@@ -2502,7 +2513,7 @@
         <div class="passbook-hero-balance">
           <span style="font-size: 0.78rem; color: var(--text-muted);">Available Bank Balance</span>
           <strong style="font-size: 1.6rem; color: var(--text-primary);" id="pbModalBalance">₹10,00,000.00</strong>
-          <div style="font-size: 0.75rem; color: var(--brand-cyan); margin-top: 2px;" id="pbModalUpiId">UPI ID: trader@hdfcbank</div>
+          <div style="font-size: 0.75rem; color: var(--brand-cyan); margin-top: 2px;" id="pbModalUpiId">Linked Virtual Bank</div>
         </div>
 
         <h4 style="font-size: 0.85rem; font-weight: 800; margin: 1.25rem 0 0.5rem 0; color: var(--text-secondary);">Transaction Statement</h4>

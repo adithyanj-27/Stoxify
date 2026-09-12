@@ -1150,7 +1150,7 @@ def transfer_bank_to_wallet(user_id: str, amount: float, pin: str) -> Dict[str, 
 
     if not pin_valid:
         conn.close()
-        return {"success": False, "message": "Incorrect 4-digit UPI PIN. Please try again."}
+        return {"success": False, "message": "Incorrect 4-digit Security PIN. Please try again."}
 
     bank_balance = float(user.get("bank_balance") if user.get("bank_balance") is not None else 1000000.0)
     wallet_balance = float(user.get("balance") or 0.0)
@@ -1164,7 +1164,7 @@ def transfer_bank_to_wallet(user_id: str, amount: float, pin: str) -> Dict[str, 
 
     new_bank_balance = round(bank_balance - amount, 2)
     new_wallet_balance = round(wallet_balance + amount, 2)
-    tx_ref = f"UPI/STX/{random.randint(10000000, 99999999)}"
+    tx_ref = f"TXN/STX/{random.randint(10000000, 99999999)}"
 
     cursor.execute("""
         UPDATE users 
@@ -1177,7 +1177,7 @@ def transfer_bank_to_wallet(user_id: str, amount: float, pin: str) -> Dict[str, 
 
     cursor.execute("""
         INSERT INTO bank_transactions (user_id, type, amount, from_account, to_account, reference_id, status, note)
-        VALUES (?, 'UPI_DEPOSIT', ?, ?, 'Stoxifyin Trading Wallet', ?, 'SUCCESS', ?)
+        VALUES (?, 'BANK_DEPOSIT', ?, ?, 'Stoxifyin Trading Wallet', ?, 'SUCCESS', ?)
     """, (
         user_id,
         amount,

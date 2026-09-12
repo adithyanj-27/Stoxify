@@ -3154,7 +3154,7 @@ function copyDematId() {
 }
 
 // =======================================================
-// SIMULATED UPI DEPOSIT (BANK -> TRADING WALLET)
+// SIMULATED BANK DEPOSIT (BANK -> TRADING WALLET)
 // =======================================================
 async function openAddMoneyModal() {
   const menu = document.getElementById('userDropdownMenu');
@@ -3181,23 +3181,32 @@ async function openAddMoneyModal() {
   if (amountInput) amountInput.value = '50000';
   currentUpiAddAmount = 50000;
 
-  const btnProceed = document.getElementById('btnProceedToPin');
+  // Immediately bind bank info from currentUser in memory so it NEVER shows wrong bank!
+  const bName = document.getElementById('upiSourceBankName');
+  const bAcc = document.getElementById('upiSourceBankAcc');
+  const bBal = document.getElementById('upiSourceBankBal');
+  const userBank = (currentUser && currentUser.bank_name) ? currentUser.bank_name : 'Federal Bank';
+  const userAcc = (currentUser && currentUser.bank_account) ? `•••• ${String(currentUser.bank_account).slice(-4)}` : '•••• 8910';
+  const userBal = (currentUser && currentUser.bank_balance !== undefined) ? currentUser.bank_balance : 1000000.0;
+
+  if (bName) bName.innerText = userBank;
+  if (bAcc) bAcc.innerText = `A/C ${userAcc}`;
+  if (bBal) bBal.innerText = formatINR(userBal);
+
+  const btnProceed = document.getElementById('btnProceedToUpiPin') || document.getElementById('btnProceedToPin');
   if (btnProceed) {
     btnProceed.disabled = false;
-    btnProceed.innerText = 'Add ₹50,000 via UPI →';
+    btnProceed.innerText = 'Proceed to Enter PIN →';
   }
 
   modal.classList.add('active');
 
-  // Load bank info
+  // Fetch latest fresh bank details from server
   const bankData = await loadBankAccountDetails();
   if (bankData) {
-    const bName = document.getElementById('upiFromBankName');
-    const bAcc = document.getElementById('upiFromAccNum');
-    const bBal = document.getElementById('upiAvailBankBal');
-    if (bName) bName.innerText = bankData.bank_name || 'HDFC Bank';
-    if (bAcc) bAcc.innerText = `A/C ${bankData.bank_account_masked || bankData.bank_masked_account || '•••• 5678'}`;
-    if (bBal) bBal.innerText = `Available: ${formatINR(bankData.bank_balance !== undefined ? bankData.bank_balance : 1000000.0)}`;
+    if (bName) bName.innerText = bankData.bank_name || userBank;
+    if (bAcc) bAcc.innerText = `A/C ${bankData.bank_account_masked || bankData.bank_masked_account || userAcc}`;
+    if (bBal) bBal.innerText = formatINR(bankData.bank_balance !== undefined ? bankData.bank_balance : userBal);
   }
   validateUpiAddAmount();
 }
@@ -3205,6 +3214,14 @@ async function openAddMoneyModal() {
 function closeAddMoneyModal() {
   const modal = document.getElementById('upiAddMoneyModal');
   if (modal) modal.classList.remove('active');
+  resetUpiPinScreen();
+}
+
+function backToAmountStep() {
+  const stepAmount = document.getElementById('upiStepAmount');
+  const stepPin = document.getElementById('upiStepPin');
+  if (stepAmount) stepAmount.style.display = 'block';
+  if (stepPin) stepPin.style.display = 'none';
   resetUpiPinScreen();
 }
 
@@ -3218,29 +3235,35 @@ function setUpiQuickAmount(amt) {
 
 function validateUpiAddAmount() {
   const input = document.getElementById('upiAddAmountInput');
-  const btn = document.getElementById('btnProceedToPin');
+  const btn = document.getElementById('btnProceedToUpiPin') || document.getElementById('btnProceedToPin');
+  const errEl = document.getElementById('upiAmountError');
   if (!input || !btn) return;
 
   const val = parseFloat(input.value || '0');
   currentUpiAddAmount = val;
 
-  const availBank = cachedBankAccount ? cachedBankAccount.bank_balance : 1000000.0;
+  const availBank = (cachedBankAccount && cachedBankAccount.bank_balance !== undefined)
+    ? cachedBankAccount.bank_balance
+    : (currentUser && currentUser.bank_balance !== undefined ? currentUser.bank_balance : 1000000.0);
 
   if (isNaN(val) || val < 100) {
     btn.disabled = true;
     btn.innerText = 'Enter min. ₹100';
+    if (errEl) { errEl.innerText = 'Minimum deposit amount is ₹100'; errEl.style.display = 'block'; }
   } else if (val > availBank) {
     btn.disabled = true;
     btn.innerText = 'Exceeds Available Bank Balance';
+    if (errEl) { errEl.innerText = `Amount exceeds available bank balance (${formatINR(availBank)})`; errEl.style.display = 'block'; }
   } else {
     btn.disabled = false;
-    btn.innerText = `Add ${formatINR(val)} via UPI →`;
+    btn.innerText = `Proceed to Enter PIN →`;
+    if (errEl) errEl.style.display = 'none';
   }
 }
 
 function proceedToUpiPinScreen() {
   validateUpiAddAmount();
-  const btn = document.getElementById('btnProceedToPin');
+  const btn = document.getElementById('btnProceedToUpiPin') || document.getElementById('btnProceedToPin');
   if (btn && btn.disabled) return;
 
   const stepAmount = document.getElementById('upiStepAmount');
@@ -3254,8 +3277,17 @@ function proceedToUpiPinScreen() {
   if (dispAmt) dispAmt.innerText = formatINR(currentUpiAddAmount);
 
   const dispBank = document.getElementById('upiPinDisplayBank');
-  if (dispBank && cachedBankAccount) {
-    dispBank.innerText = `${cachedBankAccount.bank_name || 'HDFC Bank'} A/C ${cachedBankAccount.bank_account_masked || cachedBankAccount.bank_masked_account || '•••• 5678'}`;
+  const bankName = (cachedBankAccount && cachedBankAccount.bank_name) || (currentUser && currentUser.bank_name) || 'Federal Bank';
+  const rawAcc = (cachedBankAccount && (cachedBankAccount.bank_account_masked || cachedBankAccount.bank_masked_account))
+    || (currentUser && currentUser.bank_account ? `•••• ${String(currentUser.bank_account).slice(-4)}` : '•••• 8910');
+  if (dispBank) {
+    dispBank.innerText = `${bankName} A/C ${rawAcc.startsWith('••••') ? rawAcc : `•••• ${rawAcc.slice(-4)}`}`;
+  }
+
+  const execBtn = document.getElementById('btnExecuteUpi');
+  if (execBtn) {
+    execBtn.disabled = false;
+    execBtn.innerText = `✓ Authorize & Transfer ${formatINR(currentUpiAddAmount)}`;
   }
 
   resetUpiPinScreen();
@@ -3273,7 +3305,7 @@ function resetUpiPinScreen() {
   const btn = document.getElementById('btnExecuteUpi');
   if (btn) {
     btn.disabled = false;
-    btn.innerText = '✓ Authorize & Transfer';
+    btn.innerText = `✓ Authorize & Transfer ${formatINR(currentUpiAddAmount)}`;
   }
 }
 
@@ -3289,6 +3321,10 @@ function onUpiPinInput(val) {
   const clean = val.replace(/\D/g, '').slice(0, 4);
   enteredUpiPin = clean;
   updateUpiPinDots();
+  if (clean.length === 4) {
+    const errEl = document.getElementById('upiPinError');
+    if (errEl) errEl.style.display = 'none';
+  }
 }
 
 function pressUpiKey(num) {
@@ -3328,7 +3364,7 @@ async function executeUpiPayment() {
   if (enteredUpiPin.length !== 4) {
     const errEl = document.getElementById('upiPinError');
     if (errEl) {
-      errEl.innerText = "Please enter your 4-digit Stoxifyin' PIN";
+      errEl.innerText = "Please enter your 4-digit Security PIN";
       errEl.style.display = 'block';
     }
     return;
@@ -3351,7 +3387,6 @@ async function executeUpiPayment() {
     });
     const data = await res.json();
     if (res.ok && data.success) {
-      // Transfer success!
       if (currentUser) {
         currentUser.balance = data.balance;
         currentUser.bank_balance = data.bank_balance;
@@ -3377,26 +3412,36 @@ async function executeUpiPayment() {
       const sWBal = document.getElementById('upiSuccessWalletBal');
       const sBBal = document.getElementById('upiSuccessBankBal');
 
-      if (sAmt) sAmt.innerText = formatINR(currentUpiAddAmount);
-      if (sRef) sRef.innerText = data.reference_id || 'UPI/STX/SUCCESS';
-      if (sSrc && cachedBankAccount) sSrc.innerText = `${cachedBankAccount.bank_name || 'HDFC Bank'} A/C ${cachedBankAccount.bank_account_masked || cachedBankAccount.bank_masked_account || '•••• 5678'}`;
+      const bankName = (cachedBankAccount && cachedBankAccount.bank_name) || (currentUser && currentUser.bank_name) || 'Federal Bank';
+      const rawAcc = (cachedBankAccount && (cachedBankAccount.bank_account_masked || cachedBankAccount.bank_masked_account))
+        || (currentUser && currentUser.bank_account ? `•••• ${String(currentUser.bank_account).slice(-4)}` : '•••• 8910');
+
+      if (sAmt) sAmt.innerText = formatINR(data.amount_added || currentUpiAddAmount);
+      if (sRef) sRef.innerText = data.reference_id || `TXN-STX-${Math.floor(10000000 + Math.random() * 90000000)}`;
+      if (sSrc) sSrc.innerText = `${bankName} A/C ${rawAcc.startsWith('••••') ? rawAcc : `•••• ${rawAcc.slice(-4)}`}`;
       if (sWBal) sWBal.innerText = formatINR(data.balance);
       if (sBBal) sBBal.innerText = formatINR(data.bank_balance);
+
+      showToast(`Transferred ${formatINR(data.amount_added || currentUpiAddAmount)} to trading wallet! ✓`);
+      fetchAccount();
+      loadBankAccountDetails();
     } else {
       const errEl = document.getElementById('upiPinError');
       if (errEl) {
-        errEl.innerText = data.detail || 'PIN verification failed. Please try again.';
+        errEl.innerText = data.detail || data.message || "Invalid Security PIN. Please try again.";
         errEl.style.display = 'block';
+      }
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = `✓ Authorize & Transfer ${formatINR(currentUpiAddAmount)}`;
       }
       enteredUpiPin = '';
       updateUpiPinDots();
-      if (btn) {
-        btn.disabled = false;
-        btn.innerText = '✓ Authorize & Transfer';
-      }
+      const hidden = document.getElementById('upiHiddenPinInput');
+      if (hidden) hidden.value = '';
     }
   } catch (err) {
-    console.error('UPI Transfer error:', err);
+    console.error('Transfer error:', err);
     const errEl = document.getElementById('upiPinError');
     if (errEl) {
       errEl.innerText = 'Network error. Please try again.';
@@ -3404,7 +3449,7 @@ async function executeUpiPayment() {
     }
     if (btn) {
       btn.disabled = false;
-      btn.innerText = '✓ Authorize & Transfer';
+      btn.innerText = `✓ Authorize & Transfer ${formatINR(currentUpiAddAmount)}`;
     }
   }
 }

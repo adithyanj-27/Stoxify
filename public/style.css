@@ -6745,246 +6745,443 @@ body.viewing-profile .indices-bar {
 }
 
 /* ==========================================================================
-   SIMULATED UPI PAYMENT & MODALS
+   AUTHENTIC BANK FUND TRANSFER MODAL & SECURITY PIN FLOW
    ========================================================================== */
-.upi-badge-logo {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-weight: 900;
-  font-size: 0.95rem;
-  color: #10b981;
+.transfer-modal-card,
+.upi-modal-card {
+  max-width: 480px;
+  width: 94%;
+  border-radius: 20px;
+  background: var(--bg-modal, #0f172a);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  padding: 1.5rem;
+  overflow: hidden;
+  position: relative;
 }
 
+.transfer-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  margin-bottom: 1.25rem;
+}
+
+.transfer-header-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.transfer-badge-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  flex-shrink: 0;
+}
+
+.transfer-modal-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.transfer-modal-sub {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 0.15rem 0 0 0;
+}
+
+.transfer-bank-card,
 .upi-from-box {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.85rem 1rem;
+  padding: 1rem 1.15rem;
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: 14px;
+  margin-bottom: 1.25rem;
 }
 
+[data-theme="light"] .transfer-bank-card,
 [data-theme="light"] .upi-from-box {
   background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.08);
 }
 
-.upi-amount-input-box {
+.transfer-bank-left {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  background: var(--bg-surface, rgba(255, 255, 255, 0.03));
-  border: 2px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 0.65rem 1rem;
-  margin: 0.75rem 0;
-  transition: border-color 0.2s ease;
+  gap: 0.75rem;
 }
 
-.upi-amount-input-box:focus-within {
-  border-color: var(--brand-cyan);
+.transfer-bank-icon-box {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(14, 165, 233, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
 }
 
-.upi-currency-symbol {
+.transfer-bank-name {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.transfer-bank-acc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  letter-spacing: 0.03em;
+}
+
+.transfer-bank-right {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.transfer-bank-bal-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.transfer-bank-bal-val {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #10b981;
+}
+
+.transfer-input-section {
+  margin-bottom: 1rem;
+}
+
+.transfer-input-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.transfer-amount-input-box {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  border-radius: 14px;
+  padding: 0.65rem 1.15rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+[data-theme="light"] .transfer-amount-input-box {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+.transfer-amount-input-box:focus-within {
+  border-color: #10b981;
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15);
+}
+
+.transfer-currency-symbol {
   font-size: 1.75rem;
   font-weight: 800;
   color: var(--text-secondary);
+  line-height: 1;
 }
 
-.upi-amount-input {
+.transfer-amount-input {
   width: 100%;
-  background: transparent;
-  border: none;
+  background: transparent !important;
+  border: none !important;
   font-size: 1.75rem;
   font-weight: 800;
-  color: var(--text-primary);
+  color: var(--text-primary) !important;
   outline: none;
   font-family: inherit;
+  padding: 0;
+  margin: 0;
 }
 
-.upi-chips-row {
+.transfer-amount-input::-webkit-outer-spin-button,
+.transfer-amount-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.transfer-chips-wrap {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.45rem;
   margin-bottom: 1.25rem;
   flex-wrap: wrap;
 }
 
-.upi-chip-btn {
-  flex: 1;
-  min-width: 70px;
-  padding: 0.45rem 0.5rem;
-  border-radius: 20px;
-  border: 1px solid var(--border-subtle);
-  background: rgba(255, 255, 255, 0.03);
+.transfer-chip {
+  padding: 0.45rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+  background: rgba(255, 255, 255, 0.04);
   color: var(--text-primary);
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.15s ease;
-  font-family: inherit;
 }
 
-.upi-chip-btn:hover {
-  border-color: var(--brand-cyan);
-  color: var(--brand-cyan);
+[data-theme="light"] .transfer-chip {
+  background: rgba(0, 0, 0, 0.03);
 }
 
-.npci-upi-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-bottom: 0.85rem;
-  border-bottom: 1px solid var(--border-subtle);
-  margin-bottom: 1rem;
+.transfer-chip:hover {
+  border-color: #10b981;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.08);
 }
 
-.npci-logo {
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  font-size: 0.85rem;
-  color: var(--text-primary);
-}
-
-.upi-payee-info {
-  text-align: center;
-  padding: 0.25rem 0 0.85rem 0;
-}
-
-.upi-payee-info .payee-name {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
-.upi-payee-info .payee-amount {
-  font-size: 2rem;
-  font-weight: 900;
-  color: var(--text-primary);
-  margin: 0.25rem 0;
-}
-
-.upi-payee-info .payee-bank {
-  font-size: 0.78rem;
-  color: var(--brand-cyan);
+.transfer-error-text {
+  color: #ef4444;
+  font-size: 0.8rem;
   font-weight: 600;
-}
-
-.upi-pin-section {
-  text-align: center;
-  margin: 0.75rem 0;
-}
-
-.upi-pin-prompt {
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
   margin-bottom: 0.75rem;
 }
 
-.upi-pin-dots-container {
+.transfer-submit-btn {
+  width: 100%;
+  padding: 0.9rem;
+  font-size: 1rem;
+  font-weight: 700;
+  border-radius: 12px;
+  justify-content: center;
+}
+
+/* Step 2: PIN Authorization */
+.transfer-back-btn {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.transfer-security-tag {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.transfer-summary-box {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: 14px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+[data-theme="light"] .transfer-summary-box {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.summary-label {
+  color: var(--text-muted);
+}
+
+.summary-val {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.summary-amount-highlight {
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: #10b981;
+}
+
+.summary-divider {
+  height: 1px;
+  background: var(--border-subtle, rgba(255, 255, 255, 0.08));
+  margin: 0.2rem 0;
+}
+
+.transfer-pin-container {
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.transfer-pin-title {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 0.85rem;
+}
+
+.transfer-pin-dots {
   display: flex;
   justify-content: center;
   gap: 1.25rem;
   margin-bottom: 0.65rem;
   cursor: pointer;
-  padding: 0.5rem;
+  padding: 0.4rem;
 }
 
+.transfer-pin-dot,
 .upi-pin-dot {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  border: 2px solid var(--border-subtle);
+  border: 2px solid var(--border-color, rgba(255, 255, 255, 0.25));
   background: transparent;
-  transition: all 0.15s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.transfer-pin-dot.filled,
 .upi-pin-dot.filled {
-  background: var(--brand-cyan);
-  border-color: var(--brand-cyan);
-  box-shadow: 0 0 10px rgba(14, 165, 233, 0.6);
+  background: #10b981;
+  border-color: #10b981;
+  box-shadow: 0 0 14px rgba(16, 185, 129, 0.7);
+  transform: scale(1.15);
 }
 
-.upi-pin-hint {
-  font-size: 0.72rem;
+.transfer-hidden-input {
+  opacity: 0;
+  position: absolute;
+  pointer-events: auto;
+  width: 1px;
+  height: 1px;
+}
+
+.transfer-pin-helper {
+  font-size: 0.75rem;
   color: var(--text-muted);
+  margin-top: 0.25rem;
 }
 
-.upi-keypad {
+.transfer-keypad {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 0.5rem;
-  max-width: 280px;
-  margin: 1rem auto 0.5rem auto;
+  gap: 0.6rem;
+  max-width: 290px;
+  margin: 0.75rem auto 1.25rem auto;
 }
 
-.keypad-btn {
+.transfer-keypad .keypad-btn {
   height: 48px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
   font-size: 1.25rem;
   font-weight: 700;
   color: var(--text-primary);
   cursor: pointer;
-  transition: background 0.1s ease;
-  font-family: inherit;
+  transition: background 0.15s, transform 0.1s;
 }
 
-[data-theme="light"] .keypad-btn {
+[data-theme="light"] .transfer-keypad .keypad-btn {
   background: rgba(0, 0, 0, 0.04);
 }
 
-.keypad-btn:active {
-  background: rgba(255, 255, 255, 0.18);
+.transfer-keypad .keypad-btn:active {
+  background: rgba(16, 185, 129, 0.25);
+  transform: scale(0.96);
 }
 
-.keypad-btn.cancel {
+.transfer-keypad .keypad-btn.cancel {
   font-size: 0.85rem;
   color: var(--text-muted);
 }
 
-.keypad-btn.backspace {
-  font-size: 1.15rem;
-  color: var(--danger-red);
+.transfer-keypad .keypad-btn.backspace {
+  font-size: 1.2rem;
+  color: #ef4444;
 }
 
-.upi-success-circle {
+/* Step 3: Success Screen */
+.transfer-success-body {
+  padding: 1.5rem 0.5rem;
+  text-align: center;
+}
+
+.transfer-success-icon {
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  background: #10b981;
-  color: #022c22;
-  font-size: 2.2rem;
+  background: rgba(16, 185, 129, 0.15);
+  border: 2px solid #10b981;
+  color: #10b981;
+  font-size: 2rem;
   font-weight: 900;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto;
-  box-shadow: 0 0 24px rgba(16, 185, 129, 0.45);
+  margin: 0 auto 1.25rem auto;
+  box-shadow: 0 0 24px rgba(16, 185, 129, 0.35);
 }
 
-.upi-receipt-card {
+.transfer-success-title {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin-bottom: 0.35rem;
+}
+
+.transfer-success-sub {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+}
+
+.transfer-receipt-box {
   background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  padding: 1rem;
-  margin: 1.25rem 0;
-  text-align: left;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: 14px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.65rem;
+  text-align: left;
 }
 
-[data-theme="light"] .upi-receipt-card {
+[data-theme="light"] .transfer-receipt-box {
   background: rgba(0, 0, 0, 0.02);
 }
 
 .receipt-row {
   display: flex;
   justify-content: space-between;
-  font-size: 0.82rem;
+  align-items: center;
+  font-size: 0.85rem;
   color: var(--text-secondary);
 }
 
