@@ -1798,6 +1798,7 @@ function renderChart(points) {
   if (state.chartInstance) state.chartInstance.destroy();
 
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const isMobile = window.innerWidth <= 768;
   const labels = points.map(p => p.time);
   const values = points.map(p => p.value);
   const isPos = values[values.length - 1] >= values[0];
@@ -1828,6 +1829,14 @@ function renderChart(points) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      layout: {
+        padding: {
+          left: isMobile ? 4 : 0,
+          right: isMobile ? 4 : 0,
+          top: 4,
+          bottom: isMobile ? 4 : 0
+        }
+      },
       interaction: { intersect: false, mode: 'index' },
       plugins: {
         legend: { display: false },
@@ -1846,8 +1855,16 @@ function renderChart(points) {
         x: { display: false },
         y: {
           position: 'right',
-          grid: { color: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)' },
-          ticks: { color: isDark ? '#64748B' : '#94A3B8', font: { size: 10 }, callback: (val) => `₹${val}` }
+          grid: { 
+            drawTicks: false,
+            color: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)' 
+          },
+          ticks: { 
+            display: !isMobile,
+            color: isDark ? '#64748B' : '#94A3B8', 
+            font: { size: 10 }, 
+            callback: (val) => `₹${val}` 
+          }
         }
       }
     }
@@ -4265,7 +4282,7 @@ function renderCandlestickCanvas(canvas, points, hoveredIdx = -1, crosshairY = -
   }
 
   const paddingLeft = isMobile ? 4 : 16;
-  const paddingRight = isMobile ? 40 : 72;
+  const paddingRight = isMobile ? 4 : 72;
   const paddingTop = 15;
   const paddingBottom = isMobile ? 6 : 26;
   const chartWidth = cssWidth - paddingLeft - paddingRight;
@@ -4322,11 +4339,13 @@ function renderCandlestickCanvas(canvas, points, hoveredIdx = -1, crosshairY = -
     ctx.lineTo(cssWidth - paddingRight, y);
     ctx.stroke();
 
-    const priceAtGrid = maxPrice - (priceRange / gridSteps) * i;
-    ctx.fillStyle = '#64748B';
-    ctx.font = isMobile ? '9px Sora, sans-serif' : '10px Sora, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(formatINR(priceAtGrid), cssWidth - paddingRight + 6, y + 3);
+    if (!isMobile) {
+      const priceAtGrid = maxPrice - (priceRange / gridSteps) * i;
+      ctx.fillStyle = '#64748B';
+      ctx.font = '10px Sora, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(formatINR(priceAtGrid), cssWidth - paddingRight + 6, y + 3);
+    }
   }
 
   const n = ohlc.length;
@@ -4443,16 +4462,18 @@ function renderCandlestickCanvas(canvas, points, hoveredIdx = -1, crosshairY = -
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Price badge on right axis
-    const badgeW = isMobile ? 42 : 62;
-    ctx.fillStyle = '#1E293B';
-    ctx.fillRect(cssWidth - paddingRight, targetY - 9, badgeW, 18);
-    ctx.strokeStyle = '#38BDF8';
-    ctx.strokeRect(cssWidth - paddingRight, targetY - 9, badgeW, 18);
-    ctx.fillStyle = '#F8FAFC';
-    ctx.font = isMobile ? '8.5px Sora, sans-serif' : '10px Sora, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(formatINR(target.close), cssWidth - paddingRight + badgeW / 2, targetY + 3.5);
+    // Price badge on right axis (desktop only)
+    if (!isMobile) {
+      const badgeW = 62;
+      ctx.fillStyle = '#1E293B';
+      ctx.fillRect(cssWidth - paddingRight, targetY - 9, badgeW, 18);
+      ctx.strokeStyle = '#38BDF8';
+      ctx.strokeRect(cssWidth - paddingRight, targetY - 9, badgeW, 18);
+      ctx.fillStyle = '#F8FAFC';
+      ctx.font = '10px Sora, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(formatINR(target.close), cssWidth - paddingRight + badgeW / 2, targetY + 3.5);
+    }
   }
 
   ctx.restore();
@@ -4592,6 +4613,14 @@ function renderLineChartWithChartJs(canvas, points) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      layout: {
+        padding: {
+          left: isMobile ? 4 : 0,
+          right: isMobile ? 4 : 0,
+          top: 8,
+          bottom: isMobile ? 4 : 0
+        }
+      },
       interaction: {
         mode: 'index',
         intersect: false,
@@ -4644,11 +4673,15 @@ function renderLineChartWithChartJs(canvas, points) {
         y: { 
           display: true,
           position: 'right',
-          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          grid: { 
+            drawTicks: false,
+            color: 'rgba(255, 255, 255, 0.05)' 
+          },
           ticks: {
+            display: !isMobile,
             color: '#64748B',
-            padding: isMobile ? 2 : 6,
-            font: { family: 'Sora', size: isMobile ? 8.5 : 11 },
+            padding: isMobile ? 0 : 6,
+            font: { family: 'Sora', size: 11 },
             callback: (val) => formatINR(val)
           }
         }
