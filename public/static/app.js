@@ -137,6 +137,15 @@ function formatChange(change, changePct) {
   return `${sign}${formatNumber(change)} (${sign}${formatNumber(changePct)}%)`;
 }
 
+function formatMarketCap(val) {
+  if (val === null || val === undefined || isNaN(val) || Number(val) <= 0) return '—';
+  const cr = Number(val) / 1e7;
+  if (cr >= 100000) {
+    return '₹' + (cr / 100000).toFixed(2) + 'L Cr';
+  }
+  return '₹' + cr.toLocaleString('en-IN', { maximumFractionDigits: 1 }) + ' Cr';
+}
+
 // --- Toast Notifications ---
 function showToast(message, isError = false) {
   const container = document.getElementById('toastContainer');
@@ -2007,7 +2016,10 @@ const growwChartPlugin = {
     }
 
     // 2. Draw Interactive Vertical Crosshair Guide, Radar Pulse Glow Dot, & Time Pill
-    const activeElements = chart.tooltip?._active;
+    const activeElements = (chart.getActiveElements && chart.getActiveElements().length > 0)
+      ? chart.getActiveElements()
+      : (chart.tooltip?._active || []);
+
     if (activeElements && activeElements.length > 0) {
       const activePoint = activeElements[0];
       const x = activePoint.element.x;
@@ -2019,49 +2031,55 @@ const growwChartPlugin = {
       ctx.save();
       // Thin vertical dashed guide line from top to bottom of chart area
       ctx.setLineDash([3, 3]);
-      ctx.strokeStyle = isDark ? 'rgba(148, 163, 184, 0.40)' : 'rgba(100, 116, 139, 0.40)';
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = isDark ? 'rgba(148, 163, 184, 0.35)' : 'rgba(100, 116, 139, 0.35)';
+      ctx.lineWidth = isMobile ? 0.8 : 1.0;
       ctx.beginPath();
       ctx.moveTo(x, chartArea.top);
       ctx.lineTo(x, chartArea.bottom);
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Outer Glowing Aura Ring (radius 10)
+      const auraRadius = isMobile ? 6.5 : 9.0;
+      const dotRadius = isMobile ? 3.5 : 5.0;
+      const ringWidth = isMobile ? 1.8 : 2.5;
+
+      // Outer Glowing Aura Ring
       ctx.beginPath();
-      ctx.arc(x, y, 10, 0, 2 * Math.PI);
+      ctx.arc(x, y, auraRadius, 0, 2 * Math.PI);
       ctx.fillStyle = isPos ? 'rgba(0, 208, 156, 0.22)' : 'rgba(235, 91, 60, 0.22)';
       ctx.fill();
 
-      // Solid Trend Color Circle (radius 5)
+      // Solid Trend Color Circle
       ctx.beginPath();
-      ctx.arc(x, y, 5, 0, 2 * Math.PI);
+      ctx.arc(x, y, dotRadius, 0, 2 * Math.PI);
       ctx.fillStyle = strokeColor;
       ctx.fill();
 
-      // Crisp White Ring
-      ctx.lineWidth = 2.5;
+      // Crisp Ring
+      ctx.lineWidth = ringWidth;
       ctx.strokeStyle = isDark ? '#0F172A' : '#FFFFFF';
       ctx.stroke();
 
       // Inner Center Core
       ctx.beginPath();
-      ctx.arc(x, y, 1.8, 0, 2 * Math.PI);
+      ctx.arc(x, y, isMobile ? 1.4 : 1.8, 0, 2 * Math.PI);
       ctx.fillStyle = isDark ? '#0F172A' : '#FFFFFF';
       ctx.fill();
 
-      // Floating Sleek Badge on the graph showing the price & time of the touched point
+      // Floating Sleek Top Badge showing the price & time of the touched point
+      // Pinned steadily along the top edge (chartArea.top + 6) and centered over the cursor/scrub line x.
+      // This prevents vertical jitter and jumping.
       const val = dataset?.data?.[activePoint.index];
       const label = chart.data.labels?.[activePoint.index];
       if (val !== undefined) {
         const priceStr = formatINR(val);
         const text = label ? `${priceStr}  •  ${label}` : priceStr;
-        ctx.font = '600 10.5px Sora, sans-serif';
+        ctx.font = isMobile ? '600 9.5px Sora, sans-serif' : '600 10.5px Sora, sans-serif';
         const textWidth = ctx.measureText(text).width;
-        const pillW = textWidth + 18;
-        const pillH = 22;
+        const pillW = textWidth + (isMobile ? 14 : 18);
+        const pillH = isMobile ? 20 : 22;
         const pillX = Math.max(chartArea.left + 4, Math.min(chartArea.right - pillW - 4, x - pillW / 2));
-        const pillY = Math.max(chartArea.top + 6, Math.min(chartArea.bottom - pillH - 6, y - 32 < chartArea.top ? y + 16 : y - 30));
+        const pillY = chartArea.top + 6;
 
         ctx.fillStyle = isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.96)';
         ctx.beginPath();
@@ -2078,7 +2096,7 @@ const growwChartPlugin = {
 
         ctx.fillStyle = isDark ? '#F8FAFC' : '#0F172A';
         ctx.textAlign = 'center';
-        ctx.fillText(text, pillX + pillW / 2, pillY + 15);
+        ctx.fillText(text, pillX + pillW / 2, pillY + (isMobile ? 14 : 15));
       }
 
       ctx.restore();
@@ -2118,17 +2136,17 @@ function renderChart(points) {
       datasets: [{
         data: values,
         borderColor: strokeColor,
-        borderWidth: 2.2,
+        borderWidth: isMobile ? 1.5 : 2.0,
         backgroundColor: gradient,
         fill: true,
-        tension: 0.36,
+        tension: 0.32,
         borderCapStyle: 'round',
         borderJoinStyle: 'round',
         pointRadius: 0,
-        pointHoverRadius: 5,
+        pointHoverRadius: isMobile ? 3.5 : 5.0,
         pointHoverBackgroundColor: strokeColor,
-        pointHoverBorderColor: '#fff',
-        pointHoverBorderWidth: 2.5
+        pointHoverBorderColor: isDark ? '#0F172A' : '#fff',
+        pointHoverBorderWidth: isMobile ? 1.8 : 2.5
       }]
     },
     plugins: [growwChartPlugin],
@@ -2137,8 +2155,8 @@ function renderChart(points) {
       maintainAspectRatio: false,
       layout: {
         padding: {
-          left: isMobile ? 4 : 0,
-          right: isMobile ? 4 : 0,
+          left: isMobile ? 2 : 0,
+          right: isMobile ? 2 : 0,
           top: 8,
           bottom: isMobile ? 4 : 0
         }
@@ -4276,20 +4294,25 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
       };
     }
 
-    const low = data.low || data.price * 0.985;
-    const high = data.high || data.price * 1.015;
-    const w52Low = data.low_52w || data.price * 0.75;
-    const w52High = data.high_52w || data.price * 1.35;
+    const low = data.day_low ?? data.low ?? (data.price * 0.985);
+    const high = data.day_high ?? data.high ?? (data.price * 1.015);
+    const w52Low = data.fifty_two_week_low ?? data.low_52w ?? (data.price * 0.75);
+    const w52High = data.fifty_two_week_high ?? data.high_52w ?? (data.price * 1.35);
+    const openPrice = data.open ?? data.prev_close ?? data.price;
+    const prevClose = data.previous_close ?? data.prev_close ?? (data.price - (data.change || 0));
 
     document.getElementById('perfTodayLow').innerText = formatINR(low);
     document.getElementById('perfTodayHigh').innerText = formatINR(high);
     document.getElementById('perf52wLow').innerText = formatINR(w52Low);
     document.getElementById('perf52wHigh').innerText = formatINR(w52High);
-    document.getElementById('perfOpen').innerText = formatINR(data.open || data.price * 0.99);
-    document.getElementById('perfPrevClose').innerText = formatINR(data.prev_close || data.price - data.change);
-    document.getElementById('perfVolume').innerText = data.volume ? Number(data.volume).toLocaleString('en-IN') : '34.2L';
-    document.getElementById('perfLowerCircuit').innerText = formatINR(data.price * 0.9);
-    document.getElementById('perfUpperCircuit').innerText = formatINR(data.price * 1.1);
+    document.getElementById('perfOpen').innerText = formatINR(openPrice);
+    document.getElementById('perfPrevClose').innerText = formatINR(prevClose);
+    document.getElementById('perfVolume').innerText = data.volume ? Number(data.volume).toLocaleString('en-IN') : '—';
+    // Circuit limits are 10% below/above Previous Close in NSE standard circuit bands
+    const lowerCircuit = prevClose ? prevClose * 0.90 : data.price * 0.90;
+    const upperCircuit = prevClose ? prevClose * 1.10 : data.price * 1.10;
+    document.getElementById('perfLowerCircuit').innerText = formatINR(lowerCircuit);
+    document.getElementById('perfUpperCircuit').innerText = formatINR(upperCircuit);
 
     const todayPct = high > low ? Math.max(5, Math.min(95, ((data.price - low) / (high - low)) * 100)) : 50;
     document.getElementById('perfTodayMarker').style.left = `${todayPct}%`;
@@ -4447,22 +4470,32 @@ function renderPageFundamentals(data) {
       <div class="fundamental-item"><span class="f-name">NAV</span><strong class="f-val">${formatINR(data.price)}</strong></div>
       <div class="fundamental-item"><span class="f-name">Fund Category</span><strong class="f-val">${data.category || 'Flexi Cap'}</strong></div>
       <div class="fundamental-item"><span class="f-name">AUM (Fund Size)</span><strong class="f-val">${data.aum || '₹72,400 Cr'}</strong></div>
-      <div class="fundamental-item"><span class="f-name">Expense Ratio</span><strong class="f-val">${data.expense_ratio || '0.62%'}</strong></div>
-      <div class="fundamental-item"><span class="f-name">1Y Return</span><strong class="f-val text-positive">${data.return_1y || '+18.4%'}</strong></div>
-      <div class="fundamental-item"><span class="f-name">3Y Return (CAGR)</span><strong class="f-val text-positive">${data.return_3y || '+24.1%'}</strong></div>
+      <div class="fundamental-item"><span class="f-name">Expense Ratio</span><strong class="f-val">${data.expense_ratio ? data.expense_ratio + '%' : '0.62%'}</strong></div>
+      <div class="fundamental-item"><span class="f-name">1Y Return</span><strong class="f-val text-positive">${data.return_1y ? '+' + data.return_1y + '%' : '+18.4%'}</strong></div>
+      <div class="fundamental-item"><span class="f-name">3Y Return (CAGR)</span><strong class="f-val text-positive">${data.return_3y ? '+' + data.return_3y + '%' : '+24.1%'}</strong></div>
       <div class="fundamental-item"><span class="f-name">Risk Rating</span><strong class="f-val">Very High</strong></div>
       <div class="fundamental-item"><span class="f-name">Fund Manager</span><strong class="f-val">${data.fund_manager || 'Rajeev Thakkar'}</strong></div>
     `;
   } else {
+    const pe = (data.pe_ratio !== undefined && data.pe_ratio !== null) ? data.pe_ratio : '—';
+    const pb = (data.pb_ratio !== undefined && data.pb_ratio !== null) ? data.pb_ratio : '—';
+    const indPe = data.industry_pe || (data.pe_ratio ? (data.pe_ratio * 0.94).toFixed(2) : '—');
+    const d2e = (data.debt_to_equity !== undefined && data.debt_to_equity !== null) ? data.debt_to_equity : '—';
+    const roe = (data.roe !== undefined && data.roe !== null) ? data.roe + '%' : '—';
+    const eps = (data.eps !== undefined && data.eps !== null) ? '₹' + data.eps : '—';
+    const divYield = (data.dividend_yield !== undefined && data.dividend_yield !== null)
+      ? data.dividend_yield + '%'
+      : (data.div_yield ? data.div_yield + '%' : '0.00%');
+
     grid.innerHTML = `
-      <div class="fundamental-item"><span class="f-name">Market Cap</span><strong class="f-val">${data.market_cap ? '₹' + Number(data.market_cap).toLocaleString('en-IN') + ' Cr' : '₹18.4L Cr'}</strong></div>
-      <div class="fundamental-item"><span class="f-name">P/E Ratio</span><strong class="f-val">${data.pe_ratio || '24.8'}</strong></div>
-      <div class="fundamental-item"><span class="f-name">P/B Ratio</span><strong class="f-val">${data.pb_ratio || '3.12'}</strong></div>
-      <div class="fundamental-item"><span class="f-name">Industry P/E</span><strong class="f-val">${data.industry_pe || '22.4'}</strong></div>
-      <div class="fundamental-item"><span class="f-name">Debt to Equity</span><strong class="f-val">${data.debt_to_equity || '0.42'}</strong></div>
-      <div class="fundamental-item"><span class="f-name">ROE</span><strong class="f-val">${data.roe ? data.roe + '%' : '14.8%'}</strong></div>
-      <div class="fundamental-item"><span class="f-name">EPS (TTM)</span><strong class="f-val">${data.eps ? '₹' + data.eps : '₹54.20'}</strong></div>
-      <div class="fundamental-item"><span class="f-name">Dividend Yield</span><strong class="f-val">${data.div_yield ? data.div_yield + '%' : '0.45%'}</strong></div>
+      <div class="fundamental-item"><span class="f-name">Market Cap</span><strong class="f-val">${formatMarketCap(data.market_cap)}</strong></div>
+      <div class="fundamental-item"><span class="f-name">P/E Ratio</span><strong class="f-val">${pe}</strong></div>
+      <div class="fundamental-item"><span class="f-name">P/B Ratio</span><strong class="f-val">${pb}</strong></div>
+      <div class="fundamental-item"><span class="f-name">Industry P/E</span><strong class="f-val">${indPe}</strong></div>
+      <div class="fundamental-item"><span class="f-name">Debt to Equity</span><strong class="f-val">${d2e}</strong></div>
+      <div class="fundamental-item"><span class="f-name">ROE</span><strong class="f-val">${roe}</strong></div>
+      <div class="fundamental-item"><span class="f-name">EPS (TTM)</span><strong class="f-val">${eps}</strong></div>
+      <div class="fundamental-item"><span class="f-name">Dividend Yield</span><strong class="f-val">${divYield}</strong></div>
     `;
   }
 }
@@ -4790,7 +4823,7 @@ function initChartScrubbing() {
   if (!canvas || canvas.dataset.scrubAttached) return;
   canvas.dataset.scrubAttached = 'true';
 
-  function handleScrub(clientX, clientY) {
+  function handleTouchScrub(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     const x = clientX - rect.left;
     const y = clientY - rect.top;
@@ -4811,39 +4844,52 @@ function initChartScrubbing() {
       const idx = Math.max(0, Math.min(currentChartPoints.length - 1, Math.round(ratio * (currentChartPoints.length - 1))));
 
       if (currentChartPoints[idx]) {
-        const yVal = chart.data.datasets[0]?.data?.[idx] || 0;
-        const yPixel = chart.scales.y ? chart.scales.y.getPixelForValue(yVal) : y;
-        
         chart.setActiveElements([{ datasetIndex: 0, index: idx }]);
-        if (chart.tooltip) {
-          chart.tooltip.setActiveElements([{ datasetIndex: 0, index: idx }], { x: clampedX, y: yPixel });
-        }
         chart.update('none');
       }
     }
   }
 
-  function handleEnd() {
+  function handleTouchEnd() {
     if (currentChartType === 'candle') {
       renderCandlestickCanvas(canvas, currentChartPoints);
     } else if (currentChartType === 'line' && pageChartInstance) {
       pageChartInstance.setActiveElements([]);
-      if (pageChartInstance.tooltip) pageChartInstance.tooltip.setActiveElements([], {});
       pageChartInstance.update('none');
     }
     resetHeroPrice();
   }
 
-  canvas.addEventListener('mousemove', (e) => handleScrub(e.clientX, e.clientY));
-  canvas.addEventListener('mouseleave', handleEnd);
+  // Smooth touch scrubbing for mobile devices
   canvas.addEventListener('touchstart', (e) => {
-    if (e.touches && e.touches.length > 0) handleScrub(e.touches[0].clientX, e.touches[0].clientY);
+    if (e.touches && e.touches.length > 0) handleTouchScrub(e.touches[0].clientX, e.touches[0].clientY);
   }, { passive: true });
   canvas.addEventListener('touchmove', (e) => {
-    if (e.touches && e.touches.length > 0) handleScrub(e.touches[0].clientX, e.touches[0].clientY);
+    if (e.touches && e.touches.length > 0) handleTouchScrub(e.touches[0].clientX, e.touches[0].clientY);
   }, { passive: true });
-  canvas.addEventListener('touchend', handleEnd);
-  canvas.addEventListener('touchcancel', handleEnd);
+  canvas.addEventListener('touchend', handleTouchEnd);
+  canvas.addEventListener('touchcancel', handleTouchEnd);
+
+  // Desktop candlestick canvas hover (Chart.js handles line chart mouse hover natively with 0 lag/glitch)
+  canvas.addEventListener('mousemove', (e) => {
+    if (currentChartType === 'candle') {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      if (candleState) {
+        const idx = Math.floor((x - candleState.paddingLeft) / candleState.candleSlot);
+        if (idx >= 0 && idx < candleState.ohlc.length) {
+          renderCandlestickCanvas(canvas, currentChartPoints, idx, y);
+        }
+      }
+    }
+  });
+  canvas.addEventListener('mouseleave', () => {
+    if (currentChartType === 'candle') {
+      renderCandlestickCanvas(canvas, currentChartPoints);
+      resetHeroPrice();
+    }
+  });
 }
 
 function renderCurrentChart() {
@@ -4909,17 +4955,17 @@ function renderLineChartWithChartJs(canvas, points) {
     label: 'Price',
     data: prices,
     borderColor: strokeColor,
-    borderWidth: 2.2,
+    borderWidth: isMobile ? 1.5 : 2.0,
     backgroundColor: gradient,
     fill: true,
-    tension: 0.36,
+    tension: 0.32,
     borderCapStyle: 'round',
     borderJoinStyle: 'round',
     pointRadius: 0,
-    pointHoverRadius: 5,
+    pointHoverRadius: isMobile ? 3.5 : 5.0,
     pointHoverBackgroundColor: strokeColor,
-    pointHoverBorderColor: '#ffffff',
-    pointHoverBorderWidth: 2.5
+    pointHoverBorderColor: isDark ? '#0F172A' : '#ffffff',
+    pointHoverBorderWidth: isMobile ? 1.8 : 2.5
   }];
 
   if (activeEmas.has(20)) {
@@ -4929,7 +4975,7 @@ function renderLineChartWithChartJs(canvas, points) {
       borderColor: '#F59E0B',
       borderWidth: 1.8,
       fill: false,
-      tension: 0.36,
+      tension: 0.32,
       borderCapStyle: 'round',
       borderJoinStyle: 'round',
       pointRadius: 0
@@ -4943,7 +4989,7 @@ function renderLineChartWithChartJs(canvas, points) {
       borderColor: '#8B5CF6',
       borderWidth: 1.8,
       fill: false,
-      tension: 0.36,
+      tension: 0.32,
       borderCapStyle: 'round',
       borderJoinStyle: 'round',
       pointRadius: 0
@@ -4962,10 +5008,10 @@ function renderLineChartWithChartJs(canvas, points) {
       maintainAspectRatio: false,
       layout: {
         padding: {
-          left: isMobile ? 4 : 0,
-          right: isMobile ? 4 : 0,
+          left: isMobile ? 2 : 0,
+          right: isMobile ? 2 : 0,
           top: 8,
-          bottom: isMobile ? 4 : 0
+          bottom: isMobile ? 2 : 0
         }
       },
       interaction: {

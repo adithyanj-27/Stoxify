@@ -525,16 +525,24 @@ def read_depth(symbol: str):
     tot_bid = 0
     tot_ask = 0
 
+    # NSE standard minimum tick size is Rs. 0.05
+    tick = 0.05
+    spread_ticks = max(1, round(ltp * 0.0003 / tick))
+    # Use deterministic symbol & price seed so order book ladder does not wildly jitter
+    rnd = random.Random(sum(ord(c) for c in symbol) + int(ltp * 10))
+
     for i in range(1, 6):
-        bp = round(ltp * (1.0 - (i * 0.0008)), 2)
-        bq = random.randint(250, 4500)
-        bo = random.randint(2, 22)
+        bp = round(round((ltp - (i * spread_ticks * tick)) / tick) * tick, 2)
+        if bp <= 0:
+            bp = round(ltp * 0.99, 2)
+        bq = rnd.randint(200, 3500)
+        bo = rnd.randint(2, 18)
         tot_bid += bq
         bids.append({"orders": bo, "quantity": bq, "price": bp})
 
-        ap = round(ltp * (1.0 + (i * 0.0008)), 2)
-        aq = random.randint(250, 4500)
-        ao = random.randint(2, 22)
+        ap = round(round((ltp + (i * spread_ticks * tick)) / tick) * tick, 2)
+        aq = rnd.randint(200, 3500)
+        ao = rnd.randint(2, 18)
         tot_ask += aq
         asks.append({"price": ap, "quantity": aq, "orders": ao})
 

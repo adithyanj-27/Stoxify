@@ -143,12 +143,29 @@ def _refresh_stock_quote_sync(formatted_symbol: str) -> Dict[str, Any]:
         change = round(price - prev_close, 2)
         change_pct = round((change / prev_close) * 100, 2) if prev_close else 0.0
 
+        open_price = getattr(fast, "open", None)
         day_high = getattr(fast, "day_high", None)
         day_low = getattr(fast, "day_low", None)
         year_high = getattr(fast, "year_high", None)
         year_low = getattr(fast, "year_low", None)
         market_cap = getattr(fast, "market_cap", None)
         volume = getattr(fast, "last_volume", None)
+
+        # Retrieve rich real fundamentals from yfinance
+        info = {}
+        try:
+            info = t.info or {}
+        except Exception:
+            pass
+
+        pe_ratio = info.get("trailingPE") or info.get("forwardPE")
+        pb_ratio = info.get("priceToBook")
+        div_yield = info.get("dividendYield")
+        eps = info.get("trailingEps") or info.get("forwardEps")
+        debt_to_equity = info.get("debtToEquity")
+        roe = info.get("returnOnEquity")
+        book_value = info.get("bookValue")
+        industry = info.get("industry") or sector
 
         data = {
             "symbol": formatted_symbol,
@@ -158,16 +175,28 @@ def _refresh_stock_quote_sync(formatted_symbol: str) -> Dict[str, Any]:
             "change": change,
             "change_pct": change_pct,
             "previous_close": prev_close,
+            "prev_close": prev_close,
+            "open": round(float(open_price or prev_close), 2) if open_price else prev_close,
             "day_high": round(float(day_high or (price * 1.015)), 2),
             "day_low": round(float(day_low or (price * 0.985)), 2),
+            "high": round(float(day_high or (price * 1.015)), 2),
+            "low": round(float(day_low or (price * 0.985)), 2),
             "fifty_two_week_high": round(float(year_high or (price * 1.25)), 2),
             "fifty_two_week_low": round(float(year_low or (price * 0.80)), 2),
+            "high_52w": round(float(year_high or (price * 1.25)), 2),
+            "low_52w": round(float(year_low or (price * 0.80)), 2),
             "market_cap": int(market_cap) if market_cap else 500000000000,
-            "pe_ratio": 24.5,
-            "pb_ratio": 3.2,
-            "dividend_yield": 1.1,
+            "pe_ratio": round(float(pe_ratio), 2) if pe_ratio else None,
+            "pb_ratio": round(float(pb_ratio), 2) if pb_ratio else None,
+            "dividend_yield": round(float(div_yield * 100 if div_yield and div_yield < 0.5 else (div_yield or 0)), 2) if div_yield else None,
+            "div_yield": round(float(div_yield * 100 if div_yield and div_yield < 0.5 else (div_yield or 0)), 2) if div_yield else None,
+            "eps": round(float(eps), 2) if eps else None,
+            "debt_to_equity": round(float(debt_to_equity / 100.0 if debt_to_equity and debt_to_equity > 5 else (debt_to_equity or 0)), 2) if debt_to_equity else None,
+            "roe": round(float(roe * 100 if roe and roe < 1 else (roe or 0)), 2) if roe else None,
+            "book_value": round(float(book_value), 2) if book_value else None,
             "volume": int(volume) if volume else 1000000,
-            "sector": sector
+            "sector": sector,
+            "industry": industry
         }
         set_cached(cache_key, data, ttl=60)
         return data
