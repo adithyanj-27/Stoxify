@@ -2478,6 +2478,13 @@ function bootApp() {
     if (state.currentTab === 'holdings') fetchPortfolio();
     if (state.currentTab === 'positions') fetchPositions();
   }, 20000);
+
+  // Auto-launch guided tour for beginners who haven't completed it
+  setTimeout(() => {
+    if (currentUser && !currentUser.has_completed_tour && currentUser.id !== 'guest') {
+      checkAndLaunchTour();
+    }
+  }, 1000);
 }
 
 if (document.readyState === 'loading') {
@@ -3680,6 +3687,10 @@ async function submitLogin() {
 
     if (window.location.pathname === '/onboarding' || window.location.pathname === '/login') {
       navigateTo('/explore');
+    }
+
+    if (!currentUser.has_completed_tour) {
+      setTimeout(() => checkAndLaunchTour(), 800);
     }
   } catch (err) {
     console.error('Login error:', err);
@@ -5568,26 +5579,34 @@ let sandboxMockState = {
 };
 let currentTourStep = 0;
 
-function checkAndLaunchTour() {
+function startAppTourFromMenu() {
+  const menu = document.getElementById('userDropdownMenu');
+  if (menu) menu.style.display = 'none';
+  checkAndLaunchTour(true);
+}
+
+function checkAndLaunchTour(force = false) {
+  const promptModal = document.getElementById('tourPromptModal');
+  if (!promptModal) return;
+
+  if (force) {
+    promptModal.style.display = 'flex';
+    return;
+  }
+
   if (!currentUser || currentUser.id === 'guest') return;
 
   const exp = (currentUser.experience || 'None / Total Beginner').trim();
   const isExperienced = (exp === '1–2 Years' || exp === '1-2 Years' || exp === '2+ Years');
 
   if (isExperienced || currentUser.has_completed_tour) {
-    if (!currentUser.has_completed_tour) {
-      markTourCompleteOnServer();
-    }
     return;
   }
 
   // Beginner tiers: "None / Total Beginner" or "< 1 Year"
-  const promptModal = document.getElementById('tourPromptModal');
-  if (promptModal) {
-    setTimeout(() => {
-      promptModal.style.display = 'flex';
-    }, 600);
-  }
+  setTimeout(() => {
+    promptModal.style.display = 'flex';
+  }, 500);
 }
 
 function skipTour() {
@@ -5601,11 +5620,14 @@ function acceptTour() {
   const promptModal = document.getElementById('tourPromptModal');
   if (promptModal) promptModal.style.display = 'none';
 
-  const userAge = parseInt(currentUser.age, 10) || 18;
+  const userAge = currentUser ? (parseInt(currentUser.age, 10) || 18) : 18;
   if (userAge < 18) {
     openSandboxModal();
   } else {
-    startDashboardTour();
+    switchTab('explore');
+    setTimeout(() => {
+      startDashboardTour();
+    }, 250);
   }
 }
 
@@ -5740,17 +5762,19 @@ function triggerSandboxConfetti() {
 
 function finishSandboxTour() {
   closeSandboxModal();
-  showToast(`🎉 Practice complete! Welcome to Stoxifyin', ${currentUser.name}!`);
+  const name = (currentUser && currentUser.name) ? currentUser.name : 'Trader';
+  showToast(`🎉 Practice complete! Welcome to Stoxifyin', ${name}!`);
   navigateTo('/explore');
 }
 
 /* Dashboard Spotlight Tour Logic (Age >= 18) */
 const TOUR_STEPS = [
   {
-    targetId: 'pane-explore',
-    title: 'Explore & Watchlist',
-    body: 'Track real-time market indices like Nifty 50 & Sensex, search popular stocks and mutual funds, and monitor top gainers.',
-    preferredPosition: 'top'
+    targetId: 'indicesBar',
+    fallbackId: 'pane-explore',
+    title: 'Explore & Real-Time Market',
+    body: 'Track real-time Indian indices like Nifty 50, Sensex & Bank Nifty, and discover top gaining stocks and mutual funds.',
+    preferredPosition: 'bottom'
   },
   {
     targetId: 'navProfileWrapper',
@@ -5760,7 +5784,7 @@ const TOUR_STEPS = [
     preferredPosition: 'bottom'
   },
   {
-    targetId: 'stockWatchlistContainer',
+    targetId: 'mostBoughtSection',
     fallbackId: 'pane-explore',
     title: 'Instant Order Execution',
     body: 'Click any stock to view live candlestick charts, open the trade ticket, and practice Market, Limit, or Stop-Loss orders with zero real money risk.',

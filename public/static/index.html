@@ -204,6 +204,10 @@
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
             <span>Market Timings & Rules</span>
           </button>
+          <button class="dropdown-item" onclick="startAppTourFromMenu()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+            <span>Interactive App Tour 🚀</span>
+          </button>
           <button class="dropdown-item" id="dropdownInstallItem" onclick="installPWA()">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
             <span>Install Stoxifyin' App</span>
@@ -1430,10 +1434,21 @@
 
             <button type="button" class="profile-menu-item" onclick="openMarketHoursModal()">
               <div class="menu-item-left">
-                <span class="menu-item-icon">⏰</span>
+                <span class="menu-item-icon">🕒</span>
                 <div>
                   <div class="menu-item-title">Market Timings & Rules</div>
-                  <div class="menu-item-sub">NSE / BSE hours and leverage guidelines</div>
+                  <div class="menu-item-sub">NSE / BSE trading sessions, auto square-off & AMO</div>
+                </div>
+              </div>
+              <span class="menu-item-arrow">›</span>
+            </button>
+
+            <button type="button" class="profile-menu-item" onclick="startAppTourFromMenu()">
+              <div class="menu-item-left">
+                <span class="menu-item-icon">🚀</span>
+                <div>
+                  <div class="menu-item-title">Interactive App Tour & Practice</div>
+                  <div class="menu-item-sub">Guided walkthrough of live charts, trading & virtual bank</div>
                 </div>
               </div>
               <span class="menu-item-arrow">›</span>
@@ -3078,6 +3093,11 @@
       <div class="tour-prompt-actions">
         <button type="button" class="btn-subtle tour-btn-skip" onclick="skipTour()">Skip</button>
         <button type="button" class="btn-primary tour-btn-start" onclick="acceptTour()">Let's Go 🚀</button>
+      </div>
+      <div style="text-align: center; margin-top: 0.85rem;">
+        <button type="button" onclick="document.getElementById('tourPromptModal').style.display='none'; openSandboxModal();" style="background: none; border: none; font-size: 0.78rem; color: var(--brand-cyan); font-weight: 700; cursor: pointer; text-decoration: underline;">
+          🎮 Practice in Under-18 Gamified Sandbox Mode →
+        </button>
       </div>
     </div>
   </div>
