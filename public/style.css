@@ -2929,6 +2929,8 @@ body.pwa-installed #mobileInstallBanner {
     width: 100% !important;
     display: block !important;
     box-sizing: border-box !important;
+    touch-action: pan-y;
+    cursor: crosshair;
   }
 
   .asset-tab-strip,

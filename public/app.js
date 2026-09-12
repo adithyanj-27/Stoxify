@@ -1971,21 +1971,142 @@ async function loadChartTimeframe(tf) {
   }
 }
 
+// --- Groww-Grade Aesthetic Financial Chart Plugin ---
+// Provides subtle dashed baseline (previous close), interactive vertical guide,
+// radiant hover pulse dot, and clean X-axis time pill without intrusive tooltips covering the curve.
+const growwChartPlugin = {
+  id: 'growwChartPlugin',
+  afterDraw: (chart) => {
+    const { ctx, chartArea, scales: { x: xScale, y: yScale } } = chart;
+    if (!chartArea || !xScale || !yScale) return;
+
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const isMobile = window.innerWidth <= 768;
+
+    // 1. Draw Previous Close Horizontal Baseline (for 1D session baseline)
+    const baseline = chart.options.plugins?.growwOptions?.baseline;
+    if (baseline && baseline >= yScale.min && baseline <= yScale.max) {
+      const yBaseline = yScale.getPixelForValue(baseline);
+      ctx.save();
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = isDark ? 'rgba(148, 163, 184, 0.28)' : 'rgba(100, 116, 139, 0.28)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(chartArea.left, yBaseline);
+      ctx.lineTo(chartArea.right, yBaseline);
+      ctx.stroke();
+
+      // Right axis baseline indicator label (desktop only)
+      if (!isMobile && chartArea.right - chartArea.left > 220) {
+        ctx.fillStyle = isDark ? '#94A3B8' : '#64748B';
+        ctx.font = '500 9.5px Sora, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(`Prev. Close: ${formatINR(baseline)}`, chartArea.right - 8, yBaseline - 5);
+      }
+      ctx.restore();
+    }
+
+    // 2. Draw Interactive Vertical Crosshair Guide, Radar Pulse Glow Dot, & Time Pill
+    const activeElements = chart.tooltip?._active;
+    if (activeElements && activeElements.length > 0) {
+      const activePoint = activeElements[0];
+      const x = activePoint.element.x;
+      const y = activePoint.element.y;
+      const dataset = chart.data.datasets[activePoint.datasetIndex || 0];
+      const strokeColor = dataset?.borderColor || '#00D09C';
+      const isPos = strokeColor === '#00D09C';
+
+      ctx.save();
+      // Thin vertical dashed guide line from top to bottom of chart area
+      ctx.setLineDash([3, 3]);
+      ctx.strokeStyle = isDark ? 'rgba(148, 163, 184, 0.40)' : 'rgba(100, 116, 139, 0.40)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, chartArea.top);
+      ctx.lineTo(x, chartArea.bottom);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Outer Glowing Aura Ring (radius 10)
+      ctx.beginPath();
+      ctx.arc(x, y, 10, 0, 2 * Math.PI);
+      ctx.fillStyle = isPos ? 'rgba(0, 208, 156, 0.22)' : 'rgba(235, 91, 60, 0.22)';
+      ctx.fill();
+
+      // Solid Trend Color Circle (radius 5)
+      ctx.beginPath();
+      ctx.arc(x, y, 5, 0, 2 * Math.PI);
+      ctx.fillStyle = strokeColor;
+      ctx.fill();
+
+      // Crisp White Ring
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = isDark ? '#0F172A' : '#FFFFFF';
+      ctx.stroke();
+
+      // Inner Center Core
+      ctx.beginPath();
+      ctx.arc(x, y, 1.8, 0, 2 * Math.PI);
+      ctx.fillStyle = isDark ? '#0F172A' : '#FFFFFF';
+      ctx.fill();
+
+      // Floating Sleek Time Badge at bottom of crosshair
+      const label = chart.data.labels?.[activePoint.index];
+      if (label) {
+        ctx.font = '600 10px Sora, sans-serif';
+        const textWidth = ctx.measureText(label).width;
+        const pillW = textWidth + 14;
+        const pillH = 18;
+        const pillX = Math.max(chartArea.left, Math.min(chartArea.right - pillW, x - pillW / 2));
+        const pillY = Math.min(chart.height - pillH - 2, chartArea.bottom + 4);
+
+        ctx.fillStyle = isDark ? '#1E293B' : '#0F172A';
+        ctx.beginPath();
+        if (ctx.roundRect) {
+          ctx.roundRect(pillX, pillY, pillW, pillH, 4);
+        } else {
+          ctx.rect(pillX, pillY, pillW, pillH);
+        }
+        ctx.fill();
+
+        ctx.strokeStyle = isDark ? '#334155' : '#475569';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.fillStyle = '#F8FAFC';
+        ctx.textAlign = 'center';
+        ctx.fillText(label, pillX + pillW / 2, pillY + 12.5);
+      }
+
+      ctx.restore();
+    }
+  }
+};
+window.growwChartPlugin = growwChartPlugin;
+
 function renderChart(points) {
   const canvas = document.getElementById('tradeChartCanvas');
+  if (!canvas) return;
   const ctx = canvas.getContext('2d');
   if (state.chartInstance) state.chartInstance.destroy();
 
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
   const isMobile = window.innerWidth <= 768;
   const labels = points.map(p => p.time);
-  const values = points.map(p => p.value);
-  const isPos = values[values.length - 1] >= values[0];
+  const values = points.map(p => (p.value !== undefined ? p.value : p.price) || 0);
+  const firstVal = values[0] || 0;
+  const lastVal = values[values.length - 1] || 0;
+  
+  const isPos = lastVal >= firstVal;
   const strokeColor = isPos ? '#00D09C' : '#EB5B3C';
   
-  const gradient = ctx.createLinearGradient(0, 0, 0, 220);
-  gradient.addColorStop(0, isPos ? 'rgba(0, 208, 156, 0.25)' : 'rgba(235, 91, 60, 0.25)');
-  gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  const chartHeight = canvas.clientHeight || 220;
+  const gradient = ctx.createLinearGradient(0, 0, 0, chartHeight);
+  gradient.addColorStop(0, isPos ? 'rgba(0, 208, 156, 0.20)' : 'rgba(235, 91, 60, 0.20)');
+  gradient.addColorStop(0.5, isPos ? 'rgba(0, 208, 156, 0.05)' : 'rgba(235, 91, 60, 0.05)');
+  gradient.addColorStop(1, isPos ? 'rgba(0, 208, 156, 0.0)' : 'rgba(235, 91, 60, 0.0)');
+
+  const baseline = state.currentModalAsset ? (state.currentModalAsset.price - (state.currentModalAsset.change || 0)) : null;
 
   state.chartInstance = new Chart(ctx, {
     type: 'line',
@@ -1994,17 +2115,20 @@ function renderChart(points) {
       datasets: [{
         data: values,
         borderColor: strokeColor,
-        borderWidth: 2,
+        borderWidth: 2.2,
         backgroundColor: gradient,
         fill: true,
-        tension: 0.2,
+        tension: 0.36,
+        borderCapStyle: 'round',
+        borderJoinStyle: 'round',
         pointRadius: 0,
-        pointHoverRadius: 4,
+        pointHoverRadius: 5,
         pointHoverBackgroundColor: strokeColor,
         pointHoverBorderColor: '#fff',
-        pointHoverBorderWidth: 2
+        pointHoverBorderWidth: 2.5
       }]
     },
+    plugins: [growwChartPlugin],
     options: {
       responsive: true,
       maintainAspectRatio: false,
@@ -2012,36 +2136,52 @@ function renderChart(points) {
         padding: {
           left: isMobile ? 4 : 0,
           right: isMobile ? 4 : 0,
-          top: 4,
+          top: 8,
           bottom: isMobile ? 4 : 0
         }
       },
-      interaction: { intersect: false, mode: 'index' },
+      interaction: { intersect: false, mode: 'index', axis: 'x' },
+      onHover: (event, elements) => {
+        if (elements && elements.length > 0) {
+          const idx = elements[0].index;
+          if (points[idx] && state.currentModalAsset) {
+            const ptPrice = points[idx].value || points[idx].price;
+            if (ptPrice) document.getElementById('modalPrice').innerText = formatINR(ptPrice);
+          }
+        } else if (state.currentModalAsset) {
+          document.getElementById('modalPrice').innerText = formatINR(state.currentModalAsset.price);
+        }
+      },
       plugins: {
         legend: { display: false },
+        growwOptions: { baseline: baseline },
         tooltip: {
+          enabled: true,
           backgroundColor: isDark ? '#1C2230' : '#FFFFFF',
-          titleColor: isDark ? '#F0F4F8' : '#0F172A',
+          titleColor: isDark ? '#94A3B8' : '#64748B',
           bodyColor: strokeColor,
           borderColor: isDark ? '#2B3548' : '#E2E8F0',
           borderWidth: 1,
           padding: 8,
+          cornerRadius: 6,
           displayColors: false,
           callbacks: { label: (ctx) => `Price: ${formatINR(ctx.parsed.y)}` }
         }
       },
       scales: {
-        x: { display: false },
+        x: { display: false, border: { display: false } },
         y: {
           position: 'right',
+          grace: '8%',
+          border: { display: false },
           grid: { 
             drawTicks: false,
-            color: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)' 
+            color: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)' 
           },
           ticks: { 
             display: !isMobile,
             color: isDark ? '#64748B' : '#94A3B8', 
-            font: { size: 10 }, 
+            font: { size: 10, family: 'Sora, sans-serif' }, 
             callback: (val) => `₹${val}` 
           }
         }
@@ -4565,11 +4705,11 @@ function renderCandlestickCanvas(canvas, points, hoveredIdx = -1, crosshairY = -
   ohlc.forEach((bar, i) => {
     const x = paddingLeft + i * candleSlot + candleSlot / 2;
     const isBull = bar.close >= bar.open;
-    const color = isBull ? '#10B981' : '#F43F5E';
+    const color = isBull ? '#00D09C' : '#EB5B3C';
 
     // 1. Volume Bar (Separated in bottom sub-pane)
     const volH = Math.max(2, (bar.volume / maxVol) * volumeHeight);
-    ctx.fillStyle = isBull ? 'rgba(16, 185, 129, 0.22)' : 'rgba(244, 63, 94, 0.22)';
+    ctx.fillStyle = isBull ? 'rgba(0, 208, 156, 0.22)' : 'rgba(235, 91, 60, 0.22)';
     ctx.fillRect(x - candleBodyWidth / 2, paddingTop + chartHeight - volH, candleBodyWidth, volH);
 
     // 2. Wick
@@ -4687,21 +4827,47 @@ function initChartScrubbing() {
   canvas.dataset.scrubAttached = 'true';
 
   function handleScrub(clientX, clientY) {
-    if (!candleState || currentChartType !== 'candle') return;
     const rect = canvas.getBoundingClientRect();
     const x = clientX - rect.left;
     const y = clientY - rect.top;
 
-    const idx = Math.floor((x - candleState.paddingLeft) / candleState.candleSlot);
-    if (idx >= 0 && idx < candleState.ohlc.length) {
-      renderCandlestickCanvas(canvas, currentChartPoints, idx, y);
-      updateHeroPriceForPoint(candleState.ohlc[idx]);
+    if (currentChartType === 'candle') {
+      if (!candleState) return;
+      const idx = Math.floor((x - candleState.paddingLeft) / candleState.candleSlot);
+      if (idx >= 0 && idx < candleState.ohlc.length) {
+        renderCandlestickCanvas(canvas, currentChartPoints, idx, y);
+        updateHeroPriceForPoint(candleState.ohlc[idx]);
+      }
+    } else if (currentChartType === 'line' && pageChartInstance) {
+      const chart = pageChartInstance;
+      if (!chart.chartArea || !currentChartPoints || currentChartPoints.length === 0) return;
+
+      const area = chart.chartArea;
+      const clampedX = Math.max(area.left, Math.min(area.right, x));
+      const ratio = (clampedX - area.left) / Math.max(1, area.right - area.left);
+      const idx = Math.max(0, Math.min(currentChartPoints.length - 1, Math.round(ratio * (currentChartPoints.length - 1))));
+
+      if (currentChartPoints[idx]) {
+        updateHeroPriceForPoint(currentChartPoints[idx]);
+        const yVal = chart.data.datasets[0]?.data?.[idx] || 0;
+        const yPixel = chart.scales.y ? chart.scales.y.getPixelForValue(yVal) : y;
+        
+        chart.setActiveElements([{ datasetIndex: 0, index: idx }]);
+        if (chart.tooltip) {
+          chart.tooltip.setActiveElements([{ datasetIndex: 0, index: idx }], { x: clampedX, y: yPixel });
+        }
+        chart.update('none');
+      }
     }
   }
 
   function handleEnd() {
     if (currentChartType === 'candle') {
       renderCandlestickCanvas(canvas, currentChartPoints);
+    } else if (currentChartType === 'line' && pageChartInstance) {
+      pageChartInstance.setActiveElements([]);
+      if (pageChartInstance.tooltip) pageChartInstance.tooltip.setActiveElements([], {});
+      pageChartInstance.update('none');
     }
     resetHeroPrice();
   }
@@ -4761,11 +4927,21 @@ function renderLineChartWithChartJs(canvas, points) {
   }
 
   const isMobile = window.innerWidth <= 768;
-  const strokeColor = isPos ? '#10B981' : '#F43F5E';
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const strokeColor = isPos ? '#00D09C' : '#EB5B3C';
   const chartHeight = canvas.clientHeight || (isMobile ? 255 : 380);
+
+  // Triple-stop radiant luminous gradient (clean fade, zero muddiness)
   const gradient = ctx.createLinearGradient(0, 0, 0, chartHeight);
-  gradient.addColorStop(0, isPos ? 'rgba(16, 185, 129, 0.25)' : 'rgba(244, 63, 94, 0.25)');
-  gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  gradient.addColorStop(0, isPos ? 'rgba(0, 208, 156, 0.20)' : 'rgba(235, 91, 60, 0.20)');
+  gradient.addColorStop(0.5, isPos ? 'rgba(0, 208, 156, 0.05)' : 'rgba(235, 91, 60, 0.05)');
+  gradient.addColorStop(1, isPos ? 'rgba(0, 208, 156, 0.0)' : 'rgba(235, 91, 60, 0.0)');
+
+  // Baseline calculation (Previous Close for 1D session baseline)
+  let baseline = null;
+  if (currentChartRange === '1D' && currentPageAsset) {
+    baseline = currentPageAsset.previous_close || (currentPageAsset.price - (currentPageAsset.change || 0));
+  }
 
   const datasets = [{
     label: 'Price',
@@ -4774,12 +4950,14 @@ function renderLineChartWithChartJs(canvas, points) {
     borderWidth: 2.2,
     backgroundColor: gradient,
     fill: true,
-    tension: 0.2,
+    tension: 0.36,
+    borderCapStyle: 'round',
+    borderJoinStyle: 'round',
     pointRadius: 0,
-    pointHoverRadius: 6,
+    pointHoverRadius: 5,
     pointHoverBackgroundColor: strokeColor,
     pointHoverBorderColor: '#ffffff',
-    pointHoverBorderWidth: 2
+    pointHoverBorderWidth: 2.5
   }];
 
   if (activeEmas.has(20)) {
@@ -4789,7 +4967,9 @@ function renderLineChartWithChartJs(canvas, points) {
       borderColor: '#F59E0B',
       borderWidth: 1.8,
       fill: false,
-      tension: 0.2,
+      tension: 0.36,
+      borderCapStyle: 'round',
+      borderJoinStyle: 'round',
       pointRadius: 0
     });
   }
@@ -4801,7 +4981,9 @@ function renderLineChartWithChartJs(canvas, points) {
       borderColor: '#8B5CF6',
       borderWidth: 1.8,
       fill: false,
-      tension: 0.2,
+      tension: 0.36,
+      borderCapStyle: 'round',
+      borderJoinStyle: 'round',
       pointRadius: 0
     });
   }
@@ -4812,6 +4994,7 @@ function renderLineChartWithChartJs(canvas, points) {
       labels: points.map(p => p.time),
       datasets: datasets
     },
+    plugins: [growwChartPlugin],
     options: {
       responsive: true,
       maintainAspectRatio: false,
@@ -4839,51 +5022,60 @@ function renderLineChartWithChartJs(canvas, points) {
       plugins: {
         legend: {
           display: activeEmas.size > 0,
-          labels: { color: '#94A3B8', font: { family: 'Sora', size: 11 } }
+          labels: { color: '#94A3B8', font: { family: 'Sora, sans-serif', size: 11 } }
+        },
+        growwOptions: {
+          baseline: baseline
         },
         tooltip: {
-          enabled: true,
+          enabled: activeEmas.size > 0,
           mode: 'index',
           intersect: false,
-          backgroundColor: '#0F172A',
-          titleColor: '#94A3B8',
-          bodyColor: '#F8FAFC',
-          bodyFont: { weight: '700', size: 13, family: 'Sora' },
+          backgroundColor: isDark ? 'rgba(15, 23, 42, 0.94)' : 'rgba(255, 255, 255, 0.95)',
+          titleColor: isDark ? '#94A3B8' : '#64748B',
+          bodyColor: isDark ? '#F8FAFC' : '#0F172A',
+          borderColor: isDark ? '#334155' : '#E2E8F0',
+          borderWidth: 1,
+          bodyFont: { weight: '600', size: 11, family: 'Sora, sans-serif' },
           padding: 8,
-          displayColors: false,
+          cornerRadius: 6,
+          displayColors: true,
+          boxWidth: 8,
+          boxHeight: 8,
+          usePointStyle: true,
           callbacks: {
-            title: (items) => {
-              if (!items.length) return '';
-              const pt = points[items[0].dataIndex];
-              return pt ? pt.time : items[0].label;
-            },
-            label: (item) => `${item.dataset.label || 'Price'}: ${formatINR(item.parsed.y)}`
+            title: (items) => (items.length ? (points[items[0].dataIndex]?.time || items[0].label) : ''),
+            label: (item) => `${item.dataset.label}: ${formatINR(item.parsed.y)}`
           }
         }
       },
       scales: {
         x: { 
           display: !isMobile,
+          border: { display: false },
           grid: { display: false },
           ticks: {
             display: !isMobile,
-            color: '#64748B',
-            font: { family: 'Sora', size: 10 },
-            maxTicksLimit: 6
+            color: isDark ? '#64748B' : '#94A3B8',
+            font: { family: 'Sora, sans-serif', size: 10 },
+            maxTicksLimit: 6,
+            maxRotation: 0
           }
         },
         y: { 
           display: true,
           position: 'right',
+          grace: '8%',
+          border: { display: false },
           grid: { 
             drawTicks: false,
-            color: 'rgba(255, 255, 255, 0.05)' 
+            color: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)' 
           },
           ticks: {
             display: !isMobile,
-            color: '#64748B',
-            padding: isMobile ? 0 : 6,
-            font: { family: 'Sora', size: 11 },
+            color: isDark ? '#64748B' : '#94A3B8',
+            padding: isMobile ? 0 : 8,
+            font: { family: 'Sora, sans-serif', size: 10.5, weight: '500' },
             callback: (val) => formatINR(val)
           }
         }
