@@ -210,8 +210,6 @@ async function fetchMarketStatus() {
     if (clockEl) clockEl.innerText = data.current_time_ist;
     const dateEl = document.getElementById('modalMarketDate');
     if (dateEl) dateEl.innerText = `${data.date_ist} • ${data.subtext}`;
-    const simToggle = document.getElementById('simulationModeToggle');
-    if (simToggle) simToggle.checked = !!data.simulation_mode;
   } catch (err) {
     console.error('Failed to fetch market status:', err);
   }
@@ -228,21 +226,6 @@ function openMarketHoursModal() {
 function closeMarketHoursModal() {
   const overlay = document.getElementById('marketHoursModalOverlay');
   if (overlay) overlay.classList.remove('active');
-}
-
-async function toggleSimulationMode(enabled) {
-  try {
-    const res = await fetch('/api/market-status/toggle-simulation', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled })
-    });
-    const data = await res.json();
-    showToast(enabled ? '24/7 Simulated Trading Mode Enabled' : 'Live Market Hours Enforcement Restored');
-    fetchMarketStatus();
-  } catch (err) {
-    showToast('Failed to toggle simulation mode', true);
-  }
 }
 
 // --- Navigation Tabs (Desktop & Mobile Synchronized) ---
