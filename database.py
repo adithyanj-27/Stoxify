@@ -963,7 +963,47 @@ def get_user(user_id: str = "default") -> Optional[Dict[str, Any]]:
     if not user_id or user_id == "guest":
         return None
 
-    # 1. Check local SQLite first (instant < 0.5ms)
+    # 1. Prioritize authoritative cloud state from Supabase if enabled
+    if is_supabase_enabled() and user_id != "default":
+        res = supabase_api("GET", "users", params={"id": f"eq.{user_id}", "select": "*"})
+        if res and isinstance(res, list) and len(res) > 0:
+            sb_u = res[0]
+            # Ensure local SQLite cache is kept up-to-date
+            try:
+                conn = get_connection()
+                cur = conn.cursor()
+                cur.execute("SELECT bank_balance, bank_ifsc, bank_upi_id FROM users WHERE id = ?", (sb_u.get("id"),))
+                _b_row = cur.fetchone()
+                _b_bal = float(sb_u["bank_balance"]) if sb_u.get("bank_balance") is not None else (_b_row["bank_balance"] if _b_row and _b_row["bank_balance"] is not None else 1000000.0)
+                _b_ifsc = sb_u.get("bank_ifsc") or (_b_row["bank_ifsc"] if _b_row and _b_row["bank_ifsc"] else f"{(sb_u.get('bank_name') or 'HDFC').split()[0].upper()[:4]}0001234")
+                _b_upi = sb_u.get("bank_upi_id") or (_b_row["bank_upi_id"] if _b_row and _b_row["bank_upi_id"] else f"{(sb_u.get('username') or sb_u.get('id')).lower()}@{(sb_u.get('bank_name') or 'hdfc').split()[0].lower()}bank")
+
+                cur.execute("""
+                    INSERT OR REPLACE INTO users (id, name, email, phone, pan, bank_name, bank_account, pin, balance, total_deposited, avatar_color, username, password, bank_balance, bank_ifsc, bank_upi_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    sb_u.get("id"),
+                    sb_u.get("name"),
+                    sb_u.get("email"),
+                    sb_u.get("phone"),
+                    sb_u.get("pan"),
+                    sb_u.get("bank_name"),
+                    sb_u.get("bank_account"),
+                    sb_u.get("pin"),
+                    float(sb_u.get("balance") or 0.0),
+                    float(sb_u.get("total_deposited") or 0.0),
+                    sb_u.get("avatar_color", "#0EA5E9"),
+                    sb_u.get("username"),
+                    sb_u.get("password"),
+                    _b_bal, _b_ifsc, _b_upi
+                ))
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
+            return sb_u
+
+    # 2. Check local SQLite (instant < 0.5ms)
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
@@ -972,7 +1012,7 @@ def get_user(user_id: str = "default") -> Optional[Dict[str, Any]]:
     if row:
         return dict(row)
 
-    # 2. Fallback to Supabase if user not found in local SQLite
+    # 3. Fallback to Supabase if user not found in local SQLite (e.g. for default user)
     if is_supabase_enabled():
         res = supabase_api("GET", "users", params={"id": f"eq.{user_id}", "select": "*"})
         if res and isinstance(res, list) and len(res) > 0:
@@ -1113,6 +1153,31 @@ def find_user_by_identifier(identifier: str) -> Optional[Dict[str, Any]]:
 
 # --- Account & Balances ---
 def get_account(user_id: str = "default") -> Dict[str, Any]:
+    if not user_id or user_id in ["guest", "null", "undefined"]:
+        return {"balance": 0.0, "total_deposited": 0.0, "bank_balance": 0.0, "exists": False}
+
+    # 1. Supabase authoritative check if enabled
+    if is_supabase_enabled() and user_id != "default":
+        try:
+            res = supabase_api("GET", "users", params={"id": f"eq.{user_id}", "select": "balance,total_deposited,bank_balance"})
+            if res and isinstance(res, list) and len(res) > 0:
+                sb_u = res[0]
+                bal = float(sb_u.get("balance") or 0.0)
+                tot = float(sb_u.get("total_deposited") or 0.0)
+                b_bal = float(sb_u["bank_balance"]) if sb_u.get("bank_balance") is not None else 1000000.0
+                try:
+                    conn = get_connection()
+                    cur = conn.cursor()
+                    cur.execute("UPDATE users SET balance = ?, total_deposited = ?, bank_balance = ? WHERE id = ?", (bal, tot, b_bal, user_id))
+                    conn.commit()
+                    conn.close()
+                except Exception:
+                    pass
+                return {"balance": bal, "total_deposited": tot, "bank_balance": b_bal, "exists": True}
+        except Exception as e:
+            print(f"[Supabase get_account warning] {e}")
+
+    # 2. Local SQLite check
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT balance, total_deposited, bank_balance FROM users WHERE id = ?", (user_id,))

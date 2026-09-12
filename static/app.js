@@ -92,7 +92,23 @@ const state = {
   chartInstance: null
 };
 
-// --- Formatters ---
+// --- Helpers & Formatters ---
+function getActiveAvailableCash() {
+  if (state.account && typeof state.account.balance === 'number' && state.account.balance > 0) {
+    return state.account.balance;
+  }
+  if (currentUser && typeof currentUser.balance === 'number' && currentUser.balance > 0) {
+    return currentUser.balance;
+  }
+  if (state.account && state.account.balance !== undefined) {
+    return state.account.balance;
+  }
+  if (currentUser && currentUser.balance !== undefined) {
+    return currentUser.balance;
+  }
+  return 0.0;
+}
+
 function formatINR(val) {
   if (val === null || val === undefined || isNaN(val)) return '₹0.00';
   return new Intl.NumberFormat('en-IN', {
@@ -369,6 +385,11 @@ async function fetchAccount() {
     const res = await fetch('/api/account');
     const data = await res.json();
     state.account = data;
+    if (currentUser) {
+      currentUser.balance = data.balance;
+      if (data.bank_balance !== undefined) currentUser.bank_balance = data.bank_balance;
+      try { localStorage.setItem('stoxify_cached_user', JSON.stringify(currentUser)); } catch (e) {}
+    }
     const navBal = document.getElementById('navBalanceDisplay');
     if (navBal) navBal.innerText = formatINR(data.balance);
     const menuBal = document.getElementById('menuUserBalance');
@@ -377,6 +398,21 @@ async function fetchAccount() {
     if (summaryBal) summaryBal.innerText = formatINR(data.balance);
     const fundsBal = document.getElementById('fundsCurrentBalance');
     if (fundsBal) fundsBal.innerText = formatINR(data.balance);
+
+    // Sync asset page and order confirmation cash elements
+    const pageCashEl = document.getElementById('pageAvailableCash');
+    if (pageCashEl && !isGuest()) pageCashEl.innerText = formatINR(data.balance);
+    const drawerCashEl = document.getElementById('drawerAvailableCash');
+    if (drawerCashEl && !isGuest()) drawerCashEl.innerText = formatINR(data.balance);
+    const orderCashEl = document.getElementById('orderAvailableBalance');
+    if (orderCashEl && !isGuest()) orderCashEl.innerText = formatINR(data.balance);
+    const confirmCashEl = document.getElementById('confirmOrderAvailCash');
+    if (confirmCashEl && !isGuest()) confirmCashEl.innerText = formatINR(data.balance);
+
+    const assetPane = document.getElementById('pane-asset-detail');
+    if (assetPane && assetPane.classList.contains('active')) {
+      recalcPageMargin();
+    }
   } catch (err) {
     console.error('Failed to fetch account:', err);
   }
@@ -1963,7 +1999,7 @@ function calculateOrderMargin() {
   const required = isIntraday ? tradeTotal * 0.20 : tradeTotal;
 
   document.getElementById('orderRequiredAmount').innerText = formatINR(required);
-  document.getElementById('orderAvailableBalance').innerText = formatINR(state.account.balance);
+  document.getElementById('orderAvailableBalance').innerText = formatINR(getActiveAvailableCash());
 
   // Regulatory charges calculation
   const charges = calculateEstimatedCharges(tradeTotal, state.orderAction, state.productType);
@@ -2451,6 +2487,15 @@ function bootApp() {
     const guestFlag = localStorage.getItem('stoxify_guest_mode') === 'true';
     if (cachedUserStr && !guestFlag) {
       currentUser = JSON.parse(cachedUserStr);
+      if (currentUser.balance !== undefined) {
+        state.account.balance = Number(currentUser.balance);
+        if (currentUser.bank_balance !== undefined) {
+          state.account.bank_balance = Number(currentUser.bank_balance);
+        }
+      }
+      if (currentUser.id && !localStorage.getItem('stoxify_user_id')) {
+        localStorage.setItem('stoxify_user_id', currentUser.id);
+      }
       document.documentElement.classList.add('user-logged-in');
       document.documentElement.classList.remove('user-guest');
       updateNavbarProfile();
@@ -2611,6 +2656,10 @@ async function fetchCurrentUser() {
     const u = await res.json();
     if (u && u.id && !u.is_guest) {
       currentUser = u;
+      if (u.balance !== undefined) {
+        state.account.balance = Number(u.balance);
+        if (u.bank_balance !== undefined) state.account.bank_balance = Number(u.bank_balance);
+      }
       localStorage.setItem('stoxify_user_id', u.id);
       localStorage.setItem('stoxify_cached_user', JSON.stringify(u));
       localStorage.removeItem('stoxify_guest_mode');
@@ -3857,6 +3906,9 @@ let pageOrderState = {
 };
 
 async function showAssetPage(symbol, assetType = 'STOCK') {
+  // Always fetch fresh account balance to keep trade card available cash accurate
+  fetchAccount().catch(() => {});
+
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-links .nav-btn').forEach(btn => btn.classList.remove('active'));
   document.querySelectorAll('.mobile-nav-item').forEach(btn => btn.classList.remove('active'));
@@ -5035,7 +5087,7 @@ function recalcPageMargin() {
     if (dNetRow) dNetRow.style.display = 'none';
   }
 
-  const availCash = (state.account && state.account.balance !== undefined) ? state.account.balance : (currentUser && currentUser.balance !== undefined ? currentUser.balance : 0.0);
+  const availCash = getActiveAvailableCash();
   const cashEl = document.getElementById('pageAvailableCash');
   if (cashEl) cashEl.innerText = formatINR(availCash);
   const dCashEl = document.getElementById('drawerAvailableCash');
@@ -5931,9 +5983,7 @@ function openOrderConfirmModal(spec) {
   const marginRequired = (spec.product === 'INTRADAY') ? roundTo2(grossVal * 0.2) : grossVal;
   if (marginReqEl) marginReqEl.innerText = formatINR(marginRequired);
 
-  const currentBal = (state.account && state.account.balance !== undefined)
-    ? state.account.balance
-    : (currentUser && currentUser.balance !== undefined ? currentUser.balance : 0.0);
+  const currentBal = getActiveAvailableCash();
   if (availCashEl) availCashEl.innerText = formatINR(currentBal);
 
   // Calculate live SEBI charges
@@ -6423,7 +6473,7 @@ function recalcOptionPremium() {
 
   if (qtyEl) qtyEl.innerText = `${totalQty} Qty (${lots} ${lots === 1 ? 'Lot' : 'Lots'})`;
   if (premEl) premEl.innerText = formatINR(totalPremium);
-  const bal = (state.account && state.account.balance !== undefined) ? state.account.balance : (currentUser && currentUser.balance !== undefined ? currentUser.balance : 0.0);
+  const bal = getActiveAvailableCash();
   if (cashEl) cashEl.innerText = formatINR(bal);
 }
 
@@ -6765,7 +6815,7 @@ function recalcIpoAmount() {
 
   document.getElementById('ipoModalTotalShares').innerText = `${totalShares} Shares (${lots} ${lots === 1 ? 'Lot' : 'Lots'})`;
   document.getElementById('ipoModalTotalAmount').innerText = formatINR(totalAmount);
-  const bal = (state.account && state.account.balance !== undefined) ? state.account.balance : (currentUser && currentUser.balance !== undefined ? currentUser.balance : 0.0);
+  const bal = getActiveAvailableCash();
   document.getElementById('ipoModalAvailableCash').innerText = formatINR(bal);
 }
 
