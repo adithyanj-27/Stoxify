@@ -200,9 +200,9 @@
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
             <span>Edit Profile</span>
           </button>
-          <button class="dropdown-item" onclick="openFundsModal()">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path><path d="M12 18V6"></path></svg>
-            <span>Trading Rules & Timings</span>
+          <button class="dropdown-item" onclick="openMarketHoursModal()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            <span>Market Timings & Rules</span>
           </button>
           <button class="dropdown-item" id="dropdownInstallItem" onclick="installPWA()">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
@@ -1428,7 +1428,7 @@
               <span class="menu-item-arrow">›</span>
             </button>
 
-            <button type="button" class="profile-menu-item" onclick="openFundsModal()">
+            <button type="button" class="profile-menu-item" onclick="openMarketHoursModal()">
               <div class="menu-item-left">
                 <span class="menu-item-icon">⏰</span>
                 <div>
@@ -2053,12 +2053,12 @@
   </div>
 
   <!-- Market Hours & Simulation Settings Modal -->
-  <div class="modal-overlay" id="marketHoursModalOverlay">
+  <div class="modal-overlay" id="marketHoursModalOverlay" onclick="if(event.target===this)closeMarketHoursModal()">
     <div class="modal-card" style="max-width: 480px;">
       <div class="modal-header">
         <h3 style="font-size: 1.15rem; font-weight: 800;">Indian Market Schedule & Timings</h3>
-        <button class="icon-btn" onclick="closeMarketHoursModal()">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <button type="button" class="modal-close-btn" onclick="closeMarketHoursModal()" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>
@@ -2095,12 +2095,12 @@
   </div>
 
   <!-- Taxes & Regulatory Charges Breakdown Modal -->
-  <div class="modal-overlay" id="chargesModalOverlay">
+  <div class="modal-overlay" id="chargesModalOverlay" onclick="if(event.target===this)closeChargesModal()">
     <div class="modal-card" style="max-width: 440px;">
       <div class="modal-header">
         <h3 style="font-size: 1.15rem; font-weight: 800;">Estimated Taxes & Charges</h3>
-        <button class="icon-btn" onclick="closeChargesModal()">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <button type="button" class="modal-close-btn" onclick="closeChargesModal()" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>
@@ -2116,54 +2116,6 @@
         <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.4rem;">
           Taxes & regulatory charges are prescribed by SEBI, Exchange (NSE/BSE), and Ministry of Finance.
         </p>
-      </div>
-    </div>
-  </div>
-
-  <!-- Funds & Account Modal -->
-  <div class="modal-overlay" id="fundsModalOverlay">
-    <div class="modal-card" style="max-width: 500px;">
-      <div class="modal-header">
-        <h3 style="font-size: 1.15rem; font-weight: 800;">Virtual Capital & Exchange Timings</h3>
-        <button class="icon-btn" onclick="closeFundsModal()">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-      </div>
-
-      <div class="modal-body" style="display: flex; flex-direction: column; gap: 1.25rem;">
-        <div style="background: var(--bg-main); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 1.25rem; text-align: center;">
-          <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.3rem;">Available Trading Balance</div>
-          <div id="fundsCurrentBalance" style="font-size: 2rem; font-weight: 800; color: var(--brand-green);">₹10,00,000.00</div>
-          <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.3rem;">Virtual Trading Capital</div>
-        </div>
-
-        <div id="maxFundsNotice" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-sm); padding: 0.75rem; text-align: center; color: var(--brand-green); font-weight: 600; font-size: 0.82rem; display: none;">
-          ✓ Fully funded at maximum capital of ₹10,00,000.
-        </div>
-
-        <!-- Fully Restore Balance Section (Single Click - No Add Funds Form) -->
-        <div id="restoreBalanceArea" style="display: flex; flex-direction: column; gap: 0.65rem;">
-          <button class="btn-primary" id="btnRestoreFullBalance" style="width: 100%; justify-content: center; padding: 0.75rem 1rem; font-size: 0.92rem; font-weight: 700;" onclick="restoreFullBalance()">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 0.4rem;"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
-            Restore Full ₹10,00,000 Balance
-          </button>
-          <button class="btn-subtle" id="btnResetPortfolio" style="width: 100%; justify-content: center; font-size: 0.78rem; color: var(--text-muted); padding: 0.5rem;" onclick="resetEntirePortfolio()">
-            Reset Entire Portfolio & Orders to ₹10L
-          </button>
-        </div>
-
-        <div style="background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 0.85rem 1rem; display: flex; align-items: center; justify-content: space-between;">
-          <div>
-            <div style="font-size: 0.88rem; font-weight: 700; color: var(--text-primary);">Exchange Hours & Simulation</div>
-            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">Indian market timings & 24/7 simulation mode</div>
-          </div>
-          <button class="btn-secondary" style="font-size: 0.78rem; padding: 0.35rem 0.75rem;" onclick="closeFundsModal(); openMarketHoursModal();">
-            View
-          </button>
-        </div>
       </div>
     </div>
   </div>

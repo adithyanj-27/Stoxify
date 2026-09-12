@@ -218,12 +218,16 @@ async function fetchMarketStatus() {
 }
 
 function openMarketHoursModal() {
-  document.getElementById('marketHoursModalOverlay').classList.add('active');
+  const menu = document.getElementById('userDropdownMenu');
+  if (menu) menu.style.display = 'none';
+  const overlay = document.getElementById('marketHoursModalOverlay');
+  if (overlay) overlay.classList.add('active');
   fetchMarketStatus();
 }
 
 function closeMarketHoursModal() {
-  document.getElementById('marketHoursModalOverlay').classList.remove('active');
+  const overlay = document.getElementById('marketHoursModalOverlay');
+  if (overlay) overlay.classList.remove('active');
 }
 
 async function toggleSimulationMode(enabled) {
@@ -2159,44 +2163,13 @@ async function submitOrder() {
   });
 }
 
-// --- Virtual Funds & Timings Modal ---
+// --- Market Timings & Rules (Replaced obsolete Funds & Timings Modal) ---
 function openFundsModal() {
-  const menu = document.getElementById('userDropdownMenu');
-  if (menu) menu.style.display = 'none';
-  document.getElementById('fundsModalOverlay').classList.add('active');
-  const bal = (state.account && state.account.balance !== undefined) ? state.account.balance : (currentUser ? currentUser.balance : 1000000.0);
-  const fundsBal = document.getElementById('fundsCurrentBalance');
-  if (fundsBal) fundsBal.innerText = formatINR(bal);
-
-  const maxNotice = document.getElementById('maxFundsNotice');
-  const restoreArea = document.getElementById('restoreBalanceArea');
-  const restoreBtn = document.getElementById('btnRestoreFullBalance');
-
-  if (bal >= 1000000.0) {
-    if (maxNotice) {
-      maxNotice.style.display = 'block';
-      maxNotice.innerText = '✓ Trading capital is fully funded at ₹10,00,000.00';
-    }
-    if (restoreBtn) {
-      restoreBtn.disabled = true;
-      restoreBtn.style.opacity = '0.6';
-      restoreBtn.style.cursor = 'not-allowed';
-      restoreBtn.innerHTML = '✓ Balance Already Full (₹10,00,000.00)';
-    }
-  } else {
-    if (maxNotice) maxNotice.style.display = 'none';
-    if (restoreBtn) {
-      restoreBtn.disabled = false;
-      restoreBtn.style.opacity = '1';
-      restoreBtn.style.cursor = 'pointer';
-      restoreBtn.innerHTML = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 0.4rem;"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>Restore Full ₹10,00,000 Balance`;
-    }
-  }
-  if (restoreArea) restoreArea.style.display = 'flex';
+  openMarketHoursModal();
 }
 
 function closeFundsModal() {
-  document.getElementById('fundsModalOverlay').classList.remove('active');
+  closeMarketHoursModal();
 }
 
 async function restoreFullBalance() {
