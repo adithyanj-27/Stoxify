@@ -6838,12 +6838,14 @@ body.viewing-profile .indices-bar {
 .upi-modal-card {
   max-width: 480px;
   width: 94%;
+  max-height: 92vh;
   border-radius: 20px;
   background: var(--bg-modal, #0f172a);
   border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
-  padding: 1.5rem;
-  overflow: hidden;
+  padding: 1.25rem 1.35rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   position: relative;
 }
 
@@ -7209,8 +7211,27 @@ body.viewing-profile .indices-bar {
 }
 
 .transfer-keypad .keypad-btn.backspace {
-  font-size: 1.2rem;
+  font-size: 1.25rem;
   color: #ef4444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.transfer-keypad .keypad-btn.keypad-submit {
+  font-size: 1.35rem;
+  font-weight: 900;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.transfer-keypad .keypad-btn.keypad-submit:active {
+  background: #10b981;
+  color: #ffffff;
 }
 
 /* Step 3: Success Screen */

@@ -2423,9 +2423,9 @@
             <button type="button" class="keypad-btn" onclick="pressUpiKey('7')">7</button>
             <button type="button" class="keypad-btn" onclick="pressUpiKey('8')">8</button>
             <button type="button" class="keypad-btn" onclick="pressUpiKey('9')">9</button>
-            <button type="button" class="keypad-btn cancel" onclick="resetUpiPinScreen()">Clear</button>
+            <button type="button" class="keypad-btn backspace" onclick="pressUpiBackspace()" title="Backspace" aria-label="Backspace">⌫</button>
             <button type="button" class="keypad-btn" onclick="pressUpiKey('0')">0</button>
-            <button type="button" class="keypad-btn backspace" onclick="pressUpiBackspace()">⌫</button>
+            <button type="button" class="keypad-btn keypad-submit" onclick="executeUpiPayment()" title="Authorize & Transfer" aria-label="Authorize & Transfer">✓</button>
           </div>
 
           <button type="button" class="btn-trade-execute buy transfer-submit-btn" id="btnExecuteUpi" onclick="executeUpiPayment()">

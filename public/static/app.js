@@ -3283,7 +3283,10 @@ function proceedToUpiPinScreen() {
   focusUpiPinInput();
 }
 
+let isTransferringFunds = false;
+
 function resetUpiPinScreen() {
+  isTransferringFunds = false;
   enteredUpiPin = '';
   updateUpiPinDots();
   const errEl = document.getElementById('upiPinError');
@@ -3307,25 +3310,36 @@ function focusUpiPinInput() {
 }
 
 function onUpiPinInput(val) {
+  if (isTransferringFunds) return;
   const clean = val.replace(/\D/g, '').slice(0, 4);
   enteredUpiPin = clean;
   updateUpiPinDots();
   if (clean.length === 4) {
     const errEl = document.getElementById('upiPinError');
     if (errEl) errEl.style.display = 'none';
+    setTimeout(() => {
+      executeUpiPayment();
+    }, 200);
   }
 }
 
 function pressUpiKey(num) {
+  if (isTransferringFunds) return;
   if (enteredUpiPin.length < 4) {
     enteredUpiPin += num;
     updateUpiPinDots();
     const hidden = document.getElementById('upiHiddenPinInput');
     if (hidden) hidden.value = enteredUpiPin;
+    if (enteredUpiPin.length === 4) {
+      setTimeout(() => {
+        executeUpiPayment();
+      }, 200);
+    }
   }
 }
 
 function pressUpiBackspace() {
+  if (isTransferringFunds) return;
   if (enteredUpiPin.length > 0) {
     enteredUpiPin = enteredUpiPin.slice(0, -1);
     updateUpiPinDots();
@@ -3350,6 +3364,7 @@ function updateUpiPinDots() {
 }
 
 async function executeUpiPayment() {
+  if (isTransferringFunds) return;
   if (enteredUpiPin.length !== 4) {
     const errEl = document.getElementById('upiPinError');
     if (errEl) {
@@ -3359,19 +3374,26 @@ async function executeUpiPayment() {
     return;
   }
 
+  isTransferringFunds = true;
   const btn = document.getElementById('btnExecuteUpi');
   if (btn) {
     btn.disabled = true;
     btn.innerHTML = `<span class="loading-spinner small"></span> Authorizing Transfer...`;
   }
 
+  const uid = (currentUser && currentUser.id) || localStorage.getItem('stoxify_user_id') || 'STOX-472048';
+
   try {
-    const res = await fetch('/api/funds/upi-add', {
+    const res = await fetch(`/api/funds/upi-add?user_id=${encodeURIComponent(uid)}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Id': uid
+      },
       body: JSON.stringify({
         amount: currentUpiAddAmount,
-        pin: enteredUpiPin
+        pin: enteredUpiPin,
+        user_id: uid
       })
     });
     const data = await res.json();
@@ -3405,13 +3427,13 @@ async function executeUpiPayment() {
       const rawAcc = (cachedBankAccount && (cachedBankAccount.bank_account_masked || cachedBankAccount.bank_masked_account))
         || (currentUser && currentUser.bank_account ? `•••• ${String(currentUser.bank_account).slice(-4)}` : '•••• 8910');
 
-      if (sAmt) sAmt.innerText = formatINR(data.amount_added || currentUpiAddAmount);
-      if (sRef) sRef.innerText = data.reference_id || `TXN-STX-${Math.floor(10000000 + Math.random() * 90000000)}`;
+      if (sAmt) sAmt.innerText = formatINR(data.amount || currentUpiAddAmount);
+      if (sRef) sRef.innerText = data.reference_id || `TXN/STX/${Math.floor(10000000 + Math.random() * 90000000)}`;
       if (sSrc) sSrc.innerText = `${bankName} A/C ${rawAcc.startsWith('••••') ? rawAcc : `•••• ${rawAcc.slice(-4)}`}`;
       if (sWBal) sWBal.innerText = formatINR(data.balance);
       if (sBBal) sBBal.innerText = formatINR(data.bank_balance);
 
-      showToast(`Transferred ${formatINR(data.amount_added || currentUpiAddAmount)} to trading wallet! ✓`);
+      showToast(`Transferred ${formatINR(data.amount || currentUpiAddAmount)} to trading wallet! ✓`);
       fetchAccount();
       loadBankAccountDetails();
     } else {
@@ -3440,6 +3462,8 @@ async function executeUpiPayment() {
       btn.disabled = false;
       btn.innerText = `✓ Authorize & Transfer ${formatINR(currentUpiAddAmount)}`;
     }
+  } finally {
+    isTransferringFunds = false;
   }
 }
 
@@ -3532,11 +3556,16 @@ async function executeWithdrawal() {
     btn.innerHTML = `<span class="loading-spinner small"></span> Processing Withdrawal...`;
   }
 
+  const uid = (currentUser && currentUser.id) || localStorage.getItem('stoxify_user_id') || 'STOX-472048';
+
   try {
-    const res = await fetch('/api/funds/withdraw', {
+    const res = await fetch(`/api/funds/withdraw?user_id=${encodeURIComponent(uid)}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount: amt, pin })
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Id': uid
+      },
+      body: JSON.stringify({ amount: amt, pin, user_id: uid })
     });
     const data = await res.json();
     if (res.ok && data.success) {
@@ -3550,11 +3579,13 @@ async function executeWithdrawal() {
         state.account.bank_balance = data.bank_balance;
       }
       updateNavbarProfile();
+      fetchAccount();
+      loadBankAccountDetails();
       closeWithdrawModal();
       showToast(`₹${Number(amt).toLocaleString('en-IN', {minimumFractionDigits: 2})} withdrawn to your bank account successfully!`);
     } else {
       if (errEl) {
-        errEl.innerText = data.detail || 'Withdrawal failed. Check your PIN and balance.';
+        errEl.innerText = data.detail || data.message || 'Withdrawal failed. Check your PIN and balance.';
         errEl.style.display = 'block';
       }
       if (btn) {

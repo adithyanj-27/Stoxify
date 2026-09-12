@@ -915,26 +915,28 @@ def deposit(req: DepositRequest, request: Request):
 class UpiAddFundsRequest(BaseModel):
     amount: float
     pin: Optional[str] = ""
+    user_id: Optional[str] = None
 
 @app.post("/api/funds/upi-add")
 @app.post("/funds/upi-add")
 def api_upi_add_funds(req: UpiAddFundsRequest, request: Request):
-    uid = get_user_id(request)
+    uid = get_user_id(request) or (req.user_id if req.user_id and req.user_id not in ["guest", "null", "undefined", "default"] else None)
     if not uid:
-        raise HTTPException(status_code=401, detail="Account required for simulated UPI deposit")
+        raise HTTPException(status_code=401, detail="Account required for simulated deposit")
     res = transfer_bank_to_wallet(uid, req.amount, req.pin or "")
     if not res.get("success"):
-        raise HTTPException(status_code=400, detail=res.get("message", "UPI transfer failed"))
+        raise HTTPException(status_code=400, detail=res.get("message", "Bank transfer failed"))
     return res
 
 class WithdrawFundsRequest(BaseModel):
     amount: float
     pin: Optional[str] = ""
+    user_id: Optional[str] = None
 
 @app.post("/api/funds/withdraw")
 @app.post("/funds/withdraw")
 def api_withdraw_funds(req: WithdrawFundsRequest, request: Request):
-    uid = get_user_id(request)
+    uid = get_user_id(request) or (req.user_id if req.user_id and req.user_id not in ["guest", "null", "undefined", "default"] else None)
     if not uid:
         raise HTTPException(status_code=401, detail="Account required for withdrawal")
     res = withdraw_wallet_to_bank(uid, req.amount, req.pin or "")
