@@ -540,6 +540,142 @@ function filterExploreStocks(filter) {
   renderExploreStocks();
 }
 
+// --- Company Domain Mapping for Automated High-Res Logo Resolution ---
+const SYMBOL_DOMAINS = {
+  'RELIANCE': 'ril.com',
+  'TCS': 'tcs.com',
+  'HDFCBANK': 'hdfcbank.com',
+  'INFY': 'infosys.com',
+  'ICICIBANK': 'icicibank.com',
+  'SBIN': 'sbi.co.in',
+  'BHARTIARTL': 'airtel.in',
+  'ITC': 'itcportal.com',
+  'LT': 'larsentoubro.com',
+  'BAJFINANCE': 'bajajfinserv.in',
+  'HINDUNILVR': 'hul.co.in',
+  'MARUTI': 'marutisuzuki.com',
+  'SUNPHARMA': 'sunpharma.com',
+  'TITAN': 'titancompany.in',
+  'TATASTEEL': 'tatasteel.com',
+  'ADANIENT': 'adanienterprises.com',
+  'ADANIPORTS': 'adaniports.com',
+  'WIPRO': 'wipro.com',
+  'POWERGRID': 'powergrid.in',
+  'NTPC': 'ntpc.co.in',
+  'ONGC': 'ongcindia.com',
+  'COALINDIA': 'coalindia.in',
+  'M&M': 'mahindra.com',
+  'TMCV': 'tatamotors.com',
+  'TMPV': 'tatamotors.com',
+  'TATAMOTORS': 'tatamotors.com',
+  'AXISBANK': 'axisbank.com',
+  'KOTAKBANK': 'kotak.com',
+  'ULTRACEMCO': 'ultratechcement.com',
+  'ASIANPAINT': 'asianpaints.com',
+  'BAJAJ-AUTO': 'bajajauto.com',
+  'TRENT': 'mywestside.com',
+  'JIOFIN': 'jiofinancialservices.com',
+  'ETERNAL': 'zomato.com',
+  'ZOMATO': 'zomato.com',
+  'HAL': 'hal-india.co.in',
+  'BEL': 'bel-india.in',
+  'MAZDOCK': 'mazagondock.in',
+  'COCHINSHIP': 'cochinshipyard.in',
+  'GRSE': 'grse.in',
+  'BDL': 'bdl-india.in',
+  'IRFC': 'irfc.co.in',
+  'IRCTC': 'irctc.co.in',
+  'RVNL': 'rvnl.org',
+  'RAILTEL': 'railtelindia.com',
+  'BHEL': 'bhel.com',
+  'TATAPOWER': 'tatapower.com',
+  'SUZLON': 'suzlon.com',
+  'IREDA': 'ireda.in',
+  'ADANIGREEN': 'adanigreenenergy.com',
+  'ADANIPOWER': 'adanipower.com',
+  'NHPC': 'nhpcindia.com',
+  'PFC': 'pfcindia.com',
+  'RECLTD': 'recindia.nic.in',
+  'BANKBARODA': 'bankofbaroda.in',
+  'PNB': 'pnbindia.in',
+  'CANBK': 'canarabank.com',
+  'IDFCFIRSTB': 'idfcfirstbank.com',
+  'FEDERALBNK': 'federalbank.co.in',
+  'YESBANK': 'yesbank.in',
+  'INDUSINDBK': 'indusind.com',
+  'AUBANK': 'aubank.in',
+  'BANDHANBNK': 'bandhanbank.com',
+  'BSE': 'bseindia.com',
+  'CDSL': 'cdslindia.com',
+  'MCX': 'mcxindia.com',
+  'PAYTM': 'paytm.com',
+  'CIPLA': 'cipla.com',
+  'DRREDDY': 'drreddys.com',
+  'APOLLOHOSP': 'apollohospitals.com',
+  'EICHERMOT': 'eichermotors.com',
+  'TVSMOTOR': 'tvsmotor.com',
+  'ASHOKLEY': 'ashokleyland.com',
+  'MRF': 'mrfindia.com',
+  'JSWSTEEL': 'jsw.in',
+  'HINDALCO': 'hindalco.com',
+  'VEDL': 'vedantalimited.com',
+  'TATAELXSI': 'tataelxsi.com',
+  'TATATECH': 'tatatechnologies.com',
+  'NYKAA': 'nykaa.com',
+  'DMART': 'dmartindia.com',
+  'POLICYBZR': 'policybazaar.com',
+  'DELHIVERY': 'delhivery.com',
+  'SWIGGY': 'swiggy.com',
+  'IDEA': 'myvi.in',
+  'VODAFONE': 'myvi.in'
+};
+window.SYMBOL_DOMAINS = SYMBOL_DOMAINS;
+
+// Automated Logo Error Handler: Cascades through high-reliability CDN sources before falling back to initial badge
+function handleLogoError(img) {
+  if (!img) return;
+  const rawSym = img.getAttribute('data-symbol') || '';
+  const sym = rawSym.toUpperCase().replace('.NS', '').replace('.BO', '').trim();
+
+  // If numeric (e.g. mutual fund AMFI code) or empty, fall back directly to initial / icon
+  if (!sym || /^\d+$/.test(sym)) {
+    img.style.display = 'none';
+    if (img.nextElementSibling) img.nextElementSibling.style.display = 'flex';
+    return;
+  }
+
+  const step = parseInt(img.getAttribute('data-logo-step') || '0', 10);
+  const cleanTicker = sym.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const rawDomain = img.getAttribute('data-website') || (window.SYMBOL_DOMAINS && window.SYMBOL_DOMAINS[sym]) || '';
+  const domain = rawDomain.replace(/^https?:\/\//i, '').replace(/\/.*$/, '').replace(/^www\./i, '');
+
+  const sources = [
+    // 1. TradingView High-Res Vector SVG (covers hundreds of Indian equities)
+    `https://s3-symbol-logo.tradingview.com/${cleanTicker}--big.svg`,
+    // 2. Official Corporate Domain via Google Favicon CDN (128px high-res)
+    ...(domain ? [`https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.${domain}&size=128`] : []),
+    // 3. TradingView Ticker Vector
+    `https://s3-symbol-logo.tradingview.com/crypto/XTVC${sym}.svg`,
+    // 4. Inferred company domains (.com and .in) via Google Favicon CDN
+    `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.${cleanTicker}.com&size=128`,
+    `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.${cleanTicker}.in&size=128`,
+    // 5. DuckDuckGo icon fallback
+    `https://icons.duckduckgo.com/ip3/www.${cleanTicker}.com.ico`
+  ];
+
+  if (step < sources.length) {
+    img.setAttribute('data-logo-step', (step + 1).toString());
+    img.src = sources[step];
+  } else {
+    // All dynamic CDN sources exhausted -> show initial badge
+    img.style.display = 'none';
+    if (img.nextElementSibling) {
+      img.nextElementSibling.style.display = 'flex';
+    }
+  }
+}
+window.handleLogoError = handleLogoError;
+
 // --- Card Helpers: Avatars & Star Buttons ---
 function getCleanInitial(name, symbol) {
   const str = (name || symbol || 'S').trim();
@@ -590,7 +726,10 @@ function renderAssetAvatar(item, assetType) {
       <img src="${logoUrl}" 
            alt="${item.name || cleanSym}" 
            loading="lazy"
-           onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+           data-symbol="${cleanSym}"
+           data-website="${item.website || ''}"
+           data-logo-step="0"
+           onerror="handleLogoError(this)"
            style="width: 26px; height: 26px; object-fit: contain; border-radius: 4px;">
       <span style="display: none; align-items: center; justify-content: center; width: 100%; height: 100%; font-weight: 800;">
         ${fallbackHtml}
@@ -1688,7 +1827,10 @@ async function legacyOpenAssetModal(symbol, assetType = 'STOCK', preselectAction
       <img src="${logoUrl}" 
            alt="${data.name || cleanSym}" 
            loading="lazy"
-           onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+           data-symbol="${cleanSym}"
+           data-website="${data.website || ''}"
+           data-logo-step="0"
+           onerror="handleLogoError(this)"
            style="width: 28px; height: 28px; object-fit: contain; border-radius: 4px;">
       <span style="display: ${isIndex ? 'flex' : 'none'}; align-items: center; justify-content: center; width: 100%; height: 100%; font-weight: 800;">
         ${fallbackHtml}
