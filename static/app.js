@@ -5386,8 +5386,6 @@ function showOnboardingPage() {
     if (el) el.value = '';
   });
 
-  const panPill = document.getElementById('panVerifiedPill');
-  if (panPill) panPill.style.display = 'none';
   const smsBanner = document.getElementById('smsPushBanner');
   if (smsBanner) smsBanner.style.display = 'none';
 
@@ -5642,12 +5640,6 @@ function submitObStep2() {
 
 function onPanInput(el) {
   el.value = el.value.toUpperCase();
-  const pill = document.getElementById('panVerifiedPill');
-  if (el.value.length === 10) {
-    if (pill) pill.style.display = 'inline-flex';
-  } else {
-    if (pill) pill.style.display = 'none';
-  }
 }
 
 function submitObStep3() {

@@ -326,7 +326,6 @@
               <h3 class="groww-section-title">Recently Viewed</h3>
               <span class="groww-section-sub">Stocks you checked out recently</span>
             </div>
-            <button type="button" class="btn-subtle" onclick="clearRecentlyViewed('STOCK')" style="padding: 0.25rem 0.65rem; font-size: 0.75rem; border-radius: 6px;" title="Clear recently viewed stocks">Clear</button>
           </div>
           <div class="most-bought-carousel" id="recentStocksCarousel"></div>
         </div>
@@ -450,7 +449,6 @@
               <h3 class="groww-section-title">Recently Viewed</h3>
               <span class="groww-section-sub">Mutual funds you checked out recently</span>
             </div>
-            <button type="button" class="btn-subtle" onclick="clearRecentlyViewed('MUTUAL_FUND')" style="padding: 0.25rem 0.65rem; font-size: 0.75rem; border-radius: 6px;" title="Clear recently viewed funds">Clear</button>
           </div>
           <div class="most-bought-carousel" id="recentMfCarousel"></div>
         </div>
@@ -1565,10 +1563,6 @@
             <div class="ob-form-group">
               <label class="ob-label">PAN Number</label>
               <input type="text" class="ob-input" id="obInputPan" placeholder="ABCDE1234F" maxlength="10" style="text-transform: uppercase; font-family: monospace; font-size: 1.1rem; letter-spacing: 0.1em;" oninput="onPanInput(this)">
-              <div class="pan-verified-pill" id="panVerifiedPill" style="display: none;">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span>Verified with Income Tax Department</span>
-              </div>
             </div>
 
             <div class="ob-form-group">

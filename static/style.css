@@ -4670,15 +4670,6 @@ body.pwa-installed #mobileInstallBanner {
   box-shadow: 0 0 16px rgba(14, 165, 233, 0.25);
 }
 
-.pan-verified-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin-top: 0.4rem;
-  font-size: 0.78rem;
-  color: var(--accent-green);
-  font-weight: 700;
-}
 
 .bank-chips-grid {
   display: grid;
