@@ -2954,17 +2954,74 @@ let enteredUpiPin = '';
 let currentUpiAddAmount = 50000;
 let cachedBankAccount = null;
 
+function getLocalBankTxs(uid) {
+  if (!uid) return [];
+  try {
+    const raw = localStorage.getItem(`stoxify_bank_txs_${uid}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveLocalBankTx(uid, tx) {
+  if (!uid || !tx) return;
+  try {
+    const list = getLocalBankTxs(uid);
+    const txKey = tx.reference_id || `${tx.type}-${tx.amount}-${tx.created_at}`;
+    if (list.some(item => (item.reference_id && item.reference_id === tx.reference_id) || `${item.type}-${item.amount}-${item.created_at}` === txKey)) {
+      return;
+    }
+    list.unshift(tx);
+    if (list.length > 50) list.length = 50;
+    localStorage.setItem(`stoxify_bank_txs_${uid}`, JSON.stringify(list));
+  } catch (e) {}
+}
+
 async function loadBankAccountDetails() {
   if (isGuest() || !currentUser) return null;
+  const uid = currentUser.id || localStorage.getItem('stoxify_user_id');
   try {
-    const uid = currentUser.id || localStorage.getItem('stoxify_user_id');
     const res = await fetch(`/api/funds/bank-account?user_id=${encodeURIComponent(uid || '')}`, {
       headers: uid ? { 'X-User-Id': uid } : {}
     });
     if (res.ok) {
       const data = await res.json();
       if (data && data.bank_name) {
+        // Merge server transactions with local browser cached transactions
+        const localTxs = getLocalBankTxs(uid);
+        const seenRefs = new Set();
+        const merged = [];
+        (data.transactions || []).forEach(tx => {
+          const key = tx.reference_id || `${tx.type}-${tx.amount}-${tx.created_at}`;
+          seenRefs.add(key);
+          merged.push(tx);
+        });
+        localTxs.forEach(tx => {
+          const key = tx.reference_id || `${tx.type}-${tx.amount}-${tx.created_at}`;
+          if (!seenRefs.has(key)) {
+            seenRefs.add(key);
+            merged.push(tx);
+          }
+        });
+        if (merged.length > 0) {
+          merged.sort((a, b) => {
+            const da = a.created_at ? new Date(String(a.created_at).replace(' ', 'T')).getTime() : 0;
+            const db = b.created_at ? new Date(String(b.created_at).replace(' ', 'T')).getTime() : 0;
+            return db - da;
+          });
+          data.transactions = merged;
+          try {
+            localStorage.setItem(`stoxify_bank_txs_${uid}`, JSON.stringify(merged));
+          } catch (e) {}
+        }
         cachedBankAccount = data;
+        if (currentUser && data.bank_balance !== undefined) {
+          currentUser.bank_balance = data.bank_balance;
+          try {
+            localStorage.setItem('stoxify_cached_user', JSON.stringify(currentUser));
+          } catch (e) {}
+        }
         return data;
       }
     }
@@ -2973,6 +3030,7 @@ async function loadBankAccountDetails() {
   }
   const rawAcc = String(currentUser.bank_account || '50100234567890');
   const masked = rawAcc.length >= 4 ? `•••• ${rawAcc.slice(-4)}` : rawAcc;
+  const fallbackTxs = uid ? getLocalBankTxs(uid) : [];
   return cachedBankAccount || {
     bank_name: currentUser.bank_name || 'HDFC Bank',
     bank_account: rawAcc,
@@ -2984,7 +3042,7 @@ async function loadBankAccountDetails() {
     balance: currentUser.balance !== undefined ? currentUser.balance : (state.account ? state.account.balance : 0.0),
     wallet_balance: currentUser.balance !== undefined ? currentUser.balance : (state.account ? state.account.balance : 0.0),
     account_holder: currentUser.name || 'Trader',
-    transactions: []
+    transactions: fallbackTxs
   };
 }
 
@@ -3287,7 +3345,16 @@ async function executeUpiPayment() {
     btn.innerHTML = `<span class="loading-spinner small"></span> Authorizing Transfer...`;
   }
 
-  const uid = (currentUser && currentUser.id) || localStorage.getItem('stoxify_user_id') || 'STOX-472048';
+  const uid = (currentUser && currentUser.id) || localStorage.getItem('stoxify_user_id');
+  if (!uid) {
+    showToast('Please log in or create an account to transfer funds.', true);
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = `✓ Authorize & Transfer ${formatINR(currentUpiAddAmount)}`;
+    }
+    isTransferringFunds = false;
+    return;
+  }
 
   try {
     const res = await fetch(`/api/funds/upi-add?user_id=${encodeURIComponent(uid)}`, {
@@ -3313,6 +3380,11 @@ async function executeUpiPayment() {
         state.account.balance = data.balance;
         state.account.bank_balance = data.bank_balance;
       }
+      if (cachedBankAccount) {
+        cachedBankAccount.bank_balance = data.bank_balance;
+        cachedBankAccount.balance = data.balance;
+        cachedBankAccount.wallet_balance = data.balance;
+      }
       updateNavbarProfile();
 
       // Show Step 3 Success
@@ -3329,15 +3401,29 @@ async function executeUpiPayment() {
       const sWBal = document.getElementById('upiSuccessWalletBal');
       const sBBal = document.getElementById('upiSuccessBankBal');
 
-      const bankName = (cachedBankAccount && cachedBankAccount.bank_name) || (currentUser && currentUser.bank_name) || 'Federal Bank';
+      const bankName = (cachedBankAccount && cachedBankAccount.bank_name) || (currentUser && currentUser.bank_name) || 'HDFC Bank';
       const rawAcc = (cachedBankAccount && (cachedBankAccount.bank_account_masked || cachedBankAccount.bank_masked_account))
-        || (currentUser && currentUser.bank_account ? `•••• ${String(currentUser.bank_account).slice(-4)}` : '•••• 8910');
+        || (currentUser && currentUser.bank_account ? `•••• ${String(currentUser.bank_account).slice(-4)}` : '•••• 4534');
+      const actualAcc = rawAcc.startsWith('••••') ? rawAcc : `•••• ${rawAcc.slice(-4)}`;
 
       if (sAmt) sAmt.innerText = formatINR(data.amount || currentUpiAddAmount);
-      if (sRef) sRef.innerText = data.reference_id || `TXN/STX/${Math.floor(10000000 + Math.random() * 90000000)}`;
-      if (sSrc) sSrc.innerText = `${bankName} A/C ${rawAcc.startsWith('••••') ? rawAcc : `•••• ${rawAcc.slice(-4)}`}`;
+      const txnRef = data.reference_id || `TXN/STX/${Math.floor(10000000 + Math.random() * 90000000)}`;
+      if (sRef) sRef.innerText = txnRef;
+      if (sSrc) sSrc.innerText = `${bankName} A/C ${actualAcc}`;
       if (sWBal) sWBal.innerText = formatINR(data.balance);
       if (sBBal) sBBal.innerText = formatINR(data.bank_balance);
+
+      saveLocalBankTx(uid, {
+        user_id: uid,
+        type: 'BANK_DEPOSIT',
+        amount: data.amount || currentUpiAddAmount,
+        from_account: `${bankName} ${actualAcc}`,
+        to_account: 'Stoxifyin Trading Wallet',
+        reference_id: txnRef,
+        status: 'SUCCESS',
+        note: 'Simulated bank transfer to Stoxifyin trading wallet',
+        created_at: new Date().toISOString()
+      });
 
       showToast(`Transferred ${formatINR(data.amount || currentUpiAddAmount)} to trading wallet! ✓`);
       fetchAccount();
@@ -3462,7 +3548,18 @@ async function executeWithdrawal() {
     btn.innerHTML = `<span class="loading-spinner small"></span> Processing Withdrawal...`;
   }
 
-  const uid = (currentUser && currentUser.id) || localStorage.getItem('stoxify_user_id') || 'STOX-472048';
+  const uid = (currentUser && currentUser.id) || localStorage.getItem('stoxify_user_id');
+  if (!uid) {
+    if (errEl) {
+      errEl.innerText = 'Please log in or create an account to withdraw funds.';
+      errEl.style.display = 'block';
+    }
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = 'Withdraw Funds Now';
+    }
+    return;
+  }
 
   try {
     const res = await fetch(`/api/funds/withdraw?user_id=${encodeURIComponent(uid)}`, {
@@ -3484,6 +3581,29 @@ async function executeWithdrawal() {
         state.account.balance = data.balance;
         state.account.bank_balance = data.bank_balance;
       }
+      if (cachedBankAccount) {
+        cachedBankAccount.bank_balance = data.bank_balance;
+        cachedBankAccount.balance = data.balance;
+        cachedBankAccount.wallet_balance = data.balance;
+      }
+      const bName = (cachedBankAccount && cachedBankAccount.bank_name) || (currentUser && currentUser.bank_name) || 'HDFC Bank';
+      const rawAcc = (cachedBankAccount && (cachedBankAccount.bank_account_masked || cachedBankAccount.bank_masked_account))
+        || (currentUser && currentUser.bank_account ? `•••• ${String(currentUser.bank_account).slice(-4)}` : '•••• 4534');
+      const actualAcc = rawAcc.startsWith('••••') ? rawAcc : `•••• ${rawAcc.slice(-4)}`;
+      const wdrRef = data.reference_id || `WDR/STX/${Math.floor(10000000 + Math.random() * 90000000)}`;
+
+      saveLocalBankTx(uid, {
+        user_id: uid,
+        type: 'WITHDRAWAL',
+        amount: amt,
+        from_account: 'Stoxifyin Trading Wallet',
+        to_account: `${bName} ${actualAcc}`,
+        reference_id: wdrRef,
+        status: 'SUCCESS',
+        note: 'Simulated withdrawal to linked bank account',
+        created_at: new Date().toISOString()
+      });
+
       updateNavbarProfile();
       fetchAccount();
       loadBankAccountDetails();
@@ -3540,7 +3660,9 @@ async function openBankPassbookModal() {
   }
 
   if (titleEl) titleEl.innerText = `${data.bank_name || 'Bank'} Passbook`;
-  if (subEl) subEl.innerText = `A/C ${data.bank_account_masked || data.bank_masked_account || '•••• 5678'} • IFSC: ${data.bank_ifsc || 'HDFC0001234'}`;
+  const rawAcc = String(data.bank_account || (currentUser && currentUser.bank_account) || '50100234567890');
+  const last4 = rawAcc.length >= 4 ? rawAcc.slice(-4) : rawAcc;
+  if (subEl) subEl.innerText = `A/C •••• ${last4} • IFSC: ${data.bank_ifsc || 'HDFC0001234'}`;
   if (balEl) balEl.innerText = formatINR(data.bank_balance !== undefined ? data.bank_balance : 1000000.0);
   if (upiEl) upiEl.innerText = `UPI ID: ${data.bank_upi_id || ''}`;
 
@@ -3557,7 +3679,8 @@ async function openBankPassbookModal() {
       const icon = isCredit ? '↓' : '↑';
       const badgeClass = isCredit ? 'credit' : 'debit';
       const desc = tx.note || tx.description || (isCredit ? 'Credit to Bank Account' : 'UPI Transfer to Trading Wallet');
-      const dateStr = new Date(tx.created_at).toLocaleString('en-IN', {
+      const safeDate = tx.created_at ? new Date(String(tx.created_at).replace(' ', 'T')) : new Date();
+      const dateStr = isNaN(safeDate.getTime()) ? (tx.created_at || 'Recent') : safeDate.toLocaleString('en-IN', {
         day: 'numeric',
         month: 'short',
         year: 'numeric',
@@ -5539,6 +5662,18 @@ async function submitObStep5() {
     if (emailEl) emailEl.innerText = currentUser.email || obUserData.email || '';
     const last4 = (currentUser.bank_account || '5678').slice(-4);
     document.getElementById('obCreatedBank').innerText = `${currentUser.bank_name} •••• ${last4} (Verified ✓)`;
+
+    saveLocalBankTx(currentUser.id, {
+      user_id: currentUser.id,
+      type: 'INITIAL_CREDIT',
+      amount: 1000000.0,
+      from_account: 'RBI Simulated Banking Gateway',
+      to_account: `${currentUser.bank_name || 'HDFC Bank'} •••• ${last4}`,
+      reference_id: `BANK-INIT-${currentUser.id}`,
+      status: 'SUCCESS',
+      note: 'Welcome virtual capital credited to linked bank account',
+      created_at: new Date().toISOString()
+    });
 
     updateNavbarProfile();
     saveRecentAccount(currentUser);

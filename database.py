@@ -983,9 +983,9 @@ def get_user(user_id: str = "default") -> Optional[Dict[str, Any]]:
                 cur = conn.cursor()
                 cur.execute("SELECT bank_balance, bank_ifsc, bank_upi_id FROM users WHERE id = ?", (sb_u.get("id"),))
                 _b_row = cur.fetchone()
-                _b_bal = _b_row["bank_balance"] if _b_row and _b_row["bank_balance"] is not None else float(sb_u.get("bank_balance") or 1000000.0)
-                _b_ifsc = _b_row["bank_ifsc"] if _b_row and _b_row["bank_ifsc"] else (sb_u.get("bank_ifsc") or f"{(sb_u.get('bank_name') or 'HDFC').split()[0].upper()[:4]}0001234")
-                _b_upi = _b_row["bank_upi_id"] if _b_row and _b_row["bank_upi_id"] else (sb_u.get("bank_upi_id") or f"{(sb_u.get('username') or sb_u.get('id')).lower()}@{(sb_u.get('bank_name') or 'hdfc').split()[0].lower()}bank")
+                _b_bal = float(sb_u["bank_balance"]) if sb_u.get("bank_balance") is not None else (_b_row["bank_balance"] if _b_row and _b_row["bank_balance"] is not None else 1000000.0)
+                _b_ifsc = sb_u.get("bank_ifsc") or (_b_row["bank_ifsc"] if _b_row and _b_row["bank_ifsc"] else f"{(sb_u.get('bank_name') or 'HDFC').split()[0].upper()[:4]}0001234")
+                _b_upi = sb_u.get("bank_upi_id") or (_b_row["bank_upi_id"] if _b_row and _b_row["bank_upi_id"] else f"{(sb_u.get('username') or sb_u.get('id')).lower()}@{(sb_u.get('bank_name') or 'hdfc').split()[0].lower()}bank")
 
                 cur.execute("""
                     INSERT OR REPLACE INTO users (id, name, email, phone, pan, bank_name, bank_account, pin, balance, total_deposited, avatar_color, username, password, bank_balance, bank_ifsc, bank_upi_id)
@@ -1087,7 +1087,7 @@ def find_user_by_identifier(identifier: str) -> Optional[Dict[str, Any]]:
                         cur = conn.cursor()
                         cur.execute("SELECT bank_balance, bank_ifsc, bank_upi_id FROM users WHERE id = ?", (sb_u.get("id"),))
                         _b_row = cur.fetchone()
-                        _b_bal = _b_row["bank_balance"] if _b_row and _b_row["bank_balance"] is not None else float(sb_u.get("bank_balance", 1000000.0))
+                        _b_bal = float(sb_u["bank_balance"]) if sb_u.get("bank_balance") is not None else (_b_row["bank_balance"] if _b_row and _b_row["bank_balance"] is not None else 1000000.0)
                         _b_ifsc = _b_row["bank_ifsc"] if _b_row and _b_row["bank_ifsc"] else sb_u.get("bank_ifsc")
                         _b_upi = _b_row["bank_upi_id"] if _b_row and _b_row["bank_upi_id"] else sb_u.get("bank_upi_id")
 
@@ -1221,6 +1221,7 @@ def transfer_bank_to_wallet(user_id: str, amount: float, pin: str) -> Dict[str, 
         try:
             p = {
                 "balance": new_wallet_balance,
+                "bank_balance": new_bank_balance,
                 "updated_at": datetime.now(timezone.utc).isoformat()
             }
             supabase_api("PATCH", f"users?id=eq.{user_id}", payload=p)
@@ -1324,6 +1325,7 @@ def withdraw_wallet_to_bank(user_id: str, amount: float, pin: str) -> Dict[str, 
         try:
             p = {
                 "balance": new_wallet_balance,
+                "bank_balance": new_bank_balance,
                 "updated_at": datetime.now(timezone.utc).isoformat()
             }
             supabase_api("PATCH", f"users?id=eq.{user_id}", payload=p)
@@ -1363,6 +1365,41 @@ def get_bank_account_details(user_id: str) -> Dict[str, Any]:
     """, (user_id,))
     rows = cursor.fetchall()
     txs = [dict(r) for r in rows]
+
+    # Auto-synthesize initial opening credit and transfers if local SQLite has no history
+    if not txs and user_id != "guest":
+        created_time = u.get("created_at") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        updated_time = u.get("updated_at") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        masked_acc = f"{bank_name} A/C •••• {str(bank_account)[-4:]}"
+        init_ref = f"BANK-INIT-{user_id}"
+        cursor.execute("""
+            INSERT OR IGNORE INTO bank_transactions (user_id, type, amount, from_account, to_account, reference_id, status, note, created_at)
+            VALUES (?, 'INITIAL_CREDIT', 1000000.0, 'RBI Simulated Banking Gateway', ?, ?, 'SUCCESS', 'Welcome virtual capital credited to linked bank account', ?)
+        """, (user_id, masked_acc, init_ref, created_time))
+
+        if bank_balance < 1000000.0:
+            diff = round(1000000.0 - bank_balance, 2)
+            cursor.execute("""
+                INSERT OR IGNORE INTO bank_transactions (user_id, type, amount, from_account, to_account, reference_id, status, note, created_at)
+                VALUES (?, 'BANK_DEPOSIT', ?, ?, 'Stoxifyin Trading Wallet', ?, 'SUCCESS', 'Simulated bank transfer to Stoxifyin trading wallet', ?)
+            """, (user_id, diff, masked_acc, f"UPI/STX/{user_id[-6:] if len(user_id) >= 6 else user_id}", updated_time))
+        elif bank_balance > 1000000.0:
+            diff = round(bank_balance - 1000000.0, 2)
+            cursor.execute("""
+                INSERT OR IGNORE INTO bank_transactions (user_id, type, amount, from_account, to_account, reference_id, status, note, created_at)
+                VALUES (?, 'WITHDRAWAL', ?, 'Stoxifyin Trading Wallet', ?, ?, 'SUCCESS', 'Simulated withdrawal to linked bank account', ?)
+            """, (user_id, diff, masked_acc, f"WDR/STX/{user_id[-6:] if len(user_id) >= 6 else user_id}", updated_time))
+        conn.commit()
+
+        cursor.execute("""
+            SELECT * FROM bank_transactions 
+            WHERE user_id = ? 
+            ORDER BY id DESC 
+            LIMIT 50
+        """, (user_id,))
+        rows = cursor.fetchall()
+        txs = [dict(r) for r in rows]
+
     conn.close()
 
     masked = f"•••• {bank_account[-4:]}" if len(bank_account) >= 4 else bank_account
@@ -1452,7 +1489,7 @@ def sync_user_from_supabase_into_cursor(cursor, user_id: str) -> Optional[Dict[s
             sb_u = res[0]
             cursor.execute("SELECT bank_balance, bank_ifsc, bank_upi_id FROM users WHERE id = ?", (sb_u.get("id"),))
             _b_row = cursor.fetchone()
-            _b_bal = _b_row["bank_balance"] if _b_row and _b_row["bank_balance"] is not None else float(sb_u.get("bank_balance", 1000000.0))
+            _b_bal = float(sb_u["bank_balance"]) if sb_u.get("bank_balance") is not None else (_b_row["bank_balance"] if _b_row and _b_row["bank_balance"] is not None else 1000000.0)
             _b_ifsc = _b_row["bank_ifsc"] if _b_row and _b_row["bank_ifsc"] else sb_u.get("bank_ifsc")
             _b_upi = _b_row["bank_upi_id"] if _b_row and _b_row["bank_upi_id"] else sb_u.get("bank_upi_id")
 
