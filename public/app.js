@@ -247,6 +247,7 @@ function closeMarketHoursModal() {
 // --- Navigation Tabs (Desktop & Mobile Synchronized) ---
 function switchTab(tabId, updateUrl = true) {
   document.body.classList.remove('viewing-asset-detail');
+  document.documentElement.classList.remove('viewing-asset-detail');
   document.body.classList.remove('viewing-profile');
   document.documentElement.classList.remove('viewing-profile');
   closeMobileTradeDrawer();
@@ -2590,6 +2591,7 @@ function goBackFromProfilePage() {
 
 function showProfilePage() {
   document.body.classList.remove('viewing-asset-detail');
+  document.documentElement.classList.remove('viewing-asset-detail');
   document.body.classList.add('viewing-profile');
   document.documentElement.classList.add('viewing-profile');
   closeMobileTradeDrawer();
@@ -3918,6 +3920,7 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
   document.body.classList.remove('viewing-profile');
   document.documentElement.classList.remove('viewing-profile');
   document.body.classList.add('viewing-asset-detail');
+  document.documentElement.classList.add('viewing-asset-detail');
   window.scrollTo(0, 0);
 
   const cleanSymInit = (symbol || '').replace('.NS', '').replace('.BO', '');
@@ -4048,8 +4051,7 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
           setPageQuickQuantity(holdingSale.quantity);
           updatePageAvailableHolding(data.symbol);
           if (window.innerWidth <= 768) {
-            const orderCard = document.querySelector('.asset-sidebar-col');
-            if (orderCard) orderCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            openMobileTradeDrawer('SELL');
           }
         } else {
           Promise.all([
@@ -4067,13 +4069,16 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
             }
             updatePageAvailableHolding(data.symbol);
             if (window.innerWidth <= 768) {
-              const orderCard = document.querySelector('.asset-sidebar-col');
-              if (orderCard) orderCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              openMobileTradeDrawer('SELL');
             }
           }).catch(() => {});
         }
       }
     }
+
+    // Toggle mobile sticky action bar (hide for market indices since they are non-tradable)
+    const mobBar = document.getElementById('assetMobileActionBar');
+    if (mobBar) mobBar.style.display = isIndex ? 'none' : '';
 
     // Configure Mutual Fund SIP calculator vs Stock fundamentals tabs
     const sipSec = document.getElementById('pageSipCalcSection');
@@ -4832,9 +4837,31 @@ function openMobileTradeDrawer(action = 'BUY') {
   }
   const dInput = document.getElementById('drawerOrderQuantity');
   const mainInput = document.getElementById('pageOrderQuantity');
-  if (dInput && mainInput) {
-    dInput.value = mainInput.value;
+  if (dInput) {
+    const qVal = (mainInput && mainInput.value) ? mainInput.value : (pageOrderState.quantity || 1);
+    dInput.value = qVal;
+    if (mainInput) mainInput.value = qVal;
   }
+
+  const dLimit = document.getElementById('drawerLimitPrice');
+  const mainLimit = document.getElementById('pageOrderLimitPrice');
+  if (dLimit) {
+    const limVal = (mainLimit && mainLimit.value) ? mainLimit.value : (currentPageAsset ? currentPageAsset.price : '');
+    dLimit.value = limVal;
+    if (mainLimit && !mainLimit.value) mainLimit.value = limVal;
+  }
+
+  const dTrig = document.getElementById('drawerTriggerPrice');
+  const mainTrig = document.getElementById('pageOrderTriggerPrice');
+  if (dTrig) {
+    const trigVal = (mainTrig && mainTrig.value) ? mainTrig.value : '';
+    dTrig.value = trigVal;
+  }
+
+  if (currentPageAsset && currentPageAsset.symbol) {
+    updatePageAvailableHolding(currentPageAsset.symbol);
+  }
+  recalcPageMargin();
 }
 
 function closeMobileTradeDrawer() {
@@ -4847,14 +4874,21 @@ function closeMobileTradeDrawer() {
 
 function syncDrawerQuantity(val) {
   const q = parseInt(val || '1', 10);
+  const safeQ = isNaN(q) || q < 1 ? 1 : q;
   const mainInput = document.getElementById('pageOrderQuantity');
-  if (mainInput) mainInput.value = isNaN(q) || q < 1 ? 1 : q;
-  pageOrderState.quantity = isNaN(q) || q < 1 ? 1 : q;
+  if (mainInput) mainInput.value = safeQ;
+  pageOrderState.quantity = safeQ;
   recalcPageMargin();
 }
 
 function syncDrawerLimit(val) {
   const mainInput = document.getElementById('pageOrderLimitPrice');
+  if (mainInput) mainInput.value = val;
+  recalcPageMargin();
+}
+
+function syncDrawerTrigger(val) {
+  const mainInput = document.getElementById('pageOrderTriggerPrice');
   if (mainInput) mainInput.value = val;
   recalcPageMargin();
 }
@@ -4972,16 +5006,19 @@ function setPageOrderVariety(varType) {
   const limitGroup = document.getElementById('pageLimitPriceGroup');
   const trigGroup = document.getElementById('pageTriggerPriceGroup');
   const dLimitGroup = document.getElementById('drawerLimitGroup');
+  const dTrigGroup = document.getElementById('drawerTriggerGroup');
   if (limitGroup) limitGroup.style.display = (varType === 'LIMIT' || varType === 'STOP_LOSS' || varType === 'GTT') ? 'block' : 'none';
   if (trigGroup) trigGroup.style.display = (varType === 'STOP_LOSS' || varType === 'GTT') ? 'block' : 'none';
   if (dLimitGroup) dLimitGroup.style.display = (varType === 'LIMIT' || varType === 'STOP_LOSS' || varType === 'GTT') ? 'block' : 'none';
+  if (dTrigGroup) dTrigGroup.style.display = (varType === 'STOP_LOSS' || varType === 'GTT') ? 'block' : 'none';
 
   const trigHint = document.getElementById('pageTriggerHint');
-  if (trigHint) {
-    trigHint.innerText = varType === 'GTT' 
-      ? 'Good-Till-Triggered order remains active until trigger is reached' 
-      : 'Order activates when market hits this stop-loss trigger';
-  }
+  const dTrigHint = document.getElementById('drawerTriggerHint');
+  const trigMsg = varType === 'GTT' 
+    ? 'Good-Till-Triggered order remains active until trigger is reached' 
+    : 'Order activates when market hits this stop-loss trigger';
+  if (trigHint) trigHint.innerText = trigMsg;
+  if (dTrigHint) dTrigHint.innerText = trigMsg;
 
   const cleanSym = currentPageAsset ? (currentPageAsset.symbol || '').replace('.NS', '') : '';
   const execBtn = document.getElementById('pageOrderExecuteBtn');
@@ -5194,7 +5231,8 @@ async function executePageTrade() {
   }
 
   const execBtn = document.getElementById('pageOrderExecuteBtn');
-  if (execBtn && execBtn.disabled) return;
+  const drawerExec = document.getElementById('drawerOrderExecuteBtn');
+  if (execBtn && execBtn.disabled && (!drawerExec || drawerExec.disabled)) return;
 
   if (!currentPageAsset) {
     const path = window.location.pathname;
@@ -5208,14 +5246,24 @@ async function executePageTrade() {
     }
   }
 
-  const qty = parseInt(document.getElementById('pageOrderQuantity').value || '1', 10);
+  const qtyInput = document.getElementById('pageOrderQuantity');
+  const dQtyInput = document.getElementById('drawerOrderQuantity');
+  let rawQty = qtyInput ? qtyInput.value : '';
+  if ((!rawQty || isNaN(parseInt(rawQty, 10))) && dQtyInput) {
+    rawQty = dQtyInput.value;
+  }
+  const qty = parseInt(rawQty || pageOrderState.quantity || '1', 10);
   if (!qty || qty <= 0 || isNaN(qty)) {
     showToast('Please specify a valid quantity (minimum 1)', true);
     return;
   }
 
+  const limitInput = document.getElementById('pageOrderLimitPrice');
+  const dLimitInput = document.getElementById('drawerLimitPrice');
+  let rawLimit = limitInput ? limitInput.value : '';
+  if (!rawLimit && dLimitInput) rawLimit = dLimitInput.value;
   const limitPrice = (pageOrderState.variety === 'LIMIT' || pageOrderState.variety === 'STOP_LOSS' || pageOrderState.variety === 'GTT')
-    ? parseFloat(document.getElementById('pageOrderLimitPrice').value || currentPageAsset.price)
+    ? parseFloat(rawLimit || currentPageAsset.price)
     : null;
 
   if (pageOrderState.variety === 'LIMIT' && (!limitPrice || limitPrice <= 0 || isNaN(limitPrice))) {
@@ -5223,8 +5271,12 @@ async function executePageTrade() {
     return;
   }
 
+  const trigInput = document.getElementById('pageOrderTriggerPrice');
+  const dTrigInput = document.getElementById('drawerTriggerPrice');
+  let rawTrig = trigInput ? trigInput.value : '';
+  if (!rawTrig && dTrigInput) rawTrig = dTrigInput.value;
   const triggerPrice = (pageOrderState.variety === 'STOP_LOSS' || pageOrderState.variety === 'GTT')
-    ? parseFloat(document.getElementById('pageOrderTriggerPrice').value || '0')
+    ? parseFloat(rawTrig || '0')
     : 0.0;
 
   if ((pageOrderState.variety === 'STOP_LOSS' || pageOrderState.variety === 'GTT') && (!triggerPrice || triggerPrice <= 0 || isNaN(triggerPrice))) {
@@ -5236,8 +5288,11 @@ async function executePageTrade() {
     ? (limitPrice || currentPageAsset.price)
     : (pageOrderState.variety === 'GTT' ? (limitPrice || triggerPrice || currentPageAsset.price) : currentPageAsset.price);
 
+  const drawer = document.getElementById('mobileTradingDrawerOverlay');
+  const isFromDrawer = drawer && drawer.classList.contains('active');
+
   openOrderConfirmModal({
-    origin: 'PAGE',
+    origin: isFromDrawer ? 'DRAWER' : 'PAGE',
     symbol: currentPageAsset.symbol,
     name: currentPageAsset.name,
     asset_type: currentPageAsset.asset_type || 'STOCK',
@@ -5277,6 +5332,8 @@ function showOnboardingPage() {
   document.body.classList.remove('viewing-profile');
   document.documentElement.classList.remove('viewing-profile');
   document.body.classList.remove('viewing-asset-detail');
+  document.documentElement.classList.remove('viewing-asset-detail');
+  closeMobileTradeDrawer();
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-links .nav-btn').forEach(btn => btn.classList.remove('active'));
   document.querySelectorAll('.mobile-nav-item').forEach(btn => btn.classList.remove('active'));
@@ -6030,6 +6087,9 @@ function closeOrderConfirmModal() {
   if (spec && spec.origin === 'MODAL') {
     const tradeModal = document.getElementById('tradeModalOverlay');
     if (tradeModal) tradeModal.classList.add('active');
+  } else if (spec && spec.origin === 'DRAWER') {
+    const drawer = document.getElementById('mobileTradingDrawerOverlay');
+    if (drawer) drawer.classList.add('active');
   }
 }
 
@@ -7411,3 +7471,6 @@ window.withdrawIpoBid = withdrawIpoBid;
 window.loadActiveSips = loadActiveSips;
 window.cancelSip = cancelSip;
 window.loadPortfolioAnalytics = loadPortfolioAnalytics;
+window.openMobileTradeDrawer = openMobileTradeDrawer;
+window.closeMobileTradeDrawer = closeMobileTradeDrawer;
+window.syncDrawerTrigger = syncDrawerTrigger;

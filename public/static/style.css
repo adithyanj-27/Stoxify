@@ -2585,10 +2585,12 @@ body.pwa-installed #mobileInstallBanner {
     box-sizing: border-box !important;
   }
 
+  html.viewing-asset-detail .mobile-bottom-bar,
   body.viewing-asset-detail .mobile-bottom-bar {
     display: none !important;
   }
 
+  html.viewing-asset-detail,
   body.viewing-asset-detail {
     padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
   }
@@ -3451,9 +3453,16 @@ body.pwa-installed #mobileInstallBanner {
     z-index: 100000 !important;
   }
 
-  /* Hide bottom nav bar when any modal is open to ensure clean bottom presentation */
+  #orderConfirmModal,
+  #orderSuccessModal {
+    z-index: 100100 !important;
+  }
+
+  /* Hide bottom nav bar & sticky action bar when any modal/drawer is open */
   body:has(.modal-overlay.active) .mobile-bottom-bar,
-  body:has(.mobile-drawer-overlay.active) .mobile-bottom-bar {
+  body:has(.mobile-drawer-overlay.active) .mobile-bottom-bar,
+  body:has(.modal-overlay.active) .asset-mobile-action-bar,
+  body:has(.mobile-drawer-overlay.active) .asset-mobile-action-bar {
     display: none !important;
   }
 
@@ -3547,43 +3556,11 @@ body.pwa-installed #mobileInstallBanner {
 /* =======================================================
    MOBILE STICKY ACTION BAR & SLIDE-UP TRADING DRAWER
    ======================================================= */
-.mobile-asset-action-bar {
-  display: none !important;
-}
-
-.mobile-drawer-overlay {
-  display: none !important;
-}
-
-  .mob-trade-btn {
-    flex: 1;
-    height: 46px;
-    font-size: 0.92rem;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    border-radius: 12px;
-    border: none;
-    cursor: pointer;
-    transition: transform 0.15s ease, filter 0.15s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .mob-trade-btn:active {
-    transform: scale(0.97);
-  }
-
-  .mob-trade-btn.sell {
-    background: var(--danger-red);
-    color: #ffffff;
-    box-shadow: 0 4px 14px rgba(244, 63, 94, 0.35);
-  }
-
-  .mob-trade-btn.buy {
-    background: var(--accent-green);
-    color: #052e16;
-    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+@media (min-width: 769px) {
+  .mobile-asset-action-bar,
+  .asset-mobile-action-bar,
+  .mobile-drawer-overlay {
+    display: none !important;
   }
 }
 
@@ -3604,9 +3581,9 @@ body.pwa-installed #mobileInstallBanner {
 }
 
 .mobile-drawer-overlay.active {
-  display: flex;
-  opacity: 1;
-  pointer-events: auto;
+  display: flex !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
 }
 
 .mobile-drawer-card {
@@ -6301,7 +6278,7 @@ html.user-guest #navProfileWrapper {
     bottom: 0;
     left: 0;
     right: 0;
-    z-index: 1050;
+    z-index: 10050 !important;
     background: var(--bg-card);
     padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
     border-top: 1px solid var(--border-subtle);
