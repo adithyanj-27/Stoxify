@@ -3095,7 +3095,7 @@
         <button type="button" class="btn-primary tour-btn-start" onclick="acceptTour()">Let's Go 🚀</button>
       </div>
       <div style="text-align: center; margin-top: 0.85rem;">
-        <button type="button" onclick="document.getElementById('tourPromptModal').style.display='none'; openSandboxModal();" style="background: none; border: none; font-size: 0.78rem; color: var(--brand-cyan); font-weight: 700; cursor: pointer; text-decoration: underline;">
+        <button type="button" onclick="const p=document.getElementById('tourPromptModal'); if(p){p.classList.remove('active'); p.style.display='none';} openSandboxModal();" style="background: none; border: none; font-size: 0.78rem; color: var(--brand-cyan); font-weight: 700; cursor: pointer; text-decoration: underline;">
           🎮 Practice in Under-18 Gamified Sandbox Mode →
         </button>
       </div>

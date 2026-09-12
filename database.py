@@ -751,10 +751,7 @@ def create_user(
     bank_upi_id = f"{(clean_username or user_id).lower()}@{bank_name.split()[0].lower()}bank"
     clean_age = int(age) if age is not None else 18
     clean_exp = (experience or "None / Total Beginner").strip()
-    if clean_exp in ["1–2 Years", "1-2 Years", "2+ Years"]:
-        has_completed_tour = 1
-    else:
-        has_completed_tour = 0
+    has_completed_tour = 0
 
     # 1. Insert into local SQLite (Bank gets ₹10 Lakh initial credit, trading wallet starts at ₹0 until added via UPI)
     conn = get_connection()

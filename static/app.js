@@ -2755,6 +2755,14 @@ document.addEventListener('click', (e) => {
   if (pbOverlay && e.target === pbOverlay) {
     closeBankPassbookModal();
   }
+  const tourOverlay = document.getElementById('tourPromptModal');
+  if (tourOverlay && e.target === tourOverlay) {
+    skipTour();
+  }
+  const sandOverlay = document.getElementById('sandboxTradeModal');
+  if (sandOverlay && e.target === sandOverlay) {
+    closeSandboxModal();
+  }
 });
 
 // --- Edit Profile Management ---
@@ -5591,39 +5599,49 @@ function checkAndLaunchTour(force = false) {
 
   if (force) {
     promptModal.style.display = 'flex';
+    promptModal.classList.add('active');
     return;
   }
 
   if (!currentUser || currentUser.id === 'guest') return;
 
-  const exp = (currentUser.experience || 'None / Total Beginner').trim();
-  const isExperienced = (exp === '1–2 Years' || exp === '1-2 Years' || exp === '2+ Years');
-
-  if (isExperienced || currentUser.has_completed_tour) {
+  // Don't auto-prompt if already completed
+  if (currentUser.has_completed_tour) {
     return;
   }
 
-  // Beginner tiers: "None / Total Beginner" or "< 1 Year"
   setTimeout(() => {
     promptModal.style.display = 'flex';
-  }, 500);
+    promptModal.classList.add('active');
+  }, 400);
 }
 
 function skipTour() {
   const promptModal = document.getElementById('tourPromptModal');
-  if (promptModal) promptModal.style.display = 'none';
+  if (promptModal) {
+    promptModal.classList.remove('active');
+    promptModal.style.display = 'none';
+  }
   markTourCompleteOnServer();
   showToast('Tour skipped. You can always practice anytime!');
 }
 
 function acceptTour() {
   const promptModal = document.getElementById('tourPromptModal');
-  if (promptModal) promptModal.style.display = 'none';
+  if (promptModal) {
+    promptModal.classList.remove('active');
+    promptModal.style.display = 'none';
+  }
 
   const userAge = currentUser ? (parseInt(currentUser.age, 10) || 18) : 18;
   if (userAge < 18) {
     openSandboxModal();
   } else {
+    if (document.body.classList.contains('viewing-profile') || state.currentTab === 'profile') {
+      document.body.classList.remove('viewing-profile');
+      document.documentElement.classList.remove('viewing-profile');
+    }
+    navigateTo('/explore');
     switchTab('explore');
     setTimeout(() => {
       startDashboardTour();
@@ -5665,12 +5683,18 @@ function openSandboxModal() {
   }
   const qtyInput = document.getElementById('sandboxQtyInput');
   if (qtyInput) qtyInput.value = 10;
-  if (modal) modal.style.display = 'flex';
+  if (modal) {
+    modal.style.display = 'flex';
+    modal.classList.add('active');
+  }
 }
 
 function closeSandboxModal() {
   const modal = document.getElementById('sandboxTradeModal');
-  if (modal) modal.style.display = 'none';
+  if (modal) {
+    modal.classList.remove('active');
+    modal.style.display = 'none';
+  }
   markTourCompleteOnServer();
 }
 
@@ -5792,10 +5816,32 @@ const TOUR_STEPS = [
   }
 ];
 
+let isDashboardTourListening = false;
+
+function onTourReposition() {
+  const overlay = document.getElementById('dashboardTourOverlay');
+  if (!overlay || overlay.style.display === 'none') return;
+  const card = document.getElementById('tourStepCard');
+  const step = TOUR_STEPS[currentTourStep];
+  if (!step) return;
+  let target = document.getElementById(step.targetId);
+  if ((!target || target.offsetParent === null) && step.fallbackId) {
+    target = document.getElementById(step.fallbackId);
+  }
+  if (target && card) {
+    positionTourCard(card, target, step.preferredPosition);
+  }
+}
+
 function startDashboardTour() {
   currentTourStep = 0;
   const overlay = document.getElementById('dashboardTourOverlay');
   if (overlay) overlay.style.display = 'block';
+  if (!isDashboardTourListening) {
+    window.addEventListener('resize', onTourReposition);
+    window.addEventListener('scroll', onTourReposition, { passive: true });
+    isDashboardTourListening = true;
+  }
   renderTourStep(0);
 }
 
@@ -5832,7 +5878,13 @@ function renderTourStep(stepIdx) {
 
   if (target) {
     target.classList.add('tour-spotlight-active');
+    try {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } catch (e) {}
     positionTourCard(card, target, step.preferredPosition);
+    setTimeout(() => {
+      positionTourCard(card, target, step.preferredPosition);
+    }, 150);
   } else if (card) {
     card.style.top = '50%';
     card.style.left = '50%';
@@ -5876,6 +5928,11 @@ function nextDashboardTourStep() {
 function endDashboardTour() {
   const overlay = document.getElementById('dashboardTourOverlay');
   if (overlay) overlay.style.display = 'none';
+  if (isDashboardTourListening) {
+    window.removeEventListener('resize', onTourReposition);
+    window.removeEventListener('scroll', onTourReposition);
+    isDashboardTourListening = false;
+  }
   document.querySelectorAll('.tour-spotlight-active').forEach(el => el.classList.remove('tour-spotlight-active'));
   markTourCompleteOnServer();
   showToast('🎉 Tour completed! You\'re all set to trade.');
