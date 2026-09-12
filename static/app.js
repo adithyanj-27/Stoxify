@@ -2139,76 +2139,24 @@ async function submitOrder() {
     }
   }
 
-  const payload = {
-    symbol: state.currentModalAsset.symbol,
-    name: state.currentModalAsset.name,
-    asset_type: state.currentModalAsset.asset_type,
-    order_type: state.orderAction,
-    product_type: state.productType,
+  const asset = state.currentModalAsset;
+  const execPrice = (state.orderVariety === 'LIMIT' && limitPrice) ? limitPrice : asset.price;
+
+  closeTradeModal();
+
+  openOrderConfirmModal({
+    origin: 'MODAL',
+    symbol: asset.symbol,
+    name: asset.name,
+    asset_type: asset.asset_type || 'STOCK',
+    action: state.orderAction,
+    product: state.productType,
     quantity: qty,
-    price: state.currentModalAsset.price,
-    order_variety: state.orderVariety,
-    limit_price: limitPrice
-  };
-
-  setOrderExecutionLoading(true, payload.order_type);
-
-  try {
-    const res = await fetch('/api/order', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const result = await res.json();
-
-    if (!res.ok || !result.success) {
-      setOrderExecutionLoading(false);
-      showToast(result.detail || result.error || 'Order rejected by broker engine', true);
-      return;
-    }
-
-    // Await authoritative backend reflection of portfolio, positions, balance, and orders
-    await Promise.allSettled([
-      fetchAccount(),
-      fetchPortfolio(true),
-      fetchPositions(true),
-      fetchOrders()
-    ]);
-
-    if (currentUser && state.account && state.account.balance !== undefined) {
-      currentUser.balance = state.account.balance;
-      try {
-        localStorage.setItem('stoxify_cached_user', JSON.stringify(currentUser));
-      } catch (e) {}
-    }
-
-    setOrderExecutionLoading(false);
-    closeTradeModal();
-
-    const confirmedBalance = (result.balance !== undefined)
-      ? result.balance
-      : (state.account ? state.account.balance : undefined);
-
-    openOrderSuccessModal({
-      symbol: payload.symbol,
-      name: payload.name,
-      action: payload.order_type,
-      product: payload.product_type,
-      quantity: qty,
-      price: payload.price,
-      total: qty * payload.price,
-      charges: result.charges,
-      net_amount: result.net_amount,
-      status: result.status,
-      balance: confirmedBalance
-    });
-    showToast(result.message || `Order processed successfully: ${state.orderAction} ${qty} ${payload.symbol}`);
-
-  } catch (err) {
-    console.error('Order submission error:', err);
-    setOrderExecutionLoading(false);
-    showToast('Failed to connect to execution server', true);
-  }
+    price: execPrice,
+    variety: state.orderVariety,
+    limit_price: limitPrice,
+    trigger_price: 0
+  });
 }
 
 // --- Virtual Funds & Timings Modal ---
@@ -5172,99 +5120,23 @@ async function executePageTrade() {
     return;
   }
 
-  setOrderExecutionLoading(true, pageOrderState.action);
+  const execPrice = (pageOrderState.variety === 'LIMIT' || pageOrderState.variety === 'STOP_LOSS')
+    ? (limitPrice || currentPageAsset.price)
+    : (pageOrderState.variety === 'GTT' ? (limitPrice || triggerPrice || currentPageAsset.price) : currentPageAsset.price);
 
-  try {
-    let res, result;
-    if (pageOrderState.variety === 'GTT') {
-      res = await fetch('/api/order/gtt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          symbol: currentPageAsset.symbol,
-          transaction_type: pageOrderState.action,
-          quantity: qty,
-          trigger_price: triggerPrice,
-          limit_price: limitPrice || triggerPrice
-        })
-      });
-      result = await res.json();
-    } else {
-      res = await fetch('/api/order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          symbol: currentPageAsset.symbol,
-          name: currentPageAsset.name,
-          asset_type: currentPageAsset.asset_type || 'STOCK',
-          order_type: pageOrderState.action,
-          product_type: pageOrderState.product,
-          quantity: qty,
-          price: currentPageAsset.price,
-          order_variety: pageOrderState.variety,
-          limit_price: limitPrice,
-          trigger_price: triggerPrice
-        })
-      });
-      result = await res.json();
-    }
-
-    if (!res.ok || !result.success) {
-      setOrderExecutionLoading(false);
-      showToast(result.detail || result.error || 'Trade execution failed', true);
-      return;
-    }
-
-    // Await authoritative backend reflection of portfolio, positions, balance, and orders
-    // The loading symbol remains visible and active throughout this lag time
-    await Promise.allSettled([
-      fetchAccount(),
-      fetchPortfolio(true),
-      fetchPositions(true),
-      fetchOrders()
-    ]);
-
-    if (currentUser && state.account && state.account.balance !== undefined) {
-      currentUser.balance = state.account.balance;
-      try {
-        localStorage.setItem('stoxify_cached_user', JSON.stringify(currentUser));
-      } catch (e) {}
-    }
-
-    if (currentPageAsset) {
-      updatePageAvailableHolding(currentPageAsset.symbol);
-    }
-    recalcPageMargin();
-
-    setOrderExecutionLoading(false);
-    closeMobileTradeDrawer();
-
-    const confirmedBalance = (result.balance !== undefined)
-      ? result.balance
-      : (state.account ? state.account.balance : undefined);
-
-    openOrderSuccessModal({
-      symbol: currentPageAsset.symbol,
-      name: currentPageAsset.name,
-      action: pageOrderState.action,
-      product: pageOrderState.product,
-      quantity: qty,
-      price: (pageOrderState.variety === 'LIMIT' || pageOrderState.variety === 'STOP_LOSS') ? (limitPrice || currentPageAsset.price) : currentPageAsset.price,
-      total: qty * ((pageOrderState.variety === 'LIMIT' || pageOrderState.variety === 'STOP_LOSS') ? (limitPrice || currentPageAsset.price) : currentPageAsset.price),
-      charges: result.charges,
-      net_amount: result.net_amount,
-      status: result.status,
-      balance: confirmedBalance
-    });
-    showToast(result.message || `${pageOrderState.action} order placed successfully!`);
-
-  } catch (err) {
-    console.error('executePageTrade error:', err);
-    setOrderExecutionLoading(false);
-    showToast('Failed to connect to trade server', true);
-  } finally {
-    setOrderExecutionLoading(false);
-  }
+  openOrderConfirmModal({
+    origin: 'PAGE',
+    symbol: currentPageAsset.symbol,
+    name: currentPageAsset.name,
+    asset_type: currentPageAsset.asset_type || 'STOCK',
+    action: pageOrderState.action,
+    product: pageOrderState.product,
+    quantity: qty,
+    price: execPrice,
+    variety: pageOrderState.variety,
+    limit_price: limitPrice,
+    trigger_price: triggerPrice
+  });
 }
 
 /* =======================================================
@@ -6202,67 +6074,372 @@ function goToHoldingsFromModal() {
 }
 
 /* =======================================================
+   GROWW-STYLE ORDER CONFIRMATION SHEET ENGINE
+   ======================================================= */
+let pendingOrderSpec = null;
+
+function roundTo2(val) {
+  return Math.round((Number(val || 0) + Number.EPSILON) * 100) / 100;
+}
+
+function calculateClientCharges(orderType, productType, assetType, amount) {
+  amount = parseFloat(amount || 0);
+  if (amount <= 0 || (assetType || '').toUpperCase() === 'MUTUAL_FUND') {
+    return { brokerage: 0, dp_charges: 0, stt: 0, exchange: 0, sebi: 0, stamp: 0, gst: 0, total: 0 };
+  }
+  const isSell = (orderType || '').toUpperCase() === 'SELL';
+  const isIntra = (productType || '').toUpperCase() === 'INTRADAY';
+  const brokerage = 0.0; // Stoxify standard: ₹0 brokerage
+  const dp_charges = (isSell && !isIntra) ? 13.50 : 0.0;
+  let stt = 0.0;
+  if (isSell) {
+    stt = isIntra ? roundTo2(amount * 0.00025) : roundTo2(amount * 0.001);
+  } else {
+    stt = isIntra ? 0.0 : roundTo2(amount * 0.001);
+  }
+  const exchange = roundTo2(amount * 0.0000297);
+  const sebi = roundTo2((amount / 10000000.0) * 10.0);
+  const stamp = isSell ? 0.0 : roundTo2(amount * (isIntra ? 0.00003 : 0.00015));
+  const gst = roundTo2((brokerage + exchange + sebi + dp_charges) * 0.18);
+  const total = roundTo2(brokerage + dp_charges + stt + exchange + sebi + stamp + gst);
+  return { brokerage, dp_charges, stt, exchange, sebi, stamp, gst, total };
+}
+
+function openOrderConfirmModal(spec) {
+  pendingOrderSpec = spec;
+  const modal = document.getElementById('orderConfirmModal');
+  if (!modal) return;
+
+  const sideBadge = document.getElementById('confirmOrderSideBadge');
+  const prodBadge = document.getElementById('confirmOrderProductBadge');
+  const titleEl = document.getElementById('confirmOrderTitle');
+  const subtitleEl = document.getElementById('confirmOrderSubtitle');
+  const qtyPriceEl = document.getElementById('confirmOrderQtyPrice');
+  const grossEl = document.getElementById('confirmOrderGrossValue');
+  const marginReqEl = document.getElementById('confirmOrderMarginReq');
+  const availCashEl = document.getElementById('confirmOrderAvailCash');
+  const netTotalEl = document.getElementById('confirmOrderNetTotal');
+  const errorEl = document.getElementById('confirmOrderError');
+  const chargesHeaderEl = document.getElementById('confirmTotalChargesHeader');
+
+  if (errorEl) {
+    errorEl.style.display = 'none';
+    errorEl.innerText = '';
+  }
+
+  const isBuy = (spec.action || 'BUY').toUpperCase() === 'BUY';
+  if (sideBadge) {
+    sideBadge.innerText = spec.action;
+    sideBadge.className = isBuy ? 'badge-positive' : 'badge-negative';
+  }
+
+  if (prodBadge) {
+    if (spec.variety === 'GTT') {
+      prodBadge.innerText = `GTT TRIGGER (${spec.product || 'DELIVERY'})`;
+    } else {
+      prodBadge.innerText = `${spec.product || 'DELIVERY'} (${spec.product === 'INTRADAY' ? 'MIS' : 'CNC'})`;
+    }
+  }
+
+  if (titleEl) titleEl.innerText = spec.name || spec.symbol;
+  if (subtitleEl) subtitleEl.innerText = `${spec.symbol} · ${spec.asset_type || 'STOCK'} · NSE`;
+
+  let varietyText = `@ Market (~${formatINR(spec.price)})`;
+  if (spec.variety === 'LIMIT') {
+    varietyText = `@ ${formatINR(spec.price)} (Limit)`;
+  } else if (spec.variety === 'STOP_LOSS') {
+    varietyText = `@ Trg ${formatINR(spec.trigger_price)} / Lmt ${formatINR(spec.price)}`;
+  } else if (spec.variety === 'GTT') {
+    varietyText = `@ Trg ${formatINR(spec.trigger_price)}`;
+  }
+  if (qtyPriceEl) qtyPriceEl.innerText = `${spec.quantity} ${spec.quantity === 1 ? 'Share' : 'Shares'} ${varietyText}`;
+
+  const grossVal = roundTo2(spec.quantity * spec.price);
+  if (grossEl) grossEl.innerText = formatINR(grossVal);
+
+  const marginRequired = (spec.product === 'INTRADAY') ? roundTo2(grossVal * 0.2) : grossVal;
+  if (marginReqEl) marginReqEl.innerText = formatINR(marginRequired);
+
+  const currentBal = (state.account && state.account.balance !== undefined)
+    ? state.account.balance
+    : (currentUser && currentUser.balance !== undefined ? currentUser.balance : 0.0);
+  if (availCashEl) availCashEl.innerText = formatINR(currentBal);
+
+  // Calculate live SEBI charges
+  const charges = calculateClientCharges(spec.action, spec.product, spec.asset_type || 'STOCK', grossVal);
+
+  if (document.getElementById('confirmChargeStt')) document.getElementById('confirmChargeStt').innerText = formatINR(charges.stt);
+  if (document.getElementById('confirmChargeExchange')) document.getElementById('confirmChargeExchange').innerText = formatINR(charges.exchange);
+  if (document.getElementById('confirmChargeSebi')) document.getElementById('confirmChargeSebi').innerText = formatINR(charges.sebi);
+  if (document.getElementById('confirmChargeStamp')) document.getElementById('confirmChargeStamp').innerText = formatINR(charges.stamp);
+  if (document.getElementById('confirmChargeGst')) document.getElementById('confirmChargeGst').innerText = formatINR(charges.gst);
+  if (document.getElementById('confirmChargeTotal')) document.getElementById('confirmChargeTotal').innerText = formatINR(charges.total);
+  if (chargesHeaderEl) chargesHeaderEl.innerText = formatINR(charges.total);
+
+  let netTotal = grossVal;
+  if (isBuy) {
+    netTotal = roundTo2(grossVal + charges.total);
+  } else {
+    netTotal = Math.max(0, roundTo2(grossVal - charges.total));
+  }
+  if (netTotalEl) netTotalEl.innerText = formatINR(netTotal);
+
+  if (isBuy && (marginRequired + charges.total) > currentBal) {
+    if (errorEl) {
+      errorEl.innerText = `Insufficient funds: Required ${formatINR(marginRequired + charges.total)} (Margin ${formatINR(marginRequired)} + Charges ${formatINR(charges.total)}), Available ${formatINR(currentBal)}`;
+      errorEl.style.display = 'block';
+    }
+  }
+
+  const submitBtn = document.getElementById('btnSubmitConfirmedOrder');
+  if (submitBtn) {
+    submitBtn.innerText = isBuy ? 'Confirm & Place Buy Order →' : 'Confirm & Place Sell Order →';
+    submitBtn.className = `btn-trade-execute ${isBuy ? 'buy' : 'sell'}`;
+    submitBtn.disabled = false;
+  }
+
+  modal.classList.add('active');
+}
+
+function closeOrderConfirmModal() {
+  const modal = document.getElementById('orderConfirmModal');
+  if (modal) modal.classList.remove('active');
+  const spec = pendingOrderSpec;
+  pendingOrderSpec = null;
+  if (spec && spec.origin === 'MODAL') {
+    const tradeModal = document.getElementById('tradeModalOverlay');
+    if (tradeModal) tradeModal.classList.add('active');
+  }
+}
+
+function toggleConfirmChargesDetails() {
+  const body = document.getElementById('confirmChargesDetailsBody');
+  const arrow = document.getElementById('confirmChargesArrow');
+  if (!body) return;
+  const isHidden = (body.style.display === 'none' || !body.style.display);
+  body.style.display = isHidden ? 'block' : 'none';
+  if (arrow) arrow.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+}
+
+async function executeConfirmedOrder() {
+  if (!pendingOrderSpec) return;
+  const spec = pendingOrderSpec;
+  const submitBtn = document.getElementById('btnSubmitConfirmedOrder');
+  const errorEl = document.getElementById('confirmOrderError');
+
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="loading-spinner-small"></span> Placing Order...';
+  }
+  if (errorEl) {
+    errorEl.style.display = 'none';
+    errorEl.innerText = '';
+  }
+
+  try {
+    let res, result;
+    const uid = localStorage.getItem('stoxify_user_id') || (currentUser ? currentUser.user_id : null);
+
+    if (spec.variety === 'GTT') {
+      res = await fetch('/api/order/gtt', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(uid ? { 'X-User-Id': uid } : {})
+        },
+        body: JSON.stringify({
+          symbol: spec.symbol,
+          name: spec.name || spec.symbol,
+          action: spec.action,
+          transaction_type: spec.action,
+          product_type: spec.product || 'DELIVERY',
+          quantity: spec.quantity,
+          trigger_price: spec.trigger_price,
+          target_price: spec.limit_price || spec.trigger_price,
+          limit_price: spec.limit_price || spec.trigger_price
+        })
+      });
+      result = await res.json();
+    } else {
+      res = await fetch('/api/order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(uid ? { 'X-User-Id': uid } : {})
+        },
+        body: JSON.stringify({
+          symbol: spec.symbol,
+          name: spec.name,
+          asset_type: spec.asset_type || 'STOCK',
+          order_type: spec.action,
+          product_type: spec.product,
+          quantity: spec.quantity,
+          price: spec.price,
+          order_variety: spec.variety,
+          limit_price: spec.limit_price,
+          trigger_price: spec.trigger_price
+        })
+      });
+      result = await res.json();
+    }
+
+    if (!res.ok || !result.success) {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerText = spec.action === 'BUY' ? 'Confirm & Place Buy Order →' : 'Confirm & Place Sell Order →';
+      }
+      const errMsg = result.detail || result.error || 'Trade execution failed';
+      if (errorEl) {
+        errorEl.innerText = errMsg;
+        errorEl.style.display = 'block';
+      }
+      showToast(errMsg, true);
+      return;
+    }
+
+    // Success: Close confirmation modal
+    closeOrderConfirmModal();
+
+    // Await authoritative backend reflection
+    await Promise.allSettled([
+      fetchAccount(),
+      fetchPortfolio(true),
+      fetchPositions(true),
+      fetchOrders()
+    ]);
+
+    if (currentUser && state.account && state.account.balance !== undefined) {
+      currentUser.balance = state.account.balance;
+      try {
+        localStorage.setItem('stoxify_cached_user', JSON.stringify(currentUser));
+      } catch (e) {}
+    }
+
+    if (currentPageAsset) {
+      updatePageAvailableHolding(currentPageAsset.symbol);
+    }
+    recalcPageMargin();
+    closeMobileTradeDrawer();
+
+    if (spec.variety === 'GTT') {
+      loadGttOrders();
+    }
+
+    const confirmedBalance = (result.balance !== undefined)
+      ? result.balance
+      : (state.account ? state.account.balance : undefined);
+
+    openOrderSuccessModal({
+      symbol: spec.symbol,
+      name: spec.name,
+      action: spec.action,
+      product: spec.product,
+      quantity: spec.quantity,
+      price: spec.price,
+      total: spec.quantity * spec.price,
+      charges: result.charges,
+      net_amount: result.net_amount,
+      status: result.status,
+      balance: confirmedBalance
+    });
+    showToast(result.message || `${spec.action} order placed successfully!`);
+
+  } catch (err) {
+    console.error('executeConfirmedOrder error:', err);
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerText = spec.action === 'BUY' ? 'Confirm & Place Buy Order →' : 'Confirm & Place Sell Order →';
+    }
+    if (errorEl) {
+      errorEl.innerText = 'Failed to connect to trade server';
+      errorEl.style.display = 'block';
+    }
+    showToast('Failed to connect to trade server', true);
+  }
+}
+
+/* =======================================================
    1. GTT & TRIGGER ORDERS ENGINE
    ======================================================= */
 async function loadGttOrders() {
   if (isGuest()) return;
   try {
-    const res = await fetch('/api/orders/gtt');
+    const uid = localStorage.getItem('stoxify_user_id') || (currentUser ? currentUser.user_id : null);
+    const res = await fetch(`/api/orders/gtt?user_id=${encodeURIComponent(uid || '')}`, {
+      headers: uid ? { 'X-User-Id': uid } : {}
+    });
     const orders = await res.json();
     const countEl = document.getElementById('gttOrdersCount');
-    if (countEl) countEl.innerText = orders.length;
+    if (countEl) countEl.innerText = Array.isArray(orders) ? orders.length : 0;
 
     const tbody = document.getElementById('gttOrdersTableBody');
     const mobList = document.getElementById('gttOrdersMobileList');
 
-    if (!orders || orders.length === 0) {
+    if (!orders || !Array.isArray(orders) || orders.length === 0) {
       if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 3rem;">No active GTT or Stop-Loss triggers.</td></tr>';
       if (mobList) mobList.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 2rem;">No active triggers.</div>';
       return;
     }
 
     if (tbody) {
-      tbody.innerHTML = orders.map(o => `
-        <tr>
-          <td><code style="font-size: 0.8rem; color: var(--text-muted);">${o.order_id}</code></td>
-          <td><strong>${o.symbol.replace('.NS', '')}</strong></td>
-          <td><span class="badge-${o.transaction_type === 'BUY' ? 'positive' : 'negative'}">${o.transaction_type}</span></td>
-          <td><strong>${formatINR(o.trigger_price)}</strong></td>
-          <td>${formatINR(o.limit_price)}</td>
-          <td>${o.quantity}</td>
-          <td>${new Date(o.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
-          <td><span class="pill-btn" style="color: var(--brand-cyan); font-size: 0.72rem;">${o.status}</span></td>
-          <td style="text-align: right;">
-            <button class="btn-cancel-small" onclick="cancelGttOrder('${o.order_id}')">Cancel</button>
-          </td>
-        </tr>
-      `).join('');
+      tbody.innerHTML = orders.map(o => {
+        const trigId = o.id ?? o.order_id ?? '--';
+        const sym = (o.symbol || '').replace('.NS', '');
+        const action = (o.action || o.transaction_type || 'BUY').toUpperCase();
+        const trigPrice = Number(o.trigger_price) || 0;
+        const targetPrice = Number(o.target_price ?? o.limit_price ?? o.trigger_price) || 0;
+        const dateStr = o.created_at ? new Date(o.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '--';
+
+        return `
+          <tr>
+            <td><code style="font-size: 0.8rem; color: var(--text-muted);">#${trigId}</code></td>
+            <td><strong>${sym}</strong></td>
+            <td><span class="${action === 'BUY' ? 'badge-positive' : 'badge-negative'}">${action}</span></td>
+            <td><strong>${formatINR(trigPrice)}</strong></td>
+            <td>${formatINR(targetPrice)}</td>
+            <td>${o.quantity}</td>
+            <td>${dateStr}</td>
+            <td><span class="pill-btn" style="color: var(--brand-cyan); font-size: 0.72rem;">${o.status}</span></td>
+            <td style="text-align: right;">
+              <button class="btn-cancel-small" onclick="cancelGttOrder(${trigId})">Cancel</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
     }
 
     if (mobList) {
-      mobList.innerHTML = orders.map(o => `
-        <div class="mobile-order-card">
-          <div class="mob-order-header">
-            <strong>${o.symbol.replace('.NS', '')}</strong>
-            <span class="badge-${o.transaction_type === 'BUY' ? 'positive' : 'negative'}">${o.transaction_type}</span>
+      mobList.innerHTML = orders.map(o => {
+        const trigId = o.id ?? o.order_id ?? '--';
+        const sym = (o.symbol || '').replace('.NS', '');
+        const action = (o.action || o.transaction_type || 'BUY').toUpperCase();
+        const trigPrice = Number(o.trigger_price) || 0;
+        const targetPrice = Number(o.target_price ?? o.limit_price ?? o.trigger_price) || 0;
+
+        return `
+          <div class="mobile-order-card">
+            <div class="mob-order-header">
+              <strong>${sym}</strong>
+              <span class="${action === 'BUY' ? 'badge-positive' : 'badge-negative'}">${action}</span>
+            </div>
+            <div class="mob-order-row">
+              <span>Trigger Price</span><strong>${formatINR(trigPrice)}</strong>
+            </div>
+            <div class="mob-order-row">
+              <span>Limit Price</span><span>${formatINR(targetPrice)}</span>
+            </div>
+            <div class="mob-order-row">
+              <span>Quantity</span><span>${o.quantity}</span>
+            </div>
+            <div class="mob-order-row">
+              <span>Status</span><span class="pill-btn" style="color: var(--brand-cyan);">${o.status}</span>
+            </div>
+            <div style="margin-top: 0.75rem; text-align: right;">
+              <button class="btn-cancel-small" onclick="cancelGttOrder(${trigId})">Cancel Trigger</button>
+            </div>
           </div>
-          <div class="mob-order-row">
-            <span>Trigger Price</span><strong>${formatINR(o.trigger_price)}</strong>
-          </div>
-          <div class="mob-order-row">
-            <span>Limit Price</span><span>${formatINR(o.limit_price)}</span>
-          </div>
-          <div class="mob-order-row">
-            <span>Quantity</span><span>${o.quantity}</span>
-          </div>
-          <div class="mob-order-row">
-            <span>Status</span><span class="pill-btn" style="color: var(--brand-cyan);">${o.status}</span>
-          </div>
-          <div style="margin-top: 0.75rem; text-align: right;">
-            <button class="btn-cancel-small" onclick="cancelGttOrder('${o.order_id}')">Cancel Trigger</button>
-          </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     }
   } catch (err) {
     console.error('Failed to load GTT orders:', err);
@@ -6271,7 +6448,11 @@ async function loadGttOrders() {
 
 async function cancelGttOrder(orderId) {
   try {
-    const res = await fetch(`/api/order/gtt/${orderId}`, { method: 'DELETE' });
+    const uid = localStorage.getItem('stoxify_user_id') || (currentUser ? currentUser.user_id : null);
+    const res = await fetch(`/api/order/gtt/${orderId}?user_id=${encodeURIComponent(uid || '')}`, {
+      method: 'DELETE',
+      headers: uid ? { 'X-User-Id': uid } : {}
+    });
     const d = await res.json();
     if (d.success) {
       showToast(d.message || 'Trigger cancelled');
@@ -6559,13 +6740,129 @@ async function fetchIpos() {
   }
 }
 
-function filterIpos(filter, btn) {
+async function filterIpos(filter, btn) {
   activeIpoFilter = filter;
   if (btn) {
     document.querySelectorAll('#explore-ipo-container .pill-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
   }
-  renderIpos(filter);
+  if (filter === 'APPLICATIONS') {
+    await renderIpoApplications();
+  } else {
+    renderIpos(filter);
+  }
+}
+
+async function renderIpoApplications() {
+  const grid = document.getElementById('ipoGrid');
+  if (!grid) return;
+
+  if (isGuest()) {
+    grid.innerHTML = '<div style="color: var(--text-muted); padding: 3rem; text-align: center;">Please <a href="javascript:void(0)" onclick="navigateTo(\'/onboarding\')" style="color: var(--brand-cyan); text-decoration: underline;">create an account</a> to view your IPO applications.</div>';
+    return;
+  }
+
+  grid.innerHTML = '<div style="color: var(--text-muted); padding: 2rem; text-align: center;">Loading your IPO applications...</div>';
+
+  try {
+    const uid = localStorage.getItem('stoxify_user_id') || (currentUser ? currentUser.user_id : null);
+    const res = await fetch(`/api/ipo/applications?user_id=${encodeURIComponent(uid || '')}`, {
+      headers: uid ? { 'X-User-Id': uid } : {}
+    });
+    const apps = await res.json();
+
+    if (!apps || !Array.isArray(apps) || apps.length === 0) {
+      grid.innerHTML = `
+        <div style="grid-column: 1 / -1; text-align: center; padding: 3rem 1.5rem; background: rgba(255,255,255,0.02); border: 1px dashed var(--border-subtle); border-radius: 16px;">
+          <div style="font-size: 2rem; margin-bottom: 0.5rem;">📋</div>
+          <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 0.4rem;">No IPO Applications Found</h3>
+          <p style="color: var(--text-muted); font-size: 0.85rem; max-width: 420px; margin: 0 auto 1.25rem;">You have not applied for any mainline or SME IPOs yet. Check the Open and Upcoming tabs to place your first bid using virtual ASBA funds.</p>
+          <button class="btn-primary" onclick="filterIpos('ALL', document.querySelector('#explore-ipo-container .pill-btn'))">Explore Live IPOs</button>
+        </div>
+      `;
+      return;
+    }
+
+    grid.innerHTML = apps.map(b => {
+      const isApplied = (b.status || '').toUpperCase() === 'APPLIED';
+      const statusBadge = isApplied ? 'badge-positive' : 'badge-neutral';
+      const totalShares = (b.lots || 1) * (b.shares || 1);
+      const safeName = (b.ipo_name || 'IPO').replace(/'/g, "\\'");
+
+      return `
+        <div class="ipo-card">
+          <div class="ipo-card-header">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <div class="card-avatar" style="background: rgba(14, 165, 233, 0.15); color: var(--brand-cyan); font-weight: 800;">
+                ${(b.ipo_name || 'IP').slice(0, 2).toUpperCase()}
+              </div>
+              <div>
+                <h4 class="ipo-card-title">${b.ipo_name}</h4>
+                <span class="sub-text">UPI: ${b.upi_id || 'ASBA Mandate'}</span>
+              </div>
+            </div>
+            <span class="${statusBadge}">${b.status}</span>
+          </div>
+
+          <div class="ipo-metrics-grid">
+            <div class="ipo-metric-item">
+              <span class="label">Bidding Lots</span>
+              <strong>${b.lots} ${b.lots === 1 ? 'Lot' : 'Lots'} (${totalShares} Shares)</strong>
+            </div>
+            <div class="ipo-metric-item">
+              <span class="label">Bid Price</span>
+              <strong>₹${b.bid_price}</strong>
+            </div>
+            <div class="ipo-metric-item">
+              <span class="label">Amount Blocked (ASBA)</span>
+              <strong style="color: var(--brand-cyan);">${formatINR(b.amount_blocked)}</strong>
+            </div>
+            <div class="ipo-metric-item">
+              <span class="label">Application Date</span>
+              <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-primary);">${b.created_at ? new Date(b.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '--'}</span>
+            </div>
+          </div>
+
+          <div class="ipo-card-actions" style="margin-top: 1rem;">
+            ${isApplied ? `
+              <button class="btn-cancel-small" style="width: 100%; padding: 0.7rem; justify-content: center; font-size: 0.85rem;" onclick="withdrawIpoBid(${b.id}, '${safeName}')">
+                Withdraw Bid & Unblock ₹${(b.amount_blocked || 0).toLocaleString('en-IN')}
+              </button>
+            ` : `
+              <div style="font-size: 0.8rem; color: var(--text-muted); text-align: center; width: 100%; padding: 0.4rem;">Application ${b.status}</div>
+            `}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+  } catch (err) {
+    console.error('Failed to load IPO applications:', err);
+    grid.innerHTML = '<div style="color: var(--danger-red); padding: 2rem;">Failed to load applications.</div>';
+  }
+}
+
+async function withdrawIpoBid(bidId, ipoName) {
+  if (!confirm(`Are you sure you want to withdraw your application for ${ipoName}? Blocked ASBA funds will be immediately released to your trading cash.`)) {
+    return;
+  }
+  try {
+    const uid = localStorage.getItem('stoxify_user_id') || (currentUser ? currentUser.user_id : null);
+    const res = await fetch(`/api/ipo/bid/${bidId}?user_id=${encodeURIComponent(uid || '')}`, {
+      method: 'DELETE',
+      headers: uid ? { 'X-User-Id': uid } : {}
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message || 'IPO bid withdrawn successfully');
+      await fetchAccount();
+      await renderIpoApplications();
+    } else {
+      showToast(data.error || 'Failed to withdraw IPO bid', true);
+    }
+  } catch (err) {
+    showToast('Failed to withdraw IPO bid', true);
+  }
 }
 
 function renderIpos(filter) {
@@ -6841,55 +7138,77 @@ async function submitSipSchedule() {
 async function loadActiveSips() {
   if (isGuest()) return;
   try {
-    const res = await fetch('/api/mf/sips');
+    const uid = localStorage.getItem('stoxify_user_id') || (currentUser ? currentUser.user_id : null);
+    const res = await fetch(`/api/mf/sips?user_id=${encodeURIComponent(uid || '')}`, {
+      headers: uid ? { 'X-User-Id': uid } : {}
+    });
     const sips = await res.json();
 
     const tbody = document.getElementById('sipsTableBody');
     const mobList = document.getElementById('sipsMobileList');
 
-    if (!sips || sips.length === 0) {
-      if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 3rem;">No active SIP schedules.</td></tr>';
+    if (!sips || !Array.isArray(sips) || sips.length === 0) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 3rem;">No active SIP schedules.</td></tr>';
       if (mobList) mobList.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 2rem;">No active SIP schedules.</div>';
       return;
     }
 
     if (tbody) {
-      tbody.innerHTML = sips.map(s => `
-        <tr>
-          <td><strong>${s.symbol.replace('.NS', '')}</strong></td>
-          <td><strong style="color: var(--accent-green);">${formatINR(s.amount)}</strong></td>
-          <td>${s.installment_day}th of month</td>
-          <td>${s.next_trigger_date}</td>
-          <td>${s.installments_completed || 0}</td>
-          <td><span class="badge-positive">${s.status}</span></td>
-          <td style="text-align: right;">
-            <button class="btn-cancel-small" onclick="cancelSip('${s.sip_id}')">Stop SIP</button>
-          </td>
-        </tr>
-      `).join('');
+      tbody.innerHTML = sips.map(s => {
+        const fundName = s.fund_name || s.symbol || s.fund_id || 'Mutual Fund';
+        const amount = s.monthly_amount ?? s.amount ?? 0;
+        const sipDay = s.sip_day ?? s.installment_day ?? 5;
+        const nextDate = s.next_installment_date || s.next_trigger_date || '--';
+        const sipId = s.id ?? s.sip_id;
+        const status = s.status || 'ACTIVE';
+
+        const isActive = status === 'ACTIVE';
+        return `
+          <tr>
+            <td><strong>${fundName}</strong></td>
+            <td><strong style="color: var(--accent-green);">${formatINR(amount)}</strong></td>
+            <td>${sipDay}th of month</td>
+            <td>${nextDate}</td>
+            <td><span class="${isActive ? 'badge-positive' : 'badge-neutral'}">${status}</span></td>
+            <td style="text-align: right;">
+              ${isActive ? `<button class="btn-cancel-small" onclick="cancelSip(${sipId})">Stop SIP</button>` : '<span style="font-size: 0.8rem; color: var(--text-muted);">Stopped</span>'}
+            </td>
+          </tr>
+        `;
+      }).join('');
     }
 
     if (mobList) {
-      mobList.innerHTML = sips.map(s => `
-        <div class="mobile-order-card">
-          <div class="mob-order-header">
-            <strong>${s.symbol.replace('.NS', '')}</strong>
-            <span class="badge-positive">${s.status}</span>
+      mobList.innerHTML = sips.map(s => {
+        const fundName = s.fund_name || s.symbol || s.fund_id || 'Mutual Fund';
+        const amount = s.monthly_amount ?? s.amount ?? 0;
+        const sipDay = s.sip_day ?? s.installment_day ?? 5;
+        const nextDate = s.next_installment_date || s.next_trigger_date || '--';
+        const sipId = s.id ?? s.sip_id;
+        const status = s.status || 'ACTIVE';
+        const isActive = status === 'ACTIVE';
+
+        return `
+          <div class="mobile-order-card">
+            <div class="mob-order-header">
+              <strong>${fundName}</strong>
+              <span class="${isActive ? 'badge-positive' : 'badge-neutral'}">${status}</span>
+            </div>
+            <div class="mob-order-row">
+              <span>Monthly Amount</span><strong style="color: var(--accent-green);">${formatINR(amount)}</strong>
+            </div>
+            <div class="mob-order-row">
+              <span>Debit Date</span><span>${sipDay}th Monthly</span>
+            </div>
+            <div class="mob-order-row">
+              <span>Next Execution</span><span>${nextDate}</span>
+            </div>
+            <div style="margin-top: 0.75rem; text-align: right;">
+              ${isActive ? `<button class="btn-cancel-small" onclick="cancelSip(${sipId})">Stop SIP</button>` : '<span style="font-size: 0.8rem; color: var(--text-muted);">Stopped</span>'}
+            </div>
           </div>
-          <div class="mob-order-row">
-            <span>Monthly Amount</span><strong style="color: var(--accent-green);">${formatINR(s.amount)}</strong>
-          </div>
-          <div class="mob-order-row">
-            <span>Debit Date</span><span>${s.installment_day}th Monthly</span>
-          </div>
-          <div class="mob-order-row">
-            <span>Next Execution</span><span>${s.next_trigger_date}</span>
-          </div>
-          <div style="margin-top: 0.75rem; text-align: right;">
-            <button class="btn-cancel-small" onclick="cancelSip('${s.sip_id}')">Stop SIP</button>
-          </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     }
   } catch (err) {
     console.error('Failed to load SIPs:', err);
@@ -6898,7 +7217,11 @@ async function loadActiveSips() {
 
 async function cancelSip(sipId) {
   try {
-    const res = await fetch(`/api/mf/sip/${sipId}`, { method: 'DELETE' });
+    const uid = localStorage.getItem('stoxify_user_id') || (currentUser ? currentUser.user_id : null);
+    const res = await fetch(`/api/mf/sip/${sipId}?user_id=${encodeURIComponent(uid || '')}`, {
+      method: 'DELETE',
+      headers: uid ? { 'X-User-Id': uid } : {}
+    });
     const d = await res.json();
     if (d.success) {
       showToast('SIP cancelled successfully');
@@ -6918,8 +7241,11 @@ async function cancelSip(sipId) {
 async function loadPortfolioAnalytics() {
   if (isGuest()) return;
   try {
+    const uid = localStorage.getItem('stoxify_user_id') || (currentUser ? currentUser.user_id : null);
+    const authHeaders = uid ? { 'X-User-Id': uid } : {};
+
     // 1. Sector Allocation
-    const secRes = await fetch('/api/analytics/sector-allocation');
+    const secRes = await fetch(`/api/analytics/sector-allocation?user_id=${encodeURIComponent(uid || '')}`, { headers: authHeaders });
     const secData = await secRes.json();
     const secContainer = document.getElementById('sectorAllocationContainer');
 
@@ -6946,7 +7272,7 @@ async function loadPortfolioAnalytics() {
     }
 
     // 2. Budget 2024 Tax Report
-    const taxRes = await fetch('/api/analytics/tax-report');
+    const taxRes = await fetch(`/api/analytics/tax-report?user_id=${encodeURIComponent(uid || '')}`, { headers: authHeaders });
     const taxData = await taxRes.json();
     
     // NOTE: the element ids below are the ones actually present in index.html.
@@ -6972,6 +7298,38 @@ async function loadPortfolioAnalytics() {
     if (ltcgTaxable) ltcgTaxable.innerText = formatINR(lTaxable);
     if (ltcgPayable) ltcgPayable.innerText = formatINR(lPayable);
     if (totalLiability) totalLiability.innerText = formatINR(totLiability);
+
+    // 3. Render Capital Gains Realized Trades Table
+    const taxTradesTbody = document.getElementById('taxTradesTableBody');
+    if (taxTradesTbody) {
+      if (taxData.trades && Array.isArray(taxData.trades) && taxData.trades.length > 0) {
+        taxTradesTbody.innerHTML = taxData.trades.map(t => {
+          const pnl = parseFloat(t.pnl || 0);
+          const pnlClass = pnl >= 0 ? 'text-positive' : 'text-negative';
+          const pnlSign = pnl >= 0 ? '+' : '';
+          const taxBadgeClass = (t.tax_type || '').includes('LTCG') ? 'badge-positive' : 'badge-neutral';
+          const sym = (t.symbol || '').replace('.NS', '');
+
+          return `
+            <tr>
+              <td><span style="color: var(--text-muted); font-size: 0.85rem;">${t.date || '--'}</span></td>
+              <td>
+                <div style="font-weight: 700; color: var(--text-primary);">${sym}</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">${t.name || ''}</div>
+              </td>
+              <td><span class="pill-btn" style="font-size: 0.72rem;">${t.product_type || 'DELIVERY'}</span></td>
+              <td><strong>${t.quantity}</strong></td>
+              <td>${formatINR(t.sell_price || 0)}</td>
+              <td><strong class="${pnlClass}">${pnlSign}${formatINR(pnl)}</strong></td>
+              <td><span class="${taxBadgeClass}">${t.tax_type || 'STCG (20%)'}</span></td>
+            </tr>
+          `;
+        }).join('');
+      } else {
+        taxTradesTbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">No realized sell trades to report for capital gains tax.</td></tr>';
+      }
+    }
+
   } catch (err) {
     console.error('Failed to load portfolio analytics:', err);
   }
@@ -7216,3 +7574,17 @@ async function fetchStockNews(symbol) {
     if (container) container.innerHTML = '<div style="color: var(--text-muted); padding: 2rem; text-align: center;">Market news feed temporarily unavailable.</div>';
   }
 }
+
+// Window Global Exports for HTML inline event handlers
+window.openOrderConfirmModal = openOrderConfirmModal;
+window.closeOrderConfirmModal = closeOrderConfirmModal;
+window.toggleConfirmChargesDetails = toggleConfirmChargesDetails;
+window.executeConfirmedOrder = executeConfirmedOrder;
+window.loadGttOrders = loadGttOrders;
+window.cancelGttOrder = cancelGttOrder;
+window.filterIpos = filterIpos;
+window.renderIpoApplications = renderIpoApplications;
+window.withdrawIpoBid = withdrawIpoBid;
+window.loadActiveSips = loadActiveSips;
+window.cancelSip = cancelSip;
+window.loadPortfolioAnalytics = loadPortfolioAnalytics;

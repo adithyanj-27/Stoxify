@@ -7968,6 +7968,97 @@ body.viewing-profile .indices-bar {
   }
 }
 
+/* ==========================================================================
+   GROWW-STYLE ORDER CONFIRMATION SHEET
+   ========================================================================== */
+.order-confirm-card {
+  border-radius: 20px;
+  background: var(--bg-modal, #0f172a);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+
+.confirm-summary-box {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: 14px;
+  padding: 1rem 1.15rem;
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+[data-theme="light"] .confirm-summary-box {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+.confirm-summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.confirm-label {
+  color: var(--text-muted);
+}
+
+.confirm-val {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.confirm-charges-container {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+[data-theme="light"] .confirm-charges-container {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+.confirm-charges-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.confirm-charge-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  padding: 0.2rem 0;
+}
+
+.confirm-charge-line span {
+  color: var(--text-muted);
+}
+
+.confirm-charge-line strong {
+  color: var(--text-primary);
+}
+
+.confirm-net-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.85rem 1.15rem;
+  background: rgba(14, 165, 233, 0.08);
+  border: 1px solid rgba(14, 165, 233, 0.25);
+  border-radius: 12px;
+  margin-bottom: 1.25rem;
+}
+
 
 
 

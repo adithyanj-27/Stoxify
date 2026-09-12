@@ -1029,12 +1029,14 @@ def api_option_chain(symbol: str = "NIFTY"):
 # --- GTT (Good Till Triggered) Orders ---
 class GTTRequest(BaseModel):
     symbol: str
-    name: str
+    name: Optional[str] = ""
     trigger_price: float
     quantity: float
-    action: str = "BUY"
+    action: Optional[str] = "BUY"
+    transaction_type: Optional[str] = None
     product_type: str = "DELIVERY"
     target_price: Optional[float] = 0.0
+    limit_price: Optional[float] = None
     stop_loss_price: Optional[float] = 0.0
 
 @app.post("/api/order/gtt")
@@ -1042,15 +1044,20 @@ def api_place_gtt(req: GTTRequest, request: Request):
     uid = get_user_id(request)
     if not uid:
         raise HTTPException(status_code=401, detail="Account required for GTT orders")
+    
+    clean_name = (req.name or "").strip() or req.symbol
+    clean_action = (req.action or req.transaction_type or "BUY").strip().upper()
+    clean_target = req.target_price if (req.target_price and req.target_price > 0) else (req.limit_price or 0.0)
+
     res = place_gtt_order(
         user_id=uid,
         symbol=req.symbol,
-        name=req.name,
+        name=clean_name,
         trigger_price=req.trigger_price,
         quantity=req.quantity,
-        action=req.action,
+        action=clean_action,
         product_type=req.product_type,
-        target_price=req.target_price or 0.0,
+        target_price=clean_target,
         stop_loss_price=req.stop_loss_price or 0.0
     )
     return res

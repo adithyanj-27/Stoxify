@@ -2569,6 +2569,54 @@ def check_open_limit_orders(symbol: str, current_price: float, user_id: Optional
                     user_id=o["user_id"]
                 )
 
+    check_gtt_orders(symbol, current_price, user_id)
+
+def check_gtt_orders(symbol: str, current_price: float, user_id: Optional[str] = None):
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        variants = [v.upper() for v in get_symbol_variants(symbol)]
+        clause = " OR ".join(["UPPER(symbol) = ?"] * len(variants))
+        if user_id:
+            cursor.execute(f"""
+                SELECT id, user_id, symbol, name, product_type, action, quantity, trigger_price, target_price, stop_loss_price, status
+                FROM gtt_orders WHERE status = 'ACTIVE' AND ({clause}) AND user_id = ?
+            """, variants + [user_id])
+        else:
+            cursor.execute(f"""
+                SELECT id, user_id, symbol, name, product_type, action, quantity, trigger_price, target_price, stop_loss_price, status
+                FROM gtt_orders WHERE status = 'ACTIVE' AND ({clause})
+            """, variants)
+        active_gtts = [dict(r) for r in cursor.fetchall()]
+        conn.close()
+
+        for g in active_gtts:
+            act = (g.get("action") or "BUY").upper()
+            trig = float(g.get("trigger_price") or 0.0)
+            hit = (current_price >= trig) if act == "BUY" else (current_price <= trig)
+            if hit and trig > 0:
+                conn_claim = get_connection()
+                cur_claim = conn_claim.cursor()
+                cur_claim.execute("UPDATE gtt_orders SET status = 'TRIGGERED' WHERE id = ? AND status = 'ACTIVE'", (g["id"],))
+                claimed = cur_claim.rowcount == 1
+                conn_claim.commit()
+                conn_claim.close()
+
+                if claimed:
+                    execute_trade(
+                        symbol=g["symbol"],
+                        name=g.get("name") or g["symbol"],
+                        asset_type="STOCK",
+                        order_type=act,
+                        product_type=g.get("product_type") or "DELIVERY",
+                        quantity=float(g["quantity"]),
+                        price=current_price,
+                        order_variety="GTT",
+                        user_id=g["user_id"]
+                    )
+    except Exception:
+        pass
+
 def get_orders(limit: int = 100, status_filter: Optional[str] = None, user_id: str = "default") -> List[Dict[str, Any]]:
     # 1. Try Supabase first
     if is_supabase_enabled() and user_id and user_id != "guest":

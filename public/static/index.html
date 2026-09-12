@@ -477,6 +477,7 @@
             <button class="pill-btn active" onclick="filterIpos('ALL', this)">All</button>
             <button class="pill-btn" onclick="filterIpos('LISTED', this)">Recently Listed</button>
             <button class="pill-btn" onclick="filterIpos('UPCOMING', this)">Upcoming</button>
+            <button class="pill-btn" onclick="filterIpos('APPLICATIONS', this)">My Applications</button>
           </div>
         </div>
 
@@ -2473,6 +2474,117 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- Groww-Style Order Confirmation Modal -->
+  <div class="modal-overlay" id="orderConfirmModal" onclick="if(event.target===this)closeOrderConfirmModal()">
+    <div class="modal-card order-confirm-card" style="max-width: 480px; max-height: 92vh; overflow-y: auto;">
+      <div class="modal-header" style="align-items: flex-start; padding-bottom: 0.75rem;">
+        <div>
+          <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 4px;">
+            <span class="badge-positive" id="confirmOrderSideBadge" style="font-size: 0.75rem; font-weight: 800; padding: 2px 8px;">BUY</span>
+            <span id="confirmOrderProductBadge" style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">DELIVERY (CNC)</span>
+          </div>
+          <h3 style="font-size: 1.25rem; font-weight: 800; margin: 0;" id="confirmOrderTitle">Confirm Order</h3>
+          <div style="font-size: 0.8rem; color: var(--text-muted);" id="confirmOrderSubtitle">Stock · NSE</div>
+        </div>
+        <button type="button" class="modal-close-btn" onclick="closeOrderConfirmModal()" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="modal-body" style="padding: 1.25rem;">
+        <!-- Primary Order Summary Box -->
+        <div class="confirm-summary-box">
+          <div class="confirm-summary-row">
+            <span class="confirm-label">Quantity & Variety</span>
+            <strong class="confirm-val" id="confirmOrderQtyPrice">1 Share @ Market</strong>
+          </div>
+          <div class="confirm-summary-row">
+            <span class="confirm-label">Gross Order Value</span>
+            <span class="confirm-val" id="confirmOrderGrossValue">₹0.00</span>
+          </div>
+          <div class="confirm-summary-row">
+            <span class="confirm-label">Margin Required</span>
+            <strong class="confirm-val text-brand" id="confirmOrderMarginReq">₹0.00</strong>
+          </div>
+          <div class="confirm-summary-row">
+            <span class="confirm-label">Available Trading Cash</span>
+            <span class="confirm-val" id="confirmOrderAvailCash">₹0.00</span>
+          </div>
+        </div>
+
+        <!-- SEBI & Regulatory Charges Breakdown Accordion -->
+        <div class="confirm-charges-container">
+          <div class="confirm-charges-header" onclick="toggleConfirmChargesDetails()">
+            <div style="display: flex; align-items: center; gap: 0.4rem;">
+              <span style="font-size: 0.9rem;">⚡</span>
+              <span style="font-size: 0.82rem; font-weight: 700; color: var(--text-secondary);">Brokerage & Taxes (SEBI / Govt)</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.4rem;">
+              <strong style="font-size: 0.88rem; color: var(--text-primary);" id="confirmTotalChargesHeader">₹0.00</strong>
+              <span style="font-size: 0.8rem; color: var(--text-muted); transition: transform 0.2s;" id="confirmChargesArrow">▼</span>
+            </div>
+          </div>
+
+          <div id="confirmChargesDetailsBody" style="display: none; padding-top: 0.65rem;">
+            <div class="confirm-charge-line">
+              <span>Stoxifyin' Brokerage</span>
+              <strong class="text-positive">₹0.00 (Free)</strong>
+            </div>
+            <div class="confirm-charge-line">
+              <span>Securities Transaction Tax (STT)</span>
+              <span id="confirmChargeStt">₹0.00</span>
+            </div>
+            <div class="confirm-charge-line">
+              <span>Exchange Turnover Charges</span>
+              <span id="confirmChargeExchange">₹0.00</span>
+            </div>
+            <div class="confirm-charge-line">
+              <span>SEBI Turnover Fee</span>
+              <span id="confirmChargeSebi">₹0.00</span>
+            </div>
+            <div class="confirm-charge-line">
+              <span>Stamp Duty</span>
+              <span id="confirmChargeStamp">₹0.00</span>
+            </div>
+            <div class="confirm-charge-line">
+              <span>GST (18% on statutory fees)</span>
+              <span id="confirmChargeGst">₹0.00</span>
+            </div>
+            <div class="confirm-charge-line total" style="border-top: 1px dashed var(--border-subtle); padding-top: 0.4rem; margin-top: 0.4rem;">
+              <span>Total Taxes & Charges</span>
+              <strong id="confirmChargeTotal">₹0.00</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- Net Payable / Receivable Bar -->
+        <div class="confirm-net-bar">
+          <div>
+            <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Estimated Net Total</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 1px;">Includes order value + statutory charges</div>
+          </div>
+          <strong style="font-size: 1.35rem; color: var(--text-primary);" id="confirmOrderNetTotal">₹0.00</strong>
+        </div>
+
+        <!-- Inline Error Message (e.g. Insufficient Balance) -->
+        <div id="confirmOrderError" style="display: none; color: var(--danger-red); background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 8px; padding: 0.65rem 0.85rem; font-size: 0.82rem; font-weight: 600; margin-bottom: 1rem;"></div>
+
+        <!-- Buttons -->
+        <div style="display: flex; gap: 0.75rem;">
+          <button type="button" class="btn-subtle" style="flex: 1; padding: 0.85rem;" onclick="closeOrderConfirmModal()">
+            Modify
+          </button>
+          <button type="button" class="btn-trade-execute buy" style="flex: 2; padding: 0.85rem;" id="btnSubmitConfirmedOrder" onclick="executeConfirmedOrder()">
+            Confirm & Place Order →
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
