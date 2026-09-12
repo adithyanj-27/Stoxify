@@ -2050,32 +2050,35 @@ const growwChartPlugin = {
       ctx.fillStyle = isDark ? '#0F172A' : '#FFFFFF';
       ctx.fill();
 
-      // Floating Sleek Time Badge at bottom of crosshair
+      // Floating Sleek Badge on the graph showing the price & time of the touched point
+      const val = dataset?.data?.[activePoint.index];
       const label = chart.data.labels?.[activePoint.index];
-      if (label) {
-        ctx.font = '600 10px Sora, sans-serif';
-        const textWidth = ctx.measureText(label).width;
-        const pillW = textWidth + 14;
-        const pillH = 18;
-        const pillX = Math.max(chartArea.left, Math.min(chartArea.right - pillW, x - pillW / 2));
-        const pillY = Math.min(chart.height - pillH - 2, chartArea.bottom + 4);
+      if (val !== undefined) {
+        const priceStr = formatINR(val);
+        const text = label ? `${priceStr}  •  ${label}` : priceStr;
+        ctx.font = '600 10.5px Sora, sans-serif';
+        const textWidth = ctx.measureText(text).width;
+        const pillW = textWidth + 18;
+        const pillH = 22;
+        const pillX = Math.max(chartArea.left + 4, Math.min(chartArea.right - pillW - 4, x - pillW / 2));
+        const pillY = Math.max(chartArea.top + 6, Math.min(chartArea.bottom - pillH - 6, y - 32 < chartArea.top ? y + 16 : y - 30));
 
-        ctx.fillStyle = isDark ? '#1E293B' : '#0F172A';
+        ctx.fillStyle = isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.96)';
         ctx.beginPath();
         if (ctx.roundRect) {
-          ctx.roundRect(pillX, pillY, pillW, pillH, 4);
+          ctx.roundRect(pillX, pillY, pillW, pillH, 5);
         } else {
           ctx.rect(pillX, pillY, pillW, pillH);
         }
         ctx.fill();
 
-        ctx.strokeStyle = isDark ? '#334155' : '#475569';
+        ctx.strokeStyle = isDark ? '#334155' : '#CBD5E1';
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        ctx.fillStyle = '#F8FAFC';
+        ctx.fillStyle = isDark ? '#F8FAFC' : '#0F172A';
         ctx.textAlign = 'center';
-        ctx.fillText(label, pillX + pillW / 2, pillY + 12.5);
+        ctx.fillText(text, pillX + pillW / 2, pillY + 15);
       }
 
       ctx.restore();
@@ -2141,17 +2144,6 @@ function renderChart(points) {
         }
       },
       interaction: { intersect: false, mode: 'index', axis: 'x' },
-      onHover: (event, elements) => {
-        if (elements && elements.length > 0) {
-          const idx = elements[0].index;
-          if (points[idx] && state.currentModalAsset) {
-            const ptPrice = points[idx].value || points[idx].price;
-            if (ptPrice) document.getElementById('modalPrice').innerText = formatINR(ptPrice);
-          }
-        } else if (state.currentModalAsset) {
-          document.getElementById('modalPrice').innerText = formatINR(state.currentModalAsset.price);
-        }
-      },
       plugins: {
         legend: { display: false },
         growwOptions: { baseline: baseline },
@@ -4546,37 +4538,9 @@ function getActiveTimeframeChange() {
 }
 
 function updateHeroPriceForPoint(p) {
-  if (!currentPageAsset) return;
-  const priceEl = document.getElementById('pageAssetPrice');
-  const badgeEl = document.getElementById('pageAssetChangeBadge');
-  const drawerPriceEl = document.getElementById('drawerAssetPrice');
-  const drawerBadgeEl = document.getElementById('drawerAssetChange');
-  if (!priceEl && !drawerPriceEl) return;
-
-  const pointPrice = p.close !== undefined ? p.close : (p.price !== undefined ? p.price : p.value);
-  if (pointPrice === undefined || isNaN(pointPrice)) return;
-
-  if (priceEl) priceEl.innerText = formatINR(pointPrice);
-  if (drawerPriceEl) drawerPriceEl.innerText = formatINR(pointPrice);
-
-  let baseline = currentPageAsset.price - (currentPageAsset.change || 0);
-  if (currentChartRange !== '1D' && currentChartPoints && currentChartPoints.length > 0) {
-    const firstP = currentChartPoints[0];
-    baseline = (firstP.open !== undefined ? firstP.open : (firstP.close !== undefined ? firstP.close : (firstP.price !== undefined ? firstP.price : firstP.value))) || baseline;
-  }
-
-  const diff = pointPrice - baseline;
-  const diffPct = baseline ? (diff / baseline) * 100 : 0;
-  const isPos = diff >= 0;
-  const text = `${formatChange(diff, diffPct)} • ${p.time}`;
-  if (badgeEl) {
-    badgeEl.className = isPos ? 'badge-positive' : 'badge-negative';
-    badgeEl.innerText = text;
-  }
-  if (drawerBadgeEl) {
-    drawerBadgeEl.className = isPos ? 'badge-positive' : 'badge-negative';
-    drawerBadgeEl.innerText = text;
-  }
+  // Main stock price header remains rock-solid at live LTP and never varies when touching the chart.
+  // The touched point's price and timestamp are rendered directly on the graph's floating badge.
+  return;
 }
 
 function resetHeroPrice() {
@@ -4836,7 +4800,6 @@ function initChartScrubbing() {
       const idx = Math.floor((x - candleState.paddingLeft) / candleState.candleSlot);
       if (idx >= 0 && idx < candleState.ohlc.length) {
         renderCandlestickCanvas(canvas, currentChartPoints, idx, y);
-        updateHeroPriceForPoint(candleState.ohlc[idx]);
       }
     } else if (currentChartType === 'line' && pageChartInstance) {
       const chart = pageChartInstance;
@@ -4848,7 +4811,6 @@ function initChartScrubbing() {
       const idx = Math.max(0, Math.min(currentChartPoints.length - 1, Math.round(ratio * (currentChartPoints.length - 1))));
 
       if (currentChartPoints[idx]) {
-        updateHeroPriceForPoint(currentChartPoints[idx]);
         const yVal = chart.data.datasets[0]?.data?.[idx] || 0;
         const yPixel = chart.scales.y ? chart.scales.y.getPixelForValue(yVal) : y;
         
@@ -5010,14 +4972,6 @@ function renderLineChartWithChartJs(canvas, points) {
         mode: 'index',
         intersect: false,
         axis: 'x'
-      },
-      onHover: (event, elements) => {
-        if (elements && elements.length > 0) {
-          const idx = elements[0].index;
-          if (points[idx]) updateHeroPriceForPoint(points[idx]);
-        } else {
-          resetHeroPrice();
-        }
       },
       plugins: {
         legend: {
