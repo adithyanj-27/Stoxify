@@ -1391,12 +1391,6 @@ body.pwa-installed #mobileInstallBanner {
   display: none;
 }
 
-@media (max-width: 640px) {
-  .btn-install-app {
-    display: none !important;
-  }
-}
-
 /* --- PWA Install Guide Modal Styling --- */
 .pwa-guide-modal-container {
   border: 1px solid var(--border-active);
@@ -2026,25 +2020,47 @@ body.pwa-installed #mobileInstallBanner {
   }
 
   .nav-actions {
-    gap: 0.25rem;
+    gap: 0.3rem;
     align-items: center;
     flex-shrink: 0;
   }
 
   .btn-install-app {
-    padding: 0.25rem 0.45rem;
-    font-size: 0.7rem;
+    display: inline-flex !important;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.28rem 0.6rem;
+    font-size: 0.72rem;
+    font-weight: 700;
     border-radius: 20px;
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.2) 0%, rgba(16, 185, 129, 0.15) 100%);
+    border: 1px solid rgba(14, 165, 233, 0.5);
+    color: #38bdf8;
     white-space: nowrap;
+    flex-shrink: 0;
+    cursor: pointer;
+    box-shadow: 0 0 8px rgba(14, 165, 233, 0.2);
+    transition: all 0.2s ease;
+  }
+
+  .btn-install-app svg {
+    width: 13px;
+    height: 13px;
     flex-shrink: 0;
   }
 
-  .btn-invest-text-desktop {
+  .btn-install-text-desktop {
     display: none !important;
   }
 
-  .btn-invest-text-mobile {
+  .btn-install-text-mobile {
     display: inline !important;
+  }
+
+  @media (max-width: 350px) {
+    .btn-install-text-mobile {
+      display: none !important;
+    }
   }
 
   /* Compact Start Investing / Login button on mobile */
@@ -6193,32 +6209,11 @@ html.user-guest #navProfileWrapper {
   transform: translateY(-1px);
 }
 
-/* Mobile Header Install App Button Pop */
-@media (min-width: 641px) and (max-width: 768px) {
-  .btn-install-app {
+/* Ensure Install App button on mobile header remains visible in browser view */
+@media (max-width: 768px) {
+  body:not(.pwa-installed) .btn-install-app,
+  body:not(.pwa-installed) #btnInstallApp {
     display: inline-flex !important;
-    background: linear-gradient(135deg, rgba(14, 165, 233, 0.2) 0%, rgba(16, 185, 129, 0.15) 100%);
-    border: 1px solid rgba(14, 165, 233, 0.5);
-    color: #38bdf8;
-    font-weight: 800;
-    padding: 0.3rem 0.65rem;
-    border-radius: 8px;
-    font-size: 0.75rem;
-    box-shadow: 0 0 10px rgba(14, 165, 233, 0.2);
-  }
-
-  .btn-install-text-desktop {
-    display: none;
-  }
-
-  .btn-install-text-mobile {
-    display: inline !important;
-  }
-}
-
-@media (max-width: 640px) {
-  .btn-install-app {
-    display: none !important;
   }
 }
 

@@ -2356,10 +2356,9 @@ function isAppInstalled() {
                        window.matchMedia('(display-mode: minimal-ui)').matches ||
                        window.matchMedia('(display-mode: fullscreen)').matches ||
                        window.matchMedia('(display-mode: window-controls-overlay)').matches ||
-                       window.navigator.standalone === true;
-  const isInstalledFlag = localStorage.getItem('stoxify_app_installed') === '1' ||
-                          window.location.search.includes('source=pwa');
-  return isStandalone || isInstalledFlag;
+                       window.navigator.standalone === true ||
+                       window.location.search.includes('source=pwa');
+  return Boolean(isStandalone);
 }
 
 function dismissMobileInstallBanner() {
@@ -2381,11 +2380,11 @@ function updateInstallButtonsVisibility() {
   const mobBanner = document.getElementById('mobileInstallBanner');
   const mobDismissed = sessionStorage.getItem('stoxify_mob_install_dismissed') === '1';
 
-  // Desktop/header button is visible unless running as installed standalone PWA or marked installed
+  // Desktop and mobile navbar header button is visible in browser view, hidden only in standalone PWA
   if (topBtn) topBtn.style.display = installed ? 'none' : 'inline-flex';
   if (dropdownItem) dropdownItem.style.display = installed ? 'none' : 'flex';
 
-  // Mobile banner is visible on mobile browsers unless running in standalone PWA or marked installed
+  // Mobile banner is visible on mobile browsers unless running in standalone PWA or dismissed in this session
   if (mobBanner) {
     if (installed || mobDismissed) {
       mobBanner.style.display = 'none';
@@ -2400,8 +2399,7 @@ function updateInstallButtonsVisibility() {
 if ('getInstalledRelatedApps' in navigator) {
   navigator.getInstalledRelatedApps().then(apps => {
     if (apps && apps.length > 0) {
-      localStorage.setItem('stoxify_app_installed', '1');
-      updateInstallButtonsVisibility();
+      console.log('Stoxifyin related PWA detected on device');
     }
   }).catch(() => {});
 }
@@ -2445,11 +2443,8 @@ async function triggerNativeInstallPrompt() {
       deferredInstallPrompt.prompt();
       const { outcome } = await deferredInstallPrompt.userChoice;
       if (outcome === 'accepted') {
-        localStorage.setItem('stoxify_app_installed', '1');
-        document.body.classList.add('pwa-installed');
-        updateInstallButtonsVisibility();
         closePwaGuideModal();
-        showToast("Stoxifyin' installed successfully!");
+        showToast("Stoxifyin' installed successfully! You can launch it from your home screen.");
       }
       deferredInstallPrompt = null;
     } catch (err) {
@@ -2460,8 +2455,7 @@ async function triggerNativeInstallPrompt() {
 
 async function installPWA() {
   if (isAppInstalled()) {
-    updateInstallButtonsVisibility();
-    showToast("Stoxifyin' is already installed on your device!");
+    showToast("Stoxifyin' is already running in app mode!");
     return;
   }
   if (deferredInstallPrompt) {
@@ -2469,11 +2463,8 @@ async function installPWA() {
       deferredInstallPrompt.prompt();
       const { outcome } = await deferredInstallPrompt.userChoice;
       if (outcome === 'accepted') {
-        localStorage.setItem('stoxify_app_installed', '1');
-        document.body.classList.add('pwa-installed');
-        updateInstallButtonsVisibility();
         closePwaGuideModal();
-        showToast("Stoxifyin' installed successfully!");
+        showToast("Stoxifyin' installed successfully! You can launch it from your home screen.");
         deferredInstallPrompt = null;
         return;
       }
@@ -2495,11 +2486,8 @@ window.addEventListener('beforeinstallprompt', (e) => {
 
 window.addEventListener('appinstalled', () => {
   deferredInstallPrompt = null;
-  localStorage.setItem('stoxify_app_installed', '1');
-  document.body.classList.add('pwa-installed');
-  updateInstallButtonsVisibility();
   closePwaGuideModal();
-  showToast("Stoxifyin' installed successfully!");
+  showToast("Stoxifyin' installed successfully! You can launch it from your home screen.");
 });
 
 // Register Service Worker
@@ -2519,6 +2507,11 @@ function bootApp() {
   if (window.__stoxify_booted) return;
   window.__stoxify_booted = true;
 
+  // Clear stale install flag from localStorage so browser view always displays install buttons
+  try {
+    localStorage.removeItem('stoxify_app_installed');
+  } catch (e) {}
+
   // Instant synchronous session hydration: 0ms cold-start latency
   try {
     const cachedUserStr = localStorage.getItem('stoxify_cached_user');
@@ -2532,12 +2525,8 @@ function bootApp() {
   } catch (e) {}
 
   initTheme();
-  
-  if (window.location.search.includes('source=pwa')) {
-    localStorage.setItem('stoxify_app_installed', '1');
-  }
 
-  // Set install buttons visibility based on whether running in standalone mode or already installed
+  // Set install buttons visibility based on whether running in standalone mode
   updateInstallButtonsVisibility();
 
   // Close PWA guide modal on clicking backdrop
