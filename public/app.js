@@ -5911,6 +5911,83 @@ function generateNewRandomPan() {
   }
 }
 
+const SIMULATED_BANKS = [
+  { name: 'HDFC Bank', shortName: 'HDFC Bank', ifscPrefix: 'HDFC000', accPrefix: '5010', accLength: 14 },
+  { name: 'ICICI Bank', shortName: 'ICICI Bank', ifscPrefix: 'ICIC000', accPrefix: '0011', accLength: 12 },
+  { name: 'State Bank of India', shortName: 'SBI', ifscPrefix: 'SBIN000', accPrefix: '3819', accLength: 11 },
+  { name: 'Axis Bank', shortName: 'Axis Bank', ifscPrefix: 'UTIB000', accPrefix: '9180', accLength: 15 },
+  { name: 'Kotak Mahindra', shortName: 'Kotak Bank', ifscPrefix: 'KKBK000', accPrefix: '6241', accLength: 10 },
+  { name: 'Federal Bank', shortName: 'Federal Bank', ifscPrefix: 'FDRL000', accPrefix: '1520', accLength: 14 },
+  { name: 'Punjab National Bank', shortName: 'PNB', ifscPrefix: 'PUNB000', accPrefix: '0389', accLength: 16 },
+  { name: 'Bank of Baroda', shortName: 'Baroda', ifscPrefix: 'BARB000', accPrefix: '2415', accLength: 14 }
+];
+
+function generateRandomBank(specificBankName = null) {
+  let bankConfig = null;
+  if (specificBankName && specificBankName !== 'Other Bank') {
+    const sLower = specificBankName.toLowerCase();
+    bankConfig = SIMULATED_BANKS.find(b => 
+      b.name.toLowerCase() === sLower || 
+      b.shortName.toLowerCase() === sLower ||
+      sLower.includes(b.name.toLowerCase().split(' ')[0])
+    );
+  }
+  if (!bankConfig) {
+    bankConfig = SIMULATED_BANKS[Math.floor(Math.random() * SIMULATED_BANKS.length)];
+  }
+
+  const branchCode = Math.floor(1000 + Math.random() * 9000);
+  const ifsc = `${bankConfig.ifscPrefix}${branchCode}`;
+
+  const remainingDigits = bankConfig.accLength - bankConfig.accPrefix.length;
+  let accBody = '';
+  for (let i = 0; i < remainingDigits; i++) {
+    accBody += Math.floor(Math.random() * 10);
+  }
+  const accountNumber = `${bankConfig.accPrefix}${accBody}`;
+
+  return {
+    bankName: bankConfig.name,
+    accountNumber,
+    ifsc
+  };
+}
+
+function applySimulatedBank(bankData, showToastMsg = false) {
+  if (!bankData) return;
+  obUserData.bank_name = bankData.bankName;
+  obUserData.bank_account = bankData.accountNumber;
+  obUserData.ifsc = bankData.ifsc;
+
+  const accInput = document.getElementById('obInputAccount');
+  const accConfirmInput = document.getElementById('obInputAccountConfirm');
+  const ifscInput = document.getElementById('obInputIfsc');
+
+  if (accInput) accInput.value = bankData.accountNumber;
+  if (accConfirmInput) accConfirmInput.value = bankData.accountNumber;
+  if (ifscInput) ifscInput.value = bankData.ifsc;
+
+  document.querySelectorAll('.bank-chips-grid .bank-chip').forEach(c => {
+    const chipText = c.innerText.trim().toLowerCase();
+    const bankNameLower = bankData.bankName.toLowerCase();
+    const firstWord = bankNameLower.split(' ')[0];
+    if (firstWord && (chipText.includes(firstWord) || bankNameLower.includes(chipText))) {
+      c.classList.add('active');
+    } else {
+      c.classList.remove('active');
+    }
+  });
+
+  if (showToastMsg) {
+    showToast(`Simulated details generated: ${bankData.bankName} (A/C •••• ${String(bankData.accountNumber).slice(-4)}) ✓`, false);
+  }
+}
+
+function generateNewRandomBank() {
+  const bankData = generateRandomBank();
+  applySimulatedBank(bankData, true);
+}
+
 function showOnboardingPage() {
   if (currentUser && currentUser.id && !isGuest()) {
     if (!currentUser.pin) {
@@ -6023,13 +6100,28 @@ function goToObStep(stepNum) {
   }
 
   if (stepNum === 4) {
-    document.querySelectorAll('.bank-chip').forEach(c => {
-      if (obUserData.bank_name && c.innerText.trim().toLowerCase().startsWith(obUserData.bank_name.toLowerCase().split(' ')[0])) {
-        c.classList.add('active');
-      } else {
-        c.classList.remove('active');
-      }
-    });
+    if (!obUserData.bank_account || !obUserData.bank_name) {
+      const bankData = generateRandomBank();
+      applySimulatedBank(bankData, false);
+    } else {
+      const accInput = document.getElementById('obInputAccount');
+      const accConfirmInput = document.getElementById('obInputAccountConfirm');
+      const ifscInput = document.getElementById('obInputIfsc');
+      if (accInput && !accInput.value) accInput.value = obUserData.bank_account;
+      if (accConfirmInput && !accConfirmInput.value) accConfirmInput.value = obUserData.bank_account;
+      if (ifscInput && !ifscInput.value) ifscInput.value = obUserData.ifsc;
+
+      document.querySelectorAll('.bank-chips-grid .bank-chip').forEach(c => {
+        const chipText = c.innerText.trim().toLowerCase();
+        const bankNameLower = (obUserData.bank_name || '').toLowerCase();
+        const firstWord = bankNameLower.split(' ')[0];
+        if (firstWord && (chipText.includes(firstWord) || bankNameLower.includes(chipText))) {
+          c.classList.add('active');
+        } else {
+          c.classList.remove('active');
+        }
+      });
+    }
   }
 
   if (stepNum === 5) {
@@ -6272,12 +6364,28 @@ function submitObStep3() {
   goToObStep(4);
 }
 
-function selectBank(name, ifsc, el) {
-  obUserData.bank_name = name;
-  const ifscInput = document.getElementById('obInputIfsc');
-  if (ifscInput) ifscInput.value = ifsc;
-  document.querySelectorAll('.bank-chip').forEach(c => c.classList.remove('active'));
-  el.classList.add('active');
+function selectBank(name, ifscOrEl, el) {
+  let targetEl = el;
+  let customIfsc = null;
+  if (ifscOrEl && ifscOrEl.nodeType) {
+    targetEl = ifscOrEl;
+  } else if (typeof ifscOrEl === 'string') {
+    customIfsc = ifscOrEl;
+  }
+  if (!targetEl && window.event && window.event.currentTarget) {
+    targetEl = window.event.currentTarget;
+  }
+
+  const bankData = generateRandomBank(name);
+  if (customIfsc && name === 'Other Bank') {
+    bankData.ifsc = customIfsc;
+  }
+  applySimulatedBank(bankData, false);
+
+  if (targetEl) {
+    document.querySelectorAll('.bank-chips-grid .bank-chip').forEach(c => c.classList.remove('active'));
+    targetEl.classList.add('active');
+  }
 }
 
 function submitObStep4() {

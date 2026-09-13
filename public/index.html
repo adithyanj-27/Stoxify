@@ -12,7 +12,7 @@
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-dark.png" id="dynamicFavicon">
   <link rel="apple-touch-icon" href="/static/icon-192.png">
-  <link rel="stylesheet" href="/static/style.css?v=8.0" onerror="this.onerror=null;this.href='/style.css?v=8.0';">
+  <link rel="stylesheet" href="/static/style.css?v=8.1" onerror="this.onerror=null;this.href='/style.css?v=8.1';">
   <!-- Chart.js for high performance financial line & area charts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Pre-render synchronous auth & theme hydration to completely eliminate cold-boot flash of 'Invest' button -->
@@ -1868,13 +1868,16 @@
             <button class="ob-btn-link" onclick="goToObStep(2)">← Back to PAN</button>
           </div>
 
-          <!-- Step 4: Bank Account & Penny Drop -->
+          <!-- Step 4: Bank Account & Penny Drop (Randomly prefilled simulated bank details) -->
           <div class="onboarding-step-content" id="obStep-4">
-            <div class="onboarding-badge">Penny Drop Verification</div>
+            <div class="onboarding-badge">Penny Drop Verification • Simulated Bank</div>
             <h2 class="ob-title">Link Bank Account</h2>
-            <p class="ob-sub">We verify your account by depositing ₹1 via IMPS Penny Drop.</p>
+            <p class="ob-sub">We've prefilled a simulated bank account for paper trading. You can keep it, pick another bank, or re-generate anytime.</p>
 
-            <label class="ob-label" style="margin-bottom: 0.6rem;">Select Bank</label>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;">
+              <label class="ob-label" style="margin-bottom: 0;">Select Bank</label>
+              <button type="button" class="ob-btn-link" style="font-size: 0.78rem; text-decoration: underline; padding: 0; color: var(--brand-cyan);" onclick="generateNewRandomBank()">↻ Generate New Bank Details</button>
+            </div>
             <div class="bank-chips-grid">
               <button class="bank-chip" onclick="selectBank('HDFC Bank', 'HDFC0001234', this)">HDFC Bank</button>
               <button class="bank-chip" onclick="selectBank('ICICI Bank', 'ICIC0000001', this)">ICICI Bank</button>
@@ -3357,6 +3360,6 @@
     </button>
   </nav>
 
-  <script src="/static/app.js?v=8.0" onerror="this.onerror=null;this.src='/app.js?v=8.0';"></script>
+  <script src="/static/app.js?v=8.1" onerror="this.onerror=null;this.src='/app.js?v=8.1';"></script>
 </body>
 </html>
