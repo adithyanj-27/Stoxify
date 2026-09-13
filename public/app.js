@@ -2784,25 +2784,6 @@ function handleAppInstallSuccess() {
   document.body.classList.add('pwa-installed');
   sessionStorage.setItem('stoxify_mob_install_dismissed', '1');
   updateInstallButtonsVisibility();
-
-  const mobBanner = document.getElementById('mobileInstallBanner');
-  if (mobBanner) {
-    mobBanner.style.display = 'flex';
-    const title = mobBanner.querySelector('.mob-install-title');
-    if (title) title.innerText = "Stoxifyin' App Installed";
-    const actions = mobBanner.querySelector('.mob-install-actions');
-    if (actions) {
-      actions.innerHTML = `
-        <a href="/?source=pwa" class="mob-install-btn" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;">Open App ↗</a>
-        <button class="mob-install-close" onclick="dismissMobileInstallBanner()" title="Dismiss">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-      `;
-    }
-  }
 }
 
 async function triggerNativeInstallPrompt() {
@@ -3065,6 +3046,12 @@ function handleRoute() {
     return;
   }
 
+  // Default homepage for logged-out visitors is the welcome screen
+  if (path === '/' && (!currentUser || isGuest())) {
+    showWelcomePane();
+    return;
+  }
+
   if (path !== '/profile') {
     document.body.classList.remove('viewing-profile');
     document.documentElement.classList.remove('viewing-profile');
@@ -3077,8 +3064,8 @@ function handleRoute() {
     const sym = decodeURIComponent(path.replace('/mf/', '')).trim();
     showAssetPage(sym, 'MUTUAL_FUND');
   } else if (path === '/welcome') {
-    switchTab('explore', false);
     showWelcomePane();
+    return;
   } else if (path === '/onboarding') {
     showOnboardingPage();
   } else if (path === '/profile') {
