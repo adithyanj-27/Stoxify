@@ -2647,7 +2647,13 @@ async function confirmDeleteAccount() {
   if (!confirmed) return;
 
   try {
-    const res = await fetch('/api/user/delete', { method: 'POST' });
+    const res = await fetch('/api/user/delete', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Id': currentUser.id
+      }
+    });
     const data = await res.json();
     if (res.ok && data.status === 'success') {
       localStorage.removeItem('stoxify_user_id');
@@ -6047,7 +6053,7 @@ async function submitObStep1() {
       body: JSON.stringify({ identifier: phone })
     });
     const chkData = await chk.json();
-    if (chkData && chkData.exists) {
+    if (chk.ok && chkData && chkData.exists) {
       showToast('An account with this mobile number already exists. Please log in.', true);
       openLoginModal(phone);
       return;

@@ -128,9 +128,65 @@ def get_raw_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+_last_user_reconciliation_time = 0.0
+
+def reconcile_users_with_supabase(force: bool = False):
+    """Reconcile local SQLite users cache with Supabase remote database.
+    If users were deleted remotely in Supabase, remove their orphaned rows locally.
+    Ensure 'default' system user does not block real phone numbers.
+    """
+    global _last_user_reconciliation_time
+    if not is_supabase_enabled():
+        return
+    now = time.monotonic()
+    if not force and (now - _last_user_reconciliation_time < 10.0):
+        return
+    _last_user_reconciliation_time = now
+
+    try:
+        sb_users = supabase_api("GET", "users", params={"select": "id,phone"})
+        if sb_users is not None and isinstance(sb_users, list):
+            sb_ids = {u.get("id") for u in sb_users if u.get("id")} | {"default", "guest"}
+            conn = get_raw_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT id FROM users")
+            local_ids = {row["id"] for row in cur.fetchall()}
+            ghost_ids = [gid for gid in (local_ids - sb_ids) if gid and gid not in ["default", "guest"]]
+            if ghost_ids:
+                for gid in ghost_ids:
+                    cur.execute("DELETE FROM holdings WHERE user_id = ?", (gid,))
+                    cur.execute("DELETE FROM holding_tombstones WHERE user_id = ?", (gid,))
+                    cur.execute("DELETE FROM position_tombstones WHERE user_id = ?", (gid,))
+                    cur.execute("DELETE FROM sync_outbox WHERE user_id = ?", (gid,))
+                    cur.execute("DELETE FROM positions WHERE user_id = ?", (gid,))
+                    cur.execute("DELETE FROM orders WHERE user_id = ?", (gid,))
+                    cur.execute("DELETE FROM watchlist WHERE user_id = ?", (gid,))
+                    cur.execute("DELETE FROM gtt_orders WHERE user_id = ?", (gid,))
+                    cur.execute("DELETE FROM sips WHERE user_id = ?", (gid,))
+                    cur.execute("DELETE FROM ipo_bids WHERE user_id = ?", (gid,))
+                    cur.execute("DELETE FROM users WHERE id = ?", (gid,))
+                conn.commit()
+                print(f"[Supabase Sync] Cleaned up {len(ghost_ids)} orphaned users from SQLite: {ghost_ids}")
+
+            # Clear phone on default system user so test numbers are free for real users
+            cur.execute("UPDATE users SET phone = NULL WHERE id = 'default' AND phone IS NOT NULL")
+            conn.commit()
+            conn.close()
+
+            # Also clear phone on default user in Supabase if set
+            for su in sb_users:
+                if su.get("id") == "default" and su.get("phone"):
+                    try:
+                        supabase_api("PATCH", "users?id=eq.default", payload={"phone": None})
+                    except Exception:
+                        pass
+    except Exception as e:
+        print(f"[Supabase Sync Warning]: {e}")
+
 def ensure_db_initialized():
     global _db_initialized
     if _db_initialized:
+        reconcile_users_with_supabase()
         return
     try:
         conn = sqlite3.connect(DB_PATH)
@@ -145,6 +201,7 @@ def ensure_db_initialized():
     except Exception:
         init_db()
         _db_initialized = True
+    reconcile_users_with_supabase()
 
 def get_connection():
     ensure_db_initialized()
@@ -219,20 +276,22 @@ def init_db():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_bank_tx_user ON bank_transactions(user_id, id DESC)")
     conn.commit()
 
-    # Ensure default user exists
+    # Ensure default user exists (with NULL phone so test phone numbers remain available for registration)
     cursor.execute("SELECT COUNT(*) FROM users WHERE id = 'default'")
     if cursor.fetchone()[0] == 0:
         cursor.execute("""
             INSERT INTO users (id, name, email, phone, pan, bank_name, bank_account, pin, balance, total_deposited, avatar_color)
-            VALUES ('default', 'Default Trader', 'trader@stoxify.com', '9876543210', 'ABCDE1234F', 'HDFC Bank', '50100234567890', '', 1000000.0, 1000000.0, '#0EA5E9')
+            VALUES ('default', 'Default Trader', 'trader@stoxify.com', NULL, 'ABCDE1234F', 'HDFC Bank', '50100234567890', '', 1000000.0, 1000000.0, '#0EA5E9')
         """)
+    else:
+        cursor.execute("UPDATE users SET phone = NULL WHERE id = 'default' AND phone IS NOT NULL")
     if is_supabase_enabled():
         try:
-            supabase_api("POST", "users", payload={
+            supabase_api("POST", "users?on_conflict=id", payload={
                 "id": "default",
                 "name": "Default Trader",
                 "email": "trader@stoxify.com",
-                "phone": "9876543210",
+                "phone": None,
                 "pan": "ABCDE1234F",
                 "bank_name": "HDFC Bank",
                 "bank_account": "50100234567890",
@@ -588,6 +647,30 @@ def check_username_available(username: str, exclude_user_id: Optional[str] = Non
     if not re.match(r"^[a-zA-Z0-9_]+$", clean):
         return False
 
+    if is_supabase_enabled():
+        try:
+            params = {"username": f"eq.{clean}", "select": "id"}
+            res = supabase_api("GET", "users", params=params)
+            if res is not None and isinstance(res, list):
+                if len(res) == 0:
+                    # Cloud confirmed username is completely free.
+                    # Purge any local ghost row holding this username.
+                    conn = get_connection()
+                    cur = conn.cursor()
+                    if exclude_user_id:
+                        cur.execute("DELETE FROM users WHERE LOWER(username) = ? AND id != ?", (clean, exclude_user_id))
+                    else:
+                        cur.execute("DELETE FROM users WHERE LOWER(username) = ?", (clean,))
+                    conn.commit()
+                    conn.close()
+                    return True
+                elif exclude_user_id and res[0].get("id") == exclude_user_id:
+                    return True
+                else:
+                    return False
+        except Exception:
+            pass
+
     conn = get_connection()
     cursor = conn.cursor()
     if exclude_user_id:
@@ -597,21 +680,7 @@ def check_username_available(username: str, exclude_user_id: Optional[str] = Non
     count = cursor.fetchone()[0]
     conn.close()
 
-    if count > 0:
-        return False
-
-    if is_supabase_enabled():
-        try:
-            params = {"username": f"eq.{clean}", "select": "id"}
-            res = supabase_api("GET", "users", params=params)
-            if res and isinstance(res, list) and len(res) > 0:
-                if exclude_user_id and res[0].get("id") == exclude_user_id:
-                    return True
-                return False
-        except Exception:
-            pass
-
-    return True
+    return count == 0
 
 def sync_user_to_supabase_auth(
     user_id: str,
@@ -778,19 +847,46 @@ def sync_user_to_supabase_auth(
     return auth_id
 
 def phone_exists(phone: str, exclude_user_id: Optional[str] = None) -> bool:
-    """True when another account already uses this mobile number.
+    """True when another registered account already uses this mobile number.
 
-    `phone` was never unique, so one number could open unlimited accounts.
+    `phone` is the account's unique identity.
+    Uses Supabase as the source of truth when cloud sync is enabled,
+    and purges local ghost rows for deleted accounts.
     """
     clean = (phone or "").strip()
     if not clean:
         return False
+
+    # 1. Supabase check (authoritative cloud source of truth)
+    if is_supabase_enabled():
+        try:
+            params = {"phone": f"eq.{clean}", "select": "id"}
+            res = supabase_api("GET", "users", params=params)
+            if res is not None and isinstance(res, list):
+                matched = [u for u in res if u.get("id") and u.get("id") not in [exclude_user_id, "default", "guest"]]
+                if len(matched) > 0:
+                    return True
+                # Supabase confirmed no real active user has this phone number.
+                # Purge any local SQLite ghost rows for this phone number.
+                conn = get_connection()
+                cur = conn.cursor()
+                if exclude_user_id:
+                    cur.execute("DELETE FROM users WHERE phone = ? AND id NOT IN ('default', 'guest') AND id != ?", (clean, exclude_user_id))
+                else:
+                    cur.execute("DELETE FROM users WHERE phone = ? AND id NOT IN ('default', 'guest')", (clean,))
+                conn.commit()
+                conn.close()
+                return False
+        except Exception as e:
+            print(f"[Supabase Phone Check Warning]: {e}")
+
+    # 2. Local SQLite check (fallback or offline)
     conn = get_connection()
     cursor = conn.cursor()
     if exclude_user_id:
-        cursor.execute("SELECT id FROM users WHERE phone = ? AND id != ? LIMIT 1", (clean, exclude_user_id))
+        cursor.execute("SELECT id FROM users WHERE phone = ? AND id != ? AND id NOT IN ('default', 'guest') LIMIT 1", (clean, exclude_user_id))
     else:
-        cursor.execute("SELECT id FROM users WHERE phone = ? LIMIT 1", (clean,))
+        cursor.execute("SELECT id FROM users WHERE phone = ? AND id NOT IN ('default', 'guest') LIMIT 1", (clean,))
     row = cursor.fetchone()
     conn.close()
     return row is not None
@@ -1152,7 +1248,7 @@ def get_user(user_id: str = "default") -> Optional[Dict[str, Any]]:
             "name": "Default Trader",
             "username": "default_trader",
             "email": "trader@stoxify.com",
-            "phone": "9876543210",
+            "phone": None,
             "pan": "ABCDE1234F",
             "bank_name": "HDFC Bank",
             "bank_account": "50100234567890",
@@ -1201,8 +1297,30 @@ def find_user_by_identifier(identifier: str) -> Optional[Dict[str, Any]]:
     """, (clean, clean, clean_raw, clean_raw.upper(), clean))
     row = cursor.fetchone()
     conn.close()
+
     if row:
-        return dict(row)
+        user_dict = dict(row)
+        # If this is a real user and Supabase is enabled, verify user still exists in Supabase
+        if is_supabase_enabled() and user_dict.get("id") not in ["default", "guest"]:
+            try:
+                sb_chk = supabase_api("GET", "users", params={"id": f"eq.{user_dict['id']}", "select": "id"})
+                if sb_chk is not None and isinstance(sb_chk, list) and len(sb_chk) == 0:
+                    # User was deleted from Supabase! Purge local ghost row.
+                    c_del = get_connection()
+                    cur_del = c_del.cursor()
+                    cur_del.execute("DELETE FROM users WHERE id = ?", (user_dict["id"],))
+                    c_del.commit()
+                    c_del.close()
+                    row = None
+            except Exception:
+                pass
+
+        if row:
+            # The 'default' system account should only match if explicitly asked for by ID or username
+            if user_dict.get("id") in ["default", "guest"] and clean not in ["default", "default_trader", "guest"]:
+                pass
+            else:
+                return user_dict
 
     if is_supabase_enabled():
         for query_field, query_val in [("username", clean), ("email", clean), ("phone", clean_raw), ("id", clean_raw)]:
@@ -1210,6 +1328,8 @@ def find_user_by_identifier(identifier: str) -> Optional[Dict[str, Any]]:
                 res = supabase_api("GET", "users", params={query_field: f"eq.{query_val}", "select": "*"})
                 if res and isinstance(res, list) and len(res) > 0:
                     sb_u = res[0]
+                    if sb_u.get("id") in ["default", "guest"] and clean not in ["default", "default_trader", "guest"]:
+                        continue
                     try:
                         conn = get_connection()
                         cur = conn.cursor()
@@ -2117,7 +2237,7 @@ def execute_trade(
         if not acc_row:
             cursor.execute("""
                 INSERT OR IGNORE INTO users (id, name, email, phone, pan, bank_name, bank_account, pin, balance, total_deposited)
-                VALUES (?, ?, 'trader@stoxify.com', '9876543210', 'ABCDE1234F', 'HDFC Bank', '50100234567890', '', 1000000.0, 1000000.0)
+                VALUES (?, ?, 'trader@stoxify.com', NULL, 'ABCDE1234F', 'HDFC Bank', '50100234567890', '', 1000000.0, 1000000.0)
             """, (user_id, "Default Trader" if user_id == "default" else "Trader"))
             cursor.execute("SELECT balance FROM users WHERE id = ?", (user_id,))
             acc_row = cursor.fetchone()
@@ -2125,7 +2245,7 @@ def execute_trade(
                 try:
                     supabase_api("POST", "users?on_conflict=id", payload={
                         "id": user_id, "name": "Default Trader" if user_id == "default" else "Trader",
-                        "email": "trader@stoxify.com", "phone": "9876543210", "pan": "ABCDE1234F",
+                        "email": "trader@stoxify.com", "phone": None, "pan": "ABCDE1234F",
                         "bank_name": "HDFC Bank", "bank_account": "50100234567890", "pin": "",
                         "balance": 1000000.0, "total_deposited": 1000000.0, "avatar_color": "#0EA5E9"
                     })

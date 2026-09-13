@@ -263,7 +263,7 @@ def api_create_user(req: CreateUserRequest):
 
     # This mobile number is the account's identity, so it has to be unique.
     clean_phone = (req.phone or "").strip()
-    if clean_phone and phone_exists(clean_phone):
+    if clean_phone and phone_exists(clean_phone, exclude_user_id=req.id):
         raise HTTPException(status_code=400, detail="An account already exists for this mobile number. Please log in instead")
 
     if req.pin and len(str(req.pin).strip()) != 4:
@@ -424,8 +424,9 @@ def api_login_user(req: LoginRequest):
     if not req.identifier or not req.identifier.strip():
         raise HTTPException(status_code=400, detail="Please enter your Username, Email Address or Phone Number")
 
-    user = find_user_by_identifier(req.identifier.strip())
-    if not user:
+    ident = req.identifier.strip()
+    user = find_user_by_identifier(ident)
+    if not user or (user.get("id") in ["default", "guest"] and ident.lower() not in ["default", "default_trader", "guest"]):
         raise HTTPException(status_code=404, detail="No registered account found matching this Username, Email or Phone Number")
 
     # Verify credentials via Password or PIN
