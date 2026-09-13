@@ -356,7 +356,17 @@ class UpdateProfileRequest(BaseModel):
 @app.put("/api/user/profile")
 def api_update_user_profile(req: UpdateProfileRequest, request: Request):
     uid = req.id or get_user_id(request)
-    if not uid or uid == "guest":
+    if not uid or str(uid).lower() in ["guest", "none", "null", "undefined"]:
+        if req.phone:
+            u_found = find_user_by_identifier(req.phone.strip())
+            if u_found and u_found.get("id") not in ["default", "guest"]:
+                uid = u_found.get("id")
+        elif req.email:
+            u_found = find_user_by_identifier(req.email.strip())
+            if u_found and u_found.get("id") not in ["default", "guest"]:
+                uid = u_found.get("id")
+
+    if not uid or str(uid).lower() in ["guest", "none", "null", "undefined"]:
         raise HTTPException(status_code=401, detail="Account required to edit profile")
 
     if req.name is not None and not req.name.strip():
@@ -413,6 +423,8 @@ def api_update_user_profile(req: UpdateProfileRequest, request: Request):
         username=clean_username if req.username is not None else None,
         password=clean_password if req.password is not None else None
     )
+    if not updated:
+        updated = get_user(uid)
     if not updated:
         raise HTTPException(status_code=404, detail="User not found")
     return {"success": True, "user": updated, "message": "Profile updated successfully"}

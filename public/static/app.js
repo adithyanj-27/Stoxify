@@ -6665,22 +6665,42 @@ async function submitObPin() {
     return;
   }
 
+  // Ensure currentUser is hydrated
+  if (!currentUser || !currentUser.id) {
+    const cached = localStorage.getItem('stoxify_cached_user');
+    if (cached) {
+      try { currentUser = JSON.parse(cached); } catch (e) {}
+    }
+  }
+  const targetId = (currentUser && currentUser.id) || localStorage.getItem('stoxify_user_id');
+  const targetPhone = (currentUser && currentUser.phone) || obUserData.phone;
+
   try {
     const res = await fetch('/api/user/update', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-user-id': currentUser.id },
-      body: JSON.stringify({ id: currentUser.id, pin: pin })
+      headers: { 
+        'Content-Type': 'application/json', 
+        'x-user-id': targetId || ''
+      },
+      body: JSON.stringify({ 
+        id: targetId, 
+        phone: targetPhone,
+        pin: pin 
+      })
     });
     const data = await res.json();
     if (!res.ok || !data.success) {
       showToast(data.detail || 'Could not save your PIN. Please try again.', true);
       return;
     }
-    currentUser = data.user || currentUser;
+    currentUser = data.user || currentUser || {};
     currentUser.pin = pin;
+    if (targetId && !currentUser.id) currentUser.id = targetId;
+    if (targetPhone && !currentUser.phone) currentUser.phone = targetPhone;
     localStorage.setItem('stoxify_cached_user', JSON.stringify(currentUser));
+    localStorage.setItem('stoxify_user_id', currentUser.id);
     updateNavbarProfile();
-    showToast('PIN saved successfully ✓ You can now log in with your mobile number and PIN.');
+    showToast('PIN saved successfully ✓ Your account is fully activated!');
     finishOnboarding();
   } catch (_) {
     showToast('Error connecting to server. Please try again.', true);

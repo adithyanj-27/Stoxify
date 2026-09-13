@@ -1074,7 +1074,12 @@ def update_user(
     username: Optional[str] = None,
     password: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
-    if not user_id or user_id == "guest":
+    if not user_id or str(user_id).lower() in ["guest", "none", "null", "undefined", ""]:
+        return None
+
+    # Ensure user exists in local SQLite (re-hydrating from Supabase if needed)
+    current_u = get_user(user_id)
+    if not current_u:
         return None
 
     fields = []
@@ -1129,7 +1134,7 @@ def update_user(
         sb_payload["password"] = clean_pwd
 
     if not fields:
-        return get_user(user_id)
+        return current_u
 
     fields.append("updated_at = CURRENT_TIMESTAMP")
     params.append(user_id)
@@ -1157,6 +1162,9 @@ def update_user(
                 supabase_api("PATCH", f"users?id=eq.{user_id}", payload=sb_fallback)
         except Exception:
             pass
+
+    if not updated:
+        updated = get_user(user_id)
 
     return updated
 
