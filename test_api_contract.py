@@ -174,6 +174,80 @@ check("watchlist seeds for a new user", True, len(main.read_watchlist(req)) > 0)
 
 print()
 print("=" * 72)
+print(" 7. Registration wizard payload (the body static/app.js now sends)")
+print("=" * 72)
+
+# Exactly the shape submitObStep5() posts: no username, no password, no PIN, but
+# with the fields that used to be collected and silently dropped.
+new_user_id = "STOX-777001"
+created = main.api_create_user(main.CreateUserRequest(
+    id=new_user_id,
+    name="Prefill Tester",
+    email="prefill.tester@example.test",
+    phone="9333333333",
+    pan="QWERT1234Z",
+    dob="1996-04-11",
+    age=30,
+    experience="1–2 Years",
+    gender="Female",
+    occupation="Business",
+    income="₹10L - ₹25L",
+    ifsc="SBIN0001234",
+    bank_name="State Bank of India",
+    bank_account="11223344556",
+    address_line1="Flat 701, Silver Heights",
+    address_line2="Banjara Hills",
+    city="Hyderabad",
+    state="Telangana",
+    pincode="500034"
+))
+user = created["user"]
+check("registration succeeds without username/password/PIN", True, created["success"])
+check("gender persisted", "Female", user.get("gender"))
+check("occupation persisted", "Business", user.get("occupation"))
+check("income persisted", "₹10L - ₹25L", user.get("income"))
+check("address line 1 persisted", "Flat 701, Silver Heights", user.get("address_line1"))
+check("city persisted", "Hyderabad", user.get("city"))
+check("state persisted", "Telangana", user.get("state"))
+check("pincode persisted", "500034", user.get("pincode"))
+check("typed IFSC is kept, not derived from the bank name", "SBIN0001234", user.get("bank_ifsc"))
+check("account starts with no credential", "", (user.get("pin") or ""))
+
+# The mobile number is the account identity, so it must be unique.
+try:
+    main.api_create_user(main.CreateUserRequest(
+        name="Second Tester", email="second@example.test", phone="9333333333",
+        dob="1990-01-01", age=36))
+    duplicate_phone_status = None
+except HTTPException as exc:
+    duplicate_phone_status = exc.status_code
+check("duplicate mobile number is rejected", 400, duplicate_phone_status)
+
+# A Demat account needs an adult applicant.
+try:
+    main.api_create_user(main.CreateUserRequest(
+        name="Minor Tester", email="minor@example.test", phone="9444444444",
+        dob="2015-01-01", age=11))
+    minor_status = None
+except HTTPException as exc:
+    minor_status = exc.status_code
+check("under-18 applicant is rejected", 400, minor_status)
+
+# Login must not disclose who owns an identifier when no secret is supplied.
+neutral = main.api_login_user(main.LoginRequest(identifier="9333333333"))
+check("bare-identifier login reports no name", None, neutral.get("user"))
+check("bare-identifier login asks for a credential", True, neutral.get("requires_credential"))
+
+# ...and the credential set after activation actually works.
+main.api_update_user_profile(
+    main.UpdateProfileRequest(id=new_user_id, pin="5150"),
+    FakeRequest(user_id=new_user_id))
+logged_in = main.api_login_user(main.LoginRequest(identifier="9333333333", pin="5150"))
+check("mobile + post-activation PIN logs in", True, logged_in.get("success"))
+check("login returns the right account", new_user_id, logged_in.get("user", {}).get("id"))
+
+print()
+print("=" * 72)
 print(f" {len(FAILURES)} failure(s)")
 for name in FAILURES:
     print(f"   - {name}")

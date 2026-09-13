@@ -1455,16 +1455,6 @@
 
     <!-- 8. GROWW-STYLE SIMULATED ACCOUNT ONBOARDING WIZARD -->
     <section id="pane-onboarding" class="tab-pane">
-      <!-- Simulated Mobile SMS Banner -->
-      <div class="sms-push-banner" id="smsPushBanner" style="display: none;" onclick="pasteSmsOtp()">
-        <div class="sms-icon">💬</div>
-        <div class="sms-body">
-          <div class="sms-header"><span>Messages</span><span style="opacity: 0.7;">now</span></div>
-          <div class="sms-text" id="smsPushText">Stoxifyin: Your verification code is <strong id="smsOtpCode">4829</strong>. Do not share this with anyone.</div>
-          <div class="sms-tap">Tap to auto-paste OTP</div>
-        </div>
-      </div>
-
       <div class="onboarding-container">
         <!-- Progress Steps Header -->
         <div class="onboarding-progress-bar">
@@ -1475,12 +1465,12 @@
           <div class="step-connector" id="obConnector-1"></div>
           <div class="progress-step" id="obStepIndicator-2">
             <span class="step-num">2</span>
-            <span class="step-label">OTP</span>
+            <span class="step-label">PAN</span>
           </div>
           <div class="step-connector" id="obConnector-2"></div>
           <div class="progress-step" id="obStepIndicator-3">
             <span class="step-num">3</span>
-            <span class="step-label">PAN</span>
+            <span class="step-label">Details</span>
           </div>
           <div class="step-connector" id="obConnector-3"></div>
           <div class="progress-step" id="obStepIndicator-4">
@@ -1490,7 +1480,12 @@
           <div class="step-connector" id="obConnector-4"></div>
           <div class="progress-step" id="obStepIndicator-5">
             <span class="step-num">5</span>
-            <span class="step-label">PIN</span>
+            <span class="step-label">Confirm</span>
+          </div>
+          <div class="step-connector" id="obConnector-5"></div>
+          <div class="progress-step" id="obStepIndicator-6">
+            <span class="step-num">6</span>
+            <span class="step-label">Done</span>
           </div>
         </div>
 
@@ -1511,21 +1506,6 @@
               <label class="ob-label">Email Address <span style="color: var(--brand-cyan); font-size: 0.8rem;">*</span></label>
               <input type="email" class="ob-input" id="obInputEmail" placeholder="trader@mail.com" autocomplete="email">
             </div>
-            <div class="ob-form-group">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-                <label class="ob-label" style="margin-bottom: 0;">Choose Username <span style="color: var(--brand-cyan); font-size: 0.8rem;">*</span></label>
-                <span id="obUsernameStatus" style="font-size: 0.76rem; font-weight: 600; display: none;"></span>
-              </div>
-              <div class="ob-prefix-input">
-                <span class="input-prefix">@</span>
-                <input type="text" id="obInputUsername" placeholder="your_unique_username" autocomplete="username" style="font-family: monospace; font-size: 0.95rem; font-weight: 600;" oninput="onUsernameInput(this)">
-              </div>
-              <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem;">3–25 characters, letters, numbers & underscores</div>
-            </div>
-            <div class="ob-form-group">
-              <label class="ob-label">Create Password <span style="color: var(--brand-cyan); font-size: 0.8rem;">*</span></label>
-              <input type="password" class="ob-input" id="obInputPassword" placeholder="Minimum 6 characters" autocomplete="new-password">
-            </div>
             <button class="ob-btn-primary" onclick="submitObStep1()">Continue →</button>
             <div style="text-align: center; margin-top: 1rem; font-size: 0.86rem; color: var(--text-secondary);">
               Already have an account? <a href="javascript:void(0)" onclick="openLoginModal()" style="color: var(--brand-cyan); font-weight: 700; text-decoration: underline;">Log In here</a>
@@ -1533,37 +1513,26 @@
             <div class="ob-footer-note" style="margin-top: 0.8rem;">By continuing, you agree to Stoxifyin' Simulated Trading T&C.</div>
           </div>
 
-          <!-- Step 2: Simulated OTP -->
+          <!-- Step 2: PAN (pulls the identity record used by step 3) -->
           <div class="onboarding-step-content" id="obStep-2">
-            <div class="onboarding-badge">Verification</div>
-            <h2 class="ob-title">Enter Verification Code</h2>
-            <p class="ob-sub">Enter the 4-digit code sent to <strong id="obDisplayPhone">+91 XXXXX XXXXX</strong></p>
-
-            <div class="otp-inputs-grid">
-              <input type="text" maxlength="1" class="otp-digit" id="otp-1" autofocus oninput="moveOtp(1, event)" onkeydown="handleOtpBackspace(1, event)">
-              <input type="text" maxlength="1" class="otp-digit" id="otp-2" oninput="moveOtp(2, event)" onkeydown="handleOtpBackspace(2, event)">
-              <input type="text" maxlength="1" class="otp-digit" id="otp-3" oninput="moveOtp(3, event)" onkeydown="handleOtpBackspace(3, event)">
-              <input type="text" maxlength="1" class="otp-digit" id="otp-4" oninput="moveOtp(4, event)" onkeydown="handleOtpBackspace(4, event)">
-            </div>
-
-            <div style="text-align: center; margin-bottom: 1.5rem; font-size: 0.85rem; color: var(--text-muted);">
-              Didn't receive code? <span id="otpResendTimer" style="color: var(--brand-cyan); cursor: pointer;" onclick="resendOtp()">Resend OTP</span>
-            </div>
-
-            <button class="ob-btn-primary" onclick="submitObStep2()">Verify OTP →</button>
-            <button class="ob-btn-link" onclick="goToObStep(1)">← Change Mobile Number</button>
-          </div>
-
-          <!-- Step 3: PAN Card & Identity -->
-          <div class="onboarding-step-content" id="obStep-3">
             <div class="onboarding-badge">SEBI KYC Compliance</div>
-            <h2 class="ob-title">Personal Details</h2>
-            <p class="ob-sub">As per SEBI guidelines, PAN is mandatory for opening a Demat account.</p>
+            <h2 class="ob-title">Enter Your PAN</h2>
+            <p class="ob-sub">Your PAN is mandatory for a Demat account. We use it to fetch your name, date of birth and address.</p>
 
             <div class="ob-form-group">
               <label class="ob-label">PAN Number</label>
               <input type="text" class="ob-input" id="obInputPan" placeholder="ABCDE1234F" maxlength="10" style="text-transform: uppercase; font-family: monospace; font-size: 1.1rem; letter-spacing: 0.1em;" oninput="onPanInput(this)">
             </div>
+
+            <button class="ob-btn-primary" onclick="submitObStep2()">Fetch My Details →</button>
+            <button class="ob-btn-link" onclick="goToObStep(1)">← Change Mobile Number</button>
+          </div>
+
+          <!-- Step 3: Personal Details — prefilled from the PAN, fully editable -->
+          <div class="onboarding-step-content" id="obStep-3">
+            <div class="onboarding-badge">Fetched from records • Editable</div>
+            <h2 class="ob-title">Personal Details</h2>
+            <p class="ob-sub">We pulled these details against your PAN. Check them, and change anything that looks wrong.</p>
 
             <div class="ob-form-group">
               <label class="ob-label">Full Name (as per PAN)</label>
@@ -1573,7 +1542,7 @@
             <div class="ob-row-2">
               <div class="ob-form-group">
                 <label class="ob-label">Date of Birth</label>
-                <input type="date" class="ob-input" id="obInputDob" min="1920-01-01" max="2016-09-05" value="2000-01-01">
+                <input type="date" class="ob-input" id="obInputDob" min="1930-01-01">
               </div>
               <div class="ob-form-group">
                 <label class="ob-label">Gender</label>
@@ -1609,10 +1578,31 @@
               </div>
             </div>
 
+            <div class="ob-form-group">
+              <label class="ob-label">Address Line 1</label>
+              <input type="text" class="ob-input" id="obInputAddress1" placeholder="Flat / House no., Building">
+            </div>
+
+            <div class="ob-form-group">
+              <label class="ob-label">Address Line 2</label>
+              <input type="text" class="ob-input" id="obInputAddress2" placeholder="Street / Area / Locality">
+            </div>
+
             <div class="ob-row-2">
               <div class="ob-form-group">
-                <label class="ob-label">Age (Years)</label>
-                <input type="number" class="ob-input" id="obInputAge" min="13" max="120" placeholder="e.g. 24" value="24" required>
+                <label class="ob-label">City</label>
+                <input type="text" class="ob-input" id="obInputCity" placeholder="City">
+              </div>
+              <div class="ob-form-group">
+                <label class="ob-label">State</label>
+                <input type="text" class="ob-input" id="obInputState" placeholder="State">
+              </div>
+            </div>
+
+            <div class="ob-row-2">
+              <div class="ob-form-group">
+                <label class="ob-label">PIN Code</label>
+                <input type="text" class="ob-input" id="obInputPincode" maxlength="6" placeholder="6-digit PIN code">
               </div>
               <div class="ob-form-group">
                 <label class="ob-label">Trading Experience</label>
@@ -1670,63 +1660,108 @@
             <button class="ob-btn-primary" id="btnVerifyBank" onclick="submitObStep4()">Verify & Link Bank Account →</button>
           </div>
 
-          <!-- Step 5: 4-Digit Security PIN -->
+          <!-- Step 5: Application summary + consent (the PIN moved to after activation) -->
           <div class="onboarding-step-content" id="obStep-5">
-            <div class="onboarding-badge">Security & Authorization</div>
-            <h2 class="ob-title">Set 4-Digit Trading PIN</h2>
-            <p class="ob-sub">Create your custom 4-digit PIN to securely authorize trades and order execution.</p>
-
-            <div class="ob-form-group">
-              <label class="ob-label">Enter 4-Digit PIN</label>
-              <div style="position: relative;">
-                <input type="password" maxlength="4" class="ob-input" id="obInputPin" placeholder="••••" style="font-size: 1.4rem; letter-spacing: 0.35rem; text-align: center;">
-              </div>
-            </div>
-
-            <div class="ob-form-group">
-              <label class="ob-label">Confirm 4-Digit PIN</label>
-              <div style="position: relative;">
-                <input type="password" maxlength="4" class="ob-input" id="obInputPinConfirm" placeholder="••••" style="font-size: 1.4rem; letter-spacing: 0.35rem; text-align: center;">
-              </div>
-            </div>
-
-            <button class="ob-btn-primary" onclick="submitObStep5()">Activate Demat Account →</button>
-          </div>
-
-          <!-- Step 6: Congratulations Screen -->
-          <div class="onboarding-step-content" id="obStep-6">
-            <div class="celebration-circle">🎉</div>
-            <h2 class="ob-title">Account Successfully Activated!</h2>
-            <p class="ob-sub">Welcome to Stoxifyin', <strong id="obWelcomeName">Trader</strong>! Your virtual trading setup is complete.</p>
+            <div class="onboarding-badge">Final Step</div>
+            <h2 class="ob-title">Review &amp; Confirm</h2>
+            <p class="ob-sub">Check your application and accept the account-opening terms.</p>
 
             <div class="account-summary-card">
-              <div class="summary-row">
-                <span>Demat Account ID</span>
-                <strong id="obCreatedDemat">STOX-892140</strong>
-              </div>
-              <div class="summary-row">
-                <span>Username</span>
-                <strong id="obCreatedUsername" style="color: var(--brand-cyan);">@trader</strong>
-              </div>
-              <div class="summary-row">
-                <span>Registered Email</span>
-                <strong id="obCreatedEmail">trader@example.com</strong>
-              </div>
-              <div class="summary-row">
-                <span>Linked Bank</span>
-                <strong id="obCreatedBank">HDFC Bank (Verified ✓)</strong>
-              </div>
-              <div class="summary-row highlight">
-                <span>Linked Bank Balance</span>
-                <strong class="text-positive" style="font-size: 1.25rem;">₹10,00,000.00</strong>
-              </div>
+              <div class="summary-row"><span>Name</span><strong id="obReviewName">—</strong></div>
+              <div class="summary-row"><span>Mobile</span><strong id="obReviewPhone">—</strong></div>
+              <div class="summary-row"><span>Email</span><strong id="obReviewEmail">—</strong></div>
+              <div class="summary-row"><span>PAN</span><strong id="obReviewPan">—</strong></div>
+              <div class="summary-row"><span>Bank</span><strong id="obReviewBank">—</strong></div>
             </div>
 
-            <p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; margin: 0.75rem 0 1.25rem 0;">
-              Your initial ₹10 Lakh virtual capital is safely deposited in your linked bank account. Add funds to your Stoxifyin' trading wallet anytime via simulated UPI with your 4-digit PIN!
-            </p>
+            <div class="account-summary-card" style="margin-top: 1rem;">
+              <div class="summary-row"><span>Account opening (one-time)</span><strong>Free</strong></div>
+              <div class="summary-row"><span>AMC — annual maintenance</span><strong>₹0 for the first year</strong></div>
+              <div class="summary-row"><span>Equity delivery brokerage</span><strong>₹0</strong></div>
+              <div class="summary-row"><span>Intraday &amp; F&amp;O</span><strong>₹20 or 0.03%</strong></div>
+            </div>
 
-            <button class="ob-btn-primary" onclick="finishOnboarding()">Start Investing Now →</button>
+            <label style="display: flex; align-items: flex-start; gap: 0.6rem; margin: 1rem 0 1.25rem 0; font-size: 0.85rem; color: var(--text-secondary); cursor: pointer;">
+              <input type="checkbox" id="obConsentTick" style="margin-top: 0.2rem; width: 16px; height: 16px; accent-color: var(--brand-cyan);">
+              <span>I accept the <strong>tariff sheet</strong> and the account-opening terms, and I authorise Stoxifyin' to verify my PAN, address and bank details for this simulated account.</span>
+            </label>
+
+            <button class="ob-btn-primary" onclick="submitObStep5()">Open My Demat Account →</button>
+            <button class="ob-btn-link" onclick="goToObStep(4)">← Back to Bank Details</button>
+          </div>
+
+          <!-- Step 6: Pending -> Activated (reveal) -> Set PIN -->
+          <div class="onboarding-step-content" id="obStep-6">
+            <!-- 6a: application under process -->
+            <div id="obPendingView">
+              <div class="penny-drop-container" style="display: flex;">
+                <div class="penny-spinner"></div>
+                <div class="penny-text" id="obPendingText">Submitting your application…</div>
+              </div>
+              <h2 class="ob-title" style="margin-top: 1.25rem;">Application Under Process</h2>
+              <p class="ob-sub">
+                We've received the application for <strong id="obPendingName">Trader</strong>. Verification usually
+                completes in a few working days, and your client ID is emailed to <strong id="obPendingEmail">—</strong>.
+              </p>
+              <div style="font-size: 0.78rem; color: var(--text-muted); text-align: center;">Application ref: <span id="obPendingRef">—</span></div>
+            </div>
+
+            <!-- 6b: activated -->
+            <div id="obActiveView" style="display: none;">
+              <div class="celebration-circle">🎉</div>
+              <h2 class="ob-title">Account Activated!</h2>
+              <p class="ob-sub">Welcome to Stoxifyin', <strong id="obWelcomeName">Trader</strong>! Your virtual trading setup is complete.</p>
+
+              <div class="account-summary-card">
+                <div class="summary-row">
+                  <span>Demat / Client ID</span>
+                  <strong id="obCreatedDemat">—</strong>
+                </div>
+                <div class="summary-row">
+                  <span>Login Mobile</span>
+                  <strong id="obCreatedUsername" style="color: var(--brand-cyan);">—</strong>
+                </div>
+                <div class="summary-row">
+                  <span>Registered Email</span>
+                  <strong id="obCreatedEmail">—</strong>
+                </div>
+                <div class="summary-row">
+                  <span>Linked Bank</span>
+                  <strong id="obCreatedBank">—</strong>
+                </div>
+                <div class="summary-row highlight">
+                  <span>Linked Bank Balance</span>
+                  <strong class="text-positive" id="obCreatedBankBalance" style="font-size: 1.25rem;">—</strong>
+                </div>
+              </div>
+
+              <p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; margin: 0.75rem 0 1.25rem 0;">
+                Your opening virtual capital is already sitting in your linked bank account. Move it into your
+                trading wallet anytime with simulated UPI.
+              </p>
+
+              <button class="ob-btn-primary" onclick="showObPinView()">Set My 4-Digit PIN →</button>
+            </div>
+
+            <!-- 6c: set the app PIN — after activation, the way Groww does it -->
+            <div id="obPinView" style="display: none;">
+              <div class="onboarding-badge">One last thing</div>
+              <h2 class="ob-title">Set Your 4-Digit PIN</h2>
+              <p class="ob-sub">You'll use this PIN with your mobile number to log in and to authorise trades.</p>
+
+              <div class="ob-form-group">
+                <label class="ob-label">Enter 4-Digit PIN</label>
+                <input type="password" maxlength="4" class="ob-input" id="obInputPin" placeholder="••••" style="font-size: 1.4rem; letter-spacing: 0.35rem; text-align: center;">
+              </div>
+
+              <div class="ob-form-group">
+                <label class="ob-label">Confirm 4-Digit PIN</label>
+                <input type="password" maxlength="4" class="ob-input" id="obInputPinConfirm" placeholder="••••" style="font-size: 1.4rem; letter-spacing: 0.35rem; text-align: center;">
+              </div>
+
+              <button class="ob-btn-primary" onclick="submitObPin()">Save PIN &amp; Start Investing →</button>
+              <button class="ob-btn-link" onclick="finishOnboarding()">Skip for now</button>
+            </div>
           </div>
         </div>
       </div>

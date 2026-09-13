@@ -15,6 +15,7 @@ from database import (
     check_username_available, sync_user_to_supabase_auth, mark_tour_completed,
     place_gtt_order, get_gtt_orders, cancel_gtt_order,
     get_pending_order_symbols,
+    phone_exists,
     create_sip, get_user_sips, cancel_sip,
     apply_ipo, get_ipo_bids, cancel_ipo_bid,
     get_capital_gains_tax_report, get_sector_allocation,
@@ -220,6 +221,17 @@ class CreateUserRequest(BaseModel):
     dob: Optional[str] = None
     age: Optional[int] = 18
     experience: Optional[str] = "None / Total Beginner"
+    # Captured by the registration wizard. Previously collected in the UI and then
+    # dropped on the floor: never sent, never stored.
+    ifsc: Optional[str] = None
+    gender: Optional[str] = None
+    occupation: Optional[str] = None
+    income: Optional[str] = None
+    address_line1: Optional[str] = None
+    address_line2: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    pincode: Optional[str] = None
 
 @app.post("/api/user/create")
 def api_create_user(req: CreateUserRequest):
@@ -233,8 +245,8 @@ def api_create_user(req: CreateUserRequest):
             birth_d = datetime.strptime(req.dob.strip(), "%Y-%m-%d").date()
             today = date.today()
             calc_age = today.year - birth_d.year - ((today.month, today.day) < (birth_d.month, birth_d.day))
-            if calc_age < 13:
-                raise HTTPException(status_code=400, detail="You must be at least 13 years of age to register")
+            if calc_age < 18:
+                raise HTTPException(status_code=400, detail="You must be at least 18 years of age to open a Demat account")
         except HTTPException:
             raise
         except Exception:
@@ -244,10 +256,18 @@ def api_create_user(req: CreateUserRequest):
     if req.age is not None:
         try:
             clean_age = int(req.age)
-            if clean_age < 13:
-                raise HTTPException(status_code=400, detail="You must be at least 13 years of age to register")
+            if clean_age < 18:
+                raise HTTPException(status_code=400, detail="You must be at least 18 years of age to open a Demat account")
         except ValueError:
-            raise HTTPException(status_code=400, detail="Age must be an integer of at least 13")
+            raise HTTPException(status_code=400, detail="Age must be an integer of at least 18")
+
+    # This mobile number is the account's identity, so it has to be unique.
+    clean_phone = (req.phone or "").strip()
+    if clean_phone and phone_exists(clean_phone):
+        raise HTTPException(status_code=400, detail="An account already exists for this mobile number. Please log in instead")
+
+    if req.pin and len(str(req.pin).strip()) != 4:
+        raise HTTPException(status_code=400, detail="Trading PIN must be exactly 4 digits")
 
     clean_exp = (req.experience or "None / Total Beginner").strip()
     valid_exp_tiers = ["None / Total Beginner", "< 1 Year", "1–2 Years", "1-2 Years", "2+ Years"]
@@ -286,7 +306,16 @@ def api_create_user(req: CreateUserRequest):
         username=clean_username,
         password=clean_password,
         age=clean_age,
-        experience=clean_exp
+        experience=clean_exp,
+        ifsc=req.ifsc,
+        gender=req.gender,
+        occupation=req.occupation,
+        income=req.income,
+        address_line1=req.address_line1,
+        address_line2=req.address_line2,
+        city=req.city,
+        state=req.state,
+        pincode=req.pincode
     )
     return {"success": True, "user": u}
 
@@ -402,16 +431,15 @@ def api_login_user(req: LoginRequest):
     # Verify credentials via Password or PIN
     entered_secret = (req.password or req.pin or "").strip()
     if not entered_secret:
+        # Neutral response. Confirm only THAT an account exists so the UI can ask
+        # for a credential. This used to return the holder's name, username and
+        # email for an identifier alone, so anyone could enumerate accounts and
+        # learn who owns them.
         return {
             "success": True,
-            "user": {
-                "name": user.get("name"), 
-                "username": user.get("username"),
-                "email": user.get("email"), 
-                "id": user.get("id")
-            },
             "exists": True,
-            "message": "Account found"
+            "requires_credential": True,
+            "message": "Account found. Please enter your Password or 4-digit PIN."
         }
 
     user_password = (user.get("password") or "").strip()

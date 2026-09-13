@@ -25,6 +25,20 @@ ALTER TABLE public.users ADD COLUMN IF NOT EXISTS has_completed_tour BOOLEAN DEF
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS bank_balance NUMERIC(15, 2) DEFAULT 1000000.00;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS bank_ifsc TEXT DEFAULT 'HDFC0001234';
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS bank_upi_id TEXT DEFAULT '';
+-- Credential columns: supabase_schema.sql creates them but the deployed project
+-- rejected them ("column users.username does not exist"), so add them here too.
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS username TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS password TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS dob TEXT;
+-- KYC / profile fields captured by the registration wizard
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS gender TEXT DEFAULT '';
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS occupation TEXT DEFAULT '';
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS income TEXT DEFAULT '';
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS address_line1 TEXT DEFAULT '';
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS address_line2 TEXT DEFAULT '';
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS city TEXT DEFAULT '';
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS state TEXT DEFAULT '';
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS pincode TEXT DEFAULT '';
 
 -- orders: contract-note fields written by execute_trade()
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS charges NUMERIC(15, 2) DEFAULT 0.0;

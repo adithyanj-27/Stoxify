@@ -5770,11 +5770,11 @@ async function executePageTrade() {
    GROWW-STYLE ACCOUNT ONBOARDING WIZARD ENGINE (AUTHENTIC USER-TYPED)
    ======================================================= */
 let obCurrentStep = 1;
+// No username, no password, no PIN and no OTP: identity is the mobile number and
+// the PIN is set after activation (see showObPinView / submitObPin).
 let obUserData = {
   phone: '',
   email: '',
-  username: '',
-  password: '',
   name: '',
   pan: '',
   dob: '',
@@ -5783,9 +5783,15 @@ let obUserData = {
   income: '₹1L - ₹5L',
   bank_name: 'HDFC Bank',
   bank_account: '',
-  ifsc: 'HDFC0001234',
-  pin: '',
-  generatedOtp: ''
+  ifsc: '',
+  address_line1: '',
+  address_line2: '',
+  city: '',
+  state: '',
+  pincode: '',
+  age: null,
+  experience: 'None / Total Beginner',
+  identity: null
 };
 
 function showOnboardingPage() {
@@ -5800,99 +5806,45 @@ function showOnboardingPage() {
   const obPane = document.getElementById('pane-onboarding');
   if (obPane) obPane.classList.add('active');
 
-  // Reset all input fields completely so user types their own fake details
-  const phoneInput = document.getElementById('obInputPhone');
-  if (phoneInput) phoneInput.value = '';
-  const emailInput = document.getElementById('obInputEmail');
-  if (emailInput) emailInput.value = '';
-  const userInput = document.getElementById('obInputUsername');
-  if (userInput) userInput.value = '';
-  const passInput = document.getElementById('obInputPassword');
-  if (passInput) passInput.value = '';
-  const statusBadge = document.getElementById('obUsernameStatus');
-  if (statusBadge) { statusBadge.style.display = 'none'; statusBadge.innerText = ''; }
-  const panInput = document.getElementById('obInputPan');
-  if (panInput) panInput.value = '';
-  const nameInput = document.getElementById('obInputName');
-  if (nameInput) nameInput.value = '';
-  const dobInput = document.getElementById('obInputDob');
-  if (dobInput) {
-    const thirteenYearsAgo = new Date();
-    thirteenYearsAgo.setFullYear(thirteenYearsAgo.getFullYear() - 13);
-    const maxAllowedDob = thirteenYearsAgo.toISOString().split('T')[0];
-    dobInput.max = maxAllowedDob;
-    dobInput.value = '2000-01-01';
-  }
-  const ageInput = document.getElementById('obInputAge');
-  if (ageInput) ageInput.value = '24';
-  const expInput = document.getElementById('obInputExperience');
-  if (expInput) expInput.value = 'None / Total Beginner';
-  const accInput = document.getElementById('obInputAccount');
-  if (accInput) accInput.value = '';
-  const accConfInput = document.getElementById('obInputAccountConfirm');
-  if (accConfInput) accConfInput.value = '';
-  const ifscInput = document.getElementById('obInputIfsc');
-  if (ifscInput) ifscInput.value = '';
-  const pinInput = document.getElementById('obInputPin');
-  if (pinInput) pinInput.value = '';
-  const pinConfInput = document.getElementById('obInputPinConfirm');
-  if (pinConfInput) pinConfInput.value = '';
-
-  [1, 2, 3, 4].forEach(i => {
-    const el = document.getElementById('otp-' + i);
-    if (el) el.value = '';
+  // Reset the wizard so a fresh application starts clean. Identity fields are
+  // cleared too — they get prefilled from the PAN in step 2.
+  ['obInputPhone', 'obInputEmail', 'obInputPan', 'obInputName', 'obInputDob',
+   'obInputAddress1', 'obInputAddress2', 'obInputCity', 'obInputState', 'obInputPincode',
+   'obInputAccount', 'obInputAccountConfirm', 'obInputIfsc',
+   'obInputPin', 'obInputPinConfirm', 'obConsentTick'].forEach(elId => {
+    const el = document.getElementById(elId);
+    if (el) {
+      if (el.type === 'checkbox') el.checked = false;
+      else el.value = '';
+    }
   });
 
-  const smsBanner = document.getElementById('smsPushBanner');
-  if (smsBanner) smsBanner.style.display = 'none';
+  const expInput = document.getElementById('obInputExperience');
+  if (expInput) expInput.value = 'None / Total Beginner';
+
+  // Step 6 holds three views: pending, activated, set-PIN.
+  const pendingView = document.getElementById('obPendingView');
+  if (pendingView) pendingView.style.display = 'block';
+  ['obActiveView', 'obPinView'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+
+  obUserData = {
+    phone: '', email: '', name: '', pan: '', dob: '',
+    gender: 'Male', occupation: 'Private Sector', income: '₹1L - ₹5L',
+    bank_name: 'HDFC Bank', bank_account: '', ifsc: '',
+    address_line1: '', address_line2: '', city: '', state: '', pincode: '',
+    age: null, experience: 'None / Total Beginner', identity: null
+  };
 
   goToObStep(1);
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-let usernameDebounceTimer = null;
-async function onUsernameInput(inputEl) {
-  const statusBadge = document.getElementById('obUsernameStatus');
-  if (!statusBadge) return;
-  const raw = (inputEl.value || '').trim().replace(/^@/, '').toLowerCase();
-  if (!raw) {
-    statusBadge.style.display = 'none';
-    return;
-  }
-  if (raw.length < 3) {
-    statusBadge.style.display = 'inline';
-    statusBadge.style.color = 'var(--text-muted)';
-    statusBadge.innerText = 'Min 3 chars';
-    return;
-  }
-  if (!/^[a-zA-Z0-9_]+$/.test(raw)) {
-    statusBadge.style.display = 'inline';
-    statusBadge.style.color = '#EF4444';
-    statusBadge.innerText = 'Only letters, numbers, _';
-    return;
-  }
-
-  statusBadge.style.display = 'inline';
-  statusBadge.style.color = 'var(--text-muted)';
-  statusBadge.innerText = 'Checking...';
-
-  clearTimeout(usernameDebounceTimer);
-  usernameDebounceTimer = setTimeout(async () => {
-    try {
-      const res = await fetch(`/api/user/check-username?username=${encodeURIComponent(raw)}`);
-      const data = await res.json();
-      if (data.available) {
-        statusBadge.style.color = '#10B981';
-        statusBadge.innerText = `✓ @${raw} available`;
-      } else {
-        statusBadge.style.color = '#EF4444';
-        statusBadge.innerText = `✗ Taken`;
-      }
-    } catch (_) {
-      statusBadge.style.display = 'none';
-    }
-  }, 300);
-}
+/* The username picker (and its availability check) was removed along with the
+   username field: the account is identified by its mobile number. The
+   /api/user/check-username endpoint still exists for legacy usernames. */
 
 function goToObStep(stepNum) {
   obCurrentStep = stepNum;
@@ -5914,27 +5866,18 @@ function goToObStep(stepNum) {
   }
 
   if (stepNum === 3) {
+    // A Demat account needs an adult applicant, so the DOB cannot imply a minor.
     const dobInput = document.getElementById('obInputDob');
-    const ageInput = document.getElementById('obInputAge');
     if (dobInput) {
-      const thirteenYearsAgo = new Date();
-      thirteenYearsAgo.setFullYear(thirteenYearsAgo.getFullYear() - 13);
-      const maxAllowedDob = thirteenYearsAgo.toISOString().split('T')[0];
-      dobInput.max = maxAllowedDob;
-      if (!dobInput.value || new Date(dobInput.value) > thirteenYearsAgo) {
-        dobInput.value = '2000-01-01';
-      }
-      dobInput.onchange = () => {
-        if (dobInput.value) {
-          const b = new Date(dobInput.value);
-          const now = new Date();
-          let calculatedAge = now.getFullYear() - b.getFullYear();
-          const m = now.getMonth() - b.getMonth();
-          if (m < 0 || (m === 0 && now.getDate() < b.getDate())) calculatedAge--;
-          if (ageInput && calculatedAge >= 13) ageInput.value = calculatedAge;
-        }
-      };
+      const eighteenYearsAgo = new Date();
+      eighteenYearsAgo.setFullYear(eighteenYearsAgo.getFullYear() - 18);
+      dobInput.max = eighteenYearsAgo.toISOString().split('T')[0];
+      // No age field to keep in sync any more — age is derived from this date.
     }
+  }
+
+  if (stepNum === 5) {
+    showObReview();
   }
 
   const activeContent = document.getElementById(`obStep-${stepNum}`);
@@ -5944,154 +5887,127 @@ function goToObStep(stepNum) {
 async function submitObStep1() {
   const phone = document.getElementById('obInputPhone').value.trim();
   const email = document.getElementById('obInputEmail').value.trim();
-  const username = (document.getElementById('obInputUsername')?.value || '').trim().replace(/^@/, '').toLowerCase();
-  const password = (document.getElementById('obInputPassword')?.value || '').trim();
 
-  if (phone.length < 10) {
+  if (!/^\d{10}$/.test(phone)) {
     showToast('Please enter a valid 10-digit mobile number', true);
     document.getElementById('obInputPhone').focus();
     return;
   }
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!email || !emailRegex.test(email)) {
-    showToast('Please enter your email address (fake or real, e.g. name@example.com)', true);
+    showToast('Please enter your email address', true);
     document.getElementById('obInputEmail').focus();
     return;
   }
-  if (!username || username.length < 3 || username.length > 25) {
-    showToast('Please choose a username between 3 and 25 characters', true);
-    document.getElementById('obInputUsername')?.focus();
-    return;
-  }
-  if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-    showToast('Username can only contain letters, numbers, and underscores', true);
-    document.getElementById('obInputUsername')?.focus();
-    return;
-  }
-  if (!password || password.length < 6) {
-    showToast('Please create a password of at least 6 characters', true);
-    document.getElementById('obInputPassword')?.focus();
-    return;
-  }
 
-  // Verify username availability
-  try {
-    const uChk = await fetch(`/api/user/check-username?username=${encodeURIComponent(username)}`);
-    const uData = await uChk.json();
-    if (!uData.available) {
-      showToast(uData.message || `@${username} is already taken. Please choose another.`, true);
-      document.getElementById('obInputUsername')?.focus();
-      return;
-    }
-  } catch (err) {
-    console.warn('Username check warning:', err);
-  }
-
-  // Check if account already exists with this email or phone
-  try {
-    const chk = await fetch('/api/user/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identifier: email })
-    });
-    const chkData = await chk.json();
-    if (chk.ok && chkData.success) {
-      showToast(`Account found for ${chkData.user.name}! Please enter your Password or PIN to log in.`, false);
-      openLoginModal(email);
-      return;
-    }
-  } catch (_) {}
-
+  // No username and no password. Like Groww, the mobile number is the account
+  // identity and the PIN is chosen after activation (see submitObPin()).
   obUserData.phone = phone;
   obUserData.email = email;
-  obUserData.username = username;
-  obUserData.password = password;
-  document.getElementById('obDisplayPhone').innerText = `+91 ${phone}`;
-
-  // Generate real simulated 4-digit OTP
-  const otp = Math.floor(1000 + Math.random() * 9000).toString();
-  obUserData.generatedOtp = otp;
-
-  // Clear OTP boxes
-  [1, 2, 3, 4].forEach(i => {
-    const el = document.getElementById('otp-' + i);
-    if (el) el.value = '';
-  });
-
-  // Display simulated push SMS banner
-  const smsBanner = document.getElementById('smsPushBanner');
-  const smsCodeEl = document.getElementById('smsOtpCode');
-  if (smsBanner && smsCodeEl) {
-    smsCodeEl.innerText = otp;
-    smsBanner.style.display = 'flex';
-  }
 
   goToObStep(2);
   setTimeout(() => {
-    const firstOtp = document.getElementById('otp-1');
-    if (firstOtp) firstOtp.focus();
+    const panInput = document.getElementById('obInputPan');
+    if (panInput) panInput.focus();
   }, 100);
 }
 
-function pasteSmsOtp() {
-  if (!obUserData.generatedOtp) return;
-  const chars = obUserData.generatedOtp.split('');
-  chars.forEach((c, idx) => {
-    const el = document.getElementById(`otp-${idx + 1}`);
-    if (el) el.value = c;
-  });
-  const fourth = document.getElementById('otp-4');
-  if (fourth) fourth.focus();
-  showToast('OTP auto-pasted from SMS!');
+/* --------------------------------------------------------------------------
+   Identity prefill
+   Groww's PAN/Aadhaar step exists so that the screen after it already knows
+   your name, date of birth and address. We reproduce that *effect* with no
+   real lookup: a generator seeded from the PAN string, so the same PAN always
+   returns the same person and it reads like a record fetch rather than a dice
+   roll. Nothing here is verified, and every field stays editable.
+   -------------------------------------------------------------------------- */
+const OB_FIRST_NAMES = ['Aarav', 'Ananya', 'Rahul', 'Priya', 'Vikram', 'Sneha', 'Karthik', 'Meera', 'Rohan', 'Divya', 'Aditya', 'Neha', 'Siddharth', 'Pooja', 'Nikhil', 'Aishwarya', 'Varun', 'Kavya', 'Manish', 'Ritika'];
+const OB_LAST_NAMES = ['Sharma', 'Verma', 'Iyer', 'Nair', 'Reddy', 'Gupta', 'Patel', 'Joshi', 'Menon', 'Rao', 'Agarwal', 'Chatterjee', 'Desai', 'Kulkarni', 'Bhat', 'Mishra', 'Sinha', 'Pillai', 'Shetty', 'Malhotra'];
+const OB_STREETS = ['Sunrise Residency', 'Lake View Apartments', 'Green Park Colony', 'Sai Enclave', 'Palm Grove Society', 'Silver Heights', 'Rose Garden Layout', 'MG Road Cross'];
+const OB_AREAS = ['Sector 21', 'Andheri West', 'Koramangala', 'Banjara Hills', 'Salt Lake', 'Viman Nagar', 'Adyar', 'Powai', 'Vastrapur', 'Indiranagar'];
+const OB_CITY_ROWS = [
+  ['Mumbai', 'Maharashtra', '400076'],
+  ['Bengaluru', 'Karnataka', '560034'],
+  ['Pune', 'Maharashtra', '411014'],
+  ['Hyderabad', 'Telangana', '500034'],
+  ['Chennai', 'Tamil Nadu', '600020'],
+  ['Kolkata', 'West Bengal', '700091'],
+  ['New Delhi', 'Delhi', '110024'],
+  ['Ahmedabad', 'Gujarat', '380015']
+];
+
+function obSeed(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
 }
 
-function resendOtp() {
-  const otp = Math.floor(1000 + Math.random() * 9000).toString();
-  obUserData.generatedOtp = otp;
-  const smsCodeEl = document.getElementById('smsOtpCode');
-  if (smsCodeEl) smsCodeEl.innerText = otp;
-  const smsBanner = document.getElementById('smsPushBanner');
-  if (smsBanner) {
-    smsBanner.style.display = 'flex';
-    smsBanner.style.animation = 'none';
-    setTimeout(() => smsBanner.style.animation = 'slideDownSms 0.35s ease-out', 10);
-  }
-  showToast(`New OTP sent: ${otp}`);
+function obRng(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
-function moveOtp(idx, e) {
-  const val = e.target.value;
-  if (val.length >= 1 && idx < 4) {
-    const next = document.getElementById(`otp-${idx + 1}`);
-    if (next) next.focus();
-  }
+function prefilledIdentityFor(pan) {
+  const rnd = obRng(obSeed('STOXIFY-IDENTITY-' + String(pan).toUpperCase()));
+  const pick = arr => arr[Math.floor(rnd() * arr.length)];
+
+  const name = `${pick(OB_FIRST_NAMES)} ${pick(OB_LAST_NAMES)}`;
+  const address_line1 = `Flat ${101 + Math.floor(rnd() * 899)}, ${pick(OB_STREETS)}`;
+  const address_line2 = pick(OB_AREAS);
+  const cityRow = OB_CITY_ROWS[Math.floor(rnd() * OB_CITY_ROWS.length)];
+
+  // Always an adult applicant (21-58), so the DOB can never imply a minor.
+  const age = 21 + Math.floor(rnd() * 38);
+  const birthYear = new Date().getFullYear() - age;
+  const month = String(1 + Math.floor(rnd() * 12)).padStart(2, '0');
+  const day = String(1 + Math.floor(rnd() * 28)).padStart(2, '0');
+
+  return {
+    name,
+    dob: `${birthYear}-${month}-${day}`,
+    address_line1,
+    address_line2,
+    city: cityRow[0],
+    state: cityRow[1],
+    pincode: cityRow[2]
+  };
 }
 
-function handleOtpBackspace(idx, e) {
-  if (e.key === 'Backspace' && !e.target.value && idx > 1) {
-    const prev = document.getElementById(`otp-${idx - 1}`);
-    if (prev) {
-      prev.focus();
-      prev.value = '';
-    }
-  }
+function applyObPrefill() {
+  const identity = prefilledIdentityFor(obUserData.pan);
+  obUserData.identity = identity;
+  const set = (elId, value) => {
+    const el = document.getElementById(elId);
+    if (el) el.value = value;
+  };
+  set('obInputName', identity.name);
+  set('obInputDob', identity.dob);
+  set('obInputAddress1', identity.address_line1);
+  set('obInputAddress2', identity.address_line2);
+  set('obInputCity', identity.city);
+  set('obInputState', identity.state);
+  set('obInputPincode', identity.pincode);
 }
 
 function submitObStep2() {
-  const typed = [1, 2, 3, 4].map(i => document.getElementById(`otp-${i}`).value).join('');
-  if (typed.length < 4) {
-    showToast('Please enter the full 4-digit OTP code', true);
-    return;
-  }
-  if (obUserData.generatedOtp && typed !== obUserData.generatedOtp && typed !== '4321') {
-    showToast(`Invalid OTP. Please check the code (${obUserData.generatedOtp})`, true);
+  const pan = document.getElementById('obInputPan').value.trim().toUpperCase();
+  // PAN rule unchanged from the original implementation: exactly 10 characters.
+  if (!pan || pan.length !== 10) {
+    showToast('Please enter a 10-character PAN (e.g. ABCDE1234F)', true);
+    document.getElementById('obInputPan').focus();
     return;
   }
 
-  const smsBanner = document.getElementById('smsPushBanner');
-  if (smsBanner) smsBanner.style.display = 'none';
-
-  showToast('Mobile number verified successfully! ✓');
+  obUserData.pan = pan;
+  applyObPrefill();
+  showToast(`Details fetched for PAN ${pan} ✓`, false);
   goToObStep(3);
 }
 
@@ -6100,20 +6016,18 @@ function onPanInput(el) {
 }
 
 function submitObStep3() {
-  const pan = document.getElementById('obInputPan').value.trim().toUpperCase();
   const name = document.getElementById('obInputName').value.trim();
   const dob = document.getElementById('obInputDob').value;
   const gender = document.getElementById('obInputGender').value;
   const occupation = document.getElementById('obInputOccupation')?.value || 'Private Sector';
   const income = document.getElementById('obInputIncome')?.value || '₹1L - ₹5L';
-  const ageInput = document.getElementById('obInputAge');
   const expInput = document.getElementById('obInputExperience');
+  const address1 = document.getElementById('obInputAddress1').value.trim();
+  const address2 = document.getElementById('obInputAddress2').value.trim();
+  const city = document.getElementById('obInputCity').value.trim();
+  const stateName = document.getElementById('obInputState').value.trim();
+  const pincode = document.getElementById('obInputPincode').value.trim();
 
-  if (!pan || pan.length !== 10) {
-    showToast('Please enter a 10-digit PAN (e.g. ABCDE1234F)', true);
-    document.getElementById('obInputPan').focus();
-    return;
-  }
   if (!name) {
     showToast('Please enter your full legal name', true);
     document.getElementById('obInputName').focus();
@@ -6125,26 +6039,42 @@ function submitObStep3() {
     return;
   }
 
+  // Age is derived from the DOB. It used to be a separate free-typed field, which
+  // let a user state an age contradicting the date entered directly above it.
   const birthDate = new Date(dob);
-  const cutoffDate = new Date();
-  cutoffDate.setFullYear(cutoffDate.getFullYear() - 13);
-
   if (isNaN(birthDate.getTime())) {
     showToast('Please enter a valid Date of Birth', true);
     document.getElementById('obInputDob').focus();
     return;
   }
+  const now = new Date();
+  let ageVal = now.getFullYear() - birthDate.getFullYear();
+  const monthDelta = now.getMonth() - birthDate.getMonth();
+  if (monthDelta < 0 || (monthDelta === 0 && now.getDate() < birthDate.getDate())) ageVal--;
+  if (ageVal < 18) {
+    showToast('You must be at least 18 years of age to open a Demat account', true);
+    document.getElementById('obInputDob').focus();
+    return;
+  }
 
-  const ageVal = parseInt(ageInput ? ageInput.value : '18', 10);
-  if (isNaN(ageVal) || ageVal < 13) {
-    showToast('You must be at least 13 years of age to register', true);
-    if (ageInput) ageInput.focus();
+  if (!address1) {
+    showToast('Please enter your address', true);
+    document.getElementById('obInputAddress1').focus();
+    return;
+  }
+  if (!city || !stateName) {
+    showToast('Please enter your city and state', true);
+    (city ? document.getElementById('obInputState') : document.getElementById('obInputCity')).focus();
+    return;
+  }
+  if (!/^\d{6}$/.test(pincode)) {
+    showToast('Please enter a valid 6-digit PIN code', true);
+    document.getElementById('obInputPincode').focus();
     return;
   }
 
   const expVal = expInput ? expInput.value : 'None / Total Beginner';
 
-  obUserData.pan = pan;
   obUserData.name = name;
   obUserData.dob = dob;
   obUserData.gender = gender;
@@ -6152,8 +6082,13 @@ function submitObStep3() {
   obUserData.income = income;
   obUserData.age = ageVal;
   obUserData.experience = expVal;
+  obUserData.address_line1 = address1;
+  obUserData.address_line2 = address2;
+  obUserData.city = city;
+  obUserData.state = stateName;
+  obUserData.pincode = pincode;
 
-  showToast(`PAN ${pan} verified for ${name}! ✓`);
+  showToast('Personal details saved ✓', false);
   goToObStep(4);
 }
 
@@ -6208,22 +6143,26 @@ function submitObStep4() {
   }, 1000);
 }
 
+function showObReview() {
+  const set = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.innerText = value;
+  };
+  set('obReviewName', obUserData.name || '—');
+  set('obReviewPhone', obUserData.phone ? `+91 ${obUserData.phone}` : '—');
+  set('obReviewEmail', obUserData.email || '—');
+  set('obReviewPan', obUserData.pan || '—');
+  set('obReviewBank', obUserData.bank_name
+    ? `${obUserData.bank_name} •••• ${String(obUserData.bank_account || '').slice(-4)}`
+    : '—');
+}
+
 async function submitObStep5() {
-  const pin = document.getElementById('obInputPin').value.trim();
-  const confirmPin = document.getElementById('obInputPinConfirm').value.trim();
-
-  if (!pin || pin.length !== 4) {
-    showToast('Please enter a 4-digit security PIN', true);
-    document.getElementById('obInputPin').focus();
+  const tick = document.getElementById('obConsentTick');
+  if (tick && !tick.checked) {
+    showToast('Please accept the tariff sheet and account-opening terms to continue', true);
     return;
   }
-  if (pin !== confirmPin) {
-    showToast('PINs do not match. Please enter the same 4-digit PIN in both fields', true);
-    document.getElementById('obInputPinConfirm').focus();
-    return;
-  }
-
-  obUserData.pin = pin;
 
   try {
     const res = await fetch('/api/user/create', {
@@ -6231,17 +6170,28 @@ async function submitObStep5() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: obUserData.name,
-        username: obUserData.username || null,
-        password: obUserData.password || null,
         email: obUserData.email,
         phone: obUserData.phone,
         pan: obUserData.pan,
         dob: obUserData.dob,
+        age: obUserData.age || 18,
+        experience: obUserData.experience || 'None / Total Beginner',
+        // Collected by the wizard for a long time but never actually sent, so the
+        // server could not store them.
+        gender: obUserData.gender,
+        occupation: obUserData.occupation,
+        income: obUserData.income,
+        // Sent now so the backend stops deriving the IFSC from the bank name.
+        ifsc: obUserData.ifsc,
         bank_name: obUserData.bank_name,
         bank_account: obUserData.bank_account,
-        pin: obUserData.pin,
-        age: obUserData.age || 18,
-        experience: obUserData.experience || 'None / Total Beginner'
+        address_line1: obUserData.address_line1,
+        address_line2: obUserData.address_line2,
+        city: obUserData.city,
+        state: obUserData.state,
+        pincode: obUserData.pincode
+        // Deliberately absent: username, password, pin. The PIN is set after
+        // activation, the way Groww does it.
       })
     });
     const result = await res.json();
@@ -6257,42 +6207,144 @@ async function submitObStep5() {
     document.documentElement.classList.add('user-logged-in');
     document.documentElement.classList.remove('user-guest');
 
-    // Update Confirmation screen with user's actual entered details
-    document.getElementById('obWelcomeName').innerText = currentUser.name;
-    document.getElementById('obCreatedDemat').innerText = currentUser.id || `STOX-${Math.floor(100000 + Math.random() * 900000)}`;
-    const usernameEl = document.getElementById('obCreatedUsername');
-    if (usernameEl) usernameEl.innerText = currentUser.username ? ('@' + currentUser.username) : ('@' + (obUserData.username || 'trader'));
-    const emailEl = document.getElementById('obCreatedEmail');
-    if (emailEl) emailEl.innerText = currentUser.email || obUserData.email || '';
-    const last4 = (currentUser.bank_account || '5678').slice(-4);
-    document.getElementById('obCreatedBank').innerText = `${currentUser.bank_name} •••• ${last4} (Verified ✓)`;
-
-    saveLocalBankTx(currentUser.id, {
-      user_id: currentUser.id,
-      type: 'INITIAL_CREDIT',
-      amount: 1000000.0,
-      from_account: 'RBI Simulated Banking Gateway',
-      to_account: `${currentUser.bank_name || 'HDFC Bank'} •••• ${last4}`,
-      reference_id: `BANK-INIT-${currentUser.id}`,
-      status: 'SUCCESS',
-      note: 'Welcome virtual capital credited to linked bank account',
-      created_at: new Date().toISOString()
-    });
-
     updateNavbarProfile();
     saveRecentAccount(currentUser);
     fetchAccount();
-    goToObStep(6);
+
+    beginObPending();
 
   } catch (err) {
     showToast('Error connecting to onboarding server', true);
   }
 }
 
+/* The pause. Groww does not activate an account on submit: it accepts the
+   application and comes back later. That anti-climax is a large part of how the
+   flow feels, so the wizard plays it before revealing the client ID.
+   Front-end only — a refresh mid-wait restarts the beat. */
+const OB_PENDING_MESSAGES = [
+  'Submitting your application…',
+  'Verifying PAN against the records on file…',
+  'Confirming your bank account…',
+  'Allocating your client ID…'
+];
+
+function beginObPending() {
+  const pendingView = document.getElementById('obPendingView');
+  const activeView = document.getElementById('obActiveView');
+  if (activeView) activeView.style.display = 'none';
+  if (pendingView) pendingView.style.display = 'block';
+
+  const refDigits = String(currentUser.id || '').replace(/[^0-9]/g, '').slice(-6);
+  const refEl = document.getElementById('obPendingRef');
+  if (refEl) refEl.innerText = `KYC-${refDigits || Math.floor(100000 + Math.random() * 900000)}`;
+  const nameEl = document.getElementById('obPendingName');
+  if (nameEl) nameEl.innerText = currentUser.name || 'Trader';
+  const mailEl = document.getElementById('obPendingEmail');
+  if (mailEl) mailEl.innerText = currentUser.email || obUserData.email || '—';
+
+  const textEl = document.getElementById('obPendingText');
+  let stepIdx = 0;
+  const ticker = setInterval(() => {
+    if (textEl) textEl.innerText = OB_PENDING_MESSAGES[stepIdx % OB_PENDING_MESSAGES.length];
+    stepIdx++;
+  }, 1100);
+
+  setTimeout(() => {
+    clearInterval(ticker);
+    revealObActivated();
+  }, 4600);
+}
+
+function revealObActivated() {
+  const pendingView = document.getElementById('obPendingView');
+  const activeView = document.getElementById('obActiveView');
+  if (pendingView) pendingView.style.display = 'none';
+  if (activeView) activeView.style.display = 'block';
+
+  const set = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.innerText = value;
+  };
+  const last4 = String(currentUser.bank_account || '0000').slice(-4);
+
+  set('obWelcomeName', currentUser.name || 'Trader');
+  set('obCreatedDemat', currentUser.id || '—');
+  set('obCreatedUsername', currentUser.phone ? `+91 ${currentUser.phone}`
+    : (obUserData.phone ? `+91 ${obUserData.phone}` : '—'));
+  set('obCreatedEmail', currentUser.email || obUserData.email || '—');
+  set('obCreatedBank', `${currentUser.bank_name || 'HDFC Bank'} •••• ${last4} (Verified ✓)`);
+
+  // Bind the real bank balance. The markup hard-coded ₹10,00,000, so any account
+  // whose balance differed would still be shown that figure.
+  const balance = Number(currentUser.bank_balance);
+  set('obCreatedBankBalance', Number.isFinite(balance)
+    ? `₹${balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+    : '—');
+
+  saveLocalBankTx(currentUser.id, {
+    user_id: currentUser.id,
+    type: 'INITIAL_CREDIT',
+    amount: 1000000.0,
+    from_account: 'RBI Simulated Banking Gateway',
+    to_account: `${currentUser.bank_name || 'HDFC Bank'} •••• ${last4}`,
+    reference_id: `BANK-INIT-${currentUser.id}`,
+    status: 'SUCCESS',
+    note: 'Welcome virtual capital credited to linked bank account',
+    created_at: new Date().toISOString()
+  });
+}
+
+function showObPinView() {
+  ['obPendingView', 'obActiveView'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  const pinView = document.getElementById('obPinView');
+  if (pinView) pinView.style.display = 'block';
+}
+
+async function submitObPin() {
+  const pin = document.getElementById('obInputPin').value.trim();
+  const confirmPin = document.getElementById('obInputPinConfirm').value.trim();
+
+  if (!/^\d{4}$/.test(pin)) {
+    showToast('Please choose a 4-digit PIN', true);
+    document.getElementById('obInputPin').focus();
+    return;
+  }
+  if (pin !== confirmPin) {
+    showToast('PINs do not match. Please enter the same 4-digit PIN in both fields', true);
+    document.getElementById('obInputPinConfirm').focus();
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/user/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-user-id': currentUser.id },
+      body: JSON.stringify({ id: currentUser.id, pin: pin })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      showToast(data.detail || 'Could not save your PIN — you can set it later from Profile.', true);
+      return;
+    }
+    currentUser = data.user || currentUser;
+    localStorage.setItem('stoxify_cached_user', JSON.stringify(currentUser));
+    updateNavbarProfile();
+    showToast('PIN saved ✓ You can now log in with your mobile number and PIN.');
+  } catch (_) {
+    showToast('Could not save your PIN — you can set it later from Profile.', true);
+  }
+
+  finishOnboarding();
+}
+
 function finishOnboarding() {
   updateNavbarProfile();
   navigateTo('/explore');
-  showToast(`Welcome to Stoxifyin', ${currentUser.name}! ₹10,00,000 virtual cash ready in your linked bank account!`);
+  showToast(`Welcome to Stoxifyin', ${currentUser.name}!`);
 }
 
 

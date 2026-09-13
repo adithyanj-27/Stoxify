@@ -174,11 +174,19 @@ def init_db():
             balance REAL NOT NULL DEFAULT 1000000.0,
             total_deposited REAL NOT NULL DEFAULT 1000000.0,
             avatar_color TEXT DEFAULT '#0EA5E9',
+            gender TEXT DEFAULT '',
+            occupation TEXT DEFAULT '',
+            income TEXT DEFAULT '',
+            address_line1 TEXT DEFAULT '',
+            address_line2 TEXT DEFAULT '',
+            city TEXT DEFAULT '',
+            state TEXT DEFAULT '',
+            pincode TEXT DEFAULT '',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    for col in ["dob TEXT", "username TEXT", "password TEXT", "bank_balance REAL DEFAULT 1000000.0", "bank_ifsc TEXT DEFAULT 'HDFC0001234'", "bank_upi_id TEXT DEFAULT ''", "age INTEGER DEFAULT 18", "experience TEXT DEFAULT 'None / Total Beginner'", "has_completed_tour INTEGER DEFAULT 0"]:
+    for col in ["dob TEXT", "username TEXT", "password TEXT", "bank_balance REAL DEFAULT 1000000.0", "bank_ifsc TEXT DEFAULT 'HDFC0001234'", "bank_upi_id TEXT DEFAULT ''", "age INTEGER DEFAULT 18", "experience TEXT DEFAULT 'None / Total Beginner'", "has_completed_tour INTEGER DEFAULT 0", "gender TEXT DEFAULT ''", "occupation TEXT DEFAULT ''", "income TEXT DEFAULT ''", "address_line1 TEXT DEFAULT ''", "address_line2 TEXT DEFAULT ''", "city TEXT DEFAULT ''", "state TEXT DEFAULT ''", "pincode TEXT DEFAULT ''"]:
         try:
             cursor.execute(f"ALTER TABLE users ADD COLUMN {col}")
             conn.commit()
@@ -769,6 +777,24 @@ def sync_user_to_supabase_auth(
 
     return auth_id
 
+def phone_exists(phone: str, exclude_user_id: Optional[str] = None) -> bool:
+    """True when another account already uses this mobile number.
+
+    `phone` was never unique, so one number could open unlimited accounts.
+    """
+    clean = (phone or "").strip()
+    if not clean:
+        return False
+    conn = get_connection()
+    cursor = conn.cursor()
+    if exclude_user_id:
+        cursor.execute("SELECT id FROM users WHERE phone = ? AND id != ? LIMIT 1", (clean, exclude_user_id))
+    else:
+        cursor.execute("SELECT id FROM users WHERE phone = ? LIMIT 1", (clean,))
+    row = cursor.fetchone()
+    conn.close()
+    return row is not None
+
 def create_user(
     name: str, 
     email: str, 
@@ -782,7 +808,16 @@ def create_user(
     username: Optional[str] = None,
     password: Optional[str] = None,
     age: Optional[int] = 18,
-    experience: Optional[str] = "None / Total Beginner"
+    experience: Optional[str] = "None / Total Beginner",
+    ifsc: Optional[str] = None,
+    gender: Optional[str] = None,
+    occupation: Optional[str] = None,
+    income: Optional[str] = None,
+    address_line1: Optional[str] = None,
+    address_line2: Optional[str] = None,
+    city: Optional[str] = None,
+    state: Optional[str] = None,
+    pincode: Optional[str] = None
 ) -> Dict[str, Any]:
     if not user_id:
         user_id = f"STOX-{random.randint(100000, 999999)}"
@@ -791,19 +826,26 @@ def create_user(
 
     clean_username = username.strip().lstrip("@").lower() if username else None
     clean_password = password.strip() if password else None
-    bank_ifsc = f"{bank_name.split()[0].upper()[:4]}0001234"
+    # Keep the IFSC the user actually typed. Deriving it from the bank name
+    # silently replaced it (selecting "SBI" + typing SBIN0001234 stored STAT0001234).
+    clean_ifsc = (ifsc or "").strip().upper() or f"{bank_name.split()[0].upper()[:4]}0001234"
     bank_upi_id = f"{(clean_username or user_id).lower()}@{bank_name.split()[0].lower()}bank"
     clean_age = int(age) if age is not None else 18
     clean_exp = (experience or "None / Total Beginner").strip()
+    # Registration used to accept any PIN string. Only a real 4-digit PIN is kept
+    # (new accounts set theirs after activation, so an empty PIN is expected).
+    clean_pin = (pin or "").strip()
+    if clean_pin and len(clean_pin) != 4:
+        clean_pin = ""
     has_completed_tour = 0
 
     # 1. Insert into local SQLite (Bank gets ₹10 Lakh initial credit, trading wallet starts at ₹0 until added via UPI)
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT OR REPLACE INTO users (id, name, email, phone, pan, dob, bank_name, bank_account, pin, balance, total_deposited, avatar_color, username, password, bank_balance, bank_ifsc, bank_upi_id, age, experience, has_completed_tour)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0.0, 0.0, ?, ?, ?, 1000000.0, ?, ?, ?, ?, ?)
-    """, (user_id, name, (email or "").strip(), phone or "", pan or "ABCDE1234F", dob or "", bank_name, bank_account, pin, avatar_color, clean_username, clean_password, bank_ifsc, bank_upi_id, clean_age, clean_exp, has_completed_tour))
+        INSERT OR REPLACE INTO users (id, name, email, phone, pan, dob, bank_name, bank_account, pin, balance, total_deposited, avatar_color, username, password, bank_balance, bank_ifsc, bank_upi_id, age, experience, has_completed_tour, gender, occupation, income, address_line1, address_line2, city, state, pincode)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0.0, 0.0, ?, ?, ?, 1000000.0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (user_id, name, (email or "").strip(), phone or "", pan or "ABCDE1234F", dob or "", bank_name, bank_account, clean_pin, avatar_color, clean_username, clean_password, clean_ifsc, bank_upi_id, clean_age, clean_exp, has_completed_tour, (gender or "").strip(), (occupation or "").strip(), (income or "").strip(), (address_line1 or "").strip(), (address_line2 or "").strip(), (city or "").strip(), (state or "").strip(), (pincode or "").strip()))
 
     # Log initial opening deposit in bank_transactions
     cursor.execute("""
@@ -859,7 +901,16 @@ def create_user(
             "avatar_color": avatar_color,
             "age": clean_age,
             "experience": clean_exp,
-            "has_completed_tour": bool(has_completed_tour)
+            "has_completed_tour": bool(has_completed_tour),
+            "bank_ifsc": clean_ifsc,
+            "gender": (gender or "").strip(),
+            "occupation": (occupation or "").strip(),
+            "income": (income or "").strip(),
+            "address_line1": (address_line1 or "").strip(),
+            "address_line2": (address_line2 or "").strip(),
+            "city": (city or "").strip(),
+            "state": (state or "").strip(),
+            "pincode": (pincode or "").strip()
         }
         if auth_id:
             sb_user_payload["auth_id"] = auth_id
@@ -870,9 +921,10 @@ def create_user(
         if sb_res is None:
             # Fallback without extra columns in case Supabase schema lacks them
             sb_fallback = dict(sb_user_payload)
-            sb_fallback.pop("age", None)
-            sb_fallback.pop("experience", None)
-            sb_fallback.pop("has_completed_tour", None)
+            for optional_key in ("age", "experience", "has_completed_tour", "gender",
+                                 "occupation", "income", "address_line1", "address_line2",
+                                 "city", "state", "pincode"):
+                sb_fallback.pop(optional_key, None)
             sb_res = supabase_api("POST", "users", payload=sb_fallback)
 
         if sb_res is not None:
