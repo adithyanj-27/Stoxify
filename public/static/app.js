@@ -3010,8 +3010,27 @@ function hasSessionOrGuest() {
   return localStorage.getItem('stoxify_guest_mode') === 'true';
 }
 
+function showWelcomeStep1() {
+  const hero = document.getElementById('welcomeViewHero');
+  const features = document.getElementById('welcomeViewFeatures');
+  if (features) features.style.display = 'none';
+  if (hero) hero.style.display = 'block';
+  const pane = document.getElementById('welcomePane');
+  if (pane) pane.scrollTop = 0;
+}
+
+function showWelcomeStep2() {
+  const hero = document.getElementById('welcomeViewHero');
+  const features = document.getElementById('welcomeViewFeatures');
+  if (hero) hero.style.display = 'none';
+  if (features) features.style.display = 'block';
+  const pane = document.getElementById('welcomePane');
+  if (pane) pane.scrollTop = 0;
+}
+
 function showWelcomePane() {
   document.documentElement.classList.remove('welcome-dismissed');
+  showWelcomeStep1();
   const pane = document.getElementById('welcomePane');
   if (pane) pane.scrollTop = 0;
 }
