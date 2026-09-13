@@ -19,18 +19,24 @@
   <script>
     (function() {
       try {
-        var savedTheme = localStorage.getItem('stoxify_theme') || localStorage.getItem('stoxify_theme');
-        if (savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
-        var uid = localStorage.getItem('stoxify_user_id') || localStorage.getItem('stoxify_user_id');
-        var isGuest = (localStorage.getItem('stoxify_guest_mode') || localStorage.getItem('stoxify_guest_mode')) === 'true';
-        var cachedUser = localStorage.getItem('stoxify_cached_user') || localStorage.getItem('stoxify_cached_user');
-        if (uid && uid !== 'default' && uid !== 'guest' && !isGuest && cachedUser) {
-          document.documentElement.classList.add('user-logged-in');
-          document.documentElement.classList.remove('user-guest');
-        } else {
-          document.documentElement.classList.add('user-guest');
-          document.documentElement.classList.remove('user-guest');
-        }
+         var savedTheme = localStorage.getItem('stoxify_theme');
+         if (savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
+         var uid = localStorage.getItem('stoxify_user_id');
+         var isGuest = localStorage.getItem('stoxify_guest_mode') === 'true';
+         var cachedUser = localStorage.getItem('stoxify_cached_user');
+         var hasSession = !!(uid && uid !== 'default' && uid !== 'guest' && !isGuest && cachedUser);
+         if (hasSession) {
+           document.documentElement.classList.add('user-logged-in');
+           document.documentElement.classList.remove('user-guest');
+         } else {
+           document.documentElement.classList.add('user-guest');
+           document.documentElement.classList.remove('user-logged-in');
+         }
+         // Returning users, and anyone who already chose to browse as a guest, must
+         // never see the welcome screen. Decided here so it cannot flash on load.
+         if (hasSession || isGuest) {
+           document.documentElement.classList.add('welcome-dismissed');
+         }
         if (window.location.pathname === '/profile') {
           document.documentElement.classList.add('viewing-profile');
         }
@@ -39,6 +45,182 @@
   </script>
 </head>
 <body>
+
+  <!-- ============================================================
+       FIRST-RUN WELCOME SCREEN
+       Visible by default so it paints immediately; the head script adds
+       .welcome-dismissed when a session or a stored guest choice exists, so a
+       returning user never sees it flash. Deep links bypass it entirely.
+       ============================================================ -->
+  <style>
+    #welcomePane {
+      position: fixed;
+      inset: 0;
+      z-index: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      background: var(--bg-main);
+      overflow-y: auto;
+    }
+    html.welcome-dismissed #welcomePane { display: none !important; }
+    /* The mobile app bar is z-index 9999 and would bleed through this takeover
+       (it outranks the pane's 500). Everything else sits under 500 and is simply
+       covered; modals and toasts live above and still work. */
+    html:not(.welcome-dismissed) .mobile-bottom-bar { display: none !important; }
+    .welcome-inner { width: 100%; max-width: 460px; text-align: center; }
+    .welcome-brand {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      margin-bottom: 1.75rem;
+    }
+    .welcome-brand img { width: 38px; height: 38px; object-fit: contain; border-radius: var(--radius-sm); }
+    .welcome-brand span {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+    }
+    .welcome-title {
+      font-size: 1.85rem;
+      line-height: 1.2;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin: 0 0 0.7rem 0;
+      letter-spacing: -0.03em;
+    }
+    .welcome-sub {
+      font-size: 0.93rem;
+      line-height: 1.6;
+      color: var(--text-secondary);
+      margin: 0 0 1.75rem 0;
+    }
+    .welcome-points { display: flex; flex-direction: column; gap: 0.65rem; margin-bottom: 1.75rem; text-align: left; }
+    .welcome-point {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.7rem;
+      padding: 0.8rem 0.95rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+    }
+    .welcome-point-icon {
+      flex-shrink: 0;
+      width: 24px;
+      height: 24px;
+      border-radius: var(--radius-full);
+      background: var(--brand-cyan-bg);
+      color: var(--brand-cyan);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+    .welcome-point-text strong { display: block; font-size: 0.88rem; color: var(--text-primary); margin-bottom: 0.1rem; }
+    .welcome-point-text span { font-size: 0.79rem; color: var(--text-muted); line-height: 1.45; }
+    .welcome-cta {
+      width: 100%;
+      padding: 0.95rem 1rem;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #FFFFFF;
+      background: var(--accent-gradient);
+      border: none;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: var(--transition);
+      margin-bottom: 0.7rem;
+    }
+    .welcome-cta:hover { filter: brightness(1.08); }
+    .welcome-secondary {
+      width: 100%;
+      padding: 0.85rem 1rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      background: transparent;
+      border: 1px solid var(--border-active);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: var(--transition);
+      margin-bottom: 0.7rem;
+    }
+    .welcome-secondary:hover { background: var(--bg-card-hover); }
+    .welcome-skip {
+      width: 100%;
+      padding: 0.7rem 1rem;
+      font-size: 0.87rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      transition: var(--transition);
+    }
+    .welcome-skip:hover { color: var(--brand-cyan); }
+    .welcome-note {
+      margin-top: 1.6rem;
+      font-size: 0.74rem;
+      line-height: 1.55;
+      color: var(--text-muted);
+    }
+  </style>
+
+  <div id="welcomePane">
+    <div class="welcome-inner">
+      <div class="welcome-brand">
+        <img src="/static/logo-dark.png" class="logo-dark" alt="Stoxifyin'">
+        <img src="/static/logo-light.png" class="logo-light" alt="Stoxifyin'">
+        <span>Stoxifyin'</span>
+      </div>
+
+      <h1 class="welcome-title">Learn the market<br>without losing money</h1>
+      <p class="welcome-sub">
+        Open a free simulated Demat account and trade real NSE prices with
+        ₹10,00,000 in virtual capital. No real money, ever.
+      </p>
+
+      <div class="welcome-points">
+        <div class="welcome-point">
+          <div class="welcome-point-icon">1</div>
+          <div class="welcome-point-text">
+            <strong>Live NSE &amp; BSE prices</strong>
+            <span>Real quotes, charts, option chain and IPOs.</span>
+          </div>
+        </div>
+        <div class="welcome-point">
+          <div class="welcome-point-icon">2</div>
+          <div class="welcome-point-text">
+            <strong>A full trading engine</strong>
+            <span>Delivery, intraday leverage, limit and stop-loss orders, with real charge maths.</span>
+          </div>
+        </div>
+        <div class="welcome-point">
+          <div class="welcome-point-icon">3</div>
+          <div class="welcome-point-text">
+            <strong>Zero risk</strong>
+            <span>Practise the whole journey — account opening included — with nothing at stake.</span>
+          </div>
+        </div>
+      </div>
+
+      <button class="welcome-cta" onclick="startWelcomeOnboarding()">Get Started</button>
+      <button class="welcome-secondary" onclick="openLoginModal()">I already have an account</button>
+      <button class="welcome-skip" onclick="skipWelcomeToGuest()">Explore markets first — no account needed</button>
+
+      <p class="welcome-note">
+        Stoxifyin' is an educational simulator. It is not a broker, no real orders are placed, and the
+        PAN/KYC steps are simulated for demonstration only.
+      </p>
+    </div>
+  </div>
 
   <!-- Top Navigation Bar -->
   <header class="navbar">
@@ -220,8 +402,8 @@
       <script>
         (function() {
           try {
-            var cu = localStorage.getItem('stoxify_cached_user') || localStorage.getItem('stoxify_cached_user');
-            var isG = (localStorage.getItem('stoxify_guest_mode') || localStorage.getItem('stoxify_guest_mode')) === 'true';
+             var cu = localStorage.getItem('stoxify_cached_user');
+             var isG = localStorage.getItem('stoxify_guest_mode') === 'true';
             if (cu && !isG) {
               var u = JSON.parse(cu);
               if (u && u.name) {

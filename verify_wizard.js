@@ -172,6 +172,80 @@ for (let i = 1; i <= 6; i++) {
 check('step containers and indicators are 1:1', stepsOk, stepsDetail);
 check('no 7th step indicator is referenced', !APP.includes('obStepIndicator-7'));
 
+/* ------------------------------------------------------ 3. welcome screen */
+console.log();
+console.log('='.repeat(72));
+console.log(' 3. First-run welcome screen');
+console.log('='.repeat(72));
+
+check('welcome pane exists in the markup', htmlIds.has('welcomePane'));
+check('pane is visible by default (no inline display:none)',
+  !/id="welcomePane"[^>]*style="[^"]*display:\s*none/.test(HTML));
+check('head script can pre-dismiss it for returning users',
+  HTML.includes('welcome-dismissed') && HTML.includes("classList.add('welcome-dismissed')"));
+check('mobile app bar is hidden behind the takeover',
+  /html:not\(\.welcome-dismissed\)\s*\.mobile-bottom-bar/.test(HTML));
+
+const welcomeHandlers = ['startWelcomeOnboarding', 'skipWelcomeToGuest', 'openLoginModal', 'enterGuestMode'];
+const missingHandlers = welcomeHandlers.filter(fn =>
+  !new RegExp(`function\\s+${fn}\\b`).test(APP));
+check('all welcome actions are defined', missingHandlers.length === 0,
+  missingHandlers.length ? `missing: ${missingHandlers.join(', ')}` : welcomeHandlers.join(', '));
+
+// Only enterGuestMode may SET the flag. Applying the class alone happens in the
+// boot paths (fetchCurrentUser), which is display state, not a stored choice.
+const flagWrites = (APP.match(/setItem\('stoxify_guest_mode'/g) || []).length;
+check('guest mode flag is written in exactly one place (extracted, not duplicated)',
+  flagWrites === 1, `${flagWrites} setItem('stoxify_guest_mode') occurrence(s)`);
+const enterGuestBlock = APP.match(/function enterGuestMode\(\)\s*\{[\s\S]*?\n\}/);
+check('enterGuestMode is that place',
+  !!enterGuestBlock && enterGuestBlock[0].includes("setItem('stoxify_guest_mode'"));
+check('logoutUser delegates to it', /function logoutUser\(\)\s*\{\s*enterGuestMode\(\);/.test(APP));
+
+// Logging in from '/', the welcome screen's own path, does not navigate (the
+// success handler only redirects from /onboarding or /login), so the login path
+// must dismiss the takeover itself.
+check('successful login dismisses the welcome takeover',
+  /closeLoginModal\(\);[\s\S]{0,400}hideWelcomePane\(\)/.test(APP));
+check('the delete path also delegates', /enterGuestMode\(\);\s*\n\s*state\.account/.test(APP));
+
+// The gate must cover the landing routes only.
+const GATE = "if ((path === '/' || path === '/explore') && !hasSessionOrGuest())";
+check('gate covers the landing routes and requires no session/guest choice',
+  APP.includes(GATE), APP.includes(GATE) ? '' : 'exact gate expression not found');
+check('deep links are NOT gated',
+  !APP.includes("'\\/onboarding' && !hasSessionOrGuest") &&
+  !APP.includes("!hasSessionOrGuest() && path === '/onboarding'") &&
+  !APP.includes("startsWith('/stock/') && !hasSessionOrGuest"));
+
+// Exercise the REAL gate predicate against a stubbed localStorage.
+const gateSrc = APP.match(/function hasSessionOrGuest\(\)\s*\{[\s\S]*?\n\}/);
+check('hasSessionOrGuest found for behavioural test', !!gateSrc);
+if (gateSrc) {
+  const makeGate = new Function('localStorage', `${gateSrc[0]}; return hasSessionOrGuest;`);
+  const cases = [
+    // uid,            guest flag, expected "has a session/choice" => welcome hidden?
+    [null,             null,       false, 'brand-new visitor sees the welcome screen'],
+    ['STOX-123456',    null,       true,  'signed-in user skips it'],
+    [null,             'true',     true,  'a guest who skipped never sees it again'],
+    ['STOX-123456',    'true',     true,  'signed-in while flagged guest still skips it'],
+    ['guest',          null,       false, 'the literal "guest" id is not a real session'],
+    ['default',        null,       false, 'the legacy "default" id is not a real session'],
+    [null,             'false',    false, 'an explicit "false" flag is not a choice']
+  ];
+  for (const [uid, flag, expected, label] of cases) {
+    const store = {
+      getItem: key => {
+        if (key === 'stoxify_user_id') return uid;
+        if (key === 'stoxify_guest_mode') return flag;
+        return null;
+      }
+    };
+    const actual = makeGate(store)();
+    check(label, actual === expected, `hasSessionOrGuest=${actual}`);
+  }
+}
+
 console.log();
 console.log('='.repeat(72));
 console.log(failures === 0 ? ' WIZARD CHECKS PASSED' : ` ${failures} FAILURE(S)`);

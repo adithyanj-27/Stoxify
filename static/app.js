@@ -2660,13 +2660,10 @@ async function confirmDeleteAccount() {
         }
         localStorage.setItem('stoxify_recent_accounts', JSON.stringify(recent));
       } catch (e) {}
-      localStorage.setItem('stoxify_guest_mode', 'true');
-      document.documentElement.classList.remove('user-logged-in');
-      document.documentElement.classList.add('user-guest');
-      currentUser = null;
+      // Same guest-mode transition as logout — shared, not copy-pasted.
+      enterGuestMode();
       state.account = { balance: 0.0 };
       state.watchlist = new Set();
-      updateNavbarProfile();
       closeFundsModal();
       showToast('Account permanently deleted. Returned to guest mode.');
       navigateTo('/explore');
@@ -2974,10 +2971,50 @@ function showProfilePage() {
   renderProfilePageData();
 }
 
+/* ---------------------------------------------------------------------------
+   First-run welcome screen
+   --------------------------------------------------------------------------- */
+function hasSessionOrGuest() {
+  const uid = localStorage.getItem('stoxify_user_id');
+  if (uid && uid !== 'default' && uid !== 'guest') return true;
+  return localStorage.getItem('stoxify_guest_mode') === 'true';
+}
+
+function showWelcomePane() {
+  document.documentElement.classList.remove('welcome-dismissed');
+  const pane = document.getElementById('welcomePane');
+  if (pane) pane.scrollTop = 0;
+}
+
+function hideWelcomePane() {
+  document.documentElement.classList.add('welcome-dismissed');
+}
+
+function startWelcomeOnboarding() {
+  hideWelcomePane();
+  navigateTo('/onboarding');
+}
+
+function skipWelcomeToGuest() {
+  enterGuestMode();
+  navigateTo('/explore');
+  showToast('Browsing as a guest — tap Get Started anytime to open a real account');
+}
+
 function handleRoute() {
   const path = window.location.pathname;
   const userMenu = document.getElementById('userDropdownMenu');
   if (userMenu) userMenu.style.display = 'none';
+
+  hideWelcomePane();
+
+  // First-run entry gate. Only the landing routes are gated: deep links such as
+  // /stock/RELIANCE, /mf/…, /onboarding and /login must keep working for bookmarks
+  // and shared links, and a returning user or an existing guest never sees this.
+  if ((path === '/' || path === '/explore') && !hasSessionOrGuest()) {
+    showWelcomePane();
+    return;
+  }
 
   if (path !== '/profile') {
     document.body.classList.remove('viewing-profile');
@@ -2990,6 +3027,9 @@ function handleRoute() {
   } else if (path.startsWith('/mf/')) {
     const sym = decodeURIComponent(path.replace('/mf/', '')).trim();
     showAssetPage(sym, 'MUTUAL_FUND');
+  } else if (path === '/welcome') {
+    switchTab('explore', false);
+    showWelcomePane();
   } else if (path === '/onboarding') {
     showOnboardingPage();
   } else if (path === '/profile') {
@@ -3184,7 +3224,10 @@ function updateNavbarProfile() {
   if (profBankBalEl) profBankBalEl.innerText = formatINR(bBal);
 }
 
-function logoutUser() {
+/* Single entry point for guest mode. This exact sequence used to be duplicated in
+   logoutUser() and the account-deletion path, and a first-time visitor had no way
+   to reach guest mode at all — they landed straight on Explore. */
+function enterGuestMode() {
   localStorage.setItem('stoxify_guest_mode', 'true');
   localStorage.removeItem('stoxify_user_id');
   localStorage.removeItem('stoxify_cached_user');
@@ -3192,6 +3235,10 @@ function logoutUser() {
   document.documentElement.classList.add('user-guest');
   currentUser = null;
   updateNavbarProfile();
+}
+
+function logoutUser() {
+  enterGuestMode();
   showToast('Logged out successfully.');
   if (state.currentTab === 'holdings') fetchPortfolio();
   if (state.currentTab === 'positions') fetchPositions();
@@ -4289,6 +4336,10 @@ async function submitLogin() {
     updateNavbarProfile();
     saveRecentAccount(currentUser);
     closeLoginModal();
+    // Unconditional: logging in from the welcome screen leaves the pathname at '/'
+    // or '/explore', so the navigate below would not fire and the takeover would
+    // stay stuck over the signed-in app.
+    hideWelcomePane();
     showToast(`Welcome back, ${currentUser.name}!`);
 
     await fetchAccount();
