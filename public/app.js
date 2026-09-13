@@ -5795,6 +5795,16 @@ let obUserData = {
 };
 
 function showOnboardingPage() {
+  if (currentUser && currentUser.id && !isGuest()) {
+    if (!currentUser.pin) {
+      goToObStep(6);
+      showObPinView();
+      return;
+    }
+    navigateTo('/explore');
+    return;
+  }
+
   document.body.classList.remove('viewing-profile');
   document.documentElement.classList.remove('viewing-profile');
   document.body.classList.remove('viewing-asset-detail');
@@ -5900,6 +5910,23 @@ async function submitObStep1() {
     return;
   }
 
+  // Instant mobile check: catch existing accounts upfront
+  try {
+    const chk = await fetch('/api/user/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier: phone })
+    });
+    const chkData = await chk.json();
+    if (chkData && chkData.exists) {
+      showToast('An account with this mobile number already exists. Please log in.', true);
+      openLoginModal(phone);
+      return;
+    }
+  } catch (e) {
+    // In case of network or offline, proceed smoothly
+  }
+
   // No username and no password. Like Groww, the mobile number is the account
   // identity and the PIN is chosen after activation (see submitObPin()).
   obUserData.phone = phone;
@@ -5998,9 +6025,9 @@ function applyObPrefill() {
 
 function submitObStep2() {
   const pan = document.getElementById('obInputPan').value.trim().toUpperCase();
-  // PAN rule unchanged from the original implementation: exactly 10 characters.
-  if (!pan || pan.length !== 10) {
-    showToast('Please enter a 10-character PAN (e.g. ABCDE1234F)', true);
+  const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+  if (!pan || !panRegex.test(pan)) {
+    showToast('Please enter a valid 10-character PAN (e.g. ABCDE1234F)', true);
     document.getElementById('obInputPan').focus();
     return;
   }

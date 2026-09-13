@@ -824,12 +824,16 @@ def create_user(
     palettes = ["#0EA5E9", "#10B981", "#6366F1", "#EC4899", "#F59E0B", "#8B5CF6"]
     avatar_color = palettes[len(name) % len(palettes)]
 
-    clean_username = username.strip().lstrip("@").lower() if username else None
+    if not username or not username.strip():
+        base_name = re.sub(r'[^a-zA-Z0-9]', '', (name or "trader").split()[0].lower()) or "trader"
+        clean_username = f"{base_name}_{random.randint(1000, 9999)}"
+    else:
+        clean_username = username.strip().lstrip("@").lower()
     clean_password = password.strip() if password else None
     # Keep the IFSC the user actually typed. Deriving it from the bank name
     # silently replaced it (selecting "SBI" + typing SBIN0001234 stored STAT0001234).
     clean_ifsc = (ifsc or "").strip().upper() or f"{bank_name.split()[0].upper()[:4]}0001234"
-    bank_upi_id = f"{(clean_username or user_id).lower()}@{bank_name.split()[0].lower()}bank"
+    bank_upi_id = f"{clean_username}@{bank_name.split()[0].lower()}bank"
     clean_age = int(age) if age is not None else 18
     clean_exp = (experience or "None / Total Beginner").strip()
     # Registration used to accept any PIN string. Only a real 4-digit PIN is kept

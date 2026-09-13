@@ -1616,6 +1616,7 @@
             </div>
 
             <button class="ob-btn-primary" onclick="submitObStep3()">Confirm Details →</button>
+            <button class="ob-btn-link" onclick="goToObStep(2)">← Back to PAN</button>
           </div>
 
           <!-- Step 4: Bank Account & Penny Drop -->
@@ -1658,6 +1659,7 @@
             </div>
 
             <button class="ob-btn-primary" id="btnVerifyBank" onclick="submitObStep4()">Verify & Link Bank Account →</button>
+            <button class="ob-btn-link" onclick="goToObStep(3)">← Back to Personal Details</button>
           </div>
 
           <!-- Step 5: Application summary + consent (the PIN moved to after activation) -->
@@ -1760,7 +1762,6 @@
               </div>
 
               <button class="ob-btn-primary" onclick="submitObPin()">Save PIN &amp; Start Investing →</button>
-              <button class="ob-btn-link" onclick="finishOnboarding()">Skip for now</button>
             </div>
           </div>
         </div>
@@ -2627,8 +2628,8 @@
     <div class="modal-card" style="max-width: 480px; max-height: 90vh; overflow-y: auto;">
       <div class="modal-header">
         <div>
-          <h3 style="font-size: 1.2rem; font-weight: 800;">Login / Register</h3>
-          <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">Enter your Username, Email or Phone and Password or PIN</div>
+          <h3 style="font-size: 1.2rem; font-weight: 800;">Login to Stoxifyin'</h3>
+          <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">Enter your registered Mobile Number (or Username) and 4-digit PIN</div>
         </div>
         <button class="icon-btn" onclick="closeLoginModal()">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2643,13 +2644,13 @@
         <!-- Manual Credentials Form -->
         <div>
           <div class="ob-form-group" style="margin-bottom: 0.85rem;">
-            <label class="ob-label" for="loginIdentifierInput">Username, Email Address or Phone Number</label>
-            <input type="text" class="ob-input" id="loginIdentifierInput" placeholder="e.g. username, your@email.com or 9876543210" autocomplete="username" onkeydown="if(event.key==='Enter') submitLogin()">
+            <label class="ob-label" for="loginIdentifierInput">Mobile Number or Username</label>
+            <input type="text" class="ob-input" id="loginIdentifierInput" placeholder="e.g. 9876543210 or username" autocomplete="username" onkeydown="if(event.key==='Enter') submitLogin()">
           </div>
 
           <div class="ob-form-group" style="margin-bottom: 0.85rem;">
-            <label class="ob-label" for="loginPinInput" style="margin-bottom: 0.4rem;">Password or PIN</label>
-            <input type="password" class="ob-input" id="loginPinInput" placeholder="Enter password or 4-digit PIN" style="letter-spacing: 0.05rem;" autocomplete="current-password" onkeydown="if(event.key==='Enter') submitLogin()">
+            <label class="ob-label" for="loginPinInput" style="margin-bottom: 0.4rem;">4-Digit PIN or Password</label>
+            <input type="password" class="ob-input" id="loginPinInput" placeholder="Enter 4-digit PIN or password" style="letter-spacing: 0.05rem;" autocomplete="current-password" onkeydown="if(event.key==='Enter') submitLogin()">
           </div>
 
           <button class="btn-primary" id="btnLoginSubmit" style="width: 100%; justify-content: center; padding: 0.85rem 1rem; font-size: 0.95rem; font-weight: 700; margin-top: 0.5rem;" onclick="submitLogin()">
