@@ -2770,14 +2770,46 @@ function closePwaGuideModal() {
   if (modal) modal.style.display = 'none';
 }
 
+let appInstallHandled = false;
+function handleAppInstallSuccess() {
+  if (appInstallHandled) return;
+  appInstallHandled = true;
+
+  deferredInstallPrompt = null;
+  closePwaGuideModal();
+  dismissMobileInstallBanner();
+
+  document.body.classList.add('pwa-installed');
+  sessionStorage.setItem('stoxify_mob_install_dismissed', '1');
+  updateInstallButtonsVisibility();
+
+  const mobBanner = document.getElementById('mobileInstallBanner');
+  if (mobBanner) {
+    mobBanner.style.display = 'flex';
+    const title = mobBanner.querySelector('.mob-install-title');
+    if (title) title.innerText = "Stoxifyin' App Installed";
+    const actions = mobBanner.querySelector('.mob-install-actions');
+    if (actions) {
+      actions.innerHTML = `
+        <a href="/?source=pwa" class="mob-install-btn" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;">Open App ↗</a>
+        <button class="mob-install-close" onclick="dismissMobileInstallBanner()" title="Dismiss">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      `;
+    }
+  }
+}
+
 async function triggerNativeInstallPrompt() {
   if (deferredInstallPrompt) {
     try {
       deferredInstallPrompt.prompt();
       const { outcome } = await deferredInstallPrompt.userChoice;
       if (outcome === 'accepted') {
-        closePwaGuideModal();
-        showToast("Stoxifyin' installed successfully! You can launch it from your home screen.");
+        handleAppInstallSuccess();
       }
       deferredInstallPrompt = null;
     } catch (err) {
@@ -2796,9 +2828,7 @@ async function installPWA() {
       deferredInstallPrompt.prompt();
       const { outcome } = await deferredInstallPrompt.userChoice;
       if (outcome === 'accepted') {
-        closePwaGuideModal();
-        showToast("Stoxifyin' installed successfully! You can launch it from your home screen.");
-        deferredInstallPrompt = null;
+        handleAppInstallSuccess();
         return;
       }
       deferredInstallPrompt = null;
@@ -2818,9 +2848,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
 });
 
 window.addEventListener('appinstalled', () => {
-  deferredInstallPrompt = null;
-  closePwaGuideModal();
-  showToast("Stoxifyin' installed successfully! You can launch it from your home screen.");
+  handleAppInstallSuccess();
 });
 
 // Register Service Worker
