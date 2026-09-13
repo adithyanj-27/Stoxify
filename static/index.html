@@ -12,7 +12,7 @@
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-dark.png" id="dynamicFavicon">
   <link rel="apple-touch-icon" href="/static/icon-192.png">
-  <link rel="stylesheet" href="/static/style.css?v=7.3" onerror="this.onerror=null;this.href='/style.css?v=7.3';">
+  <link rel="stylesheet" href="/static/style.css?v=7.4" onerror="this.onerror=null;this.href='/style.css?v=7.4';">
   <!-- Chart.js for high performance financial line & area charts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Pre-render synchronous auth & theme hydration to completely eliminate cold-boot flash of 'Invest' button -->
@@ -1695,30 +1695,33 @@
             <div class="ob-footer-note" style="margin-top: 0.8rem;">By continuing, you agree to Stoxifyin' Simulated Trading T&C.</div>
           </div>
 
-          <!-- Step 2: PAN (pulls the identity record used by step 3) -->
+          <!-- Step 2: PAN (prefilled random combination, user can keep or edit) -->
           <div class="onboarding-step-content" id="obStep-2">
             <div class="onboarding-badge">SEBI KYC Compliance</div>
             <h2 class="ob-title">Enter Your PAN</h2>
-            <p class="ob-sub">Your PAN is mandatory for a Demat account. We use it to fetch your name, date of birth and address.</p>
+            <p class="ob-sub">Your PAN is mandatory for a Demat account. We've prefilled a random combination for simulation, or you can enter your own.</p>
 
             <div class="ob-form-group">
-              <label class="ob-label">PAN Number</label>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                <label class="ob-label" style="margin-bottom: 0;">PAN Number</label>
+                <button type="button" class="ob-btn-link" style="font-size: 0.78rem; text-decoration: underline; padding: 0; color: var(--brand-cyan);" onclick="generateNewRandomPan()">↻ Generate New PAN</button>
+              </div>
               <input type="text" class="ob-input" id="obInputPan" placeholder="ABCDE1234F" maxlength="10" style="text-transform: uppercase; font-family: monospace; font-size: 1.1rem; letter-spacing: 0.1em;" oninput="onPanInput(this)">
             </div>
 
-            <button class="ob-btn-primary" onclick="submitObStep2()">Fetch My Details →</button>
+            <button class="ob-btn-primary" onclick="submitObStep2()">Continue to Personal Details →</button>
             <button class="ob-btn-link" onclick="goToObStep(1)">← Change Mobile Number</button>
           </div>
 
-          <!-- Step 3: Personal Details — prefilled from the PAN, fully editable -->
+          <!-- Step 3: Personal Details — user types their own name, sample KYC data prefilled -->
           <div class="onboarding-step-content" id="obStep-3">
-            <div class="onboarding-badge">Fetched from records • Editable</div>
+            <div class="onboarding-badge">KYC Verification • User-Typed</div>
             <h2 class="ob-title">Personal Details</h2>
-            <p class="ob-sub">We pulled these details against your PAN. Check them, and change anything that looks wrong.</p>
+            <p class="ob-sub">Enter your full legal name and verify your KYC details to complete Demat opening.</p>
 
             <div class="ob-form-group">
-              <label class="ob-label">Full Name (as per PAN)</label>
-              <input type="text" class="ob-input" id="obInputName" placeholder="Legal name as per PAN">
+              <label class="ob-label">Full Legal Name <span style="color: var(--brand-cyan); font-size: 0.8rem;">*</span></label>
+              <input type="text" class="ob-input" id="obInputName" placeholder="Enter your full legal name" autocomplete="name">
             </div>
 
             <div class="ob-row-2">
@@ -3288,6 +3291,6 @@
     </button>
   </nav>
 
-  <script src="/static/app.js?v=7.3" onerror="this.onerror=null;this.src='/app.js?v=7.3';"></script>
+  <script src="/static/app.js?v=7.4" onerror="this.onerror=null;this.src='/app.js?v=7.4';"></script>
 </body>
 </html>

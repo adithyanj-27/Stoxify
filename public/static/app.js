@@ -5845,6 +5845,28 @@ let obUserData = {
   identity: null
 };
 
+function generateRandomPan() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const p1 = chars[Math.floor(Math.random() * chars.length)];
+  const p2 = chars[Math.floor(Math.random() * chars.length)];
+  const p3 = chars[Math.floor(Math.random() * chars.length)];
+  const p4 = 'P'; // Individual person
+  const p5 = chars[Math.floor(Math.random() * chars.length)];
+  const num = Math.floor(1000 + Math.random() * 9000);
+  const last = chars[Math.floor(Math.random() * chars.length)];
+  return `${p1}${p2}${p3}${p4}${p5}${num}${last}`;
+}
+
+function generateNewRandomPan() {
+  const panInput = document.getElementById('obInputPan');
+  if (panInput) {
+    const newPan = generateRandomPan();
+    panInput.value = newPan;
+    obUserData.pan = newPan;
+    showToast(`Sample PAN generated: ${newPan}`, false);
+  }
+}
+
 function showOnboardingPage() {
   if (currentUser && currentUser.id && !isGuest()) {
     if (!currentUser.pin) {
@@ -5891,8 +5913,12 @@ function showOnboardingPage() {
     if (el) el.style.display = 'none';
   });
 
+  const samplePan = generateRandomPan();
+  const panInput = document.getElementById('obInputPan');
+  if (panInput) panInput.value = samplePan;
+
   obUserData = {
-    phone: '', email: '', name: '', pan: '', dob: '',
+    phone: '', email: '', name: '', pan: samplePan, dob: '',
     gender: 'Male', occupation: 'Private Sector', income: '₹1L - ₹5L',
     bank_name: 'HDFC Bank', bank_account: '', ifsc: '',
     address_line1: '', address_line2: '', city: '', state: '', pincode: '',
@@ -5926,7 +5952,21 @@ function goToObStep(stepNum) {
     }
   }
 
+  if (stepNum === 2) {
+    const panInput = document.getElementById('obInputPan');
+    if (panInput && !panInput.value) {
+      const samplePan = generateRandomPan();
+      panInput.value = samplePan;
+      obUserData.pan = samplePan;
+    }
+  }
+
   if (stepNum === 3) {
+    // User types their own name: focus the name input
+    const nameInput = document.getElementById('obInputName');
+    if (nameInput) {
+      setTimeout(() => nameInput.focus(), 150);
+    }
     // A Demat account needs an adult applicant, so the DOB cannot imply a minor.
     const dobInput = document.getElementById('obInputDob');
     if (dobInput) {
@@ -6065,7 +6105,10 @@ function applyObPrefill() {
     const el = document.getElementById(elId);
     if (el) el.value = value;
   };
-  set('obInputName', identity.name);
+  // Do NOT overwrite user's name with generator — user types their own legal name
+  if (obUserData.name) {
+    set('obInputName', obUserData.name);
+  }
   set('obInputDob', identity.dob);
   set('obInputAddress1', identity.address_line1);
   set('obInputAddress2', identity.address_line2);
@@ -6075,7 +6118,11 @@ function applyObPrefill() {
 }
 
 function submitObStep2() {
-  const pan = document.getElementById('obInputPan').value.trim().toUpperCase();
+  let pan = document.getElementById('obInputPan').value.trim().toUpperCase();
+  if (!pan) {
+    pan = generateRandomPan();
+    document.getElementById('obInputPan').value = pan;
+  }
   const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
   if (!pan || !panRegex.test(pan)) {
     showToast('Please enter a valid 10-character PAN (e.g. ABCDE1234F)', true);
@@ -6085,7 +6132,7 @@ function submitObStep2() {
 
   obUserData.pan = pan;
   applyObPrefill();
-  showToast(`Details fetched for PAN ${pan} ✓`, false);
+  showToast(`PAN ${pan} verified ✓`, false);
   goToObStep(3);
 }
 
