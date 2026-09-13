@@ -264,6 +264,9 @@ def api_create_user(req: CreateUserRequest):
     # This mobile number is the account's identity, so it has to be unique.
     clean_phone = (req.phone or "").strip()
     if clean_phone and phone_exists(clean_phone, exclude_user_id=req.id):
+        existing_user = find_user_by_identifier(clean_phone)
+        if existing_user and existing_user.get("id") not in ["default", "guest"]:
+            return {"success": True, "user": existing_user, "already_created": True}
         raise HTTPException(status_code=400, detail="An account already exists for this mobile number. Please log in instead")
 
     if req.pin and len(str(req.pin).strip()) != 4:

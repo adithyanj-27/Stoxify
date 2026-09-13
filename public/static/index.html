@@ -12,7 +12,7 @@
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-dark.png" id="dynamicFavicon">
   <link rel="apple-touch-icon" href="/static/icon-192.png">
-  <link rel="stylesheet" href="/static/style.css?v=7.9" onerror="this.onerror=null;this.href='/style.css?v=7.9';">
+  <link rel="stylesheet" href="/static/style.css?v=8.0" onerror="this.onerror=null;this.href='/style.css?v=8.0';">
   <!-- Chart.js for high performance financial line & area charts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Pre-render synchronous auth & theme hydration to completely eliminate cold-boot flash of 'Invest' button -->
@@ -1735,6 +1735,7 @@
         </div>
 
         <div class="onboarding-card">
+          <button type="button" class="ob-close-btn" onclick="navigateTo('/explore')" title="Exit registration" aria-label="Close">✕</button>
           <!-- Step 1: Mobile & Email -->
           <div class="onboarding-step-content active" id="obStep-1">
             <div class="onboarding-badge">Paperless • 60 Seconds</div>
@@ -1875,7 +1876,7 @@
 
             <label class="ob-label" style="margin-bottom: 0.6rem;">Select Bank</label>
             <div class="bank-chips-grid">
-              <button class="bank-chip active" onclick="selectBank('HDFC Bank', 'HDFC0001234', this)">HDFC Bank</button>
+              <button class="bank-chip" onclick="selectBank('HDFC Bank', 'HDFC0001234', this)">HDFC Bank</button>
               <button class="bank-chip" onclick="selectBank('ICICI Bank', 'ICIC0000001', this)">ICICI Bank</button>
               <button class="bank-chip" onclick="selectBank('State Bank of India', 'SBIN0001234', this)">SBI</button>
               <button class="bank-chip" onclick="selectBank('Axis Bank', 'UTIB0000001', this)">Axis Bank</button>
@@ -1991,6 +1992,7 @@
               </p>
 
               <button class="ob-btn-primary" onclick="showObPinView()">Set My 4-Digit PIN →</button>
+              <button type="button" class="ob-btn-link" onclick="finishOnboarding()" style="margin-top: 0.65rem; display: block; width: 100%; text-align: center;">Explore Markets Now →</button>
             </div>
 
             <!-- 6c: set the app PIN — after activation, the way Groww does it -->
@@ -2010,6 +2012,7 @@
               </div>
 
               <button class="ob-btn-primary" onclick="submitObPin()">Save PIN &amp; Start Investing →</button>
+              <button type="button" class="ob-btn-link" onclick="finishOnboarding()" style="margin-top: 0.65rem; display: block; width: 100%; text-align: center;">Skip for now →</button>
             </div>
           </div>
         </div>
@@ -3354,6 +3357,6 @@
     </button>
   </nav>
 
-  <script src="/static/app.js?v=7.9" onerror="this.onerror=null;this.src='/app.js?v=7.9';"></script>
+  <script src="/static/app.js?v=8.0" onerror="this.onerror=null;this.src='/app.js?v=8.0';"></script>
 </body>
 </html>

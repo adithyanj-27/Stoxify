@@ -915,6 +915,11 @@ def create_user(
     state: Optional[str] = None,
     pincode: Optional[str] = None
 ) -> Dict[str, Any]:
+    if phone and not user_id:
+        existing = find_user_by_identifier(phone.strip())
+        if existing and existing.get("id") not in ["default", "guest"]:
+            return existing
+
     if not user_id:
         user_id = f"STOX-{random.randint(100000, 999999)}"
     palettes = ["#0EA5E9", "#10B981", "#6366F1", "#EC4899", "#F59E0B", "#8B5CF6"]

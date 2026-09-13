@@ -5964,10 +5964,11 @@ function showOnboardingPage() {
   obUserData = {
     phone: '', email: '', name: '', pan: samplePan, dob: '',
     gender: 'Male', occupation: 'Private Sector', income: '₹1L - ₹5L',
-    bank_name: 'HDFC Bank', bank_account: '', ifsc: '',
+    bank_name: '', bank_account: '', ifsc: '',
     address_line1: '', address_line2: '', city: '', state: '', pincode: '',
     age: null, experience: 'None / Total Beginner', identity: null
   };
+  document.querySelectorAll('.bank-chip').forEach(c => c.classList.remove('active'));
 
   goToObStep(1);
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -6019,6 +6020,16 @@ function goToObStep(stepNum) {
       dobInput.max = eighteenYearsAgo.toISOString().split('T')[0];
       // No age field to keep in sync any more — age is derived from this date.
     }
+  }
+
+  if (stepNum === 4) {
+    document.querySelectorAll('.bank-chip').forEach(c => {
+      if (obUserData.bank_name && c.innerText.trim().toLowerCase().startsWith(obUserData.bank_name.toLowerCase().split(' ')[0])) {
+        c.classList.add('active');
+      } else {
+        c.classList.remove('active');
+      }
+    });
   }
 
   if (stepNum === 5) {
@@ -6270,6 +6281,10 @@ function selectBank(name, ifsc, el) {
 }
 
 function submitObStep4() {
+  if (!obUserData.bank_name) {
+    showToast('Please select your bank from the list above', true);
+    return;
+  }
   const acc = document.getElementById('obInputAccount').value.trim();
   const accConfirm = document.getElementById('obInputAccountConfirm').value.trim();
   const ifsc = document.getElementById('obInputIfsc').value.trim().toUpperCase();
@@ -6326,19 +6341,29 @@ function showObReview() {
     : '—');
 }
 
+let obIsSubmitting = false;
+
 async function submitObStep5() {
+  if (obIsSubmitting) return;
+
   const tick = document.getElementById('obConsentTick');
   if (tick && !tick.checked) {
     showToast('Please accept the tariff sheet and account-opening terms to continue', true);
     return;
   }
 
+  // If user account was already created in this session, proceed straight to activation view
+  if (currentUser && currentUser.id && !isGuest() && !currentUser.is_guest) {
+    beginObPending();
+    return;
+  }
+
   const submitBtn = document.querySelector('#obStep-5 .ob-btn-primary');
   if (submitBtn) {
-    if (submitBtn.disabled) return;
     submitBtn.disabled = true;
     submitBtn.innerText = 'Creating Demat Account…';
   }
+  obIsSubmitting = true;
 
   try {
     const res = await fetch('/api/user/create', {
@@ -6352,12 +6377,9 @@ async function submitObStep5() {
         dob: obUserData.dob,
         age: obUserData.age || 18,
         experience: obUserData.experience || 'None / Total Beginner',
-        // Collected by the wizard for a long time but never actually sent, so the
-        // server could not store them.
         gender: obUserData.gender,
         occupation: obUserData.occupation,
         income: obUserData.income,
-        // Sent now so the backend stops deriving the IFSC from the bank name.
         ifsc: obUserData.ifsc,
         bank_name: obUserData.bank_name,
         bank_account: obUserData.bank_account,
@@ -6366,12 +6388,11 @@ async function submitObStep5() {
         city: obUserData.city,
         state: obUserData.state,
         pincode: obUserData.pincode
-        // Deliberately absent: username, password, pin. The PIN is set after
-        // activation, the way Groww does it.
       })
     });
     const result = await res.json();
     if (!res.ok || !result.success) {
+      obIsSubmitting = false;
       if (submitBtn) {
         submitBtn.disabled = false;
         submitBtn.innerText = 'Open My Demat Account →';
@@ -6397,9 +6418,16 @@ async function submitObStep5() {
     saveRecentAccount(currentUser);
     fetchAccount();
 
+    obIsSubmitting = false;
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerText = 'Open My Demat Account →';
+    }
+
     beginObPending();
 
   } catch (err) {
+    obIsSubmitting = false;
     if (submitBtn) {
       submitBtn.disabled = false;
       submitBtn.innerText = 'Open My Demat Account →';
@@ -6420,35 +6448,45 @@ const OB_PENDING_MESSAGES = [
 ];
 
 function beginObPending() {
+  goToObStep(6);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+
   const pendingView = document.getElementById('obPendingView');
   const activeView = document.getElementById('obActiveView');
+  const pinView = document.getElementById('obPinView');
+  if (pinView) pinView.style.display = 'none';
   if (activeView) activeView.style.display = 'none';
   if (pendingView) pendingView.style.display = 'block';
 
-  const refDigits = String(currentUser.id || '').replace(/[^0-9]/g, '').slice(-6);
+  const refDigits = String((currentUser && currentUser.id) || '').replace(/[^0-9]/g, '').slice(-6);
   const refEl = document.getElementById('obPendingRef');
   if (refEl) refEl.innerText = `KYC-${refDigits || Math.floor(100000 + Math.random() * 900000)}`;
   const nameEl = document.getElementById('obPendingName');
-  if (nameEl) nameEl.innerText = currentUser.name || 'Trader';
+  if (nameEl) nameEl.innerText = (currentUser && currentUser.name) || 'Trader';
   const mailEl = document.getElementById('obPendingEmail');
-  if (mailEl) mailEl.innerText = currentUser.email || obUserData.email || '—';
+  if (mailEl) mailEl.innerText = (currentUser && currentUser.email) || obUserData.email || '—';
 
   const textEl = document.getElementById('obPendingText');
   let stepIdx = 0;
   const ticker = setInterval(() => {
     if (textEl) textEl.innerText = OB_PENDING_MESSAGES[stepIdx % OB_PENDING_MESSAGES.length];
     stepIdx++;
-  }, 1100);
+  }, 500);
 
   setTimeout(() => {
     clearInterval(ticker);
     revealObActivated();
-  }, 4600);
+  }, 1800);
 }
 
 function revealObActivated() {
+  goToObStep(6);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+
   const pendingView = document.getElementById('obPendingView');
   const activeView = document.getElementById('obActiveView');
+  const pinView = document.getElementById('obPinView');
+  if (pinView) pinView.style.display = 'none';
   if (pendingView) pendingView.style.display = 'none';
   if (activeView) activeView.style.display = 'block';
 
