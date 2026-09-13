@@ -6242,6 +6242,13 @@ async function submitObStep5() {
     return;
   }
 
+  const submitBtn = document.querySelector('#obStep-5 .ob-btn-primary');
+  if (submitBtn) {
+    if (submitBtn.disabled) return;
+    submitBtn.disabled = true;
+    submitBtn.innerText = 'Creating Demat Account…';
+  }
+
   try {
     const res = await fetch('/api/user/create', {
       method: 'POST',
@@ -6274,7 +6281,17 @@ async function submitObStep5() {
     });
     const result = await res.json();
     if (!res.ok || !result.success) {
-      showToast(result.detail || 'Failed to create account', true);
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Open My Demat Account →';
+      }
+      const msg = result.detail || 'Failed to create account';
+      showToast(msg, true);
+      if (msg.includes('already exists') || msg.includes('log in instead')) {
+        setTimeout(() => {
+          openLoginModal(obUserData.phone);
+        }, 1200);
+      }
       return;
     }
 
@@ -6292,6 +6309,10 @@ async function submitObStep5() {
     beginObPending();
 
   } catch (err) {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerText = 'Open My Demat Account →';
+    }
     showToast('Error connecting to onboarding server', true);
   }
 }
