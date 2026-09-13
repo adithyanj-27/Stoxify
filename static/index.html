@@ -12,7 +12,7 @@
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-dark.png" id="dynamicFavicon">
   <link rel="apple-touch-icon" href="/static/icon-192.png">
-  <link rel="stylesheet" href="/static/style.css?v=8.1" onerror="this.onerror=null;this.href='/style.css?v=8.1';">
+  <link rel="stylesheet" href="/static/style.css?v=8.2" onerror="this.onerror=null;this.href='/style.css?v=8.2';">
   <!-- Chart.js for high performance financial line & area charts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Pre-render synchronous auth & theme hydration to completely eliminate cold-boot flash of 'Invest' button -->
@@ -1994,28 +1994,26 @@
                 trading wallet anytime with simulated UPI.
               </p>
 
-              <button class="ob-btn-primary" onclick="showObPinView()">Set My 4-Digit PIN →</button>
-              <button type="button" class="ob-btn-link" onclick="finishOnboarding()" style="margin-top: 0.65rem; display: block; width: 100%; text-align: center;">Explore Markets Now →</button>
+              <button class="ob-btn-primary" onclick="showObPinView()">Create My 4-Digit PIN →</button>
             </div>
 
-            <!-- 6c: set the app PIN — after activation, the way Groww does it -->
+            <!-- 6c: set the app PIN — mandatory step to finish registration and secure login -->
             <div id="obPinView" style="display: none;">
-              <div class="onboarding-badge">One last thing</div>
-              <h2 class="ob-title">Set Your 4-Digit PIN</h2>
-              <p class="ob-sub">You'll use this PIN with your mobile number to log in and to authorise trades.</p>
+              <div class="onboarding-badge">Final Step • Security</div>
+              <h2 class="ob-title">Create Your 4-Digit PIN</h2>
+              <p class="ob-sub">You'll use this PIN with your mobile number to log in and authorise trades.</p>
 
               <div class="ob-form-group">
                 <label class="ob-label">Enter 4-Digit PIN</label>
-                <input type="password" maxlength="4" class="ob-input" id="obInputPin" placeholder="••••" style="font-size: 1.4rem; letter-spacing: 0.35rem; text-align: center;">
+                <input type="password" maxlength="4" inputmode="numeric" class="ob-input" id="obInputPin" placeholder="••••" style="font-size: 1.4rem; letter-spacing: 0.35rem; text-align: center;">
               </div>
 
               <div class="ob-form-group">
                 <label class="ob-label">Confirm 4-Digit PIN</label>
-                <input type="password" maxlength="4" class="ob-input" id="obInputPinConfirm" placeholder="••••" style="font-size: 1.4rem; letter-spacing: 0.35rem; text-align: center;">
+                <input type="password" maxlength="4" inputmode="numeric" class="ob-input" id="obInputPinConfirm" placeholder="••••" style="font-size: 1.4rem; letter-spacing: 0.35rem; text-align: center;">
               </div>
 
-              <button class="ob-btn-primary" onclick="submitObPin()">Save PIN &amp; Start Investing →</button>
-              <button type="button" class="ob-btn-link" onclick="finishOnboarding()" style="margin-top: 0.65rem; display: block; width: 100%; text-align: center;">Skip for now →</button>
+              <button class="ob-btn-primary" onclick="submitObPin()">Save PIN &amp; Complete Registration →</button>
             </div>
           </div>
         </div>
@@ -2883,7 +2881,7 @@
       <div class="modal-header">
         <div>
           <h3 style="font-size: 1.2rem; font-weight: 800;">Login to Stoxifyin'</h3>
-          <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">Enter your registered Mobile Number (or Username) and 4-digit PIN</div>
+          <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">Enter your registered Mobile Number and 4-digit PIN</div>
         </div>
         <button class="icon-btn" onclick="closeLoginModal()">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2898,13 +2896,13 @@
         <!-- Manual Credentials Form -->
         <div>
           <div class="ob-form-group" style="margin-bottom: 0.85rem;">
-            <label class="ob-label" for="loginIdentifierInput">Mobile Number or Username</label>
-            <input type="text" class="ob-input" id="loginIdentifierInput" placeholder="e.g. 9876543210 or username" autocomplete="username" onkeydown="if(event.key==='Enter') submitLogin()">
+            <label class="ob-label" for="loginIdentifierInput">Mobile Number</label>
+            <input type="tel" maxlength="10" inputmode="numeric" class="ob-input" id="loginIdentifierInput" placeholder="Enter 10-digit mobile number" autocomplete="tel" onkeydown="if(event.key==='Enter') submitLogin()">
           </div>
 
           <div class="ob-form-group" style="margin-bottom: 0.85rem;">
-            <label class="ob-label" for="loginPinInput" style="margin-bottom: 0.4rem;">4-Digit PIN or Password</label>
-            <input type="password" class="ob-input" id="loginPinInput" placeholder="Enter 4-digit PIN or password" style="letter-spacing: 0.05rem;" autocomplete="current-password" onkeydown="if(event.key==='Enter') submitLogin()">
+            <label class="ob-label" for="loginPinInput" style="margin-bottom: 0.4rem;">4-Digit PIN</label>
+            <input type="password" maxlength="4" inputmode="numeric" class="ob-input" id="loginPinInput" placeholder="Enter 4-digit PIN" style="letter-spacing: 0.2rem;" autocomplete="current-password" onkeydown="if(event.key==='Enter') submitLogin()">
           </div>
 
           <button class="btn-primary" id="btnLoginSubmit" style="width: 100%; justify-content: center; padding: 0.85rem 1rem; font-size: 0.95rem; font-weight: 700; margin-top: 0.5rem;" onclick="submitLogin()">
@@ -3360,6 +3358,6 @@
     </button>
   </nav>
 
-  <script src="/static/app.js?v=8.1" onerror="this.onerror=null;this.src='/app.js?v=8.1';"></script>
+  <script src="/static/app.js?v=8.2" onerror="this.onerror=null;this.src='/app.js?v=8.2';"></script>
 </body>
 </html>

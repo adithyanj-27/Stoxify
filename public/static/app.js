@@ -4341,13 +4341,19 @@ async function submitLogin() {
   const pin = pinInput ? pinInput.value.trim() : '';
 
   if (!identifier) {
-    showToast('Please enter your Username, Email Address or Phone Number', true);
+    showToast('Please enter your 10-digit mobile number', true);
     if (identInput) identInput.focus();
     return;
   }
 
   if (!pin) {
-    showToast('Please enter your Password or 4-digit PIN', true);
+    showToast('Please enter your 4-digit PIN', true);
+    if (pinInput) pinInput.focus();
+    return;
+  }
+
+  if (!/^\d{4}$/.test(pin)) {
+    showToast('PIN must be exactly 4 digits', true);
     if (pinInput) pinInput.focus();
     return;
   }
@@ -4366,6 +4372,10 @@ async function submitLogin() {
     const data = await res.json();
 
     if (!res.ok || !data.success) {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = 'Log In →';
+      }
       showToast(data.detail || 'Login failed. Please check your credentials.', true);
       return;
     }
@@ -6663,21 +6673,26 @@ async function submitObPin() {
     });
     const data = await res.json();
     if (!res.ok || !data.success) {
-      showToast(data.detail || 'Could not save your PIN — you can set it later from Profile.', true);
+      showToast(data.detail || 'Could not save your PIN. Please try again.', true);
       return;
     }
     currentUser = data.user || currentUser;
+    currentUser.pin = pin;
     localStorage.setItem('stoxify_cached_user', JSON.stringify(currentUser));
     updateNavbarProfile();
-    showToast('PIN saved ✓ You can now log in with your mobile number and PIN.');
+    showToast('PIN saved successfully ✓ You can now log in with your mobile number and PIN.');
+    finishOnboarding();
   } catch (_) {
-    showToast('Could not save your PIN — you can set it later from Profile.', true);
+    showToast('Error connecting to server. Please try again.', true);
   }
-
-  finishOnboarding();
 }
 
 function finishOnboarding() {
+  if (!currentUser || !currentUser.pin) {
+    showObPinView();
+    showToast('Please create your 4-digit PIN to finish registration and secure your login.', true);
+    return;
+  }
   updateNavbarProfile();
   navigateTo('/explore');
   showToast(`Welcome to Stoxifyin', ${currentUser.name}!`);

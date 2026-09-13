@@ -425,41 +425,43 @@ class LoginRequest(BaseModel):
 @app.post("/api/user/login")
 def api_login_user(req: LoginRequest):
     if not req.identifier or not req.identifier.strip():
-        raise HTTPException(status_code=400, detail="Please enter your Username, Email Address or Phone Number")
+        raise HTTPException(status_code=400, detail="Please enter your registered mobile number")
 
     ident = req.identifier.strip()
     user = find_user_by_identifier(ident)
     if not user or (user.get("id") in ["default", "guest"] and ident.lower() not in ["default", "default_trader", "guest"]):
-        raise HTTPException(status_code=404, detail="No registered account found matching this Username, Email or Phone Number")
+        raise HTTPException(status_code=404, detail="No registered account found matching this mobile number")
 
-    # Verify credentials via Password or PIN
-    entered_secret = (req.password or req.pin or "").strip()
+    # Verify credentials via 4-digit PIN
+    entered_secret = (req.pin or req.password or "").strip()
     if not entered_secret:
-        # Neutral response. Confirm only THAT an account exists so the UI can ask
-        # for a credential. This used to return the holder's name, username and
-        # email for an identifier alone, so anyone could enumerate accounts and
-        # learn who owns them.
         return {
             "success": True,
             "exists": True,
             "requires_credential": True,
-            "message": "Account found. Please enter your Password or 4-digit PIN."
+            "message": "Account found. Please enter your 4-digit PIN."
         }
 
     user_password = (user.get("password") or "").strip()
     user_pin = (user.get("pin") or "").strip()
 
-    # A supplied secret must match a credential the account actually has.
-    # Accounts with no credentials set are only "found" (see above) and must
-    # never authenticate a wrong/arbitrary secret.
+    # If the user previously completed registration without setting a PIN,
+    # allow them to set their 4-digit PIN now so they can log in seamlessly.
     valid = False
-    if user_password and entered_secret == user_password:
-        valid = True
+    if not user_pin and not user_password:
+        if entered_secret and len(entered_secret) == 4 and entered_secret.isdigit():
+            update_user(user["id"], pin=entered_secret)
+            user["pin"] = entered_secret
+            valid = True
+        else:
+            raise HTTPException(status_code=400, detail="Account has no PIN set. Please enter a 4-digit PIN to set it and log in.")
     elif user_pin and entered_secret == user_pin:
+        valid = True
+    elif user_password and entered_secret == user_password:
         valid = True
 
     if not valid:
-        raise HTTPException(status_code=401, detail="Incorrect Password or PIN. Please try again.")
+        raise HTTPException(status_code=401, detail="Incorrect 4-digit PIN. Please try again.")
 
     if not user.get("auth_id") and user.get("email"):
         try:
