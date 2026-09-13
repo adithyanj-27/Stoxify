@@ -2663,10 +2663,12 @@ async function confirmDeleteAccount() {
       // Same guest-mode transition as logout — shared, not copy-pasted.
       enterGuestMode();
       state.account = { balance: 0.0 };
+      localStorage.removeItem('stoxify_guest_mode');
       state.watchlist = new Set();
       closeFundsModal();
-      showToast('Account permanently deleted. Returned to guest mode.');
-      navigateTo('/explore');
+      showToast('Account permanently deleted.');
+      showWelcomePane();
+      navigateTo('/');
       if (state.currentTab === 'holdings') fetchPortfolio();
       if (state.currentTab === 'positions') fetchPositions();
       if (state.currentTab === 'orders') fetchOrders();
@@ -3267,11 +3269,13 @@ function enterGuestMode() {
 
 function logoutUser() {
   enterGuestMode();
+  localStorage.removeItem('stoxify_guest_mode');
   showToast('Logged out successfully.');
   if (state.currentTab === 'holdings') fetchPortfolio();
   if (state.currentTab === 'positions') fetchPositions();
   if (state.currentTab === 'orders') fetchOrders();
-  navigateTo('/explore');
+  showWelcomePane();
+  navigateTo('/');
 }
 
 function toggleProfileDropdown() {
