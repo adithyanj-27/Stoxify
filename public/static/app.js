@@ -3510,8 +3510,6 @@ function openEditProfileModal() {
   const dematDisplay = document.getElementById('editProfileDematDisplay');
 
   if (nameInput) nameInput.value = currentUser.name || '';
-  const usernameInput = document.getElementById('editProfileUsername');
-  if (usernameInput) usernameInput.value = currentUser.username || '';
   if (emailInput) emailInput.value = currentUser.email || '';
   if (phoneInput) phoneInput.value = currentUser.phone || '';
   if (dobInput) dobInput.value = currentUser.dob || '';
@@ -3580,7 +3578,6 @@ async function saveUserProfile() {
   }
 
   const name = document.getElementById('editProfileName').value.trim();
-  const username = document.getElementById('editProfileUsername') ? document.getElementById('editProfileUsername').value.trim().replace(/^@/, '').toLowerCase() : '';
   const email = document.getElementById('editProfileEmail').value.trim();
   const phone = document.getElementById('editProfilePhone').value.trim();
   const dob = document.getElementById('editProfileDob').value.trim();
@@ -3593,18 +3590,6 @@ async function saveUserProfile() {
     showToast('Legal Name is required', true);
     document.getElementById('editProfileName').focus();
     return;
-  }
-  if (username) {
-    if (username.length < 3 || username.length > 25) {
-      showToast('Username must be between 3 and 25 characters', true);
-      document.getElementById('editProfileUsername')?.focus();
-      return;
-    }
-    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-      showToast('Username can only contain letters, numbers, and underscores', true);
-      document.getElementById('editProfileUsername')?.focus();
-      return;
-    }
   }
   if (!email || !email.includes('@')) {
     showToast('Please enter a valid email address', true);
@@ -3642,7 +3627,6 @@ async function saveUserProfile() {
       body: JSON.stringify({
         id: currentUser.id,
         name,
-        username: username || null,
         email,
         phone,
         dob,

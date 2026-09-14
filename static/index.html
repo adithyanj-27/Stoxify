@@ -1569,9 +1569,6 @@
           <button type="button" class="back-link-btn" onclick="toggleTheme()" title="Toggle Dark/Light Mode" aria-label="Theme">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
           </button>
-          <button type="button" class="back-link-btn" onclick="openEditProfileModal()" title="Account Settings & Edit Profile" aria-label="Settings">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-          </button>
         </div>
       </div>
 
@@ -1581,9 +1578,13 @@
           <div class="profile-user-left">
             <div class="profile-avatar-large" id="profilePageAvatar"><script>if(window.__stoxify_initial_inits)document.write(window.__stoxify_initial_inits);</script></div>
             <div class="profile-user-info">
-              <div class="profile-user-name-row">
+              <div class="profile-user-name-row" style="flex-wrap: wrap;">
                 <h2 class="profile-name" id="profilePageName">Trader</h2>
                 <span class="badge-tag profile-kyc-badge">KYC Verified ✓</span>
+                <button class="badge-tag" style="background: rgba(14, 165, 233, 0.12); color: var(--brand-cyan); border: 1px solid rgba(14, 165, 233, 0.3); padding: 2px 8px; border-radius: var(--radius-full); font-size: 0.7rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 3px;" onclick="openEditProfileModal()">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                  Edit
+                </button>
               </div>
               <div class="profile-meta-sub" id="profilePageEmail">trader@example.com</div>
               <div class="profile-demat-row">
@@ -1662,6 +1663,19 @@
         <!-- Card 4: Categorized Settings List (Groww Style) -->
         <div class="groww-profile-card profile-menu-card">
           <div class="menu-list-group">
+            <button type="button" class="profile-menu-item" onclick="openEditProfileModal()">
+              <div class="menu-item-left">
+                <span class="menu-item-icon" style="display: inline-flex; align-items: center; justify-content: center;">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                </span>
+                <div>
+                  <div class="menu-item-title">Edit Profile</div>
+                  <div class="menu-item-sub">Personal details, contact info & bank details</div>
+                </div>
+              </div>
+              <span class="menu-item-arrow">›</span>
+            </button>
+
             <button type="button" class="profile-menu-item" onclick="navigateTo('/orders')">
               <div class="menu-item-left">
                 <span class="menu-item-icon">📋</span>
@@ -1700,7 +1714,7 @@
                 <span class="menu-item-icon">🔒</span>
                 <div>
                   <div class="menu-item-title">4-Digit Security PIN</div>
-                  <div class="menu-item-sub">Update trading PIN and login password</div>
+                  <div class="menu-item-sub">Update trading PIN and authorization</div>
                 </div>
               </div>
               <span class="menu-item-arrow">›</span>
@@ -1714,6 +1728,7 @@
                   <div class="menu-item-sub">NSE / BSE trading sessions, auto square-off & AMO</div>
                 </div>
               </div>
+              <span class="menu-item-arrow">›</span>
             </button>
           </div>
         </div>
@@ -2494,14 +2509,6 @@
           <div class="ob-form-group" style="margin-bottom: 0.85rem;">
             <label class="ob-label" for="editProfileName">Full Legal Name *</label>
             <input type="text" class="ob-input" id="editProfileName" placeholder="Full Legal Name" oninput="updateEditAvatarPreview()">
-          </div>
-
-          <div class="ob-form-group" style="margin-bottom: 0.85rem;">
-            <label class="ob-label" for="editProfileUsername">Username (@handle)</label>
-            <div class="ob-prefix-input">
-              <span class="input-prefix">@</span>
-              <input type="text" id="editProfileUsername" placeholder="username" style="font-family: monospace; font-size: 0.95rem; font-weight: 600;">
-            </div>
           </div>
 
           <div class="ob-form-group" style="margin-bottom: 0.85rem;">
