@@ -256,6 +256,18 @@ function updateThemeIcon(theme) {
 }
 
 // --- Market Status Polling & Timings ---
+let _cachedHolidaysData = null;
+
+function safeHtml(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 async function fetchMarketStatus() {
   try {
     const res = await fetch('/api/market-status');
@@ -275,7 +287,7 @@ async function fetchMarketStatus() {
     if (dotMobile) dotMobile.className = `pulse-dot ${data.badge_color || 'gray'}`;
     if (labelMobile) {
       if (data.is_holiday) {
-        labelMobile.innerText = 'Market Holiday';
+        labelMobile.innerText = data.holiday_name ? `Holiday: ${data.holiday_name}` : 'Market Holiday';
       } else if (data.is_open) {
         labelMobile.innerText = 'Market Open';
       } else {
@@ -284,7 +296,7 @@ async function fetchMarketStatus() {
     }
     if (mobPill) mobPill.style.display = 'inline-flex';
 
-    // Update modal
+    // Update modal clock & date
     const clockEl = document.getElementById('modalClockIst');
     if (clockEl) clockEl.innerText = data.current_time_ist;
     const dateEl = document.getElementById('modalMarketDate');
@@ -295,7 +307,21 @@ async function fetchMarketStatus() {
     if (holBanner) {
       if (data.is_holiday) {
         holBanner.style.display = 'block';
-        holBanner.innerHTML = `🏖️ <strong>Trading Holiday:</strong> Verified live from Yahoo Finance exchange feed. The market has zero trading activity today. Regular trading resumes on the next scheduled business day at 09:15 AM IST.`;
+        const hName = data.holiday_name || 'Trading Holiday';
+        const hSrc = data.holiday_source ? ` (${data.holiday_source})` : '';
+        holBanner.innerHTML = `
+          <div style="display: flex; align-items: flex-start; gap: 8px;">
+            <span style="font-size: 1.3rem; line-height: 1;">🏖️</span>
+            <div>
+              <div style="font-weight: 700; color: #F59E0B; margin-bottom: 2px;">
+                Trading Holiday: ${safeHtml(hName)}
+              </div>
+              <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4;">
+                Indian stock exchanges (NSE & BSE) are closed today on account of <strong>${safeHtml(hName)}</strong>${safeHtml(hSrc)}. Regular trading resumes on the next scheduled business day at 09:15 AM IST.
+              </div>
+            </div>
+          </div>
+        `;
       } else {
         holBanner.style.display = 'none';
       }
@@ -305,12 +331,57 @@ async function fetchMarketStatus() {
   }
 }
 
+async function fetchMarketHolidays() {
+  const container = document.getElementById('modalHolidayList');
+  const sourceBadge = document.getElementById('modalHolidaySourceBadge');
+  if (!container) return;
+
+  try {
+    if (!_cachedHolidaysData) {
+      const res = await fetch('/api/market-holidays');
+      _cachedHolidaysData = await res.json();
+    }
+    const data = _cachedHolidaysData;
+    if (sourceBadge && data.source) {
+      sourceBadge.innerText = data.source.toUpperCase();
+    }
+
+    if (!data.holidays || data.holidays.length === 0) {
+      container.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 0.5rem; font-size: 0.75rem;">No holiday data available</div>';
+      return;
+    }
+
+    container.innerHTML = data.holidays.map(h => {
+      const isToday = h.is_today;
+      const rowBg = isToday ? 'background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 6px; padding: 5px 8px;' : 'padding: 4px 6px;';
+      const nameColor = isToday ? 'color: #F59E0B; font-weight: 700;' : 'color: var(--text-primary); font-weight: 500;';
+      const badge = isToday ? '<span style="font-size: 0.65rem; background: #F59E0B; color: #000; font-weight: 800; padding: 1px 5px; border-radius: 3px; margin-left: 6px;">TODAY (CLOSED)</span>' : '';
+      return `
+        <div style="display: flex; justify-content: space-between; align-items: center; ${rowBg}">
+          <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            <span style="font-size: 0.74rem; color: var(--text-muted); min-width: 80px; font-variant-numeric: tabular-nums;">${safeHtml(h.trading_date || h.date)}</span>
+            <span style="${nameColor}; overflow: hidden; text-overflow: ellipsis;">${safeHtml(h.name)}</span>
+            ${badge}
+          </div>
+          <span style="font-size: 0.72rem; color: var(--text-muted); margin-left: 8px; flex-shrink: 0;">${safeHtml(h.weekday || '')}</span>
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    console.error('Failed to load market holidays:', e);
+    if (container) {
+      container.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 0.5rem; font-size: 0.75rem;">Failed to load live exchange calendar</div>';
+    }
+  }
+}
+
 function openMarketHoursModal() {
   const menu = document.getElementById('userDropdownMenu');
   if (menu) menu.style.display = 'none';
   const overlay = document.getElementById('marketHoursModalOverlay');
   if (overlay) overlay.classList.add('active');
   fetchMarketStatus();
+  fetchMarketHolidays();
 }
 
 function closeMarketHoursModal() {

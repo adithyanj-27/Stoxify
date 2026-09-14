@@ -2383,6 +2383,16 @@
           <div class="timing-row"><span>Intraday (MIS) Cutoff</span><strong style="color: var(--brand-orange);">03:20 PM IST (Auto Square-off)</strong></div>
           <div class="timing-row"><span>After-Market Orders (AMO)</span><strong>03:45 PM – 08:59 AM next day</strong></div>
         </div>
+
+        <div style="margin-top: 0.25rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+            <span style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em;">Exchange Trading Holidays (Live Calendar)</span>
+            <span id="modalHolidaySourceBadge" style="font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; background: rgba(16, 185, 129, 0.12); color: var(--brand-green); font-weight: 600;">LIVE FEED</span>
+          </div>
+          <div id="modalHolidayList" style="max-height: 150px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.8rem; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 0.5rem; background: var(--bg-main);">
+            <div style="color: var(--text-muted); text-align: center; padding: 0.5rem; font-size: 0.75rem;">Loading live holidays...</div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

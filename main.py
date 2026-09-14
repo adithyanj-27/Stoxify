@@ -518,6 +518,12 @@ def api_list_users():
 def read_market_status():
     return market_hours.get_market_status()
 
+@app.get("/api/market-holidays")
+@app.get("/market-holidays")
+def read_market_holidays():
+    return market_hours.get_all_market_holidays()
+
+
 class SimulationToggleRequest(BaseModel):
     enabled: bool
 

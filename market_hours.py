@@ -1,6 +1,9 @@
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any, Tuple, Optional, List
 import time
+import os
+import json
+import requests
 import yfinance as yf
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -8,8 +11,155 @@ IST = timezone(timedelta(hours=5, minutes=30))
 # Simulation flag to allow testing off-hours if the user wants
 _SIMULATION_MODE = False
 
-# In-memory cache for Yahoo Finance live market activity probe
+# In-memory caches
+_HOLIDAY_CACHE: Dict[str, Any] = {}
 _MARKET_ACTIVITY_CACHE: Dict[str, Any] = {}
+
+# File cache path to ensure offline/network resiliency
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+CACHE_FILE_PATH = os.path.join(DATA_DIR, "live_market_holidays.json")
+
+def get_ist_now() -> datetime:
+    return datetime.now(IST)
+
+def set_simulation_mode(enabled: bool):
+    global _SIMULATION_MODE
+    _SIMULATION_MODE = bool(enabled)
+
+def toggle_simulation(enabled: bool) -> Dict[str, Any]:
+    set_simulation_mode(enabled)
+    return get_market_status()
+
+def is_simulation_mode() -> bool:
+    return _SIMULATION_MODE
+
+def fetch_live_market_holidays(force_refresh: bool = False) -> Dict[str, Dict[str, Any]]:
+    """
+    Fetches official live trading holidays from the web:
+      1. Primary: National Stock Exchange of India (NSE) official holiday master API.
+      2. Secondary: Upstox public market holidays API.
+      3. Fallback: Local cached JSON file.
+    Results are cached in memory for 12 hours.
+    Returns:
+      Dict mapping 'YYYY-MM-DD' to holiday details:
+      {
+        "2026-09-14": {
+          "date": "2026-09-14",
+          "name": "Ganesh Chaturthi",
+          "weekday": "Monday",
+          "source": "NSE Live Exchange Feed"
+        }
+      }
+    """
+    now = get_ist_now()
+    now_ts = time.time()
+
+    # 1. Return in-memory cache if valid
+    cached = _HOLIDAY_CACHE.get("data")
+    expires = _HOLIDAY_CACHE.get("expires", 0)
+    if not force_refresh and cached and now_ts < expires:
+        return cached
+
+    holidays: Dict[str, Dict[str, Any]] = {}
+    source_name = ""
+
+    # 2. Try primary source: Official NSE India Holiday Master API
+    try:
+        session = requests.Session()
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://www.nseindia.com"
+        }
+        # Establish session cookies with NSE
+        session.get("https://www.nseindia.com", headers=headers, timeout=4)
+        resp = session.get("https://www.nseindia.com/api/holiday-master?type=trading", headers=headers, timeout=4)
+        if resp.status_code == 200:
+            data = resp.json()
+            cm_list = data.get("CM", [])  # Capital Market (Equities) segment
+            for item in cm_list:
+                raw_date = item.get("tradingDate")
+                desc = item.get("description", "").strip()
+                weekday = item.get("weekDay", "").strip()
+                if raw_date and desc:
+                    try:
+                        dt = datetime.strptime(raw_date.strip(), "%d-%b-%Y")
+                        iso_date = dt.strftime("%Y-%m-%d")
+                        holidays[iso_date] = {
+                            "date": iso_date,
+                            "trading_date": raw_date.strip(),
+                            "name": desc,
+                            "weekday": weekday,
+                            "source": "NSE Live Exchange Feed"
+                        }
+                    except Exception:
+                        pass
+            if holidays:
+                source_name = "NSE Live Exchange Feed"
+    except Exception:
+        pass
+
+    # 3. Try secondary source: Upstox public market holidays API
+    if not holidays:
+        try:
+            resp = requests.get("https://api.upstox.com/v2/market/holidays", timeout=4)
+            if resp.status_code == 200:
+                data = resp.json()
+                for item in data.get("data", []):
+                    d = item.get("date")
+                    desc = item.get("description", "").strip()
+                    htype = item.get("holiday_type", "")
+                    if d and desc and "TRADING_HOLIDAY" in htype:
+                        try:
+                            dt = datetime.strptime(d, "%Y-%m-%d")
+                            holidays[d] = {
+                                "date": d,
+                                "trading_date": dt.strftime("%d-%b-%Y"),
+                                "name": desc,
+                                "weekday": dt.strftime("%A"),
+                                "source": "Upstox Live API"
+                            }
+                        except Exception:
+                            pass
+                if holidays:
+                    source_name = "Upstox Live API"
+        except Exception:
+            pass
+
+    # 4. If web requests succeeded, persist to disk cache and update memory cache
+    if holidays:
+        try:
+            os.makedirs(DATA_DIR, exist_ok=True)
+            with open(CACHE_FILE_PATH, "w", encoding="utf-8") as f:
+                json.dump({
+                    "updated_at": now.isoformat(),
+                    "source": source_name,
+                    "holidays": holidays
+                }, f, indent=2)
+        except Exception:
+            pass
+
+        _HOLIDAY_CACHE["data"] = holidays
+        _HOLIDAY_CACHE["expires"] = now_ts + 43200  # 12 hours TTL
+        _HOLIDAY_CACHE["source"] = source_name
+        return holidays
+
+    # 5. Network fallback: Read from disk cache if present
+    if os.path.exists(CACHE_FILE_PATH):
+        try:
+            with open(CACHE_FILE_PATH, "r", encoding="utf-8") as f:
+                cached_file = json.load(f)
+                loaded_holidays = cached_file.get("holidays", {})
+                if loaded_holidays:
+                    _HOLIDAY_CACHE["data"] = loaded_holidays
+                    _HOLIDAY_CACHE["expires"] = now_ts + 3600  # 1 hour retry
+                    _HOLIDAY_CACHE["source"] = cached_file.get("source", "Disk Cache")
+                    return loaded_holidays
+        except Exception:
+            pass
+
+    return {}
 
 def check_live_market_activity_yahoo() -> Optional[bool]:
     """
@@ -17,9 +167,13 @@ def check_live_market_activity_yahoo() -> Optional[bool]:
     Returns:
       True  -> Market is actively trading today (live open and day_high exist).
       False -> Zero trades recorded today during normal hours (Exchange is closed / Holiday).
-      None  -> Before 09:20 AM or network check inconclusive.
+      None  -> Before 09:20 AM, after hours, or network check inconclusive.
     """
     now = get_ist_now()
+    # Live ticker probe is only meaningful for the actual current day, not historical or mocked dates
+    if now.date() != datetime.now(IST).date():
+        return None
+
     today_str = now.strftime("%Y-%m-%d")
     total_minutes = now.hour * 60 + now.minute
 
@@ -50,29 +204,31 @@ def check_live_market_activity_yahoo() -> Optional[bool]:
     except Exception:
         return None
 
-# Standard National Holidays (Fixed Annual Dates)
-NSE_HOLIDAYS: Dict[str, str] = {
-    # Fixed national closures
-    "01-26": "Republic Day",
-    "05-01": "Maharashtra Day",
-    "08-15": "Independence Day",
-    "10-02": "Mahatma Gandhi Jayanti",
-    "12-25": "Christmas",
-}
+def get_today_holiday() -> Dict[str, Any]:
+    """
+    Determines if today is a trading holiday using live web data.
+    """
+    now = get_ist_now()
+    today_iso = now.strftime("%Y-%m-%d")
+    holidays = fetch_live_market_holidays()
 
-def get_ist_now() -> datetime:
-    return datetime.now(IST)
+    if today_iso in holidays:
+        holiday = holidays[today_iso]
+        return {
+            "is_holiday": True,
+            "holiday_name": holiday.get("name", "Trading Holiday"),
+            "date": today_iso,
+            "weekday": holiday.get("weekday", now.strftime("%A")),
+            "source": holiday.get("source", "Live Exchange Feed")
+        }
 
-def set_simulation_mode(enabled: bool):
-    global _SIMULATION_MODE
-    _SIMULATION_MODE = bool(enabled)
-
-def toggle_simulation(enabled: bool) -> Dict[str, Any]:
-    set_simulation_mode(enabled)
-    return get_market_status()
-
-def is_simulation_mode() -> bool:
-    return _SIMULATION_MODE
+    return {
+        "is_holiday": False,
+        "holiday_name": None,
+        "date": today_iso,
+        "weekday": now.strftime("%A"),
+        "source": None
+    }
 
 def get_market_status() -> Dict[str, Any]:
     now = get_ist_now()
@@ -81,7 +237,6 @@ def get_market_status() -> Dict[str, Any]:
 
     time_str = now.strftime("%I:%M:%S %p IST")
     date_str = now.strftime("%d %b %Y")
-    date_mm_dd = now.strftime("%m-%d")
 
     if _SIMULATION_MODE:
         return {
@@ -98,9 +253,10 @@ def get_market_status() -> Dict[str, Any]:
             "simulation_mode": True
         }
 
-    # 1. Check for Scheduled Fixed National Holidays
-    holiday_name = NSE_HOLIDAYS.get(date_mm_dd)
-    if holiday_name:
+    # 1. Check live holiday master from web
+    holiday_info = get_today_holiday()
+    if holiday_info.get("is_holiday"):
+        holiday_name = holiday_info.get("holiday_name", "Trading Holiday")
         return {
             "is_open": False,
             "session": "HOLIDAY",
@@ -112,6 +268,7 @@ def get_market_status() -> Dict[str, Any]:
             "date_ist": date_str,
             "holiday_name": holiday_name,
             "is_holiday": True,
+            "holiday_source": holiday_info.get("source"),
             "simulation_mode": False
         }
 
@@ -229,3 +386,33 @@ def validate_order_timing(product_type: str) -> Tuple[bool, str, str]:
         return (True, "NORMAL", "")
     else:
         return (True, "AMO", "Order placed as After-Market Order (AMO)")
+
+def get_all_market_holidays() -> Dict[str, Any]:
+    """
+    Returns the complete list of live trading holidays and today's status for the UI.
+    """
+    now = get_ist_now()
+    today_iso = now.strftime("%Y-%m-%d")
+    holidays_dict = fetch_live_market_holidays()
+    
+    sorted_holidays: List[Dict[str, Any]] = []
+    for d_iso in sorted(holidays_dict.keys()):
+        h = holidays_dict[d_iso]
+        sorted_holidays.append({
+            "date": d_iso,
+            "trading_date": h.get("trading_date", d_iso),
+            "name": h.get("name"),
+            "weekday": h.get("weekday"),
+            "is_today": (d_iso == today_iso),
+            "source": h.get("source")
+        })
+
+    today_info = get_today_holiday()
+
+    return {
+        "today": today_info,
+        "holidays": sorted_holidays,
+        "source": _HOLIDAY_CACHE.get("source", "NSE Live Exchange Feed"),
+        "total_count": len(sorted_holidays)
+    }
+
