@@ -28,6 +28,19 @@
          if (hasSession) {
            document.documentElement.classList.add('user-logged-in');
            document.documentElement.classList.remove('user-guest');
+           try {
+             var u = JSON.parse(cachedUser);
+             if (u && u.name) {
+               var inits = u.name.trim().split(/\s+/).map(function(n){ return n[0]; }).join('').toUpperCase().slice(0, 2) || 'U';
+               var col = u.avatar_color || '#0EA5E9';
+               window.__stoxify_initial_inits = inits;
+               window.__stoxify_initial_color = col;
+               var style = document.createElement('style');
+               style.id = 'stoxify-prehydrate-avatar';
+               style.textContent = '#navUserAvatarBtn, #menuUserAvatar, #profilePageAvatar { background: ' + col + ' !important; color: #ffffff !important; }';
+               document.head.appendChild(style);
+             }
+           } catch(e) {}
          } else {
            document.documentElement.classList.add('user-guest');
            document.documentElement.classList.remove('user-logged-in');
@@ -376,13 +389,13 @@
       </button>
 
       <!-- User Profile Avatar & Dropdown (Hidden in Guest mode) -->
-      <div class="user-profile-wrapper" id="navProfileWrapper" style="position: relative; display: none;">
+      <div class="user-profile-wrapper" id="navProfileWrapper" style="position: relative;">
         <button class="user-avatar-btn" id="navUserAvatarBtn" onclick="toggleProfileDropdown()" title="User Profile & Balance">
-          <span id="navUserInitials">ST</span>
+          <span id="navUserInitials"><script>if(window.__stoxify_initial_inits)document.write(window.__stoxify_initial_inits);</script></span>
         </button>
         <div class="user-dropdown-menu" id="userDropdownMenu" style="display: none;">
           <div class="dropdown-user-info">
-            <div class="user-avatar-large" id="menuUserAvatar">ST</div>
+            <div class="user-avatar-large" id="menuUserAvatar"><script>if(window.__stoxify_initial_inits)document.write(window.__stoxify_initial_inits);</script></div>
             <div class="user-details">
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
                 <div class="user-name" id="menuUserName">Trader</div>
@@ -474,11 +487,16 @@
             if (cu && !isG) {
               var u = JSON.parse(cu);
               if (u && u.name) {
-                var inits = u.name.split(' ').map(function(n){ return n[0]; }).join('').toUpperCase().slice(0, 2) || 'ST';
+                var inits = u.name.trim().split(/\s+/).map(function(n){ return n[0]; }).join('').toUpperCase().slice(0, 2) || 'U';
+                var col = u.avatar_color || '#0EA5E9';
+                var btn = document.getElementById('navUserAvatarBtn');
                 var el1 = document.getElementById('navUserInitials');
                 var el2 = document.getElementById('menuUserAvatar');
-                if (el1) { el1.innerText = inits; el1.style.background = u.avatar_color || 'var(--brand-cyan)'; }
-                if (el2) { el2.innerText = inits; el2.style.background = u.avatar_color || 'var(--brand-cyan)'; }
+                var el3 = document.getElementById('profilePageAvatar');
+                if (btn) { btn.style.background = col; }
+                if (el1) { el1.innerText = inits; el1.style.background = 'transparent'; }
+                if (el2) { el2.innerText = inits; el2.style.background = col; }
+                if (el3) { el3.innerText = inits; el3.style.background = col; }
               }
               var d1 = document.getElementById('menuUserName');
               var d2 = document.getElementById('menuUserEmail');
@@ -1561,7 +1579,7 @@
         <!-- Card 1: User Identity & Demat Badge -->
         <div class="groww-profile-card profile-user-card">
           <div class="profile-user-left">
-            <div class="profile-avatar-large" id="profilePageAvatar">ST</div>
+            <div class="profile-avatar-large" id="profilePageAvatar"><script>if(window.__stoxify_initial_inits)document.write(window.__stoxify_initial_inits);</script></div>
             <div class="profile-user-info">
               <div class="profile-user-name-row">
                 <h2 class="profile-name" id="profilePageName">Trader</h2>

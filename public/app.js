@@ -3355,10 +3355,11 @@ function updateNavbarProfile() {
   });
   if (profileWrapper) profileWrapper.style.setProperty('display', 'inline-flex', 'important');
 
-  const initials = currentUser.name ? currentUser.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'ST';
+  const initials = currentUser.name ? currentUser.name.trim().split(/\s+/).map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'U' : 'U';
   const avatarColor = currentUser.avatar_color || '#0EA5E9';
   if (initialsEl) {
     initialsEl.innerText = initials;
+    initialsEl.style.background = 'transparent';
     const avatarBtn = document.getElementById('navUserAvatarBtn');
     if (avatarBtn) avatarBtn.style.background = avatarColor;
   }
