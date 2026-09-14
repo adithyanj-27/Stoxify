@@ -268,11 +268,39 @@ async function fetchMarketStatus() {
     if (dot) dot.className = `pulse-dot ${data.badge_color || 'gray'}`;
     if (label) label.innerText = data.status_text;
 
+    // Mobile indices bar status pill
+    const dotMobile = document.getElementById('marketPulseDotMobile');
+    const labelMobile = document.getElementById('marketStatusTextMobile');
+    const mobPill = document.querySelector('.market-status-mobile-pill');
+    if (dotMobile) dotMobile.className = `pulse-dot ${data.badge_color || 'gray'}`;
+    if (labelMobile) {
+      if (data.is_holiday) {
+        const shortHol = (data.holiday_name || '').split('(')[0].trim();
+        labelMobile.innerText = `Holiday (${shortHol})`;
+      } else if (data.is_open) {
+        labelMobile.innerText = 'Market Open';
+      } else {
+        labelMobile.innerText = 'Market Closed';
+      }
+    }
+    if (mobPill) mobPill.style.display = 'inline-flex';
+
     // Update modal
     const clockEl = document.getElementById('modalClockIst');
     if (clockEl) clockEl.innerText = data.current_time_ist;
     const dateEl = document.getElementById('modalMarketDate');
     if (dateEl) dateEl.innerText = `${data.date_ist} • ${data.subtext}`;
+
+    // Show holiday banner in market timings modal if holiday
+    const holBanner = document.getElementById('modalHolidayBanner');
+    if (holBanner) {
+      if (data.is_holiday) {
+        holBanner.style.display = 'block';
+        holBanner.innerHTML = `🏖️ <strong>Trading Holiday:</strong> Today Indian stock markets are closed on account of <strong>${data.holiday_name}</strong>. Regular trading resumes on the next scheduled business day at 09:15 AM IST.`;
+      } else {
+        holBanner.style.display = 'none';
+      }
+    }
   } catch (err) {
     console.error('Failed to fetch market status:', err);
   }
@@ -1198,6 +1226,8 @@ async function fetchPortfolioInternal(requestVersion) {
         const isNegDay = h.today_pnl < 0;
         const dayClass = isPosDay ? 'text-positive' : (isNegDay ? 'text-negative' : 'text-muted');
         const daySign = isPosDay ? '+' : '';
+        const invVal = Number(h.invested_value !== undefined ? h.invested_value : (h.quantity * h.avg_price)) || 0;
+        const curVal = Number(h.current_value !== undefined ? h.current_value : (h.quantity * h.current_price)) || 0;
         return `
           <tr>
             <td>
@@ -1206,9 +1236,18 @@ async function fetchPortfolioInternal(requestVersion) {
             </td>
             <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;">${h.asset_type === 'MUTUAL_FUND' ? 'Mutual Fund' : 'Stock'}</span></td>
             <td style="font-weight: 600;">${h.quantity}</td>
-            <td>${formatINR(h.avg_price)}</td>
-            <td style="font-weight: 700;">${formatINR(h.current_price)}</td>
-            <td style="font-weight: 700;">${formatINR(h.current_value)}</td>
+            <td>
+              <div style="font-weight: 600;">${formatINR(h.avg_price)}</div>
+              <div style="font-size: 0.74rem; color: var(--text-muted);">Inv: ${formatINR(invVal)}</div>
+            </td>
+            <td>
+              <div style="font-weight: 700; color: var(--text-primary);">${formatINR(h.current_price)}</div>
+              <div style="font-size: 0.74rem; color: var(--brand-cyan, #0EA5E9); font-weight: 500;">Avg: ${formatINR(h.avg_price)}</div>
+            </td>
+            <td>
+              <div style="font-weight: 700;">${formatINR(curVal)}</div>
+              <div style="font-size: 0.74rem; color: var(--text-muted);">Inv: ${formatINR(invVal)}</div>
+            </td>
             <td class="${totalClass}" style="font-weight: 700;">
               ${totalSign}${formatINR(h.total_pnl)}
               <div style="font-size: 0.75rem; font-weight: 600;">(${totalSign}${formatNumber(h.total_pnl_pct)}%)</div>
@@ -1227,34 +1266,52 @@ async function fetchPortfolioInternal(requestVersion) {
     // Render Mobile Cards
     if (mobileList) {
       mobileList.innerHTML = (data.holdings || []).map(h => {
-      const isPosTotal = h.total_pnl >= 0;
-      return `
-        <div class="mobile-card-item">
-          <div class="mobile-card-top">
-            <div>
-              <button type="button" class="holding-name-link mobile-holding-title" onclick="openHoldingDetails('${h.symbol}', '${h.asset_type}')" title="View details for ${h.name}">${h.name}</button>
-              <div class="mobile-card-symbol">${h.symbol}</div>
-            </div>
-            <div class="mobile-card-price">
-              ${formatINR(h.current_value)}
-              <div class="${isPosTotal ? 'text-positive' : 'text-negative'}" style="font-size: 0.78rem; font-weight: 700;">
-                ${isPosTotal ? '+' : ''}${formatINR(h.total_pnl)} (${isPosTotal ? '+' : ''}${formatNumber(h.total_pnl_pct)}%)
+        const isPosTotal = h.total_pnl >= 0;
+        const totalClass = isPosTotal ? 'text-positive' : 'text-negative';
+        const totalSign = isPosTotal ? '+' : '';
+        const invVal = Number(h.invested_value !== undefined ? h.invested_value : (h.quantity * h.avg_price)) || 0;
+        const curVal = Number(h.current_value !== undefined ? h.current_value : (h.quantity * h.current_price)) || 0;
+
+        return `
+          <div class="mobile-card-item">
+            <div class="mobile-card-top">
+              <div>
+                <button type="button" class="holding-name-link mobile-holding-title" onclick="openHoldingDetails('${h.symbol}', '${h.asset_type}')" title="View details for ${h.name}">${h.name}</button>
+                <div class="mobile-card-symbol">${h.symbol} • ${h.quantity} shares</div>
+              </div>
+              <div class="mobile-card-price" style="text-align: right;">
+                <div style="font-size: 1rem; font-weight: 800;">${formatINR(curVal)}</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">Invested: ${formatINR(invVal)}</div>
+                <div class="${totalClass}" style="font-size: 0.78rem; font-weight: 700; margin-top: 2px;">
+                  ${totalSign}${formatINR(h.total_pnl)} (${totalSign}${formatNumber(h.total_pnl_pct)}%)
+                </div>
               </div>
             </div>
+            <div class="mobile-card-grid" style="grid-template-columns: repeat(2, 1fr); gap: 0.6rem; margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(255, 255, 255, 0.06);">
+              <div>
+                <span style="color:var(--text-muted); font-size: 0.74rem; display: block;">Current Price (LTP)</span>
+                <strong style="font-size: 0.88rem; color: var(--text-primary);">${formatINR(h.current_price)}</strong>
+              </div>
+              <div>
+                <span style="color:var(--text-muted); font-size: 0.74rem; display: block;">Invested Price (Avg)</span>
+                <strong style="font-size: 0.88rem; color: var(--brand-cyan, #0EA5E9);">${formatINR(h.avg_price)}</strong>
+              </div>
+              <div>
+                <span style="color:var(--text-muted); font-size: 0.74rem; display: block;">Current Value</span>
+                <strong style="font-size: 0.85rem;">${formatINR(curVal)}</strong>
+              </div>
+              <div>
+                <span style="color:var(--text-muted); font-size: 0.74rem; display: block;">Invested Value</span>
+                <strong style="font-size: 0.85rem;">${formatINR(invVal)}</strong>
+              </div>
+            </div>
+            <div class="mobile-card-actions" style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+              <button class="pill-btn" style="flex: 1;" onclick="openAssetModal('${h.symbol}', '${h.asset_type}', 'BUY')">+ Add More</button>
+              <button class="btn-danger" style="flex: 1; padding: 0.4rem 0.85rem; font-size: 0.8rem;" onclick="startHoldingSale('${h.symbol}', '${h.asset_type}', ${Number(h.quantity) || 0})">Sell</button>
+            </div>
           </div>
-          <div class="mobile-card-grid">
-            <div><span style="color:var(--text-muted);">Shares:</span> <strong>${h.quantity}</strong></div>
-            <div><span style="color:var(--text-muted);">Avg Price:</span> <strong>${formatINR(h.avg_price)}</strong></div>
-            <div><span style="color:var(--text-muted);">LTP:</span> <strong>${formatINR(h.current_price)}</strong></div>
-            <div><span style="color:var(--text-muted);">Product:</span> <strong>Delivery CNC</strong></div>
-          </div>
-          <div class="mobile-card-actions">
-            <button class="pill-btn" onclick="openAssetModal('${h.symbol}', '${h.asset_type}', 'BUY')">+ Add More</button>
-            <button class="btn-danger" style="padding: 0.35rem 0.85rem; font-size: 0.8rem;" onclick="startHoldingSale('${h.symbol}', '${h.asset_type}', ${Number(h.quantity) || 0})">Sell</button>
-          </div>
-        </div>
-      `;
-    }).join('');
+        `;
+      }).join('');
     }
 
   } catch (err) {
