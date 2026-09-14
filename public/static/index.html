@@ -418,6 +418,10 @@
                 Withdraw
               </button>
             </div>
+            <button type="button" class="btn-subtle" style="width: 100%; margin-top: 0.45rem; padding: 0.35rem; font-size: 0.76rem; display: flex; align-items: center; justify-content: center; gap: 0.35rem; color: #00D09C; border-color: rgba(0, 208, 156, 0.25);" onclick="openWalletTransactionsModal()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+              All transactions
+            </button>
             <div class="funds-card-footer">
               <span class="funds-badge-pill">⚡ 5x Intraday</span>
               <span class="funds-status-dot">Simulated Gateway ✓</span>
@@ -1591,6 +1595,16 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
               <span>Withdraw</span>
             </button>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.85rem; padding-top: 0.75rem; border-top: 1px solid rgba(255, 255, 255, 0.08); cursor: pointer;" onclick="openWalletTransactionsModal()" title="View All Transactions">
+            <span style="font-size: 0.85rem; font-weight: 600; color: #00D09C; display: flex; align-items: center; gap: 0.4rem;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+              All transactions
+            </span>
+            <span style="font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 2px;">
+              View ledger →
+            </span>
           </div>
 
           <div class="wallet-card-footer">
@@ -2871,6 +2885,42 @@
         <div class="passbook-tx-list" id="pbModalTxList">
           <div style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading transactions...</div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Groww-Style Trading Wallet "All Transactions" Modal -->
+  <div class="modal-overlay" id="walletTransactionsModal" onclick="if(event.target===this)closeWalletTransactionsModal()">
+    <div class="modal-card groww-wallet-tx-modal">
+      <div class="groww-tx-header">
+        <button type="button" class="groww-tx-back-btn" onclick="closeWalletTransactionsModal()" aria-label="Go back">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
+        </button>
+        <h3 class="groww-tx-title">All transactions</h3>
+        <div style="width: 32px;"></div>
+      </div>
+
+      <div class="groww-tx-filter-bar">
+        <div class="groww-tx-filter-group">
+          <button type="button" class="groww-filter-pill active" id="btnFilterAll" onclick="setWalletTxFilter('all', this)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right: 4px;"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
+            Filter
+          </button>
+          <button type="button" class="groww-filter-subpill" id="btnFilterDeposits" onclick="setWalletTxFilter('deposit', this)">Deposits</button>
+          <button type="button" class="groww-filter-subpill" id="btnFilterWithdrawals" onclick="setWalletTxFilter('withdrawal', this)">Withdrawals</button>
+          <button type="button" class="groww-filter-subpill" id="btnFilterTrades" onclick="setWalletTxFilter('trade', this)">Stocks</button>
+        </div>
+        <label class="groww-tx-failed-toggle">
+          <input type="checkbox" id="walletTxOnlyFailedCheckbox" onchange="toggleWalletTxOnlyFailed(this.checked)">
+          <span>Only failed</span>
+        </label>
+      </div>
+
+      <div class="groww-tx-list-container" id="walletTxListContainer">
+        <div style="text-align: center; color: var(--text-muted); padding: 3rem 1rem;">Loading transactions...</div>
       </div>
     </div>
   </div>

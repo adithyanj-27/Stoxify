@@ -19,7 +19,8 @@ from database import (
     create_sip, get_user_sips, cancel_sip,
     apply_ipo, get_ipo_bids, cancel_ipo_bid,
     get_capital_gains_tax_report, get_sector_allocation,
-    transfer_bank_to_wallet, withdraw_wallet_to_bank, get_bank_account_details
+    transfer_bank_to_wallet, withdraw_wallet_to_bank, get_bank_account_details,
+    get_wallet_transactions
 )
 import market_service
 import market_hours
@@ -501,9 +502,9 @@ def api_login_user(req: LoginRequest):
 @app.get("/api/user/current")
 def api_get_current_user(request: Request):
     uid = get_user_id(request)
-    if uid:
+    if uid and uid not in ["default", "guest"]:
         u = get_user(uid)
-        if u:
+        if u and u.get("id") not in ["default", "guest"]:
             return u
     return {"is_guest": True, "id": None, "name": "Guest", "balance": 0.0}
 
@@ -982,25 +983,32 @@ def read_orders(request: Request, limit: int = 100, status: Optional[str] = None
 @app.get("/api/watchlist")
 def read_watchlist(request: Request):
     uid = get_user_id(request)
-    # Read and write must use the SAME fallback owner. Reads used "default" while
-    # add/remove used "guest", so a signed-out visitor could never see the symbol
-    # they had just starred.
     items = get_watchlist(uid or "default")
     results = []
     for item in items:
-        if item["asset_type"] == "MUTUAL_FUND":
-            quote = market_service.get_mutual_fund_quote(item["symbol"])
-        else:
-            quote = market_service.get_stock_quote(item["symbol"])
+        try:
+            if item.get("asset_type") == "MUTUAL_FUND":
+                quote = market_service.get_mutual_fund_quote(item["symbol"])
+            else:
+                quote = market_service.get_stock_quote(item["symbol"])
 
-        results.append({
-            "symbol": item["symbol"],
-            "name": item["name"],
-            "asset_type": item["asset_type"],
-            "price": quote["price"],
-            "change": quote["change"],
-            "change_pct": quote["change_pct"]
-        })
+            results.append({
+                "symbol": item["symbol"],
+                "name": item.get("name") or quote.get("name") or item["symbol"],
+                "asset_type": item.get("asset_type", "STOCK"),
+                "price": float(quote.get("price", 0.0) or 0.0),
+                "change": float(quote.get("change", 0.0) or 0.0),
+                "change_pct": float(quote.get("change_pct", 0.0) or 0.0)
+            })
+        except Exception:
+            results.append({
+                "symbol": item["symbol"],
+                "name": item.get("name") or item["symbol"],
+                "asset_type": item.get("asset_type", "STOCK"),
+                "price": 0.0,
+                "change": 0.0,
+                "change_pct": 0.0
+            })
     return results
 
 class WatchlistRequest(BaseModel):
@@ -1079,6 +1087,23 @@ def api_get_bank_account(request: Request):
         return {}
     return get_bank_account_details(uid)
 
+@app.get("/api/funds/wallet-transactions")
+@app.get("/api/wallet/transactions")
+def api_get_wallet_transactions(
+    request: Request,
+    filter: Optional[str] = None,
+    only_failed: Optional[bool] = False
+):
+    uid = get_user_id(request)
+    if not uid or uid in ["guest", "default"]:
+        return {
+            "transactions": [],
+            "balance": 0.0,
+            "total_count": 0,
+            "success": True
+        }
+    return get_wallet_transactions(uid, filter_type=filter, only_failed=bool(only_failed))
+
 @app.post("/api/account/restore")
 @app.post("/account/restore")
 def api_restore_balance(request: Request):
@@ -1093,7 +1118,7 @@ def api_restore_balance(request: Request):
 @app.delete("/api/user/current")
 def api_delete_user(request: Request):
     uid = get_user_id(request)
-    if not uid:
+    if not uid or uid in ["default", "guest"]:
         raise HTTPException(status_code=401, detail="Account required")
     success = delete_user(uid)
     if not success:

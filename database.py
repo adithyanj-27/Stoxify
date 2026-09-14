@@ -124,8 +124,13 @@ def drain_sync_outbox(user_id: str, limit: int = 20):
     conn.close()
 
 def get_raw_connection():
-    conn = sqlite3.connect(DB_PATH, timeout=15)
+    conn = sqlite3.connect(DB_PATH, timeout=20)
     conn.row_factory = sqlite3.Row
+    try:
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA busy_timeout=20000;")
+    except Exception:
+        pass
     return conn
 
 _last_user_reconciliation_time = 0.0
@@ -148,30 +153,34 @@ def reconcile_users_with_supabase(force: bool = False):
         if sb_users is not None and isinstance(sb_users, list):
             sb_ids = {u.get("id") for u in sb_users if u.get("id")} | {"default", "guest"}
             conn = get_raw_connection()
-            cur = conn.cursor()
-            cur.execute("SELECT id FROM users")
-            local_ids = {row["id"] for row in cur.fetchall()}
-            ghost_ids = [gid for gid in (local_ids - sb_ids) if gid and gid not in ["default", "guest"]]
-            if ghost_ids:
-                for gid in ghost_ids:
-                    cur.execute("DELETE FROM holdings WHERE user_id = ?", (gid,))
-                    cur.execute("DELETE FROM holding_tombstones WHERE user_id = ?", (gid,))
-                    cur.execute("DELETE FROM position_tombstones WHERE user_id = ?", (gid,))
-                    cur.execute("DELETE FROM sync_outbox WHERE user_id = ?", (gid,))
-                    cur.execute("DELETE FROM positions WHERE user_id = ?", (gid,))
-                    cur.execute("DELETE FROM orders WHERE user_id = ?", (gid,))
-                    cur.execute("DELETE FROM watchlist WHERE user_id = ?", (gid,))
-                    cur.execute("DELETE FROM gtt_orders WHERE user_id = ?", (gid,))
-                    cur.execute("DELETE FROM sips WHERE user_id = ?", (gid,))
-                    cur.execute("DELETE FROM ipo_bids WHERE user_id = ?", (gid,))
-                    cur.execute("DELETE FROM users WHERE id = ?", (gid,))
-                conn.commit()
-                print(f"[Supabase Sync] Cleaned up {len(ghost_ids)} orphaned users from SQLite: {ghost_ids}")
+            try:
+                cur = conn.cursor()
+                cur.execute("SELECT id FROM users")
+                local_ids = {row["id"] for row in cur.fetchall()}
+                ghost_ids = [gid for gid in (local_ids - sb_ids) if gid and gid not in ["default", "guest"]]
+                if ghost_ids:
+                    for gid in ghost_ids:
+                        cur.execute("DELETE FROM holdings WHERE user_id = ?", (gid,))
+                        cur.execute("DELETE FROM holding_tombstones WHERE user_id = ?", (gid,))
+                        cur.execute("DELETE FROM position_tombstones WHERE user_id = ?", (gid,))
+                        cur.execute("DELETE FROM sync_outbox WHERE user_id = ?", (gid,))
+                        cur.execute("DELETE FROM positions WHERE user_id = ?", (gid,))
+                        cur.execute("DELETE FROM orders WHERE user_id = ?", (gid,))
+                        cur.execute("DELETE FROM watchlist WHERE user_id = ?", (gid,))
+                        cur.execute("DELETE FROM gtt_orders WHERE user_id = ?", (gid,))
+                        cur.execute("DELETE FROM sips WHERE user_id = ?", (gid,))
+                        cur.execute("DELETE FROM ipo_bids WHERE user_id = ?", (gid,))
+                        cur.execute("DELETE FROM bank_transactions WHERE user_id = ?", (gid,))
+                        cur.execute("DELETE FROM wallet_transactions WHERE user_id = ?", (gid,))
+                        cur.execute("DELETE FROM users WHERE id = ?", (gid,))
+                    conn.commit()
+                    print(f"[Supabase Sync] Cleaned up {len(ghost_ids)} orphaned users from SQLite: {ghost_ids}")
 
-            # Clear phone on default system user so test numbers are free for real users
-            cur.execute("UPDATE users SET phone = NULL WHERE id = 'default' AND phone IS NOT NULL")
-            conn.commit()
-            conn.close()
+                # Clear phone on default system user so test numbers are free for real users
+                cur.execute("UPDATE users SET phone = NULL WHERE id = 'default' AND phone IS NOT NULL")
+                conn.commit()
+            finally:
+                conn.close()
 
             # Also clear phone on default user in Supabase if set
             for su in sb_users:
@@ -274,6 +283,27 @@ def init_db():
         )
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_bank_tx_user ON bank_transactions(user_id, id DESC)")
+    conn.commit()
+
+    # 1d. Trading Wallet Transactions Ledger (Groww-style: Deposits, Withdrawals, Trades)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS wallet_transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            type TEXT NOT NULL,
+            title TEXT NOT NULL,
+            amount REAL NOT NULL,
+            balance_after REAL NOT NULL,
+            direction TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'SUCCESS',
+            reference_id TEXT,
+            description TEXT,
+            symbol TEXT,
+            asset_type TEXT DEFAULT 'STOCK',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_wallet_tx_user ON wallet_transactions(user_id, id DESC)")
     conn.commit()
 
     # Ensure default user exists (with NULL phone so test phone numbers remain available for registration)
@@ -1506,6 +1536,18 @@ def transfer_bank_to_wallet(user_id: str, amount: float, pin: str) -> Dict[str, 
     conn.commit()
     conn.close()
 
+    record_wallet_transaction(
+        user_id=user_id,
+        tx_type="DEPOSIT",
+        title="Stoxify Balance Deposit",
+        amount=amount,
+        balance_after=new_wallet_balance,
+        direction="CREDIT",
+        status="SUCCESS",
+        reference_id=tx_ref,
+        description=f"Deposit from {db_user.get('bank_name', 'Bank')} •••• {str(db_user.get('bank_account', ''))[-4:]}"
+    )
+
     if is_supabase_enabled() and user_id != "guest":
         try:
             p = {
@@ -1610,6 +1652,18 @@ def withdraw_wallet_to_bank(user_id: str, amount: float, pin: str) -> Dict[str, 
     conn.commit()
     conn.close()
 
+    record_wallet_transaction(
+        user_id=user_id,
+        tx_type="WITHDRAWAL",
+        title="Money Withdrawn",
+        amount=amount,
+        balance_after=new_wallet_balance,
+        direction="DEBIT",
+        status="SUCCESS",
+        reference_id=tx_ref,
+        description=f"Withdrawal to {db_user.get('bank_name', 'Bank')} •••• {str(db_user.get('bank_account', ''))[-4:]}"
+    )
+
     if is_supabase_enabled() and user_id != "guest":
         try:
             p = {
@@ -1705,6 +1759,359 @@ def get_bank_account_details(user_id: str) -> Dict[str, Any]:
         "balance": float(u.get("balance") or 0.0),
         "account_holder": u.get("name") or "Trader",
         "transactions": txs
+    }
+
+# ==============================================================================
+# TRADING WALLET TRANSACTIONS LEDGER (Groww-Style: Deposits, Withdrawals, Trades)
+# ==============================================================================
+
+def _parse_tx_dt(value) -> Optional[datetime]:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).replace(tzinfo=None)
+    except Exception:
+        pass
+    try:
+        return datetime.strptime(text[:19], "%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return None
+
+def record_wallet_transaction(
+    user_id: str,
+    tx_type: str,
+    title: str,
+    amount: float,
+    balance_after: float,
+    direction: str,
+    status: str = "SUCCESS",
+    reference_id: Optional[str] = None,
+    description: Optional[str] = None,
+    symbol: Optional[str] = None,
+    asset_type: str = "STOCK",
+    created_at: Optional[str] = None
+) -> Optional[int]:
+    """Record an entry into the trading wallet transaction ledger (Groww style)."""
+    if not user_id or user_id in ["guest"]:
+        return None
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS wallet_transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                amount REAL NOT NULL,
+                balance_after REAL NOT NULL,
+                direction TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'SUCCESS',
+                reference_id TEXT,
+                description TEXT,
+                symbol TEXT,
+                asset_type TEXT DEFAULT 'STOCK',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        amount = round(float(amount), 2)
+        balance_after = round(float(balance_after), 2)
+        
+        if created_at:
+            cursor.execute("""
+                INSERT INTO wallet_transactions (user_id, type, title, amount, balance_after, direction, status, reference_id, description, symbol, asset_type, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (user_id, tx_type, title, amount, balance_after, direction, status, reference_id, description, symbol, asset_type, created_at))
+        else:
+            cursor.execute("""
+                INSERT INTO wallet_transactions (user_id, type, title, amount, balance_after, direction, status, reference_id, description, symbol, asset_type)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (user_id, tx_type, title, amount, balance_after, direction, status, reference_id, description, symbol, asset_type))
+            
+        row_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        
+        # Mirror to Supabase if enabled and user is registered (safe failover)
+        if is_supabase_enabled() and user_id != "default":
+            try:
+                sb_payload = {
+                    "user_id": user_id,
+                    "type": tx_type,
+                    "title": title,
+                    "amount": amount,
+                    "balance_after": balance_after,
+                    "direction": direction,
+                    "status": status,
+                    "reference_id": reference_id,
+                    "description": description,
+                    "symbol": symbol,
+                    "asset_type": asset_type
+                }
+                if created_at:
+                    sb_payload["created_at"] = created_at
+                supabase_api("POST", "wallet_transactions", payload=sb_payload)
+            except Exception:
+                pass
+                
+        return row_id
+    except Exception as e:
+        print(f"[Wallet Ledger Error] Failed to record transaction: {e}")
+        return None
+
+def get_wallet_transactions(
+    user_id: str,
+    filter_type: Optional[str] = None,
+    only_failed: bool = False
+) -> Dict[str, Any]:
+    """Retrieve wallet transactions for user with Groww-formatted fields and historical synthesis."""
+    if not user_id or user_id == "guest":
+        return {"transactions": [], "balance": 0.0, "total_count": 0, "success": True}
+        
+    u = get_user(user_id)
+    current_balance = float(u.get("balance") or 0.0) if u else 0.0
+    
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    # Ensure table exists
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS wallet_transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            type TEXT NOT NULL,
+            title TEXT NOT NULL,
+            amount REAL NOT NULL,
+            balance_after REAL NOT NULL,
+            direction TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'SUCCESS',
+            reference_id TEXT,
+            description TEXT,
+            symbol TEXT,
+            asset_type TEXT DEFAULT 'STOCK',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_wallet_tx_user ON wallet_transactions(user_id, id DESC)")
+    conn.commit()
+    
+    # Sync remote rows from Supabase if table exists remotely
+    if is_supabase_enabled() and user_id != "guest":
+        try:
+            sb_rows = supabase_api("GET", "wallet_transactions", params={
+                "user_id": f"eq.{user_id}",
+                "order": "created_at.desc",
+                "limit": "150"
+            })
+            if sb_rows and isinstance(sb_rows, list):
+                for row in sb_rows:
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO wallet_transactions (
+                            user_id, type, title, amount, balance_after, direction, status,
+                            reference_id, description, symbol, asset_type, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        user_id, row.get("type") or "DEPOSIT", row.get("title") or "Transaction",
+                        float(row.get("amount") or 0.0), float(row.get("balance_after") or 0.0),
+                        row.get("direction") or "CREDIT", row.get("status") or "SUCCESS",
+                        row.get("reference_id"), row.get("description"), row.get("symbol"),
+                        row.get("asset_type") or "STOCK", row.get("created_at")
+                    ))
+                conn.commit()
+        except Exception:
+            pass
+            
+    # Check if local SQLite has rows for this user
+    cursor.execute("SELECT COUNT(*) FROM wallet_transactions WHERE user_id = ?", (user_id,))
+    tx_count = cursor.fetchone()[0]
+    
+    # If no transactions recorded yet, synthesize from historical orders & bank transactions
+    if tx_count == 0 and user_id != "guest":
+        events = []
+        
+        # 1. Bank deposits & withdrawals
+        cursor.execute("""
+            SELECT id, type, amount, from_account, to_account, reference_id, status, note, created_at
+            FROM bank_transactions WHERE user_id = ?
+        """, (user_id,))
+        for btx in cursor.fetchall():
+            b_type = btx["type"]
+            amt = float(btx["amount"] or 0.0)
+            if b_type == "BANK_DEPOSIT":
+                events.append({
+                    "type": "DEPOSIT",
+                    "title": "Stoxify Balance Deposit",
+                    "amount": amt,
+                    "direction": "CREDIT",
+                    "status": btx["status"] or "SUCCESS",
+                    "reference_id": btx["reference_id"] or f"TXN-{btx['id']}",
+                    "description": btx["note"] or "Deposit to trading wallet",
+                    "symbol": None,
+                    "asset_type": "FUNDS",
+                    "created_at": btx["created_at"]
+                })
+            elif b_type == "WITHDRAWAL":
+                events.append({
+                    "type": "WITHDRAWAL",
+                    "title": "Money Withdrawn",
+                    "amount": amt,
+                    "direction": "DEBIT",
+                    "status": btx["status"] or "SUCCESS",
+                    "reference_id": btx["reference_id"] or f"WDR-{btx['id']}",
+                    "description": btx["note"] or "Withdrawal to bank account",
+                    "symbol": None,
+                    "asset_type": "FUNDS",
+                    "created_at": btx["created_at"]
+                })
+                
+        # 2. Stock orders
+        cursor.execute("""
+            SELECT id, symbol, name, asset_type, order_type, product_type, quantity, price,
+                   total_amount, status, charges, net_amount, blocked_amount, timestamp
+            FROM orders WHERE user_id = ?
+        """, (user_id,))
+        for ord_row in cursor.fetchall():
+            o_type = ord_row["order_type"].upper()
+            status = ord_row["status"].upper()
+            asset = ord_row["asset_type"] or "STOCK"
+            cat_name = "Stocks" if asset == "STOCK" else (asset.capitalize() + "s" if not asset.endswith("s") else asset.capitalize())
+            is_exec = "EXECUTED" in status
+            is_failed = status in ("CANCELLED", "REJECTED", "FAILED")
+            
+            if o_type == "BUY":
+                buy_amt = float(ord_row["blocked_amount"] or ord_row["net_amount"] or ord_row["total_amount"] or 0.0)
+                if buy_amt <= 0:
+                    buy_amt = float(ord_row["total_amount"] or 0.0)
+                events.append({
+                    "type": "BUY",
+                    "title": f"Paid for {cat_name}",
+                    "amount": round(buy_amt, 2),
+                    "direction": "DEBIT",
+                    "status": "SUCCESS" if is_exec else ("FAILED" if is_failed else status),
+                    "reference_id": f"ORD-STX-{ord_row['id']}",
+                    "description": f"Bought {ord_row['quantity']} shares of {ord_row['symbol']}",
+                    "symbol": ord_row["symbol"],
+                    "asset_type": asset,
+                    "created_at": ord_row["timestamp"]
+                })
+            elif o_type == "SELL":
+                sell_amt = float(ord_row["net_amount"] or ord_row["total_amount"] or 0.0)
+                events.append({
+                    "type": "SELL",
+                    "title": f"Received from {cat_name}",
+                    "amount": round(sell_amt, 2),
+                    "direction": "CREDIT",
+                    "status": "SUCCESS" if is_exec else ("FAILED" if is_failed else status),
+                    "reference_id": f"ORD-STX-{ord_row['id']}",
+                    "description": f"Sold {ord_row['quantity']} shares of {ord_row['symbol']}",
+                    "symbol": ord_row["symbol"],
+                    "asset_type": asset,
+                    "created_at": ord_row["timestamp"]
+                })
+                
+        def _evt_ts(e):
+            dt = _parse_tx_dt(e.get("created_at"))
+            return dt.timestamp() if dt else 0.0
+            
+        events.sort(key=_evt_ts)
+        
+        if events:
+            net_delta = 0.0
+            for e in events:
+                if e["status"] == "SUCCESS":
+                    if e["direction"] == "CREDIT":
+                        net_delta += e["amount"]
+                    else:
+                        net_delta -= e["amount"]
+            start_bal = max(0.0, round(current_balance - net_delta, 2))
+            
+            run_bal = start_bal
+            for e in events:
+                if e["status"] == "SUCCESS":
+                    if e["direction"] == "CREDIT":
+                        run_bal = round(run_bal + e["amount"], 2)
+                    else:
+                        run_bal = round(run_bal - e["amount"], 2)
+                e["balance_after"] = run_bal
+                
+                cursor.execute("""
+                    INSERT INTO wallet_transactions (
+                        user_id, type, title, amount, balance_after, direction, status,
+                        reference_id, description, symbol, asset_type, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    user_id, e["type"], e["title"], e["amount"], e["balance_after"],
+                    e["direction"], e["status"], e["reference_id"], e["description"],
+                    e["symbol"], e["asset_type"], e["created_at"]
+                ))
+            conn.commit()
+
+    # Query wallet transactions
+    cursor.execute("""
+        SELECT id, user_id, type, title, amount, balance_after, direction, status,
+               reference_id, description, symbol, asset_type, created_at
+        FROM wallet_transactions
+        WHERE user_id = ?
+        ORDER BY id DESC
+    """, (user_id,))
+    raw_rows = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    
+    # Format and filter
+    formatted_txs = []
+    for r in raw_rows:
+        tx_type = (r.get("type") or "").upper()
+        status = (r.get("status") or "SUCCESS").upper()
+        is_failed = status not in ("SUCCESS", "COMPLETED", "EXECUTED")
+        
+        if only_failed and not is_failed:
+            continue
+            
+        if filter_type:
+            ft = filter_type.lower().strip()
+            if ft == "deposit" and tx_type != "DEPOSIT":
+                continue
+            elif ft == "withdrawal" and tx_type != "WITHDRAWAL":
+                continue
+            elif ft in ("trade", "stocks", "stock") and tx_type not in ("BUY", "SELL"):
+                continue
+                
+        dt = _parse_tx_dt(r.get("created_at"))
+        date_str = dt.strftime("%d %b, %Y") if dt else "Recent"
+        time_str = dt.strftime("%I:%M %p") if dt else ""
+        
+        amt = float(r.get("amount") or 0.0)
+        bal = float(r.get("balance_after") or 0.0)
+        direction = (r.get("direction") or "DEBIT").upper()
+        is_credit = direction == "CREDIT"
+        
+        formatted_txs.append({
+            "id": r.get("id"),
+            "type": tx_type,
+            "title": r.get("title") or ("Stoxify Balance Deposit" if is_credit else "Money Withdrawn"),
+            "amount": amt,
+            "amount_formatted": f"{'+' if is_credit else ''}₹{amt:,.2f}",
+            "balance_after": bal,
+            "balance_formatted": f"Bal: ₹{bal:,.2f}",
+            "direction": direction,
+            "is_credit": is_credit,
+            "status": status,
+            "is_failed": is_failed,
+            "date_formatted": date_str,
+            "time_formatted": time_str,
+            "created_at": r.get("created_at"),
+            "symbol": r.get("symbol"),
+            "reference_id": r.get("reference_id"),
+            "description": r.get("description")
+        })
+        
+    return {
+        "transactions": formatted_txs,
+        "balance": current_balance,
+        "total_count": len(formatted_txs),
+        "success": True
     }
 
 def get_symbol_variants(symbol: str) -> List[str]:
@@ -2467,6 +2874,21 @@ def execute_trade(
             conn.commit()
             conn.close()
 
+            cat_label = "Stocks" if asset_type == "STOCK" else (asset_type.capitalize() + "s" if not asset_type.endswith("s") else asset_type.capitalize())
+            record_wallet_transaction(
+                user_id=user_id,
+                tx_type="BUY",
+                title=f"Paid for {cat_label}",
+                amount=round(required_margin + charges["total"], 2),
+                balance_after=new_balance,
+                direction="DEBIT",
+                status="SUCCESS",
+                reference_id=f"ORD-STX-{order_id}",
+                description=f"Bought {quantity} shares of {symbol} at ₹{effective_price:,.2f}",
+                symbol=symbol,
+                asset_type=asset_type
+            )
+
             # Sync to Supabase synchronously so cloud state is consistent and immune to serverless freezing
             if is_supabase_enabled() and user_id != "guest":
                 def _sync_buy():
@@ -2652,6 +3074,21 @@ def execute_trade(
             conn.commit()
             conn.close()
 
+            cat_label = "Stocks" if asset_type == "STOCK" else (asset_type.capitalize() + "s" if not asset_type.endswith("s") else asset_type.capitalize())
+            record_wallet_transaction(
+                user_id=user_id,
+                tx_type="SELL",
+                title=f"Received from {cat_label}",
+                amount=round(new_balance - balance, 2),
+                balance_after=new_balance,
+                direction="CREDIT",
+                status="SUCCESS",
+                reference_id=f"ORD-STX-{order_id}",
+                description=f"Sold {quantity} shares of {symbol} at ₹{effective_price:,.2f}",
+                symbol=symbol,
+                asset_type=asset_type
+            )
+
             # Sync to Supabase synchronously so cloud state is consistent and immune to serverless freezing
             if is_supabase_enabled() and user_id != "guest":
                 def _sync_sell():
@@ -2807,7 +3244,6 @@ def cancel_order(order_id: int, user_id: str = "default") -> Dict[str, Any]:
                     supabase_api("PATCH", f"users?id=eq.{o_user}", payload={"balance": new_bal, "updated_at": datetime.now(timezone.utc).isoformat()})
                 except Exception as sb_e:
                     print(f"[Supabase Cancel Margin Sync Warning] {sb_e}")
-
         cursor.execute("UPDATE orders SET status = 'CANCELLED' WHERE id = ?", (order_id,))
         if is_supabase_enabled() and o_user != "guest":
             try:
@@ -2816,6 +3252,21 @@ def cancel_order(order_id: int, user_id: str = "default") -> Dict[str, Any]:
                 pass
         conn.commit()
         conn.close()
+
+        if o_user != "guest" and order["order_type"] == "BUY" and refund > 0:
+            record_wallet_transaction(
+                user_id=o_user,
+                tx_type="REFUND",
+                title="Refund for Cancelled Order",
+                amount=refund,
+                balance_after=new_bal,
+                direction="CREDIT",
+                status="SUCCESS",
+                reference_id=f"RFD-ORD-{order_id}",
+                description=f"Refund of margin for cancelled order #{order_id} ({order['symbol']})",
+                symbol=order["symbol"]
+            )
+
         return {"success": True, "message": f"Order #{order_id} for {order['symbol']} cancelled successfully"}
 
     except Exception as e:
@@ -2978,13 +3429,44 @@ def get_orders(limit: int = 100, status_filter: Optional[str] = None, user_id: s
     return [dict(r) for r in rows]
 
 def get_watchlist(user_id: str = "default") -> List[Dict[str, Any]]:
-    # 1. Try Supabase first
+    # 1. Sync from Supabase if enabled
     if is_supabase_enabled() and user_id and user_id != "guest":
-        res = supabase_api("GET", "watchlist", params={"user_id": f"eq.{user_id}", "order": "added_at.desc", "select": "symbol,name,asset_type,added_at"})
-        if res is not None and isinstance(res, list) and len(res) > 0:
-            return res
+        try:
+            res = supabase_api("GET", "watchlist", params={
+                "user_id": f"eq.{user_id}",
+                "order": "created_at.desc",
+                "select": "symbol,name,asset_type,created_at"
+            })
+            if res is not None and isinstance(res, list):
+                conn = get_connection()
+                cursor = conn.cursor()
+                remote_symbols = set()
+                for r in res:
+                    sym = r.get("symbol")
+                    if not sym:
+                        continue
+                    remote_symbols.add(sym)
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO watchlist (user_id, symbol, name, asset_type, added_at)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (
+                        user_id,
+                        sym,
+                        r.get("name") or sym,
+                        r.get("asset_type", "STOCK"),
+                        r.get("created_at") or datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+                    ))
+                # Prune local items that were deleted remotely
+                cursor.execute("SELECT symbol FROM watchlist WHERE user_id = ?", (user_id,))
+                local_symbols = {row["symbol"] for row in cursor.fetchall()}
+                for s in (local_symbols - remote_symbols):
+                    cursor.execute("DELETE FROM watchlist WHERE user_id = ? AND symbol = ?", (user_id, s))
+                conn.commit()
+                conn.close()
+        except Exception as e:
+            print(f"[Supabase Watchlist Sync Error]: {e}")
 
-    # 2. SQLite fallback
+    # 2. SQLite read (guaranteed unified source of truth)
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT symbol, name, asset_type, added_at FROM watchlist WHERE user_id = ? ORDER BY added_at DESC", (user_id,))
@@ -3003,12 +3485,17 @@ def add_to_watchlist(symbol: str, name: str, asset_type: str, user_id: str = "de
     conn.close()
 
     if is_supabase_enabled() and user_id and user_id != "guest":
-        supabase_api("POST", "watchlist", payload={
-            "user_id": user_id,
-            "symbol": symbol,
-            "name": name,
-            "asset_type": asset_type
-        })
+        supabase_api(
+            "POST",
+            "watchlist",
+            payload={
+                "user_id": user_id,
+                "symbol": symbol,
+                "name": name,
+                "asset_type": asset_type
+            },
+            params={"on_conflict": "user_id,symbol"}
+        )
     return True
 
 def remove_from_watchlist(symbol: str, user_id: str = "default") -> bool:
@@ -3019,7 +3506,7 @@ def remove_from_watchlist(symbol: str, user_id: str = "default") -> bool:
     conn.close()
 
     if is_supabase_enabled() and user_id and user_id != "guest":
-        supabase_api("DELETE", f"watchlist?user_id=eq.{user_id}&symbol=eq.{urllib.parse.quote(symbol)}")
+        supabase_api("DELETE", "watchlist", params={"user_id": f"eq.{user_id}", "symbol": f"eq.{symbol}"})
     return True
 
 def deposit_funds(amount: float, user_id: str = "default") -> float:
@@ -3132,7 +3619,7 @@ def restore_balance(user_id: str = "default", target_balance: float = 1000000.0)
     return target_balance
 
 def delete_user(user_id: str) -> bool:
-    if not user_id or user_id == "guest":
+    if not user_id or user_id in ["guest", "default"]:
         return False
 
     # Resolve the account (and its Supabase auth id) BEFORE the local row is
@@ -3153,15 +3640,9 @@ def delete_user(user_id: str) -> bool:
     cursor.execute("DELETE FROM gtt_orders WHERE user_id = ?", (user_id,))
     cursor.execute("DELETE FROM sips WHERE user_id = ?", (user_id,))
     cursor.execute("DELETE FROM ipo_bids WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM bank_transactions WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM wallet_transactions WHERE user_id = ?", (user_id,))
     cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
-    if user_id == "default":
-        cursor.execute("DELETE FROM holdings")
-        cursor.execute("DELETE FROM holding_tombstones")
-        cursor.execute("DELETE FROM position_tombstones")
-        cursor.execute("DELETE FROM sync_outbox")
-        cursor.execute("DELETE FROM positions")
-        cursor.execute("DELETE FROM orders")
-        cursor.execute("UPDATE account SET balance = 1000000.0, total_deposited = 1000000.0 WHERE id = 1")
     conn.commit()
     conn.close()
 
@@ -3205,6 +3686,7 @@ def delete_user(user_id: str) -> bool:
             supabase_api("DELETE", f"gtt_orders?user_id=eq.{user_id}")
             supabase_api("DELETE", f"sips?user_id=eq.{user_id}")
             supabase_api("DELETE", f"ipo_bids?user_id=eq.{user_id}")
+            supabase_api("DELETE", f"wallet_transactions?user_id=eq.{user_id}")
             supabase_api("DELETE", f"users?id=eq.{user_id}")
         except Exception:
             pass

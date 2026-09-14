@@ -7626,6 +7626,309 @@ body.viewing-profile .indices-bar {
   vertical-align: middle;
 }
 
+/* ==========================================================================
+   GROWW-STYLE TRADING WALLET "ALL TRANSACTIONS" VIEW
+   ========================================================================== */
+.groww-wallet-tx-modal {
+  max-width: 540px !important;
+  width: 100% !important;
+  border-radius: 18px !important;
+  background: #0f172a !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.65) !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  max-height: 88vh !important;
+  padding: 0 !important;
+}
+
+.groww-tx-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.1rem 1.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.groww-tx-back-btn {
+  background: transparent;
+  border: none;
+  color: #F8FAFC;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 50%;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.groww-tx-back-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateX(-2px);
+}
+
+.groww-tx-title {
+  font-size: 1.18rem;
+  font-weight: 700;
+  color: #F8FAFC;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.groww-tx-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  gap: 0.75rem;
+  background: rgba(0, 0, 0, 0.12);
+  flex-wrap: nowrap;
+}
+
+.groww-tx-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.groww-tx-filter-group::-webkit-scrollbar {
+  display: none;
+}
+
+.groww-filter-pill, .groww-filter-subpill {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+  color: #94A3B8;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+}
+
+.groww-filter-pill:hover, .groww-filter-subpill:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #F8FAFC;
+}
+
+.groww-filter-pill.active, .groww-filter-subpill.active {
+  border-color: #00D09C;
+  background: rgba(0, 208, 156, 0.12);
+  color: #00D09C;
+  font-weight: 700;
+}
+
+.groww-tx-failed-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  color: #94A3B8;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.groww-tx-failed-toggle input[type="checkbox"] {
+  accent-color: #00D09C;
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+.groww-tx-list-container {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 320px;
+  max-height: 62vh;
+}
+
+.groww-tx-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  transition: background 0.15s ease;
+}
+
+.groww-tx-row:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.groww-tx-left {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.groww-tx-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.groww-tx-icon.credit {
+  background: rgba(0, 208, 156, 0.14);
+  color: #00D09C;
+}
+
+.groww-tx-icon.debit {
+  background: rgba(255, 255, 255, 0.06);
+  color: #F8FAFC;
+}
+
+.groww-tx-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.groww-tx-item-title {
+  font-size: 0.93rem;
+  font-weight: 600;
+  color: #F8FAFC;
+  line-height: 1.25;
+}
+
+.groww-tx-item-date {
+  font-size: 0.77rem;
+  color: #94A3B8;
+  font-weight: 400;
+}
+
+.groww-tx-right {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.groww-tx-amount {
+  font-size: 0.98rem;
+  font-weight: 700;
+}
+
+.groww-tx-amount.credit {
+  color: #00D09C;
+}
+
+.groww-tx-amount.debit {
+  color: #F8FAFC;
+}
+
+.groww-tx-balance {
+  font-size: 0.76rem;
+  color: #94A3B8;
+  font-weight: 500;
+}
+
+.groww-tx-badge-failed {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(239, 68, 68, 0.18);
+  color: #EF4444;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-top: 2px;
+}
+
+/* Light theme overrides */
+[data-theme="light"] .groww-wallet-tx-modal {
+  background: #FAF6ED !important;
+  border-color: #DFD8C7 !important;
+  box-shadow: 0 24px 64px rgba(60, 45, 30, 0.18) !important;
+}
+
+[data-theme="light"] .groww-tx-header {
+  border-color: #E2D9C8;
+  background: #F4EDE0;
+}
+
+[data-theme="light"] .groww-tx-back-btn {
+  color: #1C1917;
+}
+
+[data-theme="light"] .groww-tx-back-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .groww-tx-title {
+  color: #1C1917;
+}
+
+[data-theme="light"] .groww-tx-filter-bar {
+  border-color: #E2D9C8;
+  background: #F5EFE3;
+}
+
+[data-theme="light"] .groww-filter-pill, 
+[data-theme="light"] .groww-filter-subpill {
+  border-color: #CBC3AF;
+  background: #EDE5D5;
+  color: #44403C;
+}
+
+[data-theme="light"] .groww-filter-pill.active, 
+[data-theme="light"] .groww-filter-subpill.active {
+  border-color: #059669;
+  background: rgba(5, 150, 105, 0.12);
+  color: #059669;
+}
+
+[data-theme="light"] .groww-tx-failed-toggle {
+  color: #57534E;
+}
+
+[data-theme="light"] .groww-tx-row {
+  border-color: #ECE5D7;
+}
+
+[data-theme="light"] .groww-tx-row:hover {
+  background: #F3ECE0;
+}
+
+[data-theme="light"] .groww-tx-item-title {
+  color: #1C1917;
+}
+
+[data-theme="light"] .groww-tx-item-date,
+[data-theme="light"] .groww-tx-balance {
+  color: #78716C;
+}
+
+[data-theme="light"] .groww-tx-amount.debit {
+  color: #1C1917;
+}
+
+[data-theme="light"] .groww-tx-amount.credit {
+  color: #059669;
+}
+
+[data-theme="light"] .groww-tx-icon.debit {
+  background: rgba(0, 0, 0, 0.05);
+  color: #1C1917;
+}
+
+
 
 
 

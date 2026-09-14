@@ -85,9 +85,18 @@ const INDEX_NAMES = {
   '^NSEMDCP50': 'NIFTY MIDCAP 50'
 };
 
+function getLocalWatchlistKey() {
+  const uid = localStorage.getItem('stoxify_user_id') || (currentUser && currentUser.id);
+  if (uid && uid !== 'default' && uid !== 'guest') {
+    return `stoxify_watchlist_cache_${uid}`;
+  }
+  return 'stoxify_watchlist_cache_guest';
+}
+
 function getLocalWatchlistSet() {
   try {
-    const raw = localStorage.getItem('stoxify_watchlist_cache');
+    const key = getLocalWatchlistKey();
+    const raw = localStorage.getItem(key) || (key === 'stoxify_watchlist_cache_guest' ? localStorage.getItem('stoxify_watchlist_cache') : null);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) return new Set(parsed);
@@ -99,7 +108,7 @@ function getLocalWatchlistSet() {
 function saveLocalWatchlistSet(set) {
   try {
     if (set) {
-      localStorage.setItem('stoxify_watchlist_cache', JSON.stringify(Array.from(set)));
+      localStorage.setItem(getLocalWatchlistKey(), JSON.stringify(Array.from(set)));
     }
   } catch (e) {}
 }
@@ -825,7 +834,7 @@ function renderAssetAvatar(item, assetType, isHero = false) {
 function renderCardStarBtn(symbol, name, assetType) {
   const isStarred = state.watchlist && state.watchlist.has(symbol);
   const activeClass = isStarred ? 'active' : '';
-  const escapedName = (name || symbol).replace(/'/g, "\\'");
+  const escapedName = (name || symbol).replace(/"/g, '&quot;').replace(/'/g, "\\'");
   return `
     <button class="card-star-btn ${activeClass}" 
             onclick="event.stopPropagation(); toggleWatchlistItem('${symbol}', '${escapedName}', '${assetType}')" 
@@ -1648,24 +1657,28 @@ async function cancelOrder(orderId) {
 async function fetchWatchlist() {
   try {
     const res = await fetch('/api/watchlist');
+    if (!res.ok) {
+      console.warn('Watchlist fetch returned status', res.status);
+      return;
+    }
     const items = await res.json();
     if (Array.isArray(items)) {
-      items.forEach(i => state.watchlist.add(i.symbol));
+      state.watchlist = new Set(items.map(i => i.symbol));
       saveLocalWatchlistSet(state.watchlist);
     }
 
     const grid = document.getElementById('watchlistGrid');
-    if (!items || items.length === 0) {
+    if (!grid) return;
+    if (!Array.isArray(items) || items.length === 0) {
       grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); padding: 3rem;">Your watchlist is empty. Tap ★ on any stock or mutual fund to track it here!</div>`;
       return;
     }
 
     grid.innerHTML = items.map(item => {
-      const isPos = item.change >= 0;
+      const isPos = (item.change || 0) >= 0;
       const badgeClass = isPos ? 'badge-positive' : 'badge-negative';
       const isMF = item.asset_type === 'MUTUAL_FUND';
       const subtitle = isMF ? 'Mutual Fund • Direct Plan' : `${item.symbol} • Stock`;
-      const priceLabel = isMF ? 'NAV' : 'Market Price';
 
       return `
         <div class="stock-card" onclick="openAssetModal('${item.symbol}', '${item.asset_type}')">
@@ -2656,6 +2669,11 @@ async function confirmDeleteAccount() {
     });
     const data = await res.json();
     if (res.ok && data.status === 'success') {
+      if (currentUser && currentUser.id) {
+        try {
+          localStorage.removeItem(`stoxify_watchlist_cache_${currentUser.id}`);
+        } catch (e) {}
+      }
       localStorage.removeItem('stoxify_user_id');
       localStorage.removeItem('stoxify_cached_user');
       localStorage.removeItem('stoxify_watchlist_cache');
@@ -2670,7 +2688,7 @@ async function confirmDeleteAccount() {
       enterGuestMode();
       state.account = { balance: 0.0 };
       localStorage.removeItem('stoxify_guest_mode');
-      state.watchlist = new Set();
+      state.watchlist = getLocalWatchlistSet();
       closeFundsModal();
       showToast('Account permanently deleted.');
       showWelcomePane();
@@ -3134,7 +3152,7 @@ async function fetchCurrentUser() {
     const res = await fetch('/api/user/current');
     if (res.ok) {
       const u = await res.json();
-      if (u && u.id && !u.is_guest && u.id !== 'guest') {
+      if (u && u.id && !u.is_guest && u.id !== 'guest' && u.id !== 'default') {
         currentUser = u;
         if (u.balance !== undefined) {
           state.account.balance = Number(u.balance);
@@ -3145,11 +3163,11 @@ async function fetchCurrentUser() {
         localStorage.removeItem('stoxify_guest_mode');
         document.documentElement.classList.add('user-logged-in');
         document.documentElement.classList.remove('user-guest');
-      } else if (u && u.is_guest) {
+      } else if (u && (u.is_guest || u.id === 'default' || !u.id)) {
         // If the server returns guest, but the client had an active stored user ID,
         // do NOT destroy the local session immediately. The server might have reloaded or
         // had a momentary cloud sync delay. Only clear if the client had no stored session.
-        if (!storedUid) {
+        if (!storedUid || storedUid === 'default' || storedUid === 'guest') {
           currentUser = null;
           localStorage.removeItem('stoxify_user_id');
           localStorage.removeItem('stoxify_cached_user');
@@ -3276,6 +3294,7 @@ function enterGuestMode() {
   document.documentElement.classList.remove('user-logged-in');
   document.documentElement.classList.add('user-guest');
   currentUser = null;
+  state.watchlist = getLocalWatchlistSet();
   updateNavbarProfile();
 }
 
@@ -3286,6 +3305,7 @@ function logoutUser() {
   if (state.currentTab === 'holdings') fetchPortfolio();
   if (state.currentTab === 'positions') fetchPositions();
   if (state.currentTab === 'orders') fetchOrders();
+  if (state.currentTab === 'watchlist') fetchWatchlist();
   showWelcomePane();
   navigateTo('/');
 }
@@ -4299,6 +4319,173 @@ function closeBankPassbookModal() {
   if (modal) modal.classList.remove('active');
 }
 
+// =======================================================
+// TRADING WALLET "ALL TRANSACTIONS" ENGINE (Groww-Style)
+// =======================================================
+let _walletTxState = {
+  filter: 'all',
+  onlyFailed: false,
+  rawTransactions: []
+};
+
+async function openWalletTransactionsModal(initialFilter = 'all') {
+  if (!currentUser || isGuest()) {
+    showToast('Please log in or create an account to view transaction history.', true);
+    return;
+  }
+
+  const modal = document.getElementById('walletTransactionsModal');
+  if (!modal) return;
+  modal.classList.add('active');
+
+  _walletTxState.filter = initialFilter || 'all';
+  _walletTxState.onlyFailed = false;
+
+  const cb = document.getElementById('walletTxOnlyFailedCheckbox');
+  if (cb) cb.checked = false;
+
+  updateWalletTxFilterUI();
+  await loadAndRenderWalletTransactions();
+}
+
+function closeWalletTransactionsModal() {
+  const modal = document.getElementById('walletTransactionsModal');
+  if (modal) modal.classList.remove('active');
+}
+
+function setWalletTxFilter(filterType, btnEl) {
+  _walletTxState.filter = filterType;
+  updateWalletTxFilterUI(btnEl);
+  renderWalletTxList();
+}
+
+function toggleWalletTxOnlyFailed(checked) {
+  _walletTxState.onlyFailed = Boolean(checked);
+  renderWalletTxList();
+}
+
+function updateWalletTxFilterUI(activeBtn) {
+  const filterBtns = [
+    { id: 'btnFilterAll', type: 'all' },
+    { id: 'btnFilterDeposits', type: 'deposit' },
+    { id: 'btnFilterWithdrawals', type: 'withdrawal' },
+    { id: 'btnFilterTrades', type: 'trade' }
+  ];
+
+  filterBtns.forEach(f => {
+    const el = document.getElementById(f.id);
+    if (!el) return;
+    if (f.type === _walletTxState.filter) {
+      el.classList.add('active');
+    } else {
+      el.classList.remove('active');
+    }
+  });
+}
+
+async function loadAndRenderWalletTransactions() {
+  const container = document.getElementById('walletTxListContainer');
+  if (container) {
+    container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 3.5rem 1rem;">Loading transactions...</div>';
+  }
+
+  try {
+    const authHeaders = (typeof getAuthHeaders === 'function') ? getAuthHeaders() : {};
+    const res = await fetch('/api/funds/wallet-transactions', {
+      headers: authHeaders
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+    _walletTxState.rawTransactions = data.transactions || [];
+    renderWalletTxList();
+  } catch (err) {
+    console.error('Failed to load wallet transactions:', err);
+    if (container) {
+      container.innerHTML = `
+        <div style="text-align: center; color: var(--danger-red, #ef4444); padding: 3.5rem 1rem;">
+          <p style="font-weight: 600; margin-bottom: 0.5rem;">Failed to load transactions</p>
+          <button type="button" class="btn-subtle" style="font-size: 0.8rem; margin-top: 0.5rem;" onclick="loadAndRenderWalletTransactions()">Retry</button>
+        </div>
+      `;
+    }
+  }
+}
+
+function renderWalletTxList() {
+  const container = document.getElementById('walletTxListContainer');
+  if (!container) return;
+
+  const { filter, onlyFailed, rawTransactions } = _walletTxState;
+
+  let filtered = rawTransactions.filter(tx => {
+    if (onlyFailed && !tx.is_failed) return false;
+    if (filter === 'deposit' && tx.type !== 'DEPOSIT') return false;
+    if (filter === 'withdrawal' && tx.type !== 'WITHDRAWAL') return false;
+    if (filter === 'trade' && tx.type !== 'BUY' && tx.type !== 'SELL') return false;
+    return true;
+  });
+
+  if (!filtered || filtered.length === 0) {
+    const emptyMsg = onlyFailed 
+      ? 'No failed transactions found' 
+      : (filter !== 'all' ? `No ${filter} transactions found` : 'No transactions recorded yet');
+      
+    container.innerHTML = `
+      <div style="text-align: center; color: var(--text-muted); padding: 3.5rem 1.5rem; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
+        <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity: 0.4;">
+          <rect x="2" y="5" width="20" height="14" rx="2"></rect>
+          <line x1="2" y1="10" x2="22" y2="10"></line>
+        </svg>
+        <span style="font-size: 0.95rem; font-weight: 600; color: var(--text-secondary); margin-top: 0.25rem;">${emptyMsg}</span>
+        <span style="font-size: 0.8rem;">Deposits, withdrawals, and stock trades will be reflected here.</span>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = filtered.map(tx => {
+    const isCredit = Boolean(tx.is_credit);
+    const iconClass = isCredit ? 'credit' : 'debit';
+    const amtClass = isCredit ? 'credit' : 'debit';
+    
+    // SVG arrows matching Groww screenshot:
+    // Credit: green down-left arrow ↙
+    // Debit: neutral up-right arrow ↗
+    const iconSvg = isCredit
+      ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00D09C" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="17" y1="7" x2="7" y2="17"></line><polyline points="17 17 7 17 7 7"></polyline></svg>`
+      : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg>`;
+
+    const dateStr = tx.date_formatted || 'Recent';
+    const amtStr = tx.amount_formatted || `${isCredit ? '+' : ''}₹${Number(tx.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const balStr = tx.balance_formatted || `Bal: ₹${Number(tx.balance_after || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const failedBadge = tx.is_failed ? `<span class="groww-tx-badge-failed">${tx.status || 'FAILED'}</span>` : '';
+    const safeTitle = (tx.title || 'Transaction').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    return `
+      <div class="groww-tx-row">
+        <div class="groww-tx-left">
+          <div class="groww-tx-icon ${iconClass}">
+            ${iconSvg}
+          </div>
+          <div class="groww-tx-meta">
+            <div class="groww-tx-item-title">${safeTitle}</div>
+            <div class="groww-tx-item-date">${dateStr}${tx.time_formatted ? ` • ${tx.time_formatted}` : ''}</div>
+          </div>
+        </div>
+        <div class="groww-tx-right">
+          <div class="groww-tx-amount ${amtClass}">${amtStr}</div>
+          <div class="groww-tx-balance">${balStr}</div>
+          ${failedBadge}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
 // --- User Authentication & Login Modal ---
 async function openLoginModal(prefilledIdentifier) {
   const overlay = document.getElementById('loginModalOverlay');
@@ -4386,6 +4573,7 @@ async function submitLogin() {
     localStorage.setItem('stoxify_cached_user', JSON.stringify(currentUser));
     document.documentElement.classList.add('user-logged-in');
     document.documentElement.classList.remove('user-guest');
+    state.watchlist = getLocalWatchlistSet();
 
     updateNavbarProfile();
     saveRecentAccount(currentUser);
