@@ -3512,8 +3512,6 @@ function openEditProfileModal() {
   if (nameInput) nameInput.value = currentUser.name || '';
   const usernameInput = document.getElementById('editProfileUsername');
   if (usernameInput) usernameInput.value = currentUser.username || '';
-  const passwordInput = document.getElementById('editProfilePassword');
-  if (passwordInput) passwordInput.value = '';
   if (emailInput) emailInput.value = currentUser.email || '';
   if (phoneInput) phoneInput.value = currentUser.phone || '';
   if (dobInput) dobInput.value = currentUser.dob || '';
@@ -3583,7 +3581,6 @@ async function saveUserProfile() {
 
   const name = document.getElementById('editProfileName').value.trim();
   const username = document.getElementById('editProfileUsername') ? document.getElementById('editProfileUsername').value.trim().replace(/^@/, '').toLowerCase() : '';
-  const password = document.getElementById('editProfilePassword') ? document.getElementById('editProfilePassword').value.trim() : '';
   const email = document.getElementById('editProfileEmail').value.trim();
   const phone = document.getElementById('editProfilePhone').value.trim();
   const dob = document.getElementById('editProfileDob').value.trim();
@@ -3608,11 +3605,6 @@ async function saveUserProfile() {
       document.getElementById('editProfileUsername')?.focus();
       return;
     }
-  }
-  if (password && password.length < 6) {
-    showToast('Password must be at least 6 characters', true);
-    document.getElementById('editProfilePassword')?.focus();
-    return;
   }
   if (!email || !email.includes('@')) {
     showToast('Please enter a valid email address', true);
@@ -3651,7 +3643,6 @@ async function saveUserProfile() {
         id: currentUser.id,
         name,
         username: username || null,
-        password: password || null,
         email,
         phone,
         dob,
