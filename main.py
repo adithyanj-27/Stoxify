@@ -506,6 +506,12 @@ def api_get_current_user(request: Request):
         u = get_user(uid)
         if u and u.get("id") not in ["default", "guest"]:
             return u
+        # A client that supplied an account ID had an authenticated local
+        # session, but that account no longer exists.  Return an explicit
+        # rejection rather than a guest payload so clients can discard their
+        # cached session.  The web app already handles 401 by doing exactly
+        # that; ordinary visitors (who send no ID) retain the guest response.
+        raise HTTPException(status_code=401, detail="Account no longer exists")
     return {"is_guest": True, "id": None, "name": "Guest", "balance": 0.0}
 
 @app.get("/api/user/list")

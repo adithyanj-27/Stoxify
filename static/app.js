@@ -5731,8 +5731,25 @@ function openMobileTradeDrawer(action = 'BUY') {
   setPageOrderAction(action);
   const drawer = document.getElementById('mobileTradingDrawerOverlay');
   if (drawer) {
+    const card = drawer.querySelector('.mobile-drawer-card');
+    // Make sure a previous .anim-done cannot block the slide-in transition.
+    if (card) card.classList.remove('anim-done');
     drawer.classList.add('active');
     document.body.style.overflow = 'hidden';
+    // Drop the transform once the sheet has settled (see .anim-done in style.css).
+    // While the sheet stays transform-composited, Android drops the rewritten
+    // qty / margin text for a single frame on each tap -> the flicker.
+    if (card) {
+      const settle = () => {
+        if (drawer.classList.contains('active')) card.classList.add('anim-done');
+      };
+      card.addEventListener('transitionend', function onSlideEnd(e) {
+        if (e.target !== card || e.propertyName !== 'transform') return;
+        card.removeEventListener('transitionend', onSlideEnd);
+        settle();
+      });
+      setTimeout(settle, 400);
+    }
   }
   const dInput = document.getElementById('drawerOrderQuantity');
   const mainInput = document.getElementById('pageOrderQuantity');
@@ -5766,6 +5783,9 @@ function openMobileTradeDrawer(action = 'BUY') {
 function closeMobileTradeDrawer() {
   const drawer = document.getElementById('mobileTradingDrawerOverlay');
   if (drawer) {
+    // Clear the settled state first so the slide-down transition still runs.
+    const card = drawer.querySelector('.mobile-drawer-card');
+    if (card) card.classList.remove('anim-done');
     drawer.classList.remove('active');
     document.body.style.overflow = '';
   }
@@ -5966,6 +5986,14 @@ function setPageQuickQuantity(qty) {
   recalcPageMargin();
 }
 
+// Write text only when it actually changed. Assigning innerText always swaps the
+// child text node and re-invalidates the element, so a single chip tap used to
+// dirty ~20 text nodes (drawer + page card). Fewer invalidated nodes = far less
+// chance of the compositor presenting a frame with the text dropped.
+function setTextIfChanged(el, txt) {
+  if (el && el.textContent !== txt) el.textContent = txt;
+}
+
 function recalcPageMargin() {
   if (!currentPageAsset) return;
   const qtyInput = document.getElementById('pageOrderQuantity');
@@ -5994,19 +6022,19 @@ function recalcPageMargin() {
   const isSell = pageOrderState.action === 'SELL';
   const margin = pageOrderState.product === 'INTRADAY' ? total * 0.20 : total;
 
-  const pMarginLabel = document.getElementById('pageMarginLabel');
-  if (pMarginLabel) pMarginLabel.innerText = isSell ? (pageOrderState.product === 'INTRADAY' ? 'Intraday Turnover' : 'Gross Value') : 'Required Margin';
-  const dMarginLabel = document.getElementById('drawerMarginLabel');
-  if (dMarginLabel) dMarginLabel.innerText = isSell ? (pageOrderState.product === 'INTRADAY' ? 'Intraday Turnover' : 'Gross Value') : 'Required Margin';
+  const marginLabel = isSell ? (pageOrderState.product === 'INTRADAY' ? 'Intraday Turnover' : 'Gross Value') : 'Required Margin';
+  setTextIfChanged(document.getElementById('pageMarginLabel'), marginLabel);
+  setTextIfChanged(document.getElementById('drawerMarginLabel'), marginLabel);
 
-  const reqEl = document.getElementById('pageRequiredMargin');
-  if (reqEl) reqEl.innerText = formatINR(isSell ? total : margin);
-  const dReqEl = document.getElementById('drawerRequiredMargin');
-  if (dReqEl) dReqEl.innerText = formatINR(isSell ? total : margin);
+  const requiredText = formatINR(isSell ? total : margin);
+  setTextIfChanged(document.getElementById('pageRequiredMargin'), requiredText);
+  setTextIfChanged(document.getElementById('drawerRequiredMargin'), requiredText);
 
   // Dynamic broker charges and net credit calculation
   const charges = calculateEstimatedCharges(total, pageOrderState.action, pageOrderState.product, currentPageAsset.asset_type || 'STOCK');
   const netProceeds = Math.max(0, total - charges.total);
+  const chargesText = `${formatINR(charges.total)} ℹ️`;
+  const netText = formatINR(netProceeds);
 
   const pChargesRow = document.getElementById('pageChargesRow');
   const pChargesVal = document.getElementById('pageEstCharges');
@@ -6020,14 +6048,14 @@ function recalcPageMargin() {
 
   if (isSell) {
     if (pChargesRow) pChargesRow.style.display = 'flex';
-    if (pChargesVal) pChargesVal.innerText = `${formatINR(charges.total)} ℹ️`;
+    setTextIfChanged(pChargesVal, chargesText);
     if (pNetRow) pNetRow.style.display = 'flex';
-    if (pNetVal) pNetVal.innerText = formatINR(netProceeds);
+    setTextIfChanged(pNetVal, netText);
 
     if (dChargesRow) dChargesRow.style.display = 'flex';
-    if (dChargesVal) dChargesVal.innerText = `${formatINR(charges.total)} ℹ️`;
+    setTextIfChanged(dChargesVal, chargesText);
     if (dNetRow) dNetRow.style.display = 'flex';
-    if (dNetVal) dNetVal.innerText = formatINR(netProceeds);
+    setTextIfChanged(dNetVal, netText);
   } else {
     if (pChargesRow) pChargesRow.style.display = 'none';
     if (pNetRow) pNetRow.style.display = 'none';
@@ -6037,37 +6065,39 @@ function recalcPageMargin() {
 
   const availCash = getActiveAvailableCash();
   const cashEl = document.getElementById('pageAvailableCash');
-  if (cashEl) cashEl.innerText = formatINR(availCash);
   const dCashEl = document.getElementById('drawerAvailableCash');
-  if (dCashEl) dCashEl.innerText = formatINR(availCash);
+  setTextIfChanged(cashEl, formatINR(availCash));
+  setTextIfChanged(dCashEl, formatINR(availCash));
 
   const execBtn = document.getElementById('pageOrderExecuteBtn');
   const drawerExec = document.getElementById('drawerOrderExecuteBtn');
   const cleanSym = currentPageAsset.symbol ? currentPageAsset.symbol.replace('.NS', '') : '';
 
   if (isGuest()) {
-    if (cashEl) cashEl.innerText = '₹0.00 (Locked)';
-    if (dCashEl) dCashEl.innerText = '₹0.00 (Locked)';
+    const lockedText = 'Start Investing to Trade (Unlock ₹10L)';
+    setTextIfChanged(cashEl, '₹0.00 (Locked)');
+    setTextIfChanged(dCashEl, '₹0.00 (Locked)');
     if (execBtn) {
-      execBtn.innerText = 'Start Investing to Trade (Unlock ₹10L)';
-      execBtn.className = 'btn-trade-execute guest-locked';
+      if (execBtn.className !== 'btn-trade-execute guest-locked') execBtn.className = 'btn-trade-execute guest-locked';
+      setTextIfChanged(execBtn, lockedText);
     }
     if (drawerExec) {
-      drawerExec.innerText = 'Start Investing to Trade (Unlock ₹10L)';
-      drawerExec.className = 'btn-trade-execute guest-locked';
+      if (drawerExec.className !== 'btn-trade-execute guest-locked') drawerExec.className = 'btn-trade-execute guest-locked';
+      setTextIfChanged(drawerExec, lockedText);
     }
   } else {
     let btnText = `${pageOrderState.action} ${cleanSym}`;
     if (pageOrderState.variety === 'STOP_LOSS') btnText = `PLACE STOP-LOSS (${pageOrderState.action})`;
     if (pageOrderState.variety === 'GTT') btnText = `CREATE GTT TRIGGER (${pageOrderState.action})`;
     
+    const execClass = `btn-trade-execute ${pageOrderState.action.toLowerCase()}`;
     if (execBtn) {
-      execBtn.className = `btn-trade-execute ${pageOrderState.action.toLowerCase()}`;
-      execBtn.innerText = btnText;
+      if (execBtn.className !== execClass) execBtn.className = execClass;
+      setTextIfChanged(execBtn, btnText);
     }
     if (drawerExec) {
-      drawerExec.className = `btn-trade-execute ${pageOrderState.action.toLowerCase()}`;
-      drawerExec.innerText = btnText;
+      if (drawerExec.className !== execClass) drawerExec.className = execClass;
+      setTextIfChanged(drawerExec, btnText);
     }
   }
 }
