@@ -3514,8 +3514,48 @@ function openEditProfileModal() {
   if (phoneInput) phoneInput.value = currentUser.phone || '';
   if (dobInput) dobInput.value = currentUser.dob || '';
   if (panInput) panInput.value = currentUser.pan || '';
-  if (bankNameInput) bankNameInput.value = currentUser.bank_name || 'HDFC Bank';
-  if (bankAccInput) bankAccInput.value = currentUser.bank_account || '';
+
+  const curBankName = (currentUser && currentUser.bank_name) || (cachedBankAccount && cachedBankAccount.bank_name) || 'Federal Bank';
+  const curBankAcc = (currentUser && currentUser.bank_account) || (cachedBankAccount && cachedBankAccount.bank_account) || '50100234567890';
+
+  if (bankNameInput) {
+    let matched = false;
+    for (let i = 0; i < bankNameInput.options.length; i++) {
+      if (bankNameInput.options[i].value.toLowerCase() === curBankName.toLowerCase()) {
+        bankNameInput.selectedIndex = i;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched && curBankName) {
+      const opt = document.createElement('option');
+      opt.value = curBankName;
+      opt.innerText = curBankName;
+      opt.selected = true;
+      bankNameInput.appendChild(opt);
+    }
+  }
+  if (bankAccInput) {
+    bankAccInput.value = curBankAcc;
+  }
+
+  const editUid = currentUser ? currentUser.id : localStorage.getItem('stoxify_user_id');
+  if (editUid && !isGuest()) {
+    loadBankAccountDetails().then(bData => {
+      if (bData && bankNameInput && bData.bank_name) {
+        for (let i = 0; i < bankNameInput.options.length; i++) {
+          if (bankNameInput.options[i].value.toLowerCase() === bData.bank_name.toLowerCase()) {
+            bankNameInput.selectedIndex = i;
+            break;
+          }
+        }
+      }
+      if (bData && bankAccInput && bData.bank_account) {
+        bankAccInput.value = bData.bank_account;
+      }
+    }).catch(() => {});
+  }
+
   if (pinInput) pinInput.value = currentUser.pin || '';
 
   selectedEditAvatarColor = currentUser.avatar_color || '#0EA5E9';
@@ -3727,8 +3767,10 @@ async function loadBankAccountDetails() {
           } catch (e) {}
         }
         cachedBankAccount = data;
-        if (currentUser && data.bank_balance !== undefined) {
-          currentUser.bank_balance = data.bank_balance;
+        if (currentUser) {
+          if (data.bank_name) currentUser.bank_name = data.bank_name;
+          if (data.bank_account) currentUser.bank_account = data.bank_account;
+          if (data.bank_balance !== undefined) currentUser.bank_balance = data.bank_balance;
           try {
             localStorage.setItem('stoxify_cached_user', JSON.stringify(currentUser));
           } catch (e) {}
