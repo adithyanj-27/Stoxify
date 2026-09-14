@@ -3514,7 +3514,9 @@ body.pwa-installed #mobileInstallBanner {
     width: 100% !important;
     max-width: 100vw !important;
     max-height: 85vh !important;
-    max-height: calc(100dvh - 50px) !important;
+    /* svh is static, so this sheet no longer resizes (and re-flows) when the
+       mobile URL bar or keyboard toggles — same fix as .mobile-drawer-card. */
+    max-height: calc(100svh - 50px) !important;
     border-radius: 22px 22px 0 0 !important;
     margin: 0 !important;
     box-sizing: border-box !important;
@@ -3628,6 +3630,20 @@ body.pwa-installed #mobileInstallBanner {
   pointer-events: auto !important;
 }
 
+/* Repaint guard: a full-screen backdrop-filter sitting on the parent of a
+   scrolling, transform-animated sheet forces the whole backdrop to be
+   re-composited every time the sheet body repaints (which is exactly what
+   happens on every qty-chip tap). On mobile Chrome/Safari that shows up as
+   flicker / smearing along the bottom of the sheet. The scrim below is
+   visually equivalent but costs no backdrop blur. */
+@media (max-width: 768px) {
+  .mobile-drawer-overlay {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: rgba(0, 0, 0, 0.72);
+  }
+}
+
 .mobile-drawer-card {
   background: var(--bg-card);
   border-top: 1px solid var(--border-active);
@@ -3635,7 +3651,10 @@ body.pwa-installed #mobileInstallBanner {
   width: 100%;
   max-width: 600px;
   max-height: 85vh;
-  max-height: calc(100dvh - 50px);
+  /* svh = smallest viewport height. Unlike dvh it does NOT change when the
+     mobile URL bar collapses or the keyboard opens, so the sheet keeps a fixed
+     height and can no longer re-flow / jump while the user taps the quick chips. */
+  max-height: calc(100svh - 50px);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
@@ -3644,6 +3663,11 @@ body.pwa-installed #mobileInstallBanner {
   box-sizing: border-box;
   transform: translateY(100%);
   transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  /* Own compositor layer: text repaints inside the scroller (qty / margin
+     updates) no longer tear against the blurred backdrop behind the sheet. */
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .mobile-drawer-overlay.active .mobile-drawer-card {

@@ -5934,7 +5934,18 @@ function setPageOrderVariety(varType) {
   recalcPageMargin();
 }
 
+// An open on-screen keyboard shrinks the visual viewport, which resizes the
+// bottom sheet mid-interaction (the visible "glitch" under the qty chips).
+// Drop focus before mutating the order state so the keyboard closes first.
+function dismissMobileKeyboard() {
+  const ae = document.activeElement;
+  if (ae && ae !== document.body && typeof ae.blur === 'function') {
+    ae.blur();
+  }
+}
+
 function stepPageQuantity(delta) {
+  dismissMobileKeyboard();
   const input = document.getElementById('pageOrderQuantity');
   const dInput = document.getElementById('drawerOrderQuantity');
   let val = parseInt((input ? input.value : '1') || '1', 10) + delta;
@@ -5946,6 +5957,7 @@ function stepPageQuantity(delta) {
 }
 
 function setPageQuickQuantity(qty) {
+  dismissMobileKeyboard();
   const input = document.getElementById('pageOrderQuantity');
   const dInput = document.getElementById('drawerOrderQuantity');
   if (input) input.value = qty;

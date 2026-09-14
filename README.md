@@ -34,7 +34,7 @@ Stoxify is a modern, broker-grade trading and investment platform inspired by Gr
   - Real-time transparent charge sheet calculating Brokerage, STT, Exchange fees, SEBI charges, Stamp Duty, and 18% GST.
 - **Mobile First UX:**
   - Bottom app navigation bar on mobile browsers.
-  - Slide-up bottom sheet trading drawer with quick quantity chips (+1, +5, +10, +25, +50).
+  - Slide-up bottom sheet trading drawer with quick quantity presets (1, 5, 10, 25, 50).
 - **Persistence:** Local SQLite database (`stoxify.db`) ensuring all trades, holdings, and watchlists are preserved.
 
 ---
