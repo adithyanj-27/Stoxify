@@ -7660,8 +7660,12 @@ body.viewing-profile .indices-bar {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 6px;
+  padding: 8px;
+  min-width: 42px;
+  min-height: 42px;
   border-radius: 50%;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   transition: background 0.15s ease, transform 0.1s ease;
 }
 
@@ -7836,16 +7840,81 @@ body.viewing-profile .indices-bar {
   margin-top: 2px;
 }
 
+/* Dedicated Trigger Button for Profile Trading Wallet Ledger */
+.btn-wallet-all-tx {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.85rem;
+  padding: 0.75rem 0.25rem 0.25rem 0.25rem;
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+  font-family: inherit;
+  outline: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s ease;
+}
+
+.btn-wallet-all-tx:hover,
+.btn-wallet-all-tx:active {
+  opacity: 0.85;
+}
+
+.btn-wallet-all-tx-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #00D09C;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.btn-wallet-all-tx-arrow {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+[data-theme="light"] .btn-wallet-all-tx {
+  border-top-color: rgba(0, 0, 0, 0.08);
+}
+
+/* Base Display State: Completely Hidden & Non-blocking when inactive */
+#walletTransactionsModal:not(.active) {
+  display: none !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
+#walletTransactionsModal.active {
+  display: flex !important;
+  pointer-events: auto !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  z-index: 100050 !important;
+}
+
 /* Mobile Full-Screen Engine for Groww All Transactions View */
 @media (max-width: 768px) {
-  #walletTransactionsModal.modal-overlay {
+  #walletTransactionsModal.modal-overlay.active {
     padding: 0 !important;
     align-items: stretch !important;
     justify-content: stretch !important;
     background: #0f172a !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 100050 !important;
+    display: flex !important;
   }
 
-  #walletTransactionsModal .groww-wallet-tx-modal {
+  #walletTransactionsModal.active .groww-wallet-tx-modal {
     max-width: 100vw !important;
     width: 100vw !important;
     height: 100% !important;
@@ -7860,6 +7929,8 @@ body.viewing-profile .indices-bar {
     position: fixed !important;
     display: flex !important;
     flex-direction: column !important;
+    overflow: hidden !important;
+    z-index: 100051 !important;
   }
 
   #walletTransactionsModal .groww-tx-header {
@@ -7877,6 +7948,7 @@ body.viewing-profile .indices-bar {
     max-height: none !important;
     height: auto !important;
     overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
     padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 2.5rem) !important;
   }
 }
@@ -7888,7 +7960,7 @@ body.viewing-profile .indices-bar {
   box-shadow: 0 24px 64px rgba(60, 45, 30, 0.18) !important;
 }
 
-[data-theme="light"] #walletTransactionsModal.modal-overlay {
+[data-theme="light"] #walletTransactionsModal.modal-overlay.active {
   background: #FAF6ED !important;
 }
 

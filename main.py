@@ -1094,14 +1094,9 @@ def api_get_wallet_transactions(
     filter: Optional[str] = None,
     only_failed: Optional[bool] = False
 ):
-    uid = get_user_id(request)
-    if not uid or uid in ["guest", "default"]:
-        return {
-            "transactions": [],
-            "balance": 0.0,
-            "total_count": 0,
-            "success": True
-        }
+    uid = get_user_id(request) or request.query_params.get("user_id") or "default"
+    if uid in ["guest", "null", "undefined"]:
+        uid = "default"
     return get_wallet_transactions(uid, filter_type=filter, only_failed=bool(only_failed))
 
 @app.post("/api/account/restore")

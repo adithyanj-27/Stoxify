@@ -3352,6 +3352,10 @@ document.addEventListener('click', (e) => {
   if (pbOverlay && e.target === pbOverlay) {
     closeBankPassbookModal();
   }
+  const txOverlay = document.getElementById('walletTransactionsModal');
+  if (txOverlay && e.target === txOverlay) {
+    closeWalletTransactionsModal();
+  }
 });
 
 // --- Edit Profile Management ---
@@ -4328,10 +4332,9 @@ let _walletTxState = {
 };
 
 async function openWalletTransactionsModal(initialFilter = 'all') {
-  if (!currentUser || isGuest()) {
-    showToast('Please log in or create an account to view transaction history.', true);
-    return;
-  }
+  // Dismiss user dropdown menu if open
+  const menu = document.getElementById('userDropdownMenu');
+  if (menu) menu.style.display = 'none';
 
   const modal = document.getElementById('walletTransactionsModal');
   if (!modal) return;
@@ -4381,9 +4384,16 @@ async function loadAndRenderWalletTransactions() {
   }
 
   try {
-    const authHeaders = (typeof getAuthHeaders === 'function') ? getAuthHeaders() : {};
-    const res = await fetch('/api/funds/wallet-transactions', {
-      headers: authHeaders
+    const uid = (currentUser && currentUser.id) || localStorage.getItem('stoxify_user_id') || 'default';
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+    if (uid && uid !== 'default' && uid !== 'guest') {
+      headers['X-User-Id'] = uid;
+    }
+    const queryUid = encodeURIComponent(uid || 'default');
+    const res = await fetch(`/api/funds/wallet-transactions?user_id=${queryUid}`, {
+      headers
     });
 
     if (!res.ok) {

@@ -1597,15 +1597,15 @@
             </button>
           </div>
 
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.85rem; padding-top: 0.75rem; border-top: 1px solid rgba(255, 255, 255, 0.08); cursor: pointer;" onclick="openWalletTransactionsModal()" title="View All Transactions">
-            <span style="font-size: 0.85rem; font-weight: 600; color: #00D09C; display: flex; align-items: center; gap: 0.4rem;">
+          <button type="button" class="btn-wallet-all-tx" onclick="openWalletTransactionsModal()" title="View All Transactions">
+            <span class="btn-wallet-all-tx-title">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
               All transactions
             </span>
-            <span style="font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 2px;">
+            <span class="btn-wallet-all-tx-arrow">
               View ledger →
             </span>
-          </div>
+          </button>
 
           <div class="wallet-card-footer">
             <span>Instant Fund Transfer Gateway</span>
