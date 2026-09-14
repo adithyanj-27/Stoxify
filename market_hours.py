@@ -1,10 +1,64 @@
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
+import time
+import yfinance as yf
 
 IST = timezone(timedelta(hours=5, minutes=30))
 
-#Simulation flag to allow testing off-hours if the user wants
+# Simulation flag to allow testing off-hours if the user wants
 _SIMULATION_MODE = False
+
+# In-memory cache for Yahoo Finance live market activity probe
+_MARKET_ACTIVITY_CACHE: Dict[str, Any] = {}
+
+def check_live_market_activity_yahoo() -> Optional[bool]:
+    """
+    Checks Yahoo Finance live feed for the benchmark index ^NSEI (NIFTY 50).
+    Returns:
+      True  -> Market is actively trading today (live open and day_high exist).
+      False -> Zero trades recorded today during normal hours (Exchange is closed / Holiday).
+      None  -> Before 09:20 AM or network check inconclusive.
+    """
+    now = get_ist_now()
+    today_str = now.strftime("%Y-%m-%d")
+    total_minutes = now.hour * 60 + now.minute
+
+    # Only evaluate once the regular session has had 5 minutes to generate ticks (after 09:20 AM IST)
+    if total_minutes < 560 or total_minutes >= 930:
+        return None
+
+    # Check cache (5-minute TTL to keep status snappy and avoid network spam)
+    cached = _MARKET_ACTIVITY_CACHE.get("activity")
+    if cached and time.time() < cached.get("expires", 0) and cached.get("date") == today_str:
+        return cached.get("is_active")
+
+    try:
+        ticker = yf.Ticker("^NSEI")
+        fast = ticker.fast_info
+        # When exchange is on holiday, Yahoo Finance provides no open or day_high for today
+        if fast.open is None or fast.day_high is None:
+            is_active = False
+        else:
+            is_active = True
+
+        _MARKET_ACTIVITY_CACHE["activity"] = {
+            "is_active": is_active,
+            "date": today_str,
+            "expires": time.time() + 300
+        }
+        return is_active
+    except Exception:
+        return None
+
+# Standard National Holidays (Fixed Annual Dates)
+NSE_HOLIDAYS: Dict[str, str] = {
+    # Fixed national closures
+    "01-26": "Republic Day",
+    "05-01": "Maharashtra Day",
+    "08-15": "Independence Day",
+    "10-02": "Mahatma Gandhi Jayanti",
+    "12-25": "Christmas",
+}
 
 def get_ist_now() -> datetime:
     return datetime.now(IST)
@@ -20,66 +74,6 @@ def toggle_simulation(enabled: bool) -> Dict[str, Any]:
 def is_simulation_mode() -> bool:
     return _SIMULATION_MODE
 
-# Official NSE/BSE Trading Holidays Calendar
-NSE_HOLIDAYS: Dict[str, str] = {
-    # 2026
-    "2026-01-26": "Republic Day",
-    "2026-02-17": "Mahashivratri",
-    "2026-03-03": "Holi",
-    "2026-03-20": "Id-Ul-Fitr (Ramzan Id)",
-    "2026-04-03": "Good Friday",
-    "2026-04-14": "Dr. Baba Saheb Ambedkar Jayanti",
-    "2026-05-01": "Maharashtra Day",
-    "2026-05-27": "Bakri Id",
-    "2026-06-26": "Muharram",
-    "2026-09-14": "Eid-e-Milad (Milad-un-Nabi)",
-    "2026-09-16": "Eid-e-Milad",
-    "2026-10-02": "Mahatma Gandhi Jayanti",
-    "2026-10-20": "Dussehra",
-    "2026-11-09": "Diwali Laxmi Pujan",
-    "2026-11-10": "Diwali Balipratipada",
-    "2026-11-24": "Gurunanak Jayanti",
-    "2026-12-25": "Christmas",
-    # 2025
-    "2025-01-26": "Republic Day",
-    "2025-02-26": "Mahashivratri",
-    "2025-03-14": "Holi",
-    "2025-03-31": "Id-Ul-Fitr",
-    "2025-04-10": "Mahavir Jayanti",
-    "2025-04-14": "Dr. Baba Saheb Ambedkar Jayanti",
-    "2025-04-18": "Good Friday",
-    "2025-05-01": "Maharashtra Day",
-    "2025-06-07": "Bakri Id",
-    "2025-07-06": "Muharram",
-    "2025-08-15": "Independence Day",
-    "2025-09-05": "Eid-e-Milad",
-    "2025-10-02": "Mahatma Gandhi Jayanti",
-    "2025-10-21": "Diwali Laxmi Pujan",
-    "2025-10-22": "Diwali Balipratipada",
-    "2025-11-05": "Gurunanak Jayanti",
-    "2025-12-25": "Christmas",
-    # 2024
-    "2024-01-22": "Special Holiday (Ram Mandir)",
-    "2024-01-26": "Republic Day",
-    "2024-03-08": "Mahashivratri",
-    "2024-03-25": "Holi",
-    "2024-03-29": "Good Friday",
-    "2024-04-11": "Id-Ul-Fitr (Ramzan Id)",
-    "2024-04-17": "Shri Ram Navami",
-    "2024-05-01": "Maharashtra Day",
-    "2024-05-20": "General Elections (Mumbai)",
-    "2024-06-17": "Bakri Id",
-    "2024-07-17": "Muharram",
-    "2024-08-15": "Independence Day",
-    "2024-09-14": "Eid-e-Milad",
-    "2024-09-16": "Eid-e-Milad",
-    "2024-10-02": "Mahatma Gandhi Jayanti",
-    "2024-11-01": "Diwali Laxmi Pujan",
-    "2024-11-15": "Gurunanak Jayanti",
-    "2024-11-20": "Maharashtra Assembly Elections",
-    "2024-12-25": "Christmas",
-}
-
 def get_market_status() -> Dict[str, Any]:
     now = get_ist_now()
     weekday = now.weekday()  # 0=Monday, 4=Friday, 5=Saturday, 6=Sunday
@@ -87,7 +81,7 @@ def get_market_status() -> Dict[str, Any]:
 
     time_str = now.strftime("%I:%M:%S %p IST")
     date_str = now.strftime("%d %b %Y")
-    date_iso = now.strftime("%Y-%m-%d")
+    date_mm_dd = now.strftime("%m-%d")
 
     if _SIMULATION_MODE:
         return {
@@ -104,15 +98,14 @@ def get_market_status() -> Dict[str, Any]:
             "simulation_mode": True
         }
 
-    # 1. Check for Scheduled Trading Holidays
-    holiday_name = NSE_HOLIDAYS.get(date_iso)
+    # 1. Check for Scheduled Fixed National Holidays
+    holiday_name = NSE_HOLIDAYS.get(date_mm_dd)
     if holiday_name:
-        short_name = holiday_name.split('(')[0].strip()
         return {
             "is_open": False,
             "session": "HOLIDAY",
             "intraday_allowed": False,
-            "status_text": f"Market CLOSED ({short_name})",
+            "status_text": f"Market CLOSED ({holiday_name})",
             "subtext": f"Trading Holiday: {holiday_name} • AMO Active",
             "badge_color": "gray",
             "current_time_ist": time_str,
@@ -158,6 +151,25 @@ def get_market_status() -> Dict[str, Any]:
             "simulation_mode": False
         }
     elif 555 <= total_minutes < 930:
+        # Check Yahoo Finance live exchange activity
+        is_live_trading = check_live_market_activity_yahoo()
+        if is_live_trading is False:
+            # During regular hours, but zero trades exist on Yahoo Finance -> Trading Holiday
+            return {
+                "is_open": False,
+                "session": "HOLIDAY",
+                "intraday_allowed": False,
+                "status_text": "Market CLOSED (Trading Holiday)",
+                "subtext": "Exchange is closed today (Verified via Yahoo Finance live feed) • AMO Active",
+                "badge_color": "gray",
+                "current_time_ist": time_str,
+                "date_ist": date_str,
+                "holiday_name": "Trading Holiday",
+                "is_holiday": True,
+                "verified_by_yahoo": True,
+                "simulation_mode": False
+            }
+
         intraday_allowed = total_minutes < 920
         sub = "Closes at 03:30 PM IST" if intraday_allowed else "Intraday cutoff reached (Auto square-off at 03:20 PM)"
         return {

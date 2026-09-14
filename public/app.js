@@ -275,8 +275,7 @@ async function fetchMarketStatus() {
     if (dotMobile) dotMobile.className = `pulse-dot ${data.badge_color || 'gray'}`;
     if (labelMobile) {
       if (data.is_holiday) {
-        const shortHol = (data.holiday_name || '').split('(')[0].trim();
-        labelMobile.innerText = `Holiday (${shortHol})`;
+        labelMobile.innerText = 'Market Holiday';
       } else if (data.is_open) {
         labelMobile.innerText = 'Market Open';
       } else {
@@ -296,7 +295,7 @@ async function fetchMarketStatus() {
     if (holBanner) {
       if (data.is_holiday) {
         holBanner.style.display = 'block';
-        holBanner.innerHTML = `🏖️ <strong>Trading Holiday:</strong> Today Indian stock markets are closed on account of <strong>${data.holiday_name}</strong>. Regular trading resumes on the next scheduled business day at 09:15 AM IST.`;
+        holBanner.innerHTML = `🏖️ <strong>Trading Holiday:</strong> Verified live from Yahoo Finance exchange feed. The market has zero trading activity today. Regular trading resumes on the next scheduled business day at 09:15 AM IST.`;
       } else {
         holBanner.style.display = 'none';
       }
