@@ -7681,20 +7681,21 @@ body.viewing-profile .indices-bar {
 .groww-tx-filter-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem 1.25rem;
+  padding: 0.75rem 1.15rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  gap: 0.75rem;
   background: rgba(0, 0, 0, 0.12);
-  flex-wrap: nowrap;
+  width: 100%;
+  overflow: hidden;
 }
 
 .groww-tx-filter-group {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.5rem;
   overflow-x: auto;
   scrollbar-width: none;
+  width: 100%;
+  padding: 2px 0;
 }
 
 .groww-tx-filter-group::-webkit-scrollbar {
@@ -7702,8 +7703,8 @@ body.viewing-profile .indices-bar {
 }
 
 .groww-filter-pill, .groww-filter-subpill {
-  padding: 0.35rem 0.75rem;
-  font-size: 0.78rem;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.8rem;
   font-weight: 600;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -7714,6 +7715,7 @@ body.viewing-profile .indices-bar {
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .groww-filter-pill:hover, .groww-filter-subpill:hover {
@@ -7723,28 +7725,9 @@ body.viewing-profile .indices-bar {
 
 .groww-filter-pill.active, .groww-filter-subpill.active {
   border-color: #00D09C;
-  background: rgba(0, 208, 156, 0.12);
+  background: rgba(0, 208, 156, 0.14);
   color: #00D09C;
   font-weight: 700;
-}
-
-.groww-tx-failed-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.8rem;
-  color: #94A3B8;
-  cursor: pointer;
-  user-select: none;
-  white-space: nowrap;
-  font-weight: 500;
-}
-
-.groww-tx-failed-toggle input[type="checkbox"] {
-  accent-color: #00D09C;
-  width: 15px;
-  height: 15px;
-  cursor: pointer;
 }
 
 .groww-tx-list-container {
@@ -7823,6 +7806,7 @@ body.viewing-profile .indices-bar {
 .groww-tx-amount {
   font-size: 0.98rem;
   font-weight: 700;
+  white-space: nowrap !important;
 }
 
 .groww-tx-amount.credit {
@@ -7837,6 +7821,7 @@ body.viewing-profile .indices-bar {
   font-size: 0.76rem;
   color: #94A3B8;
   font-weight: 500;
+  white-space: nowrap !important;
 }
 
 .groww-tx-badge-failed {
@@ -7851,11 +7836,60 @@ body.viewing-profile .indices-bar {
   margin-top: 2px;
 }
 
+/* Mobile Full-Screen Engine for Groww All Transactions View */
+@media (max-width: 768px) {
+  #walletTransactionsModal.modal-overlay {
+    padding: 0 !important;
+    align-items: stretch !important;
+    justify-content: stretch !important;
+    background: #0f172a !important;
+  }
+
+  #walletTransactionsModal .groww-wallet-tx-modal {
+    max-width: 100vw !important;
+    width: 100vw !important;
+    height: 100% !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    inset: 0 !important;
+    position: fixed !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  #walletTransactionsModal .groww-tx-header {
+    padding: calc(env(safe-area-inset-top, 0px) + 0.9rem) 1rem 0.9rem 1rem !important;
+    flex-shrink: 0 !important;
+  }
+
+  #walletTransactionsModal .groww-tx-filter-bar {
+    padding: 0.65rem 1rem !important;
+    flex-shrink: 0 !important;
+  }
+
+  #walletTransactionsModal .groww-tx-list-container {
+    flex: 1 1 auto !important;
+    max-height: none !important;
+    height: auto !important;
+    overflow-y: auto !important;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 2.5rem) !important;
+  }
+}
+
 /* Light theme overrides */
 [data-theme="light"] .groww-wallet-tx-modal {
   background: #FAF6ED !important;
   border-color: #DFD8C7 !important;
   box-shadow: 0 24px 64px rgba(60, 45, 30, 0.18) !important;
+}
+
+[data-theme="light"] #walletTransactionsModal.modal-overlay {
+  background: #FAF6ED !important;
 }
 
 [data-theme="light"] .groww-tx-header {
@@ -7892,10 +7926,6 @@ body.viewing-profile .indices-bar {
   border-color: #059669;
   background: rgba(5, 150, 105, 0.12);
   color: #059669;
-}
-
-[data-theme="light"] .groww-tx-failed-toggle {
-  color: #57534E;
 }
 
 [data-theme="light"] .groww-tx-row {

@@ -2912,11 +2912,8 @@
           <button type="button" class="groww-filter-subpill" id="btnFilterDeposits" onclick="setWalletTxFilter('deposit', this)">Deposits</button>
           <button type="button" class="groww-filter-subpill" id="btnFilterWithdrawals" onclick="setWalletTxFilter('withdrawal', this)">Withdrawals</button>
           <button type="button" class="groww-filter-subpill" id="btnFilterTrades" onclick="setWalletTxFilter('trade', this)">Stocks</button>
+          <button type="button" class="groww-filter-subpill" id="btnFilterFailed" onclick="setWalletTxFilter('failed', this)">Failed</button>
         </div>
-        <label class="groww-tx-failed-toggle">
-          <input type="checkbox" id="walletTxOnlyFailedCheckbox" onchange="toggleWalletTxOnlyFailed(this.checked)">
-          <span>Only failed</span>
-        </label>
       </div>
 
       <div class="groww-tx-list-container" id="walletTxListContainer">

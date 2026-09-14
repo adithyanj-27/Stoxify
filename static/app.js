@@ -4324,7 +4324,6 @@ function closeBankPassbookModal() {
 // =======================================================
 let _walletTxState = {
   filter: 'all',
-  onlyFailed: false,
   rawTransactions: []
 };
 
@@ -4339,10 +4338,6 @@ async function openWalletTransactionsModal(initialFilter = 'all') {
   modal.classList.add('active');
 
   _walletTxState.filter = initialFilter || 'all';
-  _walletTxState.onlyFailed = false;
-
-  const cb = document.getElementById('walletTxOnlyFailedCheckbox');
-  if (cb) cb.checked = false;
 
   updateWalletTxFilterUI();
   await loadAndRenderWalletTransactions();
@@ -4359,17 +4354,13 @@ function setWalletTxFilter(filterType, btnEl) {
   renderWalletTxList();
 }
 
-function toggleWalletTxOnlyFailed(checked) {
-  _walletTxState.onlyFailed = Boolean(checked);
-  renderWalletTxList();
-}
-
 function updateWalletTxFilterUI(activeBtn) {
   const filterBtns = [
     { id: 'btnFilterAll', type: 'all' },
     { id: 'btnFilterDeposits', type: 'deposit' },
     { id: 'btnFilterWithdrawals', type: 'withdrawal' },
-    { id: 'btnFilterTrades', type: 'trade' }
+    { id: 'btnFilterTrades', type: 'trade' },
+    { id: 'btnFilterFailed', type: 'failed' }
   ];
 
   filterBtns.forEach(f => {
@@ -4419,10 +4410,10 @@ function renderWalletTxList() {
   const container = document.getElementById('walletTxListContainer');
   if (!container) return;
 
-  const { filter, onlyFailed, rawTransactions } = _walletTxState;
+  const { filter, rawTransactions } = _walletTxState;
 
   let filtered = rawTransactions.filter(tx => {
-    if (onlyFailed && !tx.is_failed) return false;
+    if (filter === 'failed') return Boolean(tx.is_failed);
     if (filter === 'deposit' && tx.type !== 'DEPOSIT') return false;
     if (filter === 'withdrawal' && tx.type !== 'WITHDRAWAL') return false;
     if (filter === 'trade' && tx.type !== 'BUY' && tx.type !== 'SELL') return false;
@@ -4430,7 +4421,7 @@ function renderWalletTxList() {
   });
 
   if (!filtered || filtered.length === 0) {
-    const emptyMsg = onlyFailed 
+    const emptyMsg = (filter === 'failed')
       ? 'No failed transactions found' 
       : (filter !== 'all' ? `No ${filter} transactions found` : 'No transactions recorded yet');
       
