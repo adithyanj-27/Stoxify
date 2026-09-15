@@ -741,19 +741,19 @@
 
       <!-- Real Indian IPOs Hub Sub-view -->
       <div id="explore-ipo-container" style="display: none;">
-        <div class="section-header">
-          <div>
-            <h2 class="section-title">IPO Updates</h2>
-            <p class="section-desc">Live NSE issue information — dates, price bands and overall subscription. Informational only; Stoxify does not accept IPO applications.</p>
-          </div>
-          <div class="filter-pills" style="margin-bottom: 0;">
-            <button class="pill-btn active" onclick="filterIpos('ALL', this)">All updates</button>
-            <button class="pill-btn" onclick="filterIpos('OPEN', this)">Open now</button>
-            <button class="pill-btn" onclick="filterIpos('RECENTLY_LISTED', this)">Recently listed</button>
-          </div>
+        <div class="section-header" style="margin-bottom: 0.75rem; flex-direction: column; align-items: flex-start; gap: 0.25rem;">
+          <h2 class="section-title">Initial Public Offerings (IPOs)</h2>
+          <p class="section-desc" style="margin: 0; max-width: 650px;">Track live mainboard & SME IPOs, subscription rates, price bands, and upcoming listings.</p>
         </div>
 
-        <div class="cards-grid" id="ipoGrid">
+        <div class="filter-pills" id="ipoFilterPills" style="margin-bottom: 1.25rem; overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; padding-bottom: 4px;">
+          <button class="pill-btn active" onclick="filterIpos('OPEN', this)" id="pillIpoOpen">Open Now <span class="tab-count-pill" id="ipoCountOpen">6</span></button>
+          <button class="pill-btn" onclick="filterIpos('UPCOMING', this)" id="pillIpoUpcoming">Upcoming <span class="tab-count-pill" id="ipoCountUpcoming">10</span></button>
+          <button class="pill-btn" onclick="filterIpos('RECENTLY_LISTED', this)" id="pillIpoListed">Recently Listed <span class="tab-count-pill" id="ipoCountListed">24</span></button>
+          <button class="pill-btn" onclick="filterIpos('ALL', this)" id="pillIpoAll">All Issues</button>
+        </div>
+
+        <div class="cards-grid ipo-cards-grid" id="ipoGrid">
           <div style="color: var(--text-muted); font-size: 0.9rem; padding: 2rem;">Loading live IPOs...</div>
         </div>
       </div>

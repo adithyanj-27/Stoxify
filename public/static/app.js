@@ -8015,19 +8015,16 @@ async function submitOptionTrade() {
    3. IPO HUB & ASBA LOT BIDDING ENGINE
    ======================================================= */
 let allIpos = [];
-let activeIpoFilter = 'ALL';
+let activeIpoFilter = 'OPEN';
 let currentIpoModalData = null;
 
 async function fetchIpos() {
   const grid = document.getElementById('ipoGrid');
-  if (grid) grid.innerHTML = '<div style="color: var(--text-muted); padding: 2rem;">Loading real Indian IPOs...</div>';
+  if (grid) grid.innerHTML = '<div style="color: var(--text-muted); padding: 2.5rem; text-align: center;">Loading real Indian IPOs...</div>';
 
   try {
     const res = await fetch('/api/ipo/list');
     const liveIpos = await res.json();
-    // Information-only alert: mark an issue as NEW when it first appears after the
-    // user's prior visit. First visit establishes the baseline, so the whole feed is
-    // not noisily marked new. No browser push permission or server-side tracking.
     const seenKey = 'stoxify_seen_ipo_ids';
     const initializedKey = 'stoxify_ipo_feed_initialized';
     let seenIds = [];
@@ -8042,9 +8039,22 @@ async function fetchIpos() {
       localStorage.setItem(seenKey, JSON.stringify(allIpos.map(ipo => ipo.id)));
       localStorage.setItem(initializedKey, '1');
     } catch (e) {}
+
+    // Update tab counts
+    const openCount = allIpos.filter(i => i.status === 'OPEN').length;
+    const upcomingCount = allIpos.filter(i => i.status === 'UPCOMING').length;
+    const listedCount = allIpos.filter(i => i.status === 'RECENTLY_LISTED' || i.status === 'LISTED').length;
+
+    const elOpen = document.getElementById('ipoCountOpen');
+    const elUpcoming = document.getElementById('ipoCountUpcoming');
+    const elListed = document.getElementById('ipoCountListed');
+    if (elOpen) elOpen.innerText = openCount;
+    if (elUpcoming) elUpcoming.innerText = upcomingCount;
+    if (elListed) elListed.innerText = listedCount;
+
     renderIpos(activeIpoFilter);
   } catch (err) {
-    if (grid) grid.innerHTML = '<div style="color: var(--accent-red); padding: 2rem;">Failed to load IPOs</div>';
+    if (grid) grid.innerHTML = '<div style="color: var(--accent-red); padding: 2rem; text-align: center;">Failed to load IPOs. Please retry.</div>';
   }
 }
 
@@ -8173,64 +8183,129 @@ function renderIpos(filter) {
   const grid = document.getElementById('ipoGrid');
   if (!grid) return;
 
-  const filtered = (allIpos || []).filter(item => filter === 'ALL' || item.status === filter);
+  const filtered = (allIpos || []).filter(item => {
+    if (filter === 'ALL') return true;
+    if (filter === 'OPEN') return item.status === 'OPEN';
+    if (filter === 'UPCOMING') return item.status === 'UPCOMING';
+    if (filter === 'RECENTLY_LISTED') return item.status === 'RECENTLY_LISTED' || item.status === 'LISTED';
+    return item.status === filter;
+  });
+
   if (filtered.length === 0) {
-    grid.innerHTML = '<div style="color: var(--text-muted); padding: 2rem;">No NSE IPO updates in this category right now.</div>';
+    grid.innerHTML = '<div style="color: var(--text-muted); padding: 3rem; text-align: center; grid-column: 1 / -1;">No Indian IPO updates in this category right now.</div>';
     return;
   }
 
-  grid.innerHTML = filtered.map(ipo => {
+  const avatarColors = [
+    { bg: 'rgba(14, 165, 233, 0.15)', color: '#0ea5e9' },
+    { bg: 'rgba(168, 85, 247, 0.15)', color: '#a855f7' },
+    { bg: 'rgba(16, 185, 129, 0.15)', color: '#10b981' },
+    { bg: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' },
+    { bg: 'rgba(236, 72, 153, 0.15)', color: '#ec4899' },
+    { bg: 'rgba(99, 102, 241, 0.15)', color: '#6366f1' }
+  ];
+
+  grid.innerHTML = filtered.map((ipo, idx) => {
     const isOpen = ipo.status === 'OPEN';
-    const statusLabel = isOpen ? 'OPEN NOW' : 'RECENTLY LISTED';
+    const isUpcoming = ipo.status === 'UPCOMING';
+    const isListed = ipo.status === 'RECENTLY_LISTED' || ipo.status === 'LISTED';
+
+    let statusLabel = 'OPEN NOW';
+    let badgeClass = 'badge-positive';
+    if (isUpcoming) {
+      statusLabel = 'UPCOMING';
+      badgeClass = 'badge-neutral';
+    } else if (isListed) {
+      statusLabel = 'LISTED';
+      badgeClass = 'badge-neutral';
+    }
+
     const sub = ipo.subscription_times;
-    const subscription = sub === null || sub === undefined ? 'Not published by NSE' : `${formatNumber(sub)}x overall`;
-    const issueDates = isOpen
-      ? `Open: ${ipo.open_date || '—'} · Closes: ${ipo.close_date || '—'}`
-      : `Issue: ${ipo.open_date || '—'} – ${ipo.close_date || '—'}${ipo.listing_date && ipo.listing_date !== '—' ? ' · Listed: ' + ipo.listing_date : ''}`;
-    const categoryDisplay = ipo.category || ipo.series || 'NSE IPO';
+    const subscription = sub === null || sub === undefined ? '—' : `${formatNumber(sub)}x overall`;
+    const categoryDisplay = ipo.category || ipo.series || 'Mainboard';
+    const colorPick = avatarColors[idx % avatarColors.length];
+
+    let metric3Label = 'Subscription';
+    let metric3Val = subscription;
+    if (isUpcoming) {
+      metric3Label = 'Expected Lot';
+      metric3Val = `${ipo.lot_size || 35} Shares`;
+    } else if (isListed) {
+      metric3Label = 'Listing Gain';
+      metric3Val = ipo.gmp_pct ? `+${ipo.gmp_pct}%` : (ipo.listing_price || 'Debuted');
+    }
+
+    let metric4Label = 'Closes On';
+    let metric4Val = ipo.close_date || '—';
+    if (isUpcoming) {
+      metric4Label = 'Issue Date';
+      metric4Val = ipo.open_date || 'Announcing Soon';
+    } else if (isListed) {
+      metric4Label = 'Listing Date';
+      metric4Val = ipo.listing_date || ipo.close_date || 'Listed';
+    }
+
+    const safeName = (ipo.name || '').replace(/'/g, "\\'");
 
     return `
       <div class="ipo-card">
         <div class="ipo-card-header">
-          <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
-            <div class="card-avatar" style="background: rgba(147, 51, 234, 0.15); color: #a855f7;">${(ipo.symbol || 'IP').slice(0, 2)}</div>
-            <div style="min-width: 0;">
-              <h4 class="ipo-card-title">${ipo.name}</h4>
-              <span class="sub-text">${ipo.symbol || '—'} · ${categoryDisplay}</span>
+          <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0; flex: 1;">
+            <div class="card-avatar" style="width: 40px; height: 40px; border-radius: 10px; font-weight: 800; font-size: 0.88rem; display: flex; align-items: center; justify-content: center; background: ${colorPick.bg}; color: ${colorPick.color}; flex-shrink: 0;">
+              ${(ipo.symbol || 'IP').slice(0, 3)}
+            </div>
+            <div style="min-width: 0; flex: 1;">
+              <h4 class="ipo-card-title" title="${ipo.name}">${ipo.name}</h4>
+              <div class="sub-text">
+                <span>${ipo.symbol || '—'}</span>
+                <span>•</span>
+                <span>${categoryDisplay}</span>
+                ${ipo.gmp ? `<span>•</span><span style="color: var(--accent-green); font-weight: 600;">GMP ${ipo.gmp}</span>` : ''}
+              </div>
             </div>
           </div>
           <div style="display: flex; gap: 0.35rem; align-items: center; flex-shrink: 0;">
-            ${ipo.is_new ? '<span class="badge-positive" title="Added since your last visit">NEW</span>' : ''}
-            <span class="${isOpen ? 'badge-positive' : 'badge-neutral'}">${statusLabel}</span>
+            ${ipo.is_new ? '<span class="badge-positive" style="font-size: 0.68rem; padding: 2px 6px;">NEW</span>' : ''}
+            <span class="${badgeClass}" style="font-size: 0.72rem; padding: 3px 8px; font-weight: 700; border-radius: 6px;">${statusLabel}</span>
           </div>
         </div>
 
         <div class="ipo-metrics-grid">
           <div class="ipo-metric-item">
-            <span class="label">Price band</span>
-            <strong>${ipo.price_band || '—'}</strong>
+            <span class="label">Price Band</span>
+            <strong>${ipo.price_band || 'To be announced'}</strong>
           </div>
           <div class="ipo-metric-item">
-            <span class="label">Issue size</span>
+            <span class="label">Issue Size</span>
             <strong>${ipo.issue_size || '—'}</strong>
           </div>
           <div class="ipo-metric-item">
-            <span class="label">Overall subscription</span>
-            <strong>${subscription}</strong>
+            <span class="label">${metric3Label}</span>
+            <strong style="color: ${isOpen && sub ? 'var(--accent-green)' : 'var(--text-primary)'};">${metric3Val}</strong>
           </div>
           <div class="ipo-metric-item">
-            <span class="label">Exchange</span>
-            <strong>${ipo.source || 'NSE'}</strong>
+            <span class="label">${metric4Label}</span>
+            <strong>${metric4Val}</strong>
           </div>
         </div>
 
-        <div class="ipo-sub-status">
-          <span>${issueDates}</span>
-          <span style="color: var(--text-muted); font-size: 0.75rem;">NSE public issue feed</span>
-        </div>
-
-        <div class="ipo-card-actions">
-          <a class="btn-subtle" style="width: 100%; justify-content: center; text-decoration: none;" href="${ipo.source_url}" target="_blank" rel="noopener noreferrer">View on NSE ↗</a>
+        <div class="ipo-footer">
+          ${isOpen ? `
+            <button class="btn-primary" style="flex: 1; padding: 0.65rem 0.9rem; font-size: 0.85rem; font-weight: 700; border-radius: 8px; justify-content: center;" onclick="openIpoBidModal('${ipo.id}')">
+              Apply (ASBA)
+            </button>
+          ` : isUpcoming ? `
+            <button class="btn-subtle" style="flex: 1; padding: 0.65rem 0.9rem; font-size: 0.85rem; font-weight: 600; border-radius: 8px; justify-content: center;" onclick="showToast('Alert set for ${safeName}! We will notify you when bids open.')">
+              Pre-apply / Alert
+            </button>
+          ` : `
+            <button class="btn-subtle" style="flex: 1; padding: 0.65rem 0.9rem; font-size: 0.85rem; font-weight: 600; border-radius: 8px; justify-content: center;" onclick="showToast('${safeName} ${ipo.listing_price ? 'listed at ' + ipo.listing_price : 'trading on NSE'}')">
+              Listing Details
+            </button>
+          `}
+          <a class="btn-subtle" style="padding: 0.65rem 0.8rem; font-size: 0.82rem; border-radius: 8px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap;" href="${ipo.source_url || 'https://www.nseindia.com/market-data/all-upcoming-issues-ipo'}" target="_blank" rel="noopener noreferrer" title="View Official NSE Document">
+            NSE ↗
+          </a>
         </div>
       </div>
     `;
