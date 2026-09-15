@@ -963,6 +963,61 @@ body {
   color: var(--text-primary);
 }
 
+/* --- Mutual Fund cards: NAV block + multi-period return chips --- */
+.mf-card-body {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-top: 0.85rem;
+}
+
+.mf-nav-block {
+  min-width: 0;
+}
+
+.mf-nav-block .card-subtitle {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mf-ret-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+.mf-ret {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 3px 7px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.mf-ret-pos {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--accent-green);
+}
+
+.mf-ret-neg {
+  background: rgba(244, 63, 94, 0.15);
+  color: var(--danger-red);
+}
+
+.mf-ret-empty {
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+}
+
+.mf-na {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
 /* Portfolio Banner */
 .portfolio-banner {
   background: var(--bg-card);
@@ -1276,7 +1331,9 @@ body {
   color: var(--text-secondary);
   border-radius: 6px;
   cursor: pointer;
-  transition: var(--transition);
+  transition-property: background-color, color, border-color, box-shadow;
+  transition-duration: 0.2s;
+  transition-timing-function: ease;
 }
 
 .trade-toggle-btn.active.buy {
@@ -3514,9 +3571,7 @@ body.pwa-installed #mobileInstallBanner {
     width: 100% !important;
     max-width: 100vw !important;
     max-height: 85vh !important;
-    /* svh is static, so this sheet no longer resizes (and re-flows) when the
-       mobile URL bar or keyboard toggles — same fix as .mobile-drawer-card. */
-    max-height: calc(100svh - 50px) !important;
+    max-height: calc(100dvh - 50px) !important;
     border-radius: 22px 22px 0 0 !important;
     margin: 0 !important;
     box-sizing: border-box !important;
@@ -3630,12 +3685,9 @@ body.pwa-installed #mobileInstallBanner {
   pointer-events: auto !important;
 }
 
-/* Repaint guard: a full-screen backdrop-filter sitting on the parent of a
-   scrolling, transform-animated sheet forces the whole backdrop to be
-   re-composited every time the sheet body repaints (which is exactly what
-   happens on every qty-chip tap). On mobile Chrome/Safari that shows up as
-   flicker / smearing along the bottom of the sheet. The scrim below is
-   visually equivalent but costs no backdrop blur. */
+/* A blurred full-screen parent forces the scrolling sheet to be re-composited
+   whenever quantity text is updated. On mobile Chrome that can omit text for
+   one frame, so use an opaque scrim on mobile instead. */
 @media (max-width: 768px) {
   .mobile-drawer-overlay {
     -webkit-backdrop-filter: none;
@@ -3651,9 +3703,6 @@ body.pwa-installed #mobileInstallBanner {
   width: 100%;
   max-width: 600px;
   max-height: 85vh;
-  /* svh = smallest viewport height. Unlike dvh it does NOT change when the
-     mobile URL bar collapses or the keyboard opens, so the sheet keeps a fixed
-     height and can no longer re-flow / jump while the user taps the quick chips. */
   max-height: calc(100svh - 50px);
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -3668,16 +3717,11 @@ body.pwa-installed #mobileInstallBanner {
   transform: translateY(0);
 }
 
-/* Once the slide-in has finished, JS adds .anim-done and the transform is
-   dropped completely. A settled translateY(0) still keeps the sheet on its own
-   composited layer, and text that gets rewritten inside such a layer is dropped
-   for a single frame on Android — which is the flicker under the qty chips.
-   With transform:none the sheet rasterises on the normal path and the text
-   stays put no matter how fast the chips are tapped. */
+/* Do not retain a transform compositor layer after the opening animation.
+   Text updates then rasterise normally instead of flashing out for a frame. */
 .mobile-drawer-card.anim-done,
 .mobile-drawer-overlay.active .mobile-drawer-card.anim-done {
   transform: none;
-  will-change: auto;
 }
 
 .drawer-drag-pill {
@@ -4227,7 +4271,9 @@ body.pwa-installed #mobileInstallBanner {
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  transition: var(--transition);
+  transition-property: background-color, color, border-color, box-shadow;
+  transition-duration: 0.2s;
+  transition-timing-function: ease;
   text-align: center;
 }
 
@@ -4281,7 +4327,11 @@ body.pwa-installed #mobileInstallBanner {
   font-size: 0.82rem;
   font-weight: 700;
   cursor: pointer;
-  transition: var(--transition);
+  /* Keep quantity/product taps on paint-only transitions; broad `all` can
+     promote the scrolling drawer and make its text disappear for a frame. */
+  transition-property: background-color, color, border-color, box-shadow;
+  transition-duration: 0.2s;
+  transition-timing-function: ease;
   text-align: center;
 }
 
@@ -4356,7 +4406,9 @@ body.pwa-installed #mobileInstallBanner {
   font-size: 0.75rem;
   font-weight: 700;
   cursor: pointer;
-  transition: var(--transition);
+  transition-property: background-color, color, border-color, box-shadow;
+  transition-duration: 0.2s;
+  transition-timing-function: ease;
 }
 
 .qty-chip:hover {

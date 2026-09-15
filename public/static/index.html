@@ -726,26 +726,30 @@
 
         <div class="section-header">
           <div>
-            <h2 class="section-title">Popular Mutual Funds</h2>
-            <p class="section-desc">Official NAVs and annualized performance powered by AMFI</p>
+            <h2 class="section-title">Mutual Funds</h2>
+            <p class="section-desc" id="mfSectionDesc">Live NAVs and annualised returns from AMFI</p>
           </div>
         </div>
 
-        <div class="cards-grid" id="mfGrid"></div>
+        <!-- Category rail, populated from real AMFI scheme categories -->
+        <div class="filter-pills" id="mfCategoryPills"></div>
+
+        <div class="cards-grid" id="mfGrid">
+          <div style="color: var(--text-muted); font-size: 0.9rem; padding: 2rem;">Fetching live NAVs from AMFI...</div>
+        </div>
       </div>
 
       <!-- Real Indian IPOs Hub Sub-view -->
       <div id="explore-ipo-container" style="display: none;">
         <div class="section-header">
           <div>
-            <h2 class="section-title">Initial Public Offerings (IPOs)</h2>
-            <p class="section-desc">Real Indian mainline & SME IPOs with verified price bands, GMP, and simulated ASBA lot bidding</p>
+            <h2 class="section-title">IPO Updates</h2>
+            <p class="section-desc">Live NSE issue information — dates, price bands and overall subscription. Informational only; Stoxify does not accept IPO applications.</p>
           </div>
           <div class="filter-pills" style="margin-bottom: 0;">
-            <button class="pill-btn active" onclick="filterIpos('ALL', this)">All</button>
-            <button class="pill-btn" onclick="filterIpos('LISTED', this)">Recently Listed</button>
-            <button class="pill-btn" onclick="filterIpos('UPCOMING', this)">Upcoming</button>
-            <button class="pill-btn" onclick="filterIpos('APPLICATIONS', this)">My Applications</button>
+            <button class="pill-btn active" onclick="filterIpos('ALL', this)">All updates</button>
+            <button class="pill-btn" onclick="filterIpos('OPEN', this)">Open now</button>
+            <button class="pill-btn" onclick="filterIpos('RECENTLY_LISTED', this)">Recently listed</button>
           </div>
         </div>
 

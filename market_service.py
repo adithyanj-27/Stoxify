@@ -38,6 +38,12 @@ def set_cached(key: str, val: Any, ttl: int = 60):
 
 _POOL = concurrent.futures.ThreadPoolExecutor(max_workers=16)
 
+# Dedicated pool for mutual fund fetches. The stock block in get_explore_data()
+# abandons its slow yfinance futures after 1.5s WITHOUT cancelling them, so they keep
+# occupying _POOL workers for many seconds afterwards. Sharing that pool starved the
+# MF fetches -- most funds never returned in time and fell through to the fallback.
+_MF_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=12, thread_name_prefix="mf")
+
 def get_indices() -> List[Dict[str, Any]]:
     cached = get_cached("indices")
     if cached:
@@ -241,6 +247,44 @@ def _refresh_stock_quote_sync(formatted_symbol: str) -> Dict[str, Any]:
         set_cached(cache_key, fallback, ttl=30)
         return fallback
 
+def _nav_at_or_before(data_list: List[Dict[str, Any]], target: datetime) -> tuple:
+    """Last NAV observation on/before `target` from an mfapi.in series (newest-first, 'DD-MM-YYYY').
+
+    Returns (nav, date) or (None, None).
+    """
+    for row in data_list:
+        try:
+            d = datetime.strptime(str(row.get("date", "")).strip(), "%d-%m-%Y")
+        except Exception:
+            continue
+        if d <= target:
+            try:
+                return float(row["nav"]), d
+            except (KeyError, TypeError, ValueError):
+                continue
+    return None, None
+
+
+def _annualised_return(data_list: List[Dict[str, Any]], price: float, years: float) -> Optional[float]:
+    """Return over `years`, computed from real NAV history — or None if the fund is too young.
+
+    Deliberately returns None rather than estimating: a plausible-looking invented
+    return is worse than an honest gap.
+    """
+    if not data_list or not price or price <= 0:
+        return None
+    now = datetime.now()
+    nav_then, dt_then = _nav_at_or_before(data_list, now - timedelta(days=round(365.25 * years)))
+    if not nav_then or nav_then <= 0:
+        return None
+    span_years = (now - dt_then).days / 365.25
+    if span_years <= 0 or span_years < years * 0.9:
+        return None
+    if years <= 1:
+        return round(((price - nav_then) / nav_then) * 100, 2)
+    return round((((price / nav_then) ** (1.0 / span_years)) - 1) * 100, 2)
+
+
 def get_mutual_fund_quote(code: str) -> Dict[str, Any]:
     code_str = str(code).strip()
     cache_key = f"mf_{code_str}"
@@ -256,11 +300,11 @@ def get_mutual_fund_quote(code: str) -> Dict[str, Any]:
 
     try:
         url = f"https://api.mfapi.in/mf/{code_str}"
-        resp = requests.get(url, timeout=3.5)
+        resp = requests.get(url, timeout=6.0)
         if resp.status_code == 200:
             res_json = resp.json()
-            data_list = res_json.get("data", [])
-            meta = res_json.get("meta", {})
+            data_list = res_json.get("data", []) or []
+            meta = res_json.get("meta", {}) or {}
             if meta.get("scheme_name"):
                 name = meta["scheme_name"]
             if meta.get("fund_house"):
@@ -270,17 +314,13 @@ def get_mutual_fund_quote(code: str) -> Dict[str, Any]:
 
             if data_list:
                 latest = data_list[0]
-                price = round(float(latest["nav"]), 2)
+                # Keep the exact NAV for return maths. Rounding to 2dp before computing
+                # introduced a 0.01-0.03pp drift on the longer-period CAGRs.
+                nav_exact = float(latest["nav"])
+                price = round(nav_exact, 2)
                 prev_price = round(float(data_list[1]["nav"]), 2) if len(data_list) > 1 else price
                 change = round(price - prev_price, 2)
                 change_pct = round((change / prev_price) * 100, 2) if prev_price else 0.0
-
-                # 1Y return estimate based on historical NAV if available
-                return_1y = 21.4
-                if len(data_list) >= 240:
-                    nav_1y_ago = float(data_list[240]["nav"])
-                    if nav_1y_ago > 0:
-                        return_1y = round(((price - nav_1y_ago) / nav_1y_ago) * 100, 2)
 
                 mf_data = {
                     "symbol": code_str,
@@ -291,36 +331,46 @@ def get_mutual_fund_quote(code: str) -> Dict[str, Any]:
                     "change_pct": change_pct,
                     "previous_close": prev_price,
                     "category": category,
+                    "scheme_type": meta.get("scheme_type"),
                     "fund_house": fund_house,
+                    "isin": meta.get("isin_growth"),
                     "rating": rating,
-                    "return_1y": return_1y,
-                    "nav_date": latest.get("date", "Today")
+                    "return_1y": _annualised_return(data_list, nav_exact, 1),
+                    "return_3y": _annualised_return(data_list, nav_exact, 3),
+                    "return_5y": _annualised_return(data_list, nav_exact, 5),
+                    "nav_date": latest.get("date"),
+                    "nav_unavailable": False
                 }
                 set_cached(cache_key, mf_data, ttl=300)
                 return mf_data
     except Exception:
         pass
 
+    # Serve an expired-but-real quote rather than inventing one. Never fabricate NAV.
     stale = _CACHE.get(cache_key)
-    if stale:
+    if isinstance(stale, dict) and stale.get("price"):
         return stale
 
-    fallback = {
+    # No real data available. Report the gap honestly and do NOT cache it, so the
+    # next request retries instead of pinning an "unavailable" state for minutes.
+    return {
         "symbol": code_str,
         "name": name,
         "asset_type": "MUTUAL_FUND",
-        "price": 95.0,
-        "change": 0.65,
-        "change_pct": 0.69,
-        "previous_close": 94.35,
         "category": category,
         "fund_house": fund_house,
         "rating": rating,
-        "return_1y": 22.5,
-        "nav_date": "Today"
+        "price": None,
+        "change": None,
+        "change_pct": None,
+        "previous_close": None,
+        "return_1y": None,
+        "return_3y": None,
+        "return_5y": None,
+        "nav_date": None,
+        "nav_unavailable": True,
+        "nav_error": "NAV unavailable from AMFI (api.mfapi.in)"
     }
-    set_cached(cache_key, fallback, ttl=120)
-    return fallback
 
 _BASE_STOCK_PRICES = {
     "RELIANCE.NS": (1322.00, 19.50, 1.50),
@@ -451,19 +501,25 @@ def get_explore_data() -> Dict[str, Any]:
 
     all_stocks = list(stock_dict.values())
 
-    # Mutual funds with 1.2-second cap
+    # Mutual funds — real AMFI NAVs via mfapi.in. No synthetic prices: a fund we
+    # cannot fetch is reported as unavailable rather than shown with invented figures.
     mf_dict = {}
-    top_mf_codes = [mf["code"] for mf in MUTUAL_FUND_MASTER[:8]]
-    for mf in MUTUAL_FUND_MASTER[:8]:
-        cached_mf = get_cached(f"mf_quote_{mf['code']}")
+    mf_master = MUTUAL_FUND_MASTER
+    for mf in mf_master:
+        # 'mf_{code}' is the key get_mutual_fund_quote() writes; the old 'mf_quote_'
+        # key never matched, so this warm-up never actually hit.
+        cached_mf = get_cached(f"mf_{mf['code']}")
         if cached_mf:
             mf_dict[str(mf['code'])] = cached_mf
 
-    missing_mfs = [c for c in top_mf_codes if str(c) not in mf_dict]
+    missing_mfs = [mf["code"] for mf in mf_master if str(mf["code"]) not in mf_dict]
     if missing_mfs:
         try:
-            mf_futures = {_POOL.submit(get_mutual_fund_quote, code): code for code in missing_mfs}
-            done_mf, _ = concurrent.futures.wait(mf_futures.keys(), timeout=1.2)
+            mf_futures = {_MF_POOL.submit(get_mutual_fund_quote, code): code for code in missing_mfs}
+            # One mfapi.in response is ~130KB of NAV history per fund, so this needs a
+            # real budget. The previous 1.2s cap expired before most fetches came back,
+            # which pushed nearly every fund into the old fabricated fallback.
+            done_mf, _ = concurrent.futures.wait(mf_futures.keys(), timeout=8.0)
             for f in done_mf:
                 try:
                     mq = f.result()
@@ -474,22 +530,25 @@ def get_explore_data() -> Dict[str, Any]:
         except Exception:
             pass
 
-    for mf in MUTUAL_FUND_MASTER[:8]:
+    for mf in mf_master:
         code_str = str(mf["code"])
         if code_str not in mf_dict or not mf_dict[code_str].get("price"):
             mf_dict[code_str] = {
                 "symbol": code_str,
                 "name": mf["name"],
                 "asset_type": "MUTUAL_FUND",
-                "price": 95.0,
-                "change": 0.65,
-                "change_pct": 0.69,
-                "previous_close": 94.35,
+                "price": None,
+                "change": None,
+                "change_pct": None,
+                "previous_close": None,
                 "category": mf.get("category", "Equity"),
                 "fund_house": mf.get("fund_house", "Mutual Fund"),
-                "rating": 5,
-                "return_1y": 22.5,
-                "nav_date": "Today"
+                "rating": mf.get("rating"),
+                "return_1y": None,
+                "return_3y": None,
+                "return_5y": None,
+                "nav_date": None,
+                "nav_unavailable": True
             }
 
     all_mfs = list(mf_dict.values())
@@ -698,16 +757,11 @@ def get_mf_chart(code: str, timeframe: str = "1M") -> List[Dict[str, Any]]:
     except Exception:
         pass
 
-    mf_q = get_mutual_fund_quote(code_str)
-    base_nav = mf_q["price"]
-    now = datetime.now()
-    points = [
-        {
-            "time": (now - timedelta(days=20 - 1 - i)).strftime("%d-%m-%Y"),
-            "value": round(base_nav * (0.95 + (i * 0.003)), 2)
-        } for i in range(20)
-    ]
-    return points
+    # No real NAV history available. This previously returned 20 SYNTHETIC NAV points
+    # interpolated from the base NAV (0.95 + i*0.003), which is invented price data.
+    # It also sat outside the try above, so a fund with no price raised TypeError ->
+    # HTTP 500. A fund with no NAV history simply has no chart: return an empty series.
+    return []
 
 def search_market(query: str) -> List[Dict[str, Any]]:
     q = query.strip().lower()

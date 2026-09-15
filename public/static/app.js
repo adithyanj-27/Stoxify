@@ -118,6 +118,7 @@ const state = {
   exploreSubnav: 'stocks',
   ordersSubnav: 'executed',
   exploreStockFilter: 'all',
+  exploreMfFilter: 'all',
   exploreData: null,
   account: { balance: 0.0, bank_balance: 1000000.0 },
   watchlist: getLocalWatchlistSet(),
@@ -620,12 +621,11 @@ const DEFAULT_EXPLORE_DATA = {
     { symbol: 'ITC.NS', name: 'ITC Ltd', price: 482.00, change: -2.10, change_pct: -0.43, sector: 'Consumer', asset_type: 'STOCK' },
     { symbol: 'INFY.NS', name: 'Infosys Ltd', price: 1820.00, change: -8.50, change_pct: -0.46, sector: 'IT', asset_type: 'STOCK' }
   ],
-  mutual_funds: [
-    { symbol: '120503', name: 'Axis Small Cap Fund Direct Growth', price: 96.40, change: 0.85, change_pct: 0.89, category: 'Small Cap Equity', return_1y: 28.4, rating: 5, asset_type: 'MUTUAL_FUND' },
-    { symbol: '118989', name: 'Mirae Asset Large Cap Fund Direct Growth', price: 114.20, change: 0.60, change_pct: 0.53, category: 'Large Cap Equity', return_1y: 21.2, rating: 5, asset_type: 'MUTUAL_FUND' },
-    { symbol: '120716', name: 'UTI Nifty 50 Index Fund Direct Growth', price: 172.50, change: 1.10, change_pct: 0.64, category: 'Index Fund', return_1y: 23.5, rating: 5, asset_type: 'MUTUAL_FUND' },
-    { symbol: '125354', name: 'Parag Parikh Flexi Cap Fund Direct Growth', price: 78.90, change: 0.70, change_pct: 0.90, category: 'Flexi Cap Equity', return_1y: 26.1, rating: 5, asset_type: 'MUTUAL_FUND' }
-  ]
+  // Deliberately empty. This used to hold four invented funds (fabricated NAVs such as
+  // price 96.40 with return_1y 28.4) which rendered as real AMFI data whenever the API
+  // call was slow or failed. A fund identity without a real NAV is worse than an honest
+  // loading/unavailable state, so the live fetch populates this from here on.
+  mutual_funds: []
 };
 
 function loadStoredExploreData() {
@@ -633,7 +633,16 @@ function loadStoredExploreData() {
     const raw = localStorage.getItem('stoxify_explore_cache');
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed && parsed.all_stocks && parsed.all_stocks.length > 0) return parsed;
+      if (parsed && parsed.all_stocks && parsed.all_stocks.length > 0) {
+        // A cache written before the live-NAV change can still contain the four removed
+        // fabricated funds (they had no nav_date / nav_unavailable field). Drop any MF
+        // entry that doesn't look like a live quote so it can never be re-displayed.
+        if (Array.isArray(parsed.mutual_funds)) {
+          parsed.mutual_funds = parsed.mutual_funds.filter(m =>
+            m && (m.nav_date !== undefined || m.nav_unavailable !== undefined));
+        }
+        return parsed;
+      }
     }
   } catch (e) {}
   return DEFAULT_EXPLORE_DATA;
@@ -1053,8 +1062,14 @@ function renderRecentlyViewedMutualFunds() {
       if (match) live = { ...mf, price: match.price, return_1y: match.return_1y };
     }
     const cleanSym = (live.symbol || '').replace('.NS', '').replace('.BO', '');
-    const returnVal = live.return_1y !== undefined ? live.return_1y : live.change_pct;
-    const isPos = (returnVal || 0) >= 0;
+    const navMissing = mfNavMissing(live);
+    // A null 1Y return must not fall through to formatNumber(), which renders it as 0.00.
+    let returnVal = live.return_1y;
+    if (returnVal === null || returnVal === undefined || isNaN(returnVal)) {
+      returnVal = (live.change_pct === null || live.change_pct === undefined) ? null : live.change_pct;
+    }
+    const hasReturn = returnVal !== null && returnVal !== undefined && !isNaN(returnVal);
+    const isPos = hasReturn && returnVal >= 0;
     return `
       <div class="most-bought-card" onclick="openAssetModal('${live.symbol}', 'MUTUAL_FUND')">
         <div class="mb-top">
@@ -1063,8 +1078,10 @@ function renderRecentlyViewedMutualFunds() {
         </div>
         <div class="mb-name" title="${live.name}">${live.name}</div>
         <div class="mb-bottom">
-          <span class="mb-price">${formatINR(live.price)}</span>
-          <span class="${isPos ? 'badge-positive' : 'badge-negative'} mb-badge">${isPos ? '+' : ''}${formatNumber(returnVal)}% 1Y</span>
+          <span class="mb-price">${navMissing ? '<span class="mf-na">NAV n/a</span>' : formatINR(live.price)}</span>
+          ${hasReturn
+            ? `<span class="${isPos ? 'badge-positive' : 'badge-negative'} mb-badge">${isPos ? '+' : ''}${formatNumber(returnVal)}% 1Y</span>`
+            : '<span class="mb-badge mf-na">unavailable</span>'}
         </div>
       </div>
     `;
@@ -1162,11 +1179,111 @@ function renderExploreStocks() {
   }).join('');
 }
 
+// --- Mutual Fund card helpers ---
+
+// AMFI reports verbose categories such as "Equity Scheme - Flexi Cap Fund" or
+// "Other Scheme - Index Funds". Shorten them for the category rail.
+function mfShortCategory(mf) {
+  let c = ((mf && mf.category) || '').trim();
+  if (!c) return 'Other';
+  const parts = c.split(' - ');
+  if (parts.length > 1) c = parts.slice(1).join(' - ');
+  c = c.replace(/\s*Funds?$/i, '').replace(/\s*Scheme$/i, '').trim();
+  return c || 'Other';
+}
+
+// A missing NAV must never render as ₹0.00 (formatINR's null fallback) or NaN.
+function mfNavMissing(mf) {
+  return !mf || mf.nav_unavailable === true || mf.price === null ||
+         mf.price === undefined || isNaN(mf.price);
+}
+
+// Multi-period return chip. Renders an em dash rather than inventing a 0.00%.
+function mfReturnChip(val, label) {
+  if (val === null || val === undefined || isNaN(val)) {
+    return `<span class="mf-ret mf-ret-empty" title="Not enough NAV history">${label} —</span>`;
+  }
+  const cls = val >= 0 ? 'mf-ret-pos' : 'mf-ret-neg';
+  const sign = val >= 0 ? '+' : '';
+  return `<span class="mf-ret ${cls}">${label} ${sign}${formatNumber(val)}%</span>`;
+}
+
+// Plain-text multi-period return, for the detail/fundamentals grids. Returns an em
+// dash rather than a made-up number when the fund lacks the NAV history.
+function mfReturnText(val) {
+  if (val === null || val === undefined || isNaN(val)) return '—';
+  return `${val >= 0 ? '+' : ''}${formatNumber(val)}%`;
+}
+
+// Sign-aware class so a negative return is never painted green.
+function mfReturnClass(val) {
+  if (val === null || val === undefined || isNaN(val)) return '';
+  return val >= 0 ? 'text-positive' : 'text-negative';
+}
+
+function filterMfCategory(cat, btn) {
+  state.exploreMfFilter = cat;
+  const bar = document.getElementById('mfCategoryPills');
+  if (bar) bar.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderExploreMutualFunds();
+}
+
 function renderExploreMutualFunds() {
   renderRecentlyViewedMutualFunds();
-  if (!state.exploreData || !state.exploreData.mutual_funds) return;
   const grid = document.getElementById('mfGrid');
-  grid.innerHTML = state.exploreData.mutual_funds.map(mf => {
+  const pills = document.getElementById('mfCategoryPills');
+  const desc = document.getElementById('mfSectionDesc');
+  if (!grid) return;
+
+  const all = (state.exploreData && state.exploreData.mutual_funds) || [];
+  if (all.length === 0) {
+    if (pills) pills.innerHTML = '';
+    grid.innerHTML = '<div style="color: var(--text-muted); font-size: 0.9rem; padding: 2rem;">Fetching live NAVs from AMFI...</div>';
+    return;
+  }
+
+  const priced = all.filter(m => !mfNavMissing(m));
+  const cats = Array.from(new Set(all.map(mfShortCategory))).sort();
+  // A category can disappear between refreshes; snap back to All rather than showing an empty grid.
+  if (state.exploreMfFilter !== 'all' && cats.indexOf(state.exploreMfFilter) === -1) {
+    state.exploreMfFilter = 'all';
+  }
+
+  if (pills) {
+    const chips = [['all', 'All']].concat(cats.map(c => [c, c]));
+    pills.innerHTML = chips.map(([val, label]) =>
+      `<button class="pill-btn ${state.exploreMfFilter === val ? 'active' : ''}" onclick="filterMfCategory('${String(val).replace(/'/g, "\\'")}', this)">${label}</button>`
+    ).join('');
+  }
+
+  const list = state.exploreMfFilter === 'all'
+    ? all
+    : all.filter(m => mfShortCategory(m) === state.exploreMfFilter);
+
+  if (desc) {
+    const dates = priced.map(m => m.nav_date).filter(Boolean).sort();
+    const asOf = dates.length ? dates[dates.length - 1] : null;
+    const matching = dates.filter(d => d === asOf).length;
+    if (!priced.length) {
+      desc.innerText = 'Live NAVs from AMFI are currently unavailable — retrying shortly';
+    } else if (asOf && matching < priced.length) {
+      // Some schemes publish on a different, sometimes much older, date. Claiming one
+      // "as of" date for every fund overstated how current the stale ones were.
+      desc.innerText = `Live NAVs from AMFI — ${matching} of ${priced.length} priced funds as of ${asOf}, remainder older`;
+    } else {
+      desc.innerText = `Live NAVs from AMFI${asOf ? ' — as of ' + asOf : ''} (${priced.length} of ${all.length} funds priced)`;
+    }
+  }
+
+  if (list.length === 0) {
+    grid.innerHTML = '<div style="color: var(--text-muted); font-size: 0.9rem; padding: 2rem;">No funds in this category.</div>';
+    return;
+  }
+
+  grid.innerHTML = list.map(mf => {
+    const missing = mfNavMissing(mf);
+    const rated = mf.rating !== null && mf.rating !== undefined && mf.rating !== '';
     return `
       <div class="stock-card" onclick="openAssetModal('${mf.symbol}', 'MUTUAL_FUND')">
         <div class="card-top">
@@ -1174,17 +1291,20 @@ function renderExploreMutualFunds() {
             ${renderAssetAvatar(mf, 'MUTUAL_FUND')}
             <div class="card-info">
               <div class="card-title" title="${mf.name}">${mf.name}</div>
-              <div class="card-subtitle">${mf.category || 'Equity Fund'} • ${mf.fund_house || 'Mutual Fund'}</div>
+              <div class="card-subtitle">${mfShortCategory(mf)} • ${mf.fund_house || 'Mutual Fund'}${rated ? ' • ★ ' + mf.rating : ''}</div>
             </div>
           </div>
           ${renderCardStarBtn(mf.symbol, mf.name, 'MUTUAL_FUND')}
         </div>
-        <div class="card-bottom">
-          <div class="card-price">${formatINR(mf.price)}</div>
-          <div style="text-align: right;">
-            <div class="badge-positive" style="background: rgba(16, 185, 129, 0.15); color: var(--accent-green); font-weight: 700; border-radius: 6px; padding: 2px 6px;">
-              +${formatNumber(mf.return_1y)}% 1Y
-            </div>
+        <div class="mf-card-body">
+          <div class="mf-nav-block">
+            <div class="card-price">${missing ? '<span class="mf-na">NAV unavailable</span>' : formatINR(mf.price)}</div>
+            <div class="card-subtitle">${mf.nav_date ? 'NAV as of ' + mf.nav_date : '&nbsp;'}</div>
+          </div>
+          <div class="mf-ret-row">
+            ${mfReturnChip(mf.return_1y, '1Y')}
+            ${mfReturnChip(mf.return_3y, '3Y')}
+            ${mfReturnChip(mf.return_5y, '5Y')}
           </div>
         </div>
       </div>
@@ -1802,7 +1922,11 @@ async function fetchWatchlist() {
     }
 
     grid.innerHTML = items.map(item => {
-      const isPos = (item.change || 0) >= 0;
+      // null >= 0 is true in JS, so the old `(item.change || 0) >= 0` painted an
+      // unavailable quote green, and formatINR(null) printed ₹0.00.
+      const hasPrice = item.price !== null && item.price !== undefined && !isNaN(item.price);
+      const hasChange = item.change !== null && item.change !== undefined && !isNaN(item.change);
+      const isPos = hasChange && item.change >= 0;
       const badgeClass = isPos ? 'badge-positive' : 'badge-negative';
       const isMF = item.asset_type === 'MUTUAL_FUND';
       const subtitle = isMF ? 'Mutual Fund • Direct Plan' : `${item.symbol} • Stock`;
@@ -1820,9 +1944,9 @@ async function fetchWatchlist() {
             ${renderCardStarBtn(item.symbol, item.name, item.asset_type)}
           </div>
           <div class="card-bottom">
-            <div class="card-price">${formatINR(item.price)}</div>
+            <div class="card-price">${hasPrice ? formatINR(item.price) : '<span class="mf-na">Unavailable</span>'}</div>
             <div class="${badgeClass}">
-              ${formatChange(item.change, item.change_pct)}
+              ${hasChange ? formatChange(item.change, item.change_pct) : '—'}
             </div>
           </div>
         </div>
@@ -2064,14 +2188,21 @@ async function legacyOpenAssetModal(symbol, assetType = 'STOCK', preselectAction
     document.getElementById('modalSymbol').innerText = isIndex ? cleanSym : data.symbol;
     document.getElementById('modalBadge').innerText = isIndex ? 'INDEX' : (data.asset_type === 'MUTUAL_FUND' ? 'MUTUAL FUND' : 'NSE');
 
-    document.getElementById('modalPrice').innerText = formatINR(data.price);
-    document.getElementById('tradePriceInput').value = data.price;
-    document.getElementById('tradeLimitPriceInput').value = data.price;
+    // An unavailable quote must not render as ₹0.00. Note also that null >= 0 is TRUE
+    // in JS, so the old isPos check forced a green badge for a null change.
+    const priceMissing = data.nav_unavailable === true || data.price === null ||
+                         data.price === undefined || isNaN(data.price);
+    document.getElementById('modalPrice').innerText = priceMissing
+      ? (data.asset_type === 'MUTUAL_FUND' ? 'NAV unavailable' : 'Price unavailable')
+      : formatINR(data.price);
+    document.getElementById('tradePriceInput').value = priceMissing ? '' : data.price;
+    document.getElementById('tradeLimitPriceInput').value = priceMissing ? '' : data.price;
 
-    const isPos = data.change >= 0;
+    const hasChange = data.change !== null && data.change !== undefined && !isNaN(data.change);
+    const isPos = hasChange && data.change >= 0;
     const badge = document.getElementById('modalChangeBadge');
     badge.className = isPos ? 'badge-positive' : 'badge-negative';
-    badge.innerText = formatChange(data.change, data.change_pct);
+    badge.innerText = hasChange ? formatChange(data.change, data.change_pct) : '—';
 
     // Fundamentals
     const fundContainer = document.getElementById('modalFundamentals');
@@ -2088,8 +2219,8 @@ async function legacyOpenAssetModal(symbol, assetType = 'STOCK', preselectAction
       fundContainer.innerHTML = `
         <div><span style="color: var(--text-muted);">Category:</span> <strong>${data.category || 'Equity'}</strong></div>
         <div><span style="color: var(--text-muted);">Fund House:</span> <strong>${data.fund_house || 'AMC'}</strong></div>
-        <div><span style="color: var(--text-muted);">1Y Returns:</span> <strong>+${formatNumber(data.return_1y)}%</strong></div>
-        <div><span style="color: var(--text-muted);">NAV Date:</span> <strong>${data.nav_date || 'Today'}</strong></div>
+        <div><span style="color: var(--text-muted);">1Y Returns:</span> <strong class="${mfReturnClass(data.return_1y)}">${mfReturnText(data.return_1y)}</strong></div>
+        <div><span style="color: var(--text-muted);">NAV Date:</span> <strong>${data.nav_date || '—'}</strong></div>
       `;
       document.getElementById('modalDepthSection').style.display = 'none';
     }
@@ -5028,15 +5159,21 @@ function renderPageFundamentals(data) {
   const grid = document.getElementById('pageFundamentalsGrid');
   if (!grid) return;
   if (data.asset_type === 'MUTUAL_FUND') {
+    // Every value here must come from the live AMFI quote. This block previously
+    // hardcoded '₹72,400 Cr' AUM, '0.62%' expense ratio, '+18.4%' / '+24.1%' returns,
+    // 'Very High' risk and 'Rajeev Thakkar' as fund manager — none of which the quote
+    // endpoint supplies — so those literals rendered as fact on EVERY fund. Fields
+    // AMFI does not publish are now shown as unavailable instead of invented.
+    const navTxt = mfNavMissing(data) ? '<span class="mf-na">Unavailable</span>' : formatINR(data.price);
     grid.innerHTML = `
-      <div class="fundamental-item"><span class="f-name">NAV</span><strong class="f-val">${formatINR(data.price)}</strong></div>
-      <div class="fundamental-item"><span class="f-name">Fund Category</span><strong class="f-val">${data.category || 'Flexi Cap'}</strong></div>
-      <div class="fundamental-item"><span class="f-name">AUM (Fund Size)</span><strong class="f-val">${data.aum || '₹72,400 Cr'}</strong></div>
-      <div class="fundamental-item"><span class="f-name">Expense Ratio</span><strong class="f-val">${data.expense_ratio ? data.expense_ratio + '%' : '0.62%'}</strong></div>
-      <div class="fundamental-item"><span class="f-name">1Y Return</span><strong class="f-val text-positive">${data.return_1y ? '+' + data.return_1y + '%' : '+18.4%'}</strong></div>
-      <div class="fundamental-item"><span class="f-name">3Y Return (CAGR)</span><strong class="f-val text-positive">${data.return_3y ? '+' + data.return_3y + '%' : '+24.1%'}</strong></div>
-      <div class="fundamental-item"><span class="f-name">Risk Rating</span><strong class="f-val">Very High</strong></div>
-      <div class="fundamental-item"><span class="f-name">Fund Manager</span><strong class="f-val">${data.fund_manager || 'Rajeev Thakkar'}</strong></div>
+      <div class="fundamental-item"><span class="f-name">NAV</span><strong class="f-val">${navTxt}</strong></div>
+      <div class="fundamental-item"><span class="f-name">Fund Category</span><strong class="f-val">${data.category || '—'}</strong></div>
+      <div class="fundamental-item"><span class="f-name">Fund House</span><strong class="f-val">${data.fund_house || '—'}</strong></div>
+      <div class="fundamental-item"><span class="f-name">1Y Return</span><strong class="f-val ${mfReturnClass(data.return_1y)}">${mfReturnText(data.return_1y)}</strong></div>
+      <div class="fundamental-item"><span class="f-name">3Y Return (CAGR)</span><strong class="f-val ${mfReturnClass(data.return_3y)}">${mfReturnText(data.return_3y)}</strong></div>
+      <div class="fundamental-item"><span class="f-name">5Y Return (CAGR)</span><strong class="f-val ${mfReturnClass(data.return_5y)}">${mfReturnText(data.return_5y)}</strong></div>
+      <div class="fundamental-item"><span class="f-name">NAV Date</span><strong class="f-val">${data.nav_date || '—'}</strong></div>
+      <div class="fundamental-item"><span class="f-name">ISIN</span><strong class="f-val">${data.isin || '—'}</strong></div>
     `;
   } else {
     const pe = (data.pe_ratio !== undefined && data.pe_ratio !== null) ? data.pe_ratio : '—';
@@ -5732,22 +5869,22 @@ function openMobileTradeDrawer(action = 'BUY') {
   const drawer = document.getElementById('mobileTradingDrawerOverlay');
   if (drawer) {
     const card = drawer.querySelector('.mobile-drawer-card');
-    // Make sure a previous .anim-done cannot block the slide-in transition.
+    // A prior open leaves the sheet settled without a transform. Restore the
+    // transform before activating it so the slide-in transition still plays.
     if (card) card.classList.remove('anim-done');
     drawer.classList.add('active');
     document.body.style.overflow = 'hidden';
-    // Drop the transform once the sheet has settled (see .anim-done in style.css).
-    // While the sheet stays transform-composited, Android drops the rewritten
-    // qty / margin text for a single frame on each tap -> the flicker.
     if (card) {
       const settle = () => {
         if (drawer.classList.contains('active')) card.classList.add('anim-done');
       };
-      card.addEventListener('transitionend', function onSlideEnd(e) {
-        if (e.target !== card || e.propertyName !== 'transform') return;
+      card.addEventListener('transitionend', function onSlideEnd(event) {
+        if (event.target !== card || event.propertyName !== 'transform') return;
         card.removeEventListener('transitionend', onSlideEnd);
         settle();
       });
+      // Fallback for browsers that do not fire transitionend (for example when
+      // reduced-motion is enabled).
       setTimeout(settle, 400);
     }
   }
@@ -5783,7 +5920,6 @@ function openMobileTradeDrawer(action = 'BUY') {
 function closeMobileTradeDrawer() {
   const drawer = document.getElementById('mobileTradingDrawerOverlay');
   if (drawer) {
-    // Clear the settled state first so the slide-down transition still runs.
     const card = drawer.querySelector('.mobile-drawer-card');
     if (card) card.classList.remove('anim-done');
     drawer.classList.remove('active');
@@ -5954,18 +6090,7 @@ function setPageOrderVariety(varType) {
   recalcPageMargin();
 }
 
-// An open on-screen keyboard shrinks the visual viewport, which resizes the
-// bottom sheet mid-interaction (the visible "glitch" under the qty chips).
-// Drop focus before mutating the order state so the keyboard closes first.
-function dismissMobileKeyboard() {
-  const ae = document.activeElement;
-  if (ae && ae !== document.body && typeof ae.blur === 'function') {
-    ae.blur();
-  }
-}
-
 function stepPageQuantity(delta) {
-  dismissMobileKeyboard();
   const input = document.getElementById('pageOrderQuantity');
   const dInput = document.getElementById('drawerOrderQuantity');
   let val = parseInt((input ? input.value : '1') || '1', 10) + delta;
@@ -5977,7 +6102,6 @@ function stepPageQuantity(delta) {
 }
 
 function setPageQuickQuantity(qty) {
-  dismissMobileKeyboard();
   const input = document.getElementById('pageOrderQuantity');
   const dInput = document.getElementById('drawerOrderQuantity');
   if (input) input.value = qty;
@@ -5986,12 +6110,10 @@ function setPageQuickQuantity(qty) {
   recalcPageMargin();
 }
 
-// Write text only when it actually changed. Assigning innerText always swaps the
-// child text node and re-invalidates the element, so a single chip tap used to
-// dirty ~20 text nodes (drawer + page card). Fewer invalidated nodes = far less
-// chance of the compositor presenting a frame with the text dropped.
-function setTextIfChanged(el, txt) {
-  if (el && el.textContent !== txt) el.textContent = txt;
+// Avoid replacing DOM text nodes when a quick-quantity tap did not change a
+// value. That keeps repaint work in the bottom sheet to the affected rows.
+function setTextIfChanged(element, text) {
+  if (element && element.textContent !== text) element.textContent = text;
 }
 
 function recalcPageMargin() {
@@ -6033,8 +6155,6 @@ function recalcPageMargin() {
   // Dynamic broker charges and net credit calculation
   const charges = calculateEstimatedCharges(total, pageOrderState.action, pageOrderState.product, currentPageAsset.asset_type || 'STOCK');
   const netProceeds = Math.max(0, total - charges.total);
-  const chargesText = `${formatINR(charges.total)} ℹ️`;
-  const netText = formatINR(netProceeds);
 
   const pChargesRow = document.getElementById('pageChargesRow');
   const pChargesVal = document.getElementById('pageEstCharges');
@@ -6048,14 +6168,14 @@ function recalcPageMargin() {
 
   if (isSell) {
     if (pChargesRow) pChargesRow.style.display = 'flex';
-    setTextIfChanged(pChargesVal, chargesText);
+    setTextIfChanged(pChargesVal, `${formatINR(charges.total)} ℹ️`);
     if (pNetRow) pNetRow.style.display = 'flex';
-    setTextIfChanged(pNetVal, netText);
+    setTextIfChanged(pNetVal, formatINR(netProceeds));
 
     if (dChargesRow) dChargesRow.style.display = 'flex';
-    setTextIfChanged(dChargesVal, chargesText);
+    setTextIfChanged(dChargesVal, `${formatINR(charges.total)} ℹ️`);
     if (dNetRow) dNetRow.style.display = 'flex';
-    setTextIfChanged(dNetVal, netText);
+    setTextIfChanged(dNetVal, formatINR(netProceeds));
   } else {
     if (pChargesRow) pChargesRow.style.display = 'none';
     if (pNetRow) pNetRow.style.display = 'none';
@@ -6074,16 +6194,15 @@ function recalcPageMargin() {
   const cleanSym = currentPageAsset.symbol ? currentPageAsset.symbol.replace('.NS', '') : '';
 
   if (isGuest()) {
-    const lockedText = 'Start Investing to Trade (Unlock ₹10L)';
     setTextIfChanged(cashEl, '₹0.00 (Locked)');
     setTextIfChanged(dCashEl, '₹0.00 (Locked)');
     if (execBtn) {
       if (execBtn.className !== 'btn-trade-execute guest-locked') execBtn.className = 'btn-trade-execute guest-locked';
-      setTextIfChanged(execBtn, lockedText);
+      setTextIfChanged(execBtn, 'Start Investing to Trade (Unlock ₹10L)');
     }
     if (drawerExec) {
       if (drawerExec.className !== 'btn-trade-execute guest-locked') drawerExec.className = 'btn-trade-execute guest-locked';
-      setTextIfChanged(drawerExec, lockedText);
+      setTextIfChanged(drawerExec, 'Start Investing to Trade (Unlock ₹10L)');
     }
   } else {
     let btnText = `${pageOrderState.action} ${cleanSym}`;
@@ -7867,7 +7986,24 @@ async function fetchIpos() {
 
   try {
     const res = await fetch('/api/ipo/list');
-    allIpos = await res.json();
+    const liveIpos = await res.json();
+    // Information-only alert: mark an issue as NEW when it first appears after the
+    // user's prior visit. First visit establishes the baseline, so the whole feed is
+    // not noisily marked new. No browser push permission or server-side tracking.
+    const seenKey = 'stoxify_seen_ipo_ids';
+    const initializedKey = 'stoxify_ipo_feed_initialized';
+    let seenIds = [];
+    try { seenIds = JSON.parse(localStorage.getItem(seenKey) || '[]'); } catch (e) {}
+    const hasBaseline = localStorage.getItem(initializedKey) === '1';
+    const seenSet = new Set(Array.isArray(seenIds) ? seenIds : []);
+    allIpos = (Array.isArray(liveIpos) ? liveIpos : []).map(ipo => ({
+      ...ipo,
+      is_new: hasBaseline && !seenSet.has(ipo.id)
+    }));
+    try {
+      localStorage.setItem(seenKey, JSON.stringify(allIpos.map(ipo => ipo.id)));
+      localStorage.setItem(initializedKey, '1');
+    } catch (e) {}
     renderIpos(activeIpoFilter);
   } catch (err) {
     if (grid) grid.innerHTML = '<div style="color: var(--accent-red); padding: 2rem;">Failed to load IPOs</div>';
@@ -7880,11 +8016,7 @@ async function filterIpos(filter, btn) {
     document.querySelectorAll('#explore-ipo-container .pill-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
   }
-  if (filter === 'APPLICATIONS') {
-    await renderIpoApplications();
-  } else {
-    renderIpos(filter);
-  }
+  renderIpos(filter);
 }
 
 async function renderIpoApplications() {
@@ -8003,73 +8135,64 @@ function renderIpos(filter) {
   const grid = document.getElementById('ipoGrid');
   if (!grid) return;
 
-  const filtered = (allIpos || []).filter(item => {
-    if (filter === 'ALL') return true;
-    if (filter === 'LISTED') return item.status === 'LISTED';
-    if (filter === 'UPCOMING') return item.status === 'UPCOMING' || item.status === 'OPEN';
-    return true;
-  });
-
+  const filtered = (allIpos || []).filter(item => filter === 'ALL' || item.status === filter);
   if (filtered.length === 0) {
-    grid.innerHTML = '<div style="color: var(--text-muted); padding: 2rem;">No IPOs found in this category.</div>';
+    grid.innerHTML = '<div style="color: var(--text-muted); padding: 2rem;">No NSE IPO updates in this category right now.</div>';
     return;
   }
 
   grid.innerHTML = filtered.map(ipo => {
-    const isListed = ipo.status === 'LISTED';
     const isOpen = ipo.status === 'OPEN';
-    const minInvestment = ipo.max_price * ipo.lot_size;
-
-    const subTimes = ipo.subscription_times || (typeof ipo.subscription === 'object' ? (ipo.subscription.overall || '1.0x') : '1.0x');
-    const gmpDisplay = typeof ipo.gmp === 'string' 
-      ? `${ipo.gmp} (${ipo.gmp_pct > 0 ? '+' : ''}${ipo.gmp_pct}%)`
-      : (ipo.gmp ? `+₹${ipo.gmp} (${ipo.gmp_pct}%)` : '--');
-    const categoryDisplay = ipo.category || ipo.sector || 'Mainline';
+    const statusLabel = isOpen ? 'OPEN NOW' : 'RECENTLY LISTED';
+    const sub = ipo.subscription_times;
+    const subscription = sub === null || sub === undefined ? 'Not published by NSE' : `${formatNumber(sub)}x overall`;
+    const issueDates = isOpen
+      ? `Open: ${ipo.open_date || '—'} · Closes: ${ipo.close_date || '—'}`
+      : `Issue: ${ipo.open_date || '—'} – ${ipo.close_date || '—'}${ipo.listing_date && ipo.listing_date !== '—' ? ' · Listed: ' + ipo.listing_date : ''}`;
+    const categoryDisplay = ipo.category || ipo.series || 'NSE IPO';
 
     return `
       <div class="ipo-card">
         <div class="ipo-card-header">
-          <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
             <div class="card-avatar" style="background: rgba(147, 51, 234, 0.15); color: #a855f7;">${(ipo.symbol || 'IP').slice(0, 2)}</div>
-            <div>
+            <div style="min-width: 0;">
               <h4 class="ipo-card-title">${ipo.name}</h4>
-              <span class="sub-text">${categoryDisplay} • ${ipo.issue_size || ''}</span>
+              <span class="sub-text">${ipo.symbol || '—'} · ${categoryDisplay}</span>
             </div>
           </div>
-          <span class="pill-btn ${isOpen ? 'badge-positive' : ''}">${ipo.status}</span>
+          <div style="display: flex; gap: 0.35rem; align-items: center; flex-shrink: 0;">
+            ${ipo.is_new ? '<span class="badge-positive" title="Added since your last visit">NEW</span>' : ''}
+            <span class="${isOpen ? 'badge-positive' : 'badge-neutral'}">${statusLabel}</span>
+          </div>
         </div>
 
         <div class="ipo-metrics-grid">
           <div class="ipo-metric-item">
-            <span class="label">Price Band</span>
-            <strong>₹${ipo.min_price} - ₹${ipo.max_price}</strong>
+            <span class="label">Price band</span>
+            <strong>${ipo.price_band || '—'}</strong>
           </div>
           <div class="ipo-metric-item">
-            <span class="label">Lot Size</span>
-            <strong>${ipo.lot_size} Shares</strong>
+            <span class="label">Issue size</span>
+            <strong>${ipo.issue_size || '—'}</strong>
           </div>
           <div class="ipo-metric-item">
-            <span class="label">Min. Investment</span>
-            <strong>${formatINR(minInvestment)}</strong>
+            <span class="label">Overall subscription</span>
+            <strong>${subscription}</strong>
           </div>
           <div class="ipo-metric-item">
-            <span class="label">Estimated GMP</span>
-            <strong style="color: var(--accent-green);">${gmpDisplay}</strong>
+            <span class="label">Exchange</span>
+            <strong>${ipo.source || 'NSE'}</strong>
           </div>
         </div>
 
         <div class="ipo-sub-status">
-          <span>Subscription: <strong>${subTimes.includes('x') ? subTimes : subTimes + 'x'}</strong></span>
-          <span style="color: var(--text-muted); font-size: 0.75rem;">Closes: ${ipo.close_date || '--'}</span>
+          <span>${issueDates}</span>
+          <span style="color: var(--text-muted); font-size: 0.75rem;">NSE public issue feed</span>
         </div>
 
         <div class="ipo-card-actions">
-          ${isOpen 
-            ? `<button class="btn-primary" style="width: 100%; justify-content: center;" onclick="openIpoBidModal('${ipo.id}')">Apply Now (ASBA)</button>`
-            : isListed
-            ? `<button class="btn-subtle" style="width: 100%; justify-content: center;" onclick="showToast('${ipo.name} listed at ₹${ipo.listing_price || ipo.max_price} (+${ipo.gmp_pct}%)')">View Listing Details</button>`
-            : `<button class="btn-subtle" style="width: 100%; justify-content: center;" onclick="showToast('Alert set for ${ipo.name}!')">Notify on Open</button>`
-          }
+          <a class="btn-subtle" style="width: 100%; justify-content: center; text-decoration: none;" href="${ipo.source_url}" target="_blank" rel="noopener noreferrer">View on NSE ↗</a>
         </div>
       </div>
     `;

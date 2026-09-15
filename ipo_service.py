@@ -1,241 +1,166 @@
-from typing import Dict, List, Any, Optional
-from datetime import datetime
+"""Live, information-only IPO feed sourced from NSE public APIs.
 
-# 100% Real Indian Mainline & SME IPO Data from NSE/BSE
-REAL_IPOS: List[Dict[str, Any]] = [
-    {
-        "id": "ntpc-green",
-        "symbol": "NTPCGREEN",
-        "name": "NTPC Green Energy Ltd",
-        "sector": "Renewable Energy & Power",
-        "price_band": "₹102 - ₹108",
-        "min_price": 102.0,
-        "max_price": 108.0,
-        "lot_size": 138,
-        "min_investment": 14904.0,  # 138 * 108
-        "issue_size": "₹10,000 Cr",
-        "open_date": "19 Nov 2024",
-        "close_date": "22 Nov 2024",
-        "allotment_date": "25 Nov 2024",
-        "listing_date": "27 Nov 2024",
-        "gmp": "+₹3.50",
-        "gmp_pct": 3.2,
-        "subscription": {
-            "qib": "3.32x",
-            "nii": "0.84x",
-            "retail": "1.37x",
-            "overall": "2.42x"
-        },
-        "status": "LISTED",
-        "listing_price": "₹111.60 (+3.3%)",
-        "description": "NTPC Green Energy Limited is a wholly owned subsidiary of NTPC Limited, focusing on green hydrogen, energy storage technologies, and round-the-clock renewable energy."
-    },
-    {
-        "id": "swiggy",
-        "symbol": "SWIGGY",
-        "name": "Swiggy Ltd",
-        "sector": "Consumer Tech & Quick Commerce",
-        "price_band": "₹371 - ₹390",
-        "min_price": 371.0,
-        "max_price": 390.0,
-        "lot_size": 38,
-        "min_investment": 14820.0,  # 38 * 390
-        "issue_size": "₹11,327 Cr",
-        "open_date": "06 Nov 2024",
-        "close_date": "08 Nov 2024",
-        "allotment_date": "11 Nov 2024",
-        "listing_date": "13 Nov 2024",
-        "gmp": "+₹25.00",
-        "gmp_pct": 6.4,
-        "subscription": {
-            "qib": "6.02x",
-            "nii": "0.41x",
-            "retail": "1.14x",
-            "overall": "3.59x"
-        },
-        "status": "LISTED",
-        "listing_price": "₹420.00 (+7.7%)",
-        "description": "Swiggy is India's leading on-demand convenience platform, operating food delivery, grocery delivery (Instamart), dining out (Dineout), and parcel pick-and-drop (Genie)."
-    },
-    {
-        "id": "waaree",
-        "symbol": "WAAREEENER",
-        "name": "Waaree Energies Ltd",
-        "sector": "Solar Energy & Modules",
-        "price_band": "₹1,427 - ₹1,503",
-        "min_price": 1427.0,
-        "max_price": 1503.0,
-        "lot_size": 9,
-        "min_investment": 13527.0,  # 9 * 1503
-        "issue_size": "₹4,321 Cr",
-        "open_date": "21 Oct 2024",
-        "close_date": "23 Oct 2024",
-        "allotment_date": "24 Oct 2024",
-        "listing_date": "28 Oct 2024",
-        "gmp": "+₹1,580.00",
-        "gmp_pct": 105.1,
-        "subscription": {
-            "qib": "215.03x",
-            "nii": "65.25x",
-            "retail": "11.27x",
-            "overall": "76.34x"
-        },
-        "status": "LISTED",
-        "listing_price": "₹2,550.00 (+69.7%)",
-        "description": "Waaree Energies is the largest manufacturer of solar PV modules in India with an aggregate installed capacity of 12 GW."
-    },
-    {
-        "id": "hyundai-india",
-        "symbol": "HYUNDAI",
-        "name": "Hyundai Motor India Ltd",
-        "sector": "Automobile OEM",
-        "price_band": "₹1,865 - ₹1,960",
-        "min_price": 1865.0,
-        "max_price": 1960.0,
-        "lot_size": 7,
-        "min_investment": 13720.0,  # 7 * 1960
-        "issue_size": "₹27,870 Cr",
-        "open_date": "15 Oct 2024",
-        "close_date": "17 Oct 2024",
-        "allotment_date": "18 Oct 2024",
-        "listing_date": "22 Oct 2024",
-        "gmp": "-₹15.00",
-        "gmp_pct": -0.8,
-        "subscription": {
-            "qib": "6.97x",
-            "nii": "0.60x",
-            "retail": "0.50x",
-            "overall": "2.37x"
-        },
-        "status": "LISTED",
-        "listing_price": "₹1,931.00 (-1.5%)",
-        "description": "Hyundai Motor India is the second-largest passenger car manufacturer in India, producing popular models including Creta, Venue, Verna, and Ioniq 5."
-    },
-    {
-        "id": "afcons-infra",
-        "symbol": "AFCONS",
-        "name": "Afcons Infrastructure Ltd",
-        "sector": "Infrastructure & Engineering",
-        "price_band": "₹440 - ₹463",
-        "min_price": 440.0,
-        "max_price": 463.0,
-        "lot_size": 32,
-        "min_investment": 14816.0,  # 32 * 463
-        "issue_size": "₹5,430 Cr",
-        "open_date": "25 Oct 2024",
-        "close_date": "29 Oct 2024",
-        "allotment_date": "30 Oct 2024",
-        "listing_date": "04 Nov 2024",
-        "gmp": "-₹5.00",
-        "gmp_pct": -1.1,
-        "subscription": {
-            "qib": "3.79x",
-            "nii": "5.05x",
-            "retail": "0.94x",
-            "overall": "2.63x"
-        },
-        "status": "LISTED",
-        "listing_price": "₹430.05 (-7.1%)",
-        "description": "Afcons Infrastructure is the flagship infrastructure engineering and construction company of the Shapoorji Pallonji Group."
-    },
-    {
-        "id": "sagility",
-        "symbol": "SAGILITY",
-        "name": "Sagility India Ltd",
-        "sector": "Healthcare IT & BPM",
-        "price_band": "₹28 - ₹30",
-        "min_price": 28.0,
-        "max_price": 30.0,
-        "lot_size": 500,
-        "min_investment": 15000.0,  # 500 * 30
-        "issue_size": "₹2,107 Cr",
-        "open_date": "05 Nov 2024",
-        "close_date": "07 Nov 2024",
-        "allotment_date": "08 Nov 2024",
-        "listing_date": "12 Nov 2024",
-        "gmp": "+₹0.30",
-        "gmp_pct": 1.0,
-        "subscription": {
-            "qib": "3.52x",
-            "nii": "1.93x",
-            "retail": "4.16x",
-            "overall": "3.20x"
-        },
-        "status": "LISTED",
-        "listing_price": "₹31.06 (+3.5%)",
-        "description": "Sagility is a technology-enabled healthcare business process management service provider to US healthcare payers and providers."
-    },
-    {
-        "id": "ather-energy",
-        "symbol": "ATHER",
-        "name": "Ather Energy Ltd",
-        "sector": "Electric Vehicles (EV)",
-        "price_band": "₹310 - ₹335",
-        "min_price": 310.0,
-        "max_price": 335.0,
-        "lot_size": 44,
-        "min_investment": 14740.0,  # 44 * 335
-        "issue_size": "₹4,500 Cr",
-        "open_date": "Upcoming",
-        "close_date": "Upcoming",
-        "allotment_date": "--",
-        "listing_date": "--",
-        "gmp": "+₹45.00",
-        "gmp_pct": 13.4,
-        "subscription": {
-            "qib": "--",
-            "nii": "--",
-            "retail": "--",
-            "overall": "--"
-        },
-        "status": "UPCOMING",
-        "listing_price": "--",
-        "description": "Ather Energy is one of India's pioneering electric two-wheeler manufacturers, backed by Hero MotoCorp and GIC."
-    },
-    {
-        "id": "hexaware",
-        "symbol": "HEXAWARE",
-        "name": "Hexaware Technologies Ltd",
-        "sector": "Information Technology (IT)",
-        "price_band": "₹650 - ₹700",
-        "min_price": 650.0,
-        "max_price": 700.0,
-        "lot_size": 21,
-        "min_investment": 14700.0,
-        "issue_size": "₹9,950 Cr",
-        "open_date": "Upcoming",
-        "close_date": "Upcoming",
-        "allotment_date": "--",
-        "listing_date": "--",
-        "gmp": "+₹60.00",
-        "gmp_pct": 8.6,
-        "subscription": {
-            "qib": "--",
-            "nii": "--",
-            "retail": "--",
-            "overall": "--"
-        },
-        "status": "UPCOMING",
-        "listing_price": "--",
-        "description": "Hexaware Technologies is a global IT services and digital solutions provider specializing in cloud computing and enterprise automation."
+NSE publishes the current issue feed and a public past-issues feed. It does not
+publish GMP, individual QIB/NII/retail subscription splits, retail lot size, or
+company descriptions here, so this module deliberately omits those fields rather
+than carrying forward stale or invented values.
+"""
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+import re
+import time
+
+import requests
+
+_NSE_CURRENT_URL = "https://www.nseindia.com/api/ipo-current-issue"
+_NSE_PAST_URL = "https://www.nseindia.com/api/public-past-issues"
+_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-IN,en;q=0.9",
+    "Referer": "https://www.nseindia.com/market-data/all-upcoming-issues-ipo",
+}
+_CACHE: Dict[str, Any] = {"at": 0.0, "ipos": []}
+_CACHE_TTL_SECONDS = 300
+
+
+def _parse_date(value: Any) -> Optional[datetime]:
+    if not value or str(value).strip() in {"-", "--"}:
+        return None
+    text = str(value).strip()
+    for fmt in ("%d-%b-%Y", "%d-%B-%Y", "%d-%m-%Y", "%d-%b-%y"):
+        try:
+            return datetime.strptime(text.title(), fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def _display_date(value: Any) -> str:
+    parsed = _parse_date(value)
+    return parsed.strftime("%d %b %Y") if parsed else "—"
+
+
+def _price_range(value: Any) -> tuple:
+    numbers = re.findall(r"\d+(?:\.\d+)?", str(value or ""))
+    if not numbers:
+        return None, None
+    values = [float(number) for number in numbers]
+    return min(values), max(values)
+
+
+def _display_price(value: Any) -> str:
+    low, high = _price_range(value)
+    if low is None:
+        return "—"
+    if low == high:
+        return f"₹{low:,.2f}".rstrip("0").rstrip(".")
+    return f"₹{low:,.2f} – ₹{high:,.2f}".replace(".00", "")
+
+
+def _format_issue_size(value: Any) -> str:
+    try:
+        shares = float(value)
+    except (TypeError, ValueError):
+        return "—"
+    if shares >= 10_000_000:
+        return f"{shares / 10_000_000:.2f} Cr shares"
+    if shares >= 100_000:
+        return f"{shares / 100_000:.2f} L shares"
+    return f"{shares:,.0f} shares"
+
+
+def _current_item(row: Dict[str, Any]) -> Dict[str, Any]:
+    low, high = _price_range(row.get("issuePrice"))
+    symbol = str(row.get("symbol") or "IPO").upper()
+    multiple = row.get("noOfTime")
+    try:
+        subscription = round(float(multiple), 2)
+    except (TypeError, ValueError):
+        subscription = None
+    return {
+        "id": f"nse-{symbol.lower()}-{str(row.get('issueStartDate') or '').lower()}",
+        "symbol": symbol,
+        "name": row.get("companyName") or symbol,
+        "status": "OPEN",
+        "series": row.get("series") or "EQ",
+        "category": row.get("category") or "NSE IPO",
+        "price_band": _display_price(row.get("issuePrice")),
+        "min_price": low,
+        "max_price": high,
+        "open_date": _display_date(row.get("issueStartDate")),
+        "close_date": _display_date(row.get("issueEndDate")),
+        "listing_date": "—",
+        "issue_size": _format_issue_size(row.get("issueSize")),
+        "subscription_times": subscription,
+        "source": "NSE",
+        "source_url": "https://www.nseindia.com/market-data/all-upcoming-issues-ipo",
+        "is_new": False,
     }
-]
+
+
+def _past_item(row: Dict[str, Any]) -> Dict[str, Any]:
+    low, high = _price_range(row.get("priceRange") or row.get("issuePrice"))
+    symbol = str(row.get("symbol") or row.get("htmSym") or "IPO").upper()
+    return {
+        "id": f"nse-{symbol.lower()}-{str(row.get('ipoStartDate') or '').lower()}",
+        "symbol": symbol,
+        "name": row.get("company") or symbol,
+        "status": "RECENTLY_LISTED",
+        "series": row.get("securityType") or "EQ",
+        "category": "NSE IPO",
+        "price_band": _display_price(row.get("priceRange") or row.get("issuePrice")),
+        "min_price": low,
+        "max_price": high,
+        "open_date": _display_date(row.get("ipoStartDate")),
+        "close_date": _display_date(row.get("ipoEndDate")),
+        "listing_date": _display_date(row.get("listingDate")),
+        "issue_size": "—",
+        "subscription_times": None,
+        "source": "NSE",
+        "source_url": "https://www.nseindia.com/market-data/all-upcoming-issues-ipo",
+        "is_new": False,
+    }
+
+
+def _fetch_live_ipos() -> List[Dict[str, Any]]:
+    # NSE currently exposes open and public past issues. Its "all upcoming" endpoint
+    # returns an empty object, so we never mislabel unavailable data as upcoming.
+    current_response = requests.get(_NSE_CURRENT_URL, headers=_HEADERS, timeout=12)
+    past_response = requests.get(_NSE_PAST_URL, headers=_HEADERS, timeout=16)
+    current_rows = current_response.json() if current_response.status_code == 200 else []
+    past_rows = past_response.json() if past_response.status_code == 200 else []
+    if not isinstance(current_rows, list):
+        current_rows = []
+    if not isinstance(past_rows, list):
+        past_rows = []
+
+    open_issues = [_current_item(row) for row in current_rows if isinstance(row, dict)]
+    past_issues = [_past_item(row) for row in past_rows if isinstance(row, dict)]
+    # NSE public past data is newest first; show only a compact recent-news feed.
+    return open_issues + past_issues[:18]
+
 
 def get_ipos(status_filter: Optional[str] = None) -> List[Dict[str, Any]]:
-    enriched = []
-    for ipo in REAL_IPOS:
-        item = dict(ipo)
-        item["category"] = ipo.get("category") or ipo.get("sector") or "Mainline"
-        sub = ipo.get("subscription", {})
-        item["subscription_times"] = sub.get("overall", "1.0x").replace("x", "")
-        enriched.append(item)
+    now = time.monotonic()
+    if now - _CACHE["at"] > _CACHE_TTL_SECONDS:
+        try:
+            live = _fetch_live_ipos()
+            _CACHE.update({"at": now, "ipos": live})
+        except Exception:
+            # Preserve a previously fetched real NSE result. On the first outage the
+            # honest result is an empty list, never a stale hardcoded IPO catalogue.
+            if not _CACHE["ipos"]:
+                _CACHE.update({"at": now, "ipos": []})
 
+    issues = list(_CACHE["ipos"])
     if not status_filter or status_filter.upper() == "ALL":
-        return enriched
-    return [ipo for ipo in enriched if ipo.get("status", "").upper() == status_filter.upper()]
+        return issues
+    wanted = status_filter.upper()
+    return [issue for issue in issues if issue.get("status") == wanted]
+
 
 def get_ipo_by_id(ipo_id: str) -> Optional[Dict[str, Any]]:
-    for ipo in get_ipos():
-        if ipo["id"] == ipo_id or ipo["symbol"].upper() == ipo_id.upper():
-            return ipo
-    return None
+    key = str(ipo_id).strip().upper()
+    return next((issue for issue in get_ipos()
+                 if issue.get("id", "").upper() == key or issue.get("symbol", "").upper() == key), None)

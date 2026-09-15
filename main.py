@@ -1004,13 +1004,19 @@ def read_watchlist(request: Request):
             else:
                 quote = market_service.get_stock_quote(item["symbol"])
 
+            # Preserve an unavailable quote as None. Coercing it to 0.0 made an
+            # unavailable mutual fund appear in the watchlist at ₹0.00 / 0.00%.
+            raw_price = quote.get("price")
+            raw_change = quote.get("change")
+            raw_pct = quote.get("change_pct")
             results.append({
                 "symbol": item["symbol"],
                 "name": item.get("name") or quote.get("name") or item["symbol"],
                 "asset_type": item.get("asset_type", "STOCK"),
-                "price": float(quote.get("price", 0.0) or 0.0),
-                "change": float(quote.get("change", 0.0) or 0.0),
-                "change_pct": float(quote.get("change_pct", 0.0) or 0.0)
+                "price": None if raw_price is None else float(raw_price),
+                "change": None if raw_change is None else float(raw_change),
+                "change_pct": None if raw_pct is None else float(raw_pct),
+                "nav_unavailable": bool(quote.get("nav_unavailable"))
             })
         except Exception:
             results.append({
