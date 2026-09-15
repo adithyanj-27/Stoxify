@@ -2455,10 +2455,26 @@ function renderChart(points) {
   const canvas = document.getElementById('tradeChartCanvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
-  if (state.chartInstance) state.chartInstance.destroy();
+  if (state.chartInstance) {
+    state.chartInstance.destroy();
+    state.chartInstance = null;
+  }
 
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
   const isMobile = window.innerWidth <= 768;
+
+  if (!points || !points.length) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.font = '600 13px Sora, sans-serif';
+    ctx.fillStyle = isDark ? '#64748B' : '#94A3B8';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Historical NAV chart unavailable for this scheme', canvas.width / 2, canvas.height / 2);
+    ctx.restore();
+    return;
+  }
+
   const labels = points.map(p => p.time);
   const values = points.map(p => (p.value !== undefined ? p.value : p.price) || 0);
   const firstVal = values[0] || 0;
@@ -5593,7 +5609,25 @@ function initChartScrubbing() {
 
 function renderCurrentChart() {
   const canvas = document.getElementById('pageAssetChartCanvas');
-  if (!canvas || !currentChartPoints || currentChartPoints.length === 0) return;
+  if (!canvas) return;
+
+  if (!currentChartPoints || currentChartPoints.length === 0) {
+    if (pageChartInstance) {
+      pageChartInstance.destroy();
+      pageChartInstance = null;
+    }
+    const ctx = canvas.getContext('2d');
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.font = '600 14px Sora, sans-serif';
+    ctx.fillStyle = isDark ? '#64748B' : '#94A3B8';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Historical NAV chart unavailable for this scheme', canvas.width / 2, canvas.height / 2);
+    ctx.restore();
+    return;
+  }
 
   initChartScrubbing();
 
@@ -5919,12 +5953,16 @@ function openMobileTradeDrawer(action = 'BUY') {
 
 function closeMobileTradeDrawer() {
   const drawer = document.getElementById('mobileTradingDrawerOverlay');
-  if (drawer) {
-    const card = drawer.querySelector('.mobile-drawer-card');
-    if (card) card.classList.remove('anim-done');
+  if (!drawer) return;
+  const card = drawer.querySelector('.mobile-drawer-card');
+  if (card) {
+    card.classList.remove('anim-done');
+  }
+  // Allow browser to apply translateY(0) state before transitioning to translateY(100%)
+  requestAnimationFrame(() => {
     drawer.classList.remove('active');
     document.body.style.overflow = '';
-  }
+  });
 }
 
 function syncDrawerQuantity(val) {

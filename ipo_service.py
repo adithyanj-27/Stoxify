@@ -124,12 +124,27 @@ def _past_item(row: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _fetch_live_ipos() -> List[Dict[str, Any]]:
-    # NSE currently exposes open and public past issues. Its "all upcoming" endpoint
-    # returns an empty object, so we never mislabel unavailable data as upcoming.
-    current_response = requests.get(_NSE_CURRENT_URL, headers=_HEADERS, timeout=12)
-    past_response = requests.get(_NSE_PAST_URL, headers=_HEADERS, timeout=16)
-    current_rows = current_response.json() if current_response.status_code == 200 else []
-    past_rows = past_response.json() if past_response.status_code == 200 else []
+    # NSE endpoints reject requests that lack active session cookies.
+    # Establish session cookies with NSE homepage first.
+    session = requests.Session()
+    session.headers.update(_HEADERS)
+    try:
+        session.get("https://www.nseindia.com", timeout=6)
+    except Exception:
+        pass
+
+    try:
+        current_response = session.get(_NSE_CURRENT_URL, timeout=12)
+        current_rows = current_response.json() if current_response.status_code == 200 else []
+    except Exception:
+        current_rows = []
+
+    try:
+        past_response = session.get(_NSE_PAST_URL, timeout=16)
+        past_rows = past_response.json() if past_response.status_code == 200 else []
+    except Exception:
+        past_rows = []
+
     if not isinstance(current_rows, list):
         current_rows = []
     if not isinstance(past_rows, list):
