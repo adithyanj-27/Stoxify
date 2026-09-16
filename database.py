@@ -1897,8 +1897,14 @@ def get_wallet_transactions(
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_wallet_tx_user ON wallet_transactions(user_id, id DESC)")
     conn.commit()
     
-    # Sync remote rows from Supabase if table exists remotely
+    # 1. Sync remote orders and wallet transactions from Supabase if enabled
     if is_supabase_enabled() and user_id != "guest":
+        try:
+            sync_orders_from_supabase_into_cursor(cursor, user_id)
+            conn.commit()
+        except Exception:
+            pass
+
         try:
             sb_rows = supabase_api("GET", "wallet_transactions", params={
                 "user_id": f"eq.{user_id}",
@@ -1923,141 +1929,234 @@ def get_wallet_transactions(
         except Exception:
             pass
             
-    # Check if local SQLite has rows for this user
-    cursor.execute("SELECT COUNT(*) FROM wallet_transactions WHERE user_id = ?", (user_id,))
-    tx_count = cursor.fetchone()[0]
+    # 2. Continuous Reconciliation of All Transactions (Bank, Orders, IPOs, Implied Deposits)
+    cursor.execute("SELECT reference_id FROM wallet_transactions WHERE user_id = ? AND reference_id IS NOT NULL", (user_id,))
+    existing_refs = {r["reference_id"] for r in cursor.fetchall()}
     
-    # If no transactions recorded yet, synthesize from historical orders & bank transactions
-    if tx_count == 0 and user_id != "guest":
-        events = []
-        
-        # 1. Bank deposits & withdrawals
-        cursor.execute("""
-            SELECT id, type, amount, from_account, to_account, reference_id, status, note, created_at
-            FROM bank_transactions WHERE user_id = ?
-        """, (user_id,))
-        for btx in cursor.fetchall():
-            b_type = btx["type"]
-            amt = float(btx["amount"] or 0.0)
-            if b_type == "BANK_DEPOSIT":
-                events.append({
+    new_events = []
+    
+    # A. Bank deposits & withdrawals
+    cursor.execute("""
+        SELECT id, type, amount, from_account, to_account, reference_id, status, note, created_at
+        FROM bank_transactions WHERE user_id = ?
+    """, (user_id,))
+    for btx in cursor.fetchall():
+        b_ref = btx["reference_id"] or f"TXN-{btx['id']}"
+        if b_ref in existing_refs:
+            continue
+        existing_refs.add(b_ref)
+        b_type = btx["type"]
+        amt = float(btx["amount"] or 0.0)
+        if b_type in ("BANK_DEPOSIT", "INITIAL_CREDIT", "DEPOSIT"):
+            new_events.append({
+                "type": "DEPOSIT",
+                "title": "Stoxify Balance Deposit",
+                "amount": amt,
+                "direction": "CREDIT",
+                "status": btx["status"] or "SUCCESS",
+                "reference_id": b_ref,
+                "description": btx["note"] or "Deposit to trading wallet",
+                "symbol": None,
+                "asset_type": "FUNDS",
+                "created_at": btx["created_at"]
+            })
+        elif b_type == "WITHDRAWAL":
+            new_events.append({
+                "type": "WITHDRAWAL",
+                "title": "Money Withdrawn",
+                "amount": amt,
+                "direction": "DEBIT",
+                "status": btx["status"] or "SUCCESS",
+                "reference_id": b_ref,
+                "description": btx["note"] or "Withdrawal to bank account",
+                "symbol": None,
+                "asset_type": "FUNDS",
+                "created_at": btx["created_at"]
+            })
+
+    # B. Implied initial/bank deposit if no deposit row is recorded yet
+    cursor.execute("SELECT COUNT(*) FROM wallet_transactions WHERE user_id = ? AND type = 'DEPOSIT'", (user_id,))
+    deposit_count = cursor.fetchone()[0]
+    has_deposit = deposit_count > 0 or any(e["type"] == "DEPOSIT" for e in new_events)
+    if not has_deposit:
+        bank_bal = float(u.get("bank_balance") or 1000000.0) if u else 1000000.0
+        implied_amt = 0.0
+        if bank_bal < 1000000.0:
+            implied_amt = round(1000000.0 - bank_bal, 2)
+        elif current_balance > 0.0:
+            implied_amt = current_balance
+        if implied_amt > 0:
+            b_name = (u.get("bank_name") if u else None) or "Bank"
+            b_acc = str((u.get("bank_account") if u else None) or "0000")[-4:]
+            c_time = (u.get("created_at") if u else None) or datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            dep_ref = f"DEP-INIT-{user_id}"
+            if dep_ref not in existing_refs:
+                existing_refs.add(dep_ref)
+                new_events.append({
                     "type": "DEPOSIT",
                     "title": "Stoxify Balance Deposit",
-                    "amount": amt,
+                    "amount": implied_amt,
                     "direction": "CREDIT",
-                    "status": btx["status"] or "SUCCESS",
-                    "reference_id": btx["reference_id"] or f"TXN-{btx['id']}",
-                    "description": btx["note"] or "Deposit to trading wallet",
+                    "status": "SUCCESS",
+                    "reference_id": dep_ref,
+                    "description": f"Deposit from {b_name} •••• {b_acc} via UPI",
                     "symbol": None,
                     "asset_type": "FUNDS",
-                    "created_at": btx["created_at"]
+                    "created_at": c_time
                 })
-            elif b_type == "WITHDRAWAL":
-                events.append({
-                    "type": "WITHDRAWAL",
-                    "title": "Money Withdrawn",
-                    "amount": amt,
-                    "direction": "DEBIT",
-                    "status": btx["status"] or "SUCCESS",
-                    "reference_id": btx["reference_id"] or f"WDR-{btx['id']}",
-                    "description": btx["note"] or "Withdrawal to bank account",
-                    "symbol": None,
-                    "asset_type": "FUNDS",
-                    "created_at": btx["created_at"]
-                })
-                
-        # 2. Stock orders
-        cursor.execute("""
-            SELECT id, symbol, name, asset_type, order_type, product_type, quantity, price,
-                   total_amount, status, charges, net_amount, blocked_amount, timestamp
-            FROM orders WHERE user_id = ?
-        """, (user_id,))
-        for ord_row in cursor.fetchall():
-            o_type = ord_row["order_type"].upper()
-            status = ord_row["status"].upper()
-            asset = ord_row["asset_type"] or "STOCK"
-            cat_name = "Stocks" if asset == "STOCK" else (asset.capitalize() + "s" if not asset.endswith("s") else asset.capitalize())
-            is_exec = "EXECUTED" in status
-            is_failed = status in ("CANCELLED", "REJECTED", "FAILED")
-            
-            if o_type == "BUY":
-                buy_amt = float(ord_row["blocked_amount"] or ord_row["net_amount"] or ord_row["total_amount"] or 0.0)
-                if buy_amt <= 0:
-                    buy_amt = float(ord_row["total_amount"] or 0.0)
-                events.append({
-                    "type": "BUY",
-                    "title": f"Paid for {cat_name}",
-                    "amount": round(buy_amt, 2),
-                    "direction": "DEBIT",
-                    "status": "SUCCESS" if is_exec else ("FAILED" if is_failed else status),
-                    "reference_id": f"ORD-STX-{ord_row['id']}",
-                    "description": f"Bought {ord_row['quantity']} shares of {ord_row['symbol']}",
-                    "symbol": ord_row["symbol"],
-                    "asset_type": asset,
-                    "created_at": ord_row["timestamp"]
-                })
-            elif o_type == "SELL":
-                sell_amt = float(ord_row["net_amount"] or ord_row["total_amount"] or 0.0)
-                events.append({
-                    "type": "SELL",
-                    "title": f"Received from {cat_name}",
-                    "amount": round(sell_amt, 2),
-                    "direction": "CREDIT",
-                    "status": "SUCCESS" if is_exec else ("FAILED" if is_failed else status),
-                    "reference_id": f"ORD-STX-{ord_row['id']}",
-                    "description": f"Sold {ord_row['quantity']} shares of {ord_row['symbol']}",
-                    "symbol": ord_row["symbol"],
-                    "asset_type": asset,
-                    "created_at": ord_row["timestamp"]
-                })
-                
-        def _evt_ts(e):
-            dt = _parse_tx_dt(e.get("created_at"))
-            return dt.timestamp() if dt else 0.0
-            
-        events.sort(key=_evt_ts)
-        
-        if events:
-            net_delta = 0.0
-            for e in events:
-                if e["status"] == "SUCCESS":
-                    if e["direction"] == "CREDIT":
-                        net_delta += e["amount"]
-                    else:
-                        net_delta -= e["amount"]
-            start_bal = max(0.0, round(current_balance - net_delta, 2))
-            
-            run_bal = start_bal
-            for e in events:
-                if e["status"] == "SUCCESS":
-                    if e["direction"] == "CREDIT":
-                        run_bal = round(run_bal + e["amount"], 2)
-                    else:
-                        run_bal = round(run_bal - e["amount"], 2)
-                e["balance_after"] = run_bal
-                
-                cursor.execute("""
-                    INSERT INTO wallet_transactions (
-                        user_id, type, title, amount, balance_after, direction, status,
-                        reference_id, description, symbol, asset_type, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    user_id, e["type"], e["title"], e["amount"], e["balance_after"],
-                    e["direction"], e["status"], e["reference_id"], e["description"],
-                    e["symbol"], e["asset_type"], e["created_at"]
-                ))
-            conn.commit()
 
-    # Query wallet transactions
+    # C. Stock and Mutual Fund orders
+    cursor.execute("""
+        SELECT id, symbol, name, asset_type, order_type, product_type, quantity, price,
+               total_amount, status, charges, net_amount, blocked_amount, timestamp
+        FROM orders WHERE user_id = ?
+    """, (user_id,))
+    for ord_row in cursor.fetchall():
+        ord_ref = f"ORD-STX-{ord_row['id']}"
+        if ord_ref in existing_refs:
+            continue
+        existing_refs.add(ord_ref)
+        o_type = ord_row["order_type"].upper()
+        status = ord_row["status"].upper()
+        asset = ord_row["asset_type"] or "STOCK"
+        cat_name = "Stocks" if asset == "STOCK" else (asset.capitalize() + "s" if not asset.endswith("s") else asset.capitalize())
+        is_exec = "EXECUTED" in status
+        is_failed = status in ("CANCELLED", "REJECTED", "FAILED")
+        
+        if o_type == "BUY":
+            buy_amt = float(ord_row["blocked_amount"] or ord_row["net_amount"] or ord_row["total_amount"] or 0.0)
+            if buy_amt <= 0:
+                buy_amt = float(ord_row["total_amount"] or 0.0)
+            title = f"Paid for {cat_name}" if is_exec else (f"Margin Blocked for {cat_name}" if status == "OPEN" else f"Order {status}")
+            new_events.append({
+                "type": "BUY",
+                "title": title,
+                "amount": round(buy_amt, 2),
+                "direction": "DEBIT",
+                "status": "SUCCESS" if is_exec else ("FAILED" if is_failed else status),
+                "reference_id": ord_ref,
+                "description": f"Bought {ord_row['quantity']} shares of {ord_row['symbol']}",
+                "symbol": ord_row["symbol"],
+                "asset_type": asset,
+                "created_at": ord_row["timestamp"]
+            })
+        elif o_type == "SELL":
+            sell_amt = float(ord_row["net_amount"] or ord_row["total_amount"] or 0.0)
+            new_events.append({
+                "type": "SELL",
+                "title": f"Received from {cat_name}",
+                "amount": round(sell_amt, 2),
+                "direction": "CREDIT",
+                "status": "SUCCESS" if is_exec else ("FAILED" if is_failed else status),
+                "reference_id": ord_ref,
+                "description": f"Sold {ord_row['quantity']} shares of {ord_row['symbol']}",
+                "symbol": ord_row["symbol"],
+                "asset_type": asset,
+                "created_at": ord_row["timestamp"]
+            })
+
+    # D. IPO Applications and Refunds
+    try:
+        cursor.execute("""
+            SELECT id, ipo_id, ipo_name, lots, shares, bid_price, amount_blocked, status
+            FROM ipo_bids WHERE user_id = ?
+        """, (user_id,))
+        for ipo in cursor.fetchall():
+            bid_ref = f"IPO-BID-{ipo['id']}"
+            if bid_ref not in existing_refs:
+                existing_refs.add(bid_ref)
+                new_events.append({
+                    "type": "IPO",
+                    "title": f"IPO Application - {ipo['ipo_name']}",
+                    "amount": round(float(ipo["amount_blocked"] or 0.0), 2),
+                    "direction": "DEBIT",
+                    "status": "SUCCESS",
+                    "reference_id": bid_ref,
+                    "description": f"Blocked for {ipo['lots']} lot(s) ({ipo['shares']} shares) of {ipo['ipo_name']} IPO",
+                    "symbol": ipo["ipo_id"],
+                    "asset_type": "IPO",
+                    "created_at": None
+                })
+            if ipo["status"] == "CANCELLED":
+                rfd_ref = f"RFD-IPO-{ipo['id']}"
+                if rfd_ref not in existing_refs:
+                    existing_refs.add(rfd_ref)
+                    new_events.append({
+                        "type": "REFUND",
+                        "title": f"Refund for IPO - {ipo['ipo_name']}",
+                        "amount": round(float(ipo["amount_blocked"] or 0.0), 2),
+                        "direction": "CREDIT",
+                        "status": "SUCCESS",
+                        "reference_id": rfd_ref,
+                        "description": f"Unblocked for cancelled {ipo['ipo_name']} IPO bid",
+                        "symbol": ipo["ipo_id"],
+                        "asset_type": "IPO",
+                        "created_at": None
+                    })
+    except Exception:
+        pass
+
+    # Insert any newly reconciled events
+    if new_events:
+        for e in new_events:
+            c_time = e.get("created_at") or datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            cursor.execute("""
+                INSERT INTO wallet_transactions (
+                    user_id, type, title, amount, balance_after, direction, status,
+                    reference_id, description, symbol, asset_type, created_at
+                ) VALUES (?, ?, ?, ?, 0.0, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                user_id, e["type"], e["title"], e["amount"],
+                e["direction"], e["status"], e["reference_id"], e["description"],
+                e["symbol"], e["asset_type"], c_time
+            ))
+        conn.commit()
+
+    # Rebalance running ledger balance_after values chronologically
+    cursor.execute("""
+        SELECT id, type, amount, direction, status, created_at, balance_after
+        FROM wallet_transactions WHERE user_id = ?
+    """, (user_id,))
+    all_ledger = [dict(r) for r in cursor.fetchall()]
+    
+    if all_ledger and (new_events or any(r["balance_after"] == 0.0 for r in all_ledger)):
+        def _sort_ts(row):
+            dt = _parse_tx_dt(row.get("created_at"))
+            return (dt.timestamp() if dt else 0.0, row["id"])
+        all_ledger.sort(key=_sort_ts)
+        
+        net_delta = 0.0
+        for r in all_ledger:
+            if r["status"] in ("SUCCESS", "COMPLETED", "EXECUTED", "OPEN"):
+                if r["direction"] == "CREDIT":
+                    net_delta += r["amount"]
+                else:
+                    net_delta -= r["amount"]
+        start_bal = max(0.0, round(current_balance - net_delta, 2))
+        run_bal = start_bal
+        for r in all_ledger:
+            if r["status"] in ("SUCCESS", "COMPLETED", "EXECUTED", "OPEN"):
+                if r["direction"] == "CREDIT":
+                    run_bal = round(run_bal + r["amount"], 2)
+                else:
+                    run_bal = round(run_bal - r["amount"], 2)
+            cursor.execute("UPDATE wallet_transactions SET balance_after = ? WHERE id = ?", (run_bal, r["id"]))
+        conn.commit()
+
+    # Query wallet transactions sorted newest first
     cursor.execute("""
         SELECT id, user_id, type, title, amount, balance_after, direction, status,
                reference_id, description, symbol, asset_type, created_at
         FROM wallet_transactions
         WHERE user_id = ?
-        ORDER BY id DESC
     """, (user_id,))
     raw_rows = [dict(r) for r in cursor.fetchall()]
     conn.close()
+
+    def _sort_newest(row):
+        dt = _parse_tx_dt(row.get("created_at"))
+        return (dt.timestamp() if dt else 0.0, row.get("id") or 0)
+    raw_rows.sort(key=_sort_newest, reverse=True)
     
     # Format and filter
     formatted_txs = []
@@ -2734,6 +2833,22 @@ def execute_trade(
                 except Exception as sb_e:
                     print(f"[Supabase Limit Margin Sync Warning] {sb_e}")
 
+            if order_type == "BUY" and blocked_amount > 0 and user_id != "guest":
+                cat_label = "Stocks" if asset_type == "STOCK" else (asset_type.capitalize() + "s" if not asset_type.endswith("s") else asset_type.capitalize())
+                record_wallet_transaction(
+                    user_id=user_id,
+                    tx_type="BUY",
+                    title=f"Margin Blocked for {cat_label}",
+                    amount=blocked_amount,
+                    balance_after=new_balance,
+                    direction="DEBIT",
+                    status="OPEN",
+                    reference_id=f"ORD-STX-{order_id}",
+                    description=f"Limit BUY order #{order_id}: {quantity} shares of {symbol} at limit ₹{effective_price:,.2f}",
+                    symbol=symbol,
+                    asset_type=asset_type
+                )
+
             return {
                 "success": True, 
                 "order_id": order_id, 
@@ -2797,6 +2912,22 @@ def execute_trade(
                     supabase_api("PATCH", f"users?id=eq.{user_id}", payload={"balance": new_balance, "updated_at": datetime.now(timezone.utc).isoformat()})
                 except Exception as sb_e:
                     print(f"[Supabase SL Margin Sync Warning] {sb_e}")
+
+            if order_type == "BUY" and blocked_amount > 0 and user_id != "guest":
+                cat_label = "Stocks" if asset_type == "STOCK" else (asset_type.capitalize() + "s" if not asset_type.endswith("s") else asset_type.capitalize())
+                record_wallet_transaction(
+                    user_id=user_id,
+                    tx_type="BUY",
+                    title=f"Margin Blocked for {cat_label}",
+                    amount=blocked_amount,
+                    balance_after=new_balance,
+                    direction="DEBIT",
+                    status="TRIGGER_PENDING",
+                    reference_id=f"ORD-STX-{order_id}",
+                    description=f"Stop-Loss BUY order #{order_id}: {quantity} shares of {symbol} (Trigger: ₹{trigger_price:,.2f})",
+                    symbol=symbol,
+                    asset_type=asset_type
+                )
 
             return {
                 "success": True, 
@@ -3807,6 +3938,22 @@ def apply_ipo(user_id: str, ipo_id: str, ipo_name: str, lots: int, shares: int, 
     bid_id = cursor.lastrowid
     conn.commit()
     conn.close()
+
+    if user_id != "guest":
+        record_wallet_transaction(
+            user_id=user_id,
+            tx_type="IPO",
+            title=f"IPO Application - {ipo_name}",
+            amount=total_blocked,
+            balance_after=new_bal,
+            direction="DEBIT",
+            status="SUCCESS",
+            reference_id=f"IPO-BID-{bid_id}",
+            description=f"Blocked for {lots} lot(s) ({lots*shares} shares) of {ipo_name} IPO",
+            symbol=ipo_id,
+            asset_type="IPO"
+        )
+
     return {
         "success": True, 
         "bid_id": bid_id, 
@@ -3842,6 +3989,22 @@ def cancel_ipo_bid(user_id: str, bid_id: int) -> Dict[str, Any]:
     cursor.execute("UPDATE ipo_bids SET status = 'CANCELLED' WHERE id = ?", (bid_id,))
     conn.commit()
     conn.close()
+
+    if user_id != "guest":
+        record_wallet_transaction(
+            user_id=user_id,
+            tx_type="REFUND",
+            title=f"Refund for IPO - {bid['ipo_name']}",
+            amount=blocked,
+            balance_after=new_bal,
+            direction="CREDIT",
+            status="SUCCESS",
+            reference_id=f"RFD-IPO-{bid_id}",
+            description=f"Unblocked ₹{blocked:,.2f} for cancelled {bid['ipo_name']} IPO bid",
+            symbol=bid["ipo_name"] or "IPO",
+            asset_type="IPO"
+        )
+
     return {"success": True, "message": f"IPO application for {bid['ipo_name']} cancelled. ₹{blocked:,.2f} unblocked."}
 
 # --- Capital Gains Tax (Budget 2024 Rules: STCG 20%, LTCG 12.5%) ---

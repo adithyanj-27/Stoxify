@@ -76,6 +76,133 @@ window.fetch = function(input, init = {}) {
   return _nativeFetch(input, init);
 };
 
+/* =======================================================
+   PWA & HARDWARE/GESTURE BACK-BUTTON MODAL MANAGER
+   ======================================================= */
+const modalHistoryStack = [];
+let isPoppingModalHistory = false;
+
+function pushModalState(modalId, closeFn, meta = {}) {
+  if (!modalId) return;
+  // Prevent duplicate stack entries for the same modal
+  if (modalHistoryStack.length > 0 && modalHistoryStack[modalHistoryStack.length - 1].id === modalId) {
+    return;
+  }
+  try {
+    window.history.pushState({ modalId: modalId, isModal: true, ...meta }, '');
+  } catch (e) {}
+  modalHistoryStack.push({ id: modalId, close: closeFn, meta });
+}
+
+function dismissModalState(modalId, options = {}) {
+  if (!modalId) return;
+
+  // If this dismiss came from a popstate event (hardware/gesture back),
+  // the browser already popped the history entry! Just sync internal stack.
+  if (options && options.fromPopState) {
+    const idx = modalHistoryStack.map(m => m.id).lastIndexOf(modalId);
+    if (idx !== -1) {
+      modalHistoryStack.splice(idx, 1);
+    }
+    return;
+  }
+
+  // If dismissed via in-app button, backdrop, or code:
+  // Unwind history by the number of entries down to and including modalId
+  const idx = modalHistoryStack.map(m => m.id).lastIndexOf(modalId);
+  if (idx !== -1) {
+    const popCount = modalHistoryStack.length - idx;
+    modalHistoryStack.splice(idx);
+
+    if (window.history.state && window.history.state.isModal) {
+      isPoppingModalHistory = true;
+      if (popCount === 1) {
+        window.history.back();
+      } else {
+        window.history.go(-popCount);
+      }
+    }
+  }
+}
+
+function closeAllModalsDirect(options = { silent: true }) {
+  while (modalHistoryStack.length > 0) {
+    const entry = modalHistoryStack.pop();
+    if (entry && typeof entry.close === 'function') {
+      try {
+        entry.close({ fromPopState: true, ...options });
+      } catch (e) {}
+    }
+  }
+
+  const activeElements = document.querySelectorAll(
+    '.modal-overlay.active, .mobile-drawer-overlay.active, #mobileTradingDrawerOverlay.active, #pwaInstallGuideModalOverlay, #optionBuyModal, #ipoBidModal, #sipScheduleModal'
+  );
+  activeElements.forEach(el => {
+    el.classList.remove('active');
+    if (el.id === 'pwaInstallGuideModalOverlay' || el.id === 'optionBuyModal' || el.id === 'ipoBidModal' || el.id === 'sipScheduleModal') {
+      el.style.display = 'none';
+    }
+  });
+  document.body.style.overflow = '';
+}
+
+function getAnyActiveModalElement() {
+  const overlayModals = [
+    '#upiAddMoneyModal',
+    '#withdrawMoneyModal',
+    '#walletTransactionsModal',
+    '#bankPassbookModal',
+    '#editProfileModalOverlay',
+    '#mobileTradingDrawerOverlay',
+    '#orderConfirmModal',
+    '#orderSuccessModal',
+    '#chargesModalOverlay',
+    '#marketHoursModalOverlay',
+    '#loginModalOverlay',
+    '#tradeModalOverlay'
+  ];
+  for (const sel of overlayModals) {
+    const el = document.querySelector(sel);
+    if (el && el.classList && el.classList.contains('active')) return el;
+  }
+  const anyActive = document.querySelector('.modal-overlay.active, .mobile-drawer-overlay.active');
+  if (anyActive && anyActive.classList && anyActive.classList.contains('active')) return anyActive;
+
+  const flexModals = ['#pwaInstallGuideModalOverlay', '#optionBuyModal', '#ipoBidModal', '#sipScheduleModal'];
+  for (const id of flexModals) {
+    const el = document.querySelector(id);
+    if (el && el.style && el.style.display && el.style.display !== 'none') return el;
+  }
+  return null;
+}
+
+function closeActiveModalElement(el) {
+  if (!el) return;
+  const id = el.id;
+  if (id === 'upiAddMoneyModal' && typeof window.closeAddMoneyModal === 'function') window.closeAddMoneyModal({ fromPopState: true });
+  else if (id === 'withdrawMoneyModal' && typeof window.closeWithdrawModal === 'function') window.closeWithdrawModal({ fromPopState: true });
+  else if (id === 'walletTransactionsModal' && typeof window.closeWalletTransactionsModal === 'function') window.closeWalletTransactionsModal({ fromPopState: true });
+  else if (id === 'bankPassbookModal' && typeof window.closeBankPassbookModal === 'function') window.closeBankPassbookModal({ fromPopState: true });
+  else if (id === 'editProfileModalOverlay' && typeof window.closeEditProfileModal === 'function') window.closeEditProfileModal({ fromPopState: true });
+  else if (id === 'mobileTradingDrawerOverlay' && typeof window.closeMobileTradeDrawer === 'function') window.closeMobileTradeDrawer({ fromPopState: true });
+  else if (id === 'orderConfirmModal' && typeof window.closeOrderConfirmModal === 'function') window.closeOrderConfirmModal({ fromPopState: true });
+  else if (id === 'orderSuccessModal' && typeof window.closeOrderSuccessModal === 'function') window.closeOrderSuccessModal({ fromPopState: true });
+  else if (id === 'chargesModalOverlay' && typeof window.closeChargesModal === 'function') window.closeChargesModal({ fromPopState: true });
+  else if (id === 'marketHoursModalOverlay' && typeof window.closeMarketHoursModal === 'function') window.closeMarketHoursModal({ fromPopState: true });
+  else if (id === 'loginModalOverlay' && typeof window.closeLoginModal === 'function') window.closeLoginModal({ fromPopState: true });
+  else if (id === 'pwaInstallGuideModalOverlay' && typeof window.closePwaGuideModal === 'function') window.closePwaGuideModal({ fromPopState: true });
+  else if (id === 'optionBuyModal' && typeof window.closeOptionBuyModal === 'function') window.closeOptionBuyModal({ fromPopState: true });
+  else if (id === 'ipoBidModal' && typeof window.closeIpoBidModal === 'function') window.closeIpoBidModal({ fromPopState: true });
+  else if (id === 'sipScheduleModal' && typeof window.closeSipModal === 'function') window.closeSipModal({ fromPopState: true });
+  else if (id === 'tradeModalOverlay' && typeof window.closeTradeModal === 'function') window.closeTradeModal({ fromPopState: true });
+  else {
+    el.classList.remove('active');
+    el.style.display = 'none';
+  }
+}
+
+
 
 const INDEX_NAMES = {
   '^NSEI': 'NIFTY 50',
@@ -381,13 +508,15 @@ function openMarketHoursModal() {
   if (menu) menu.style.display = 'none';
   const overlay = document.getElementById('marketHoursModalOverlay');
   if (overlay) overlay.classList.add('active');
+  pushModalState('marketHoursModalOverlay', closeMarketHoursModal);
   fetchMarketStatus();
   fetchMarketHolidays();
 }
 
-function closeMarketHoursModal() {
+function closeMarketHoursModal(options = {}) {
   const overlay = document.getElementById('marketHoursModalOverlay');
   if (overlay) overlay.classList.remove('active');
+  dismissModalState('marketHoursModalOverlay', options);
 }
 
 // --- Navigation Tabs (Desktop & Mobile Synchronized) ---
@@ -449,6 +578,9 @@ function toggleMobileSearch() {
     if (wrapper.classList.contains('mobile-open')) {
       const input = document.getElementById('globalSearchInput');
       if (input) input.focus();
+      pushModalState('mobileSearchWrapper', closeSearchBar);
+    } else {
+      dismissModalState('mobileSearchWrapper');
     }
   }
 }
@@ -1997,10 +2129,12 @@ const searchInput = document.getElementById('globalSearchInput');
 const searchDropdown = document.getElementById('searchResultsDropdown');
 let searchDebounceTimer = null;
 
-function closeSearchBar(e) {
-  if (e) {
+function closeSearchBar(e, options = {}) {
+  if (e && typeof e.preventDefault === 'function') {
     e.stopPropagation();
     e.preventDefault();
+  } else if (e && typeof e === 'object' && e.fromPopState) {
+    options = e;
   }
   const input = document.getElementById('globalSearchInput');
   const dropdown = document.getElementById('searchResultsDropdown');
@@ -2017,6 +2151,7 @@ function closeSearchBar(e) {
   if (wrapper && wrapper.classList.contains('mobile-open')) {
     wrapper.classList.remove('mobile-open');
   }
+  dismissModalState('mobileSearchWrapper', options);
 }
 window.closeSearchBar = closeSearchBar;
 
@@ -2281,12 +2416,14 @@ function renderModalWatchlistBtn(symbol, name, assetType) {
   `;
 }
 
-function closeTradeModal() {
-  document.getElementById('tradeModalOverlay').classList.remove('active');
+function closeTradeModal(options = {}) {
+  const modal = document.getElementById('tradeModalOverlay');
+  if (modal) modal.classList.remove('active');
   if (state.chartInstance) {
     state.chartInstance.destroy();
     state.chartInstance = null;
   }
+  dismissModalState('tradeModalOverlay', options);
 }
 
 async function loadChartTimeframe(tf) {
@@ -2784,10 +2921,13 @@ function renderChargesModalContent(c, action, product, totalVal) {
 
   const modal = document.getElementById('chargesModalOverlay');
   if (modal) modal.classList.add('active');
+  pushModalState('chargesModalOverlay', closeChargesModal);
 }
 
-function closeChargesModal() {
-  document.getElementById('chargesModalOverlay').classList.remove('active');
+function closeChargesModal(options = {}) {
+  const modal = document.getElementById('chargesModalOverlay');
+  if (modal) modal.classList.remove('active');
+  dismissModalState('chargesModalOverlay', options);
 }
 
 function roundNumber(num, dec) {
@@ -3063,11 +3203,13 @@ function openPwaGuideModal(defaultPlatform) {
   }
   const modal = document.getElementById('pwaInstallGuideModalOverlay');
   if (modal) modal.style.display = 'flex';
+  pushModalState('pwaInstallGuideModalOverlay', closePwaGuideModal);
 }
 
-function closePwaGuideModal() {
+function closePwaGuideModal(options = {}) {
   const modal = document.getElementById('pwaInstallGuideModalOverlay');
   if (modal) modal.style.display = 'none';
+  dismissModalState('pwaInstallGuideModalOverlay', options);
 }
 
 let appInstallHandled = false;
@@ -3242,8 +3384,15 @@ if (document.readyState === 'loading') {
    CLIENT-SIDE ROUTER ENGINE (HTML5 History API)
    ======================================================= */
 function navigateTo(path, pushState = true) {
+  const hadOpenModals = modalHistoryStack.length > 0 || !!getAnyActiveModalElement();
+  closeAllModalsDirect({ silent: true });
+
   if (pushState && window.location.pathname !== path) {
-    history.pushState(null, '', path);
+    if (hadOpenModals && window.history.state && window.history.state.isModal) {
+      history.replaceState(null, '', path);
+    } else {
+      history.pushState(null, '', path);
+    }
   }
   handleRoute();
 }
@@ -3384,7 +3533,63 @@ function handleRoute() {
   }
 }
 
-window.addEventListener('popstate', () => handleRoute());
+window.addEventListener('popstate', (e) => {
+  if (isPoppingModalHistory) {
+    isPoppingModalHistory = false;
+    return;
+  }
+
+  // 1. If mobile search bar is active, phone back closes search bar
+  const searchWrapper = document.querySelector('.search-wrapper');
+  if (searchWrapper && searchWrapper.classList.contains('mobile-open')) {
+    closeSearchBar(null, { fromPopState: true });
+    return;
+  }
+
+  // 2. If there are registered modals on modalHistoryStack, pop and close the topmost one
+  if (modalHistoryStack.length > 0) {
+    const topEntry = modalHistoryStack.pop();
+    if (topEntry && typeof topEntry.close === 'function') {
+      try {
+        topEntry.close({ fromPopState: true });
+      } catch (err) {
+        console.error('Error closing modal on popstate:', err);
+      }
+    }
+    return; // Prevent handleRoute() from navigating away from the current tab/page
+  }
+
+  // 3. Fallback: If ANY modal overlay or drawer is currently active in the DOM, close it
+  const activeEl = getAnyActiveModalElement();
+  if (activeEl) {
+    closeActiveModalElement(activeEl);
+    return; // Prevent handleRoute() from navigating away
+  }
+
+  // 4. Normal route navigation
+  handleRoute();
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const searchWrapper = document.querySelector('.search-wrapper');
+    if (searchWrapper && searchWrapper.classList.contains('mobile-open')) {
+      closeSearchBar();
+      return;
+    }
+    if (modalHistoryStack.length > 0) {
+      const topEntry = modalHistoryStack[modalHistoryStack.length - 1];
+      if (topEntry && typeof topEntry.close === 'function') {
+        topEntry.close();
+      }
+      return;
+    }
+    const activeEl = getAnyActiveModalElement();
+    if (activeEl) {
+      closeActiveModalElement(activeEl);
+    }
+  }
+});
 
 /* =======================================================
    USER SESSION & NAVBAR PROFILE ENGINE
@@ -3716,11 +3921,13 @@ function openEditProfileModal() {
   updateEditAvatarPreview();
   const overlay = document.getElementById('editProfileModalOverlay');
   if (overlay) overlay.classList.add('active');
+  pushModalState('editProfileModalOverlay', closeEditProfileModal);
 }
 
-function closeEditProfileModal() {
+function closeEditProfileModal(options = {}) {
   const overlay = document.getElementById('editProfileModalOverlay');
   if (overlay) overlay.classList.remove('active');
+  dismissModalState('editProfileModalOverlay', options);
 }
 
 function selectEditAvatarColor(color) {
@@ -4053,6 +4260,7 @@ async function openAddMoneyModal() {
   }
 
   modal.classList.add('active');
+  pushModalState('upiAddMoneyModal', closeAddMoneyModal);
 
   // Fetch latest fresh bank details from server
   const bankData = await loadBankAccountDetails();
@@ -4064,18 +4272,21 @@ async function openAddMoneyModal() {
   validateUpiAddAmount();
 }
 
-function closeAddMoneyModal() {
+function closeAddMoneyModal(options = {}) {
   const modal = document.getElementById('upiAddMoneyModal');
   if (modal) modal.classList.remove('active');
   resetUpiPinScreen();
+  dismissModalState('upiStepPin', { fromPopState: true });
+  dismissModalState('upiAddMoneyModal', options);
 }
 
-function backToAmountStep() {
+function backToAmountStep(options = {}) {
   const stepAmount = document.getElementById('upiStepAmount');
   const stepPin = document.getElementById('upiStepPin');
   if (stepAmount) stepAmount.style.display = 'block';
   if (stepPin) stepPin.style.display = 'none';
   resetUpiPinScreen();
+  dismissModalState('upiStepPin', options);
 }
 
 function setUpiQuickAmount(amt) {
@@ -4125,6 +4336,7 @@ function proceedToUpiPinScreen() {
   if (stepAmount) stepAmount.style.display = 'none';
   if (stepPin) stepPin.style.display = 'block';
   if (stepSuccess) stepSuccess.style.display = 'none';
+  pushModalState('upiStepPin', backToAmountStep);
 
   const dispAmt = document.getElementById('upiPinDisplayAmount');
   if (dispAmt) dispAmt.innerText = formatINR(currentUpiAddAmount);
@@ -4405,11 +4617,13 @@ async function openWithdrawModal() {
   }
 
   modal.classList.add('active');
+  pushModalState('withdrawMoneyModal', closeWithdrawModal);
 }
 
-function closeWithdrawModal() {
+function closeWithdrawModal(options = {}) {
   const modal = document.getElementById('withdrawMoneyModal');
   if (modal) modal.classList.remove('active');
+  dismissModalState('withdrawMoneyModal', options);
 }
 
 async function executeWithdrawal() {
@@ -4547,6 +4761,7 @@ async function openBankPassbookModal() {
   const modal = document.getElementById('bankPassbookModal');
   if (!modal) return;
   modal.classList.add('active');
+  pushModalState('bankPassbookModal', closeBankPassbookModal);
 
   const titleEl = document.getElementById('pbModalBankTitle');
   const subEl = document.getElementById('pbModalBankSub');
@@ -4610,9 +4825,10 @@ async function openBankPassbookModal() {
   }
 }
 
-function closeBankPassbookModal() {
+function closeBankPassbookModal(options = {}) {
   const modal = document.getElementById('bankPassbookModal');
   if (modal) modal.classList.remove('active');
+  dismissModalState('bankPassbookModal', options);
 }
 
 // =======================================================
@@ -4631,6 +4847,7 @@ async function openWalletTransactionsModal(initialFilter = 'all') {
   const modal = document.getElementById('walletTransactionsModal');
   if (!modal) return;
   modal.classList.add('active');
+  pushModalState('walletTransactionsModal', closeWalletTransactionsModal);
 
   _walletTxState.filter = initialFilter || 'all';
 
@@ -4638,9 +4855,10 @@ async function openWalletTransactionsModal(initialFilter = 'all') {
   await loadAndRenderWalletTransactions();
 }
 
-function closeWalletTransactionsModal() {
+function closeWalletTransactionsModal(options = {}) {
   const modal = document.getElementById('walletTransactionsModal');
   if (modal) modal.classList.remove('active');
+  dismissModalState('walletTransactionsModal', options);
 }
 
 function setWalletTxFilter(filterType, btnEl) {
@@ -4790,6 +5008,7 @@ async function openLoginModal(prefilledIdentifier) {
   if (pinInput) pinInput.value = '';
 
   overlay.classList.add('active');
+  pushModalState('loginModalOverlay', closeLoginModal);
   try {
     localStorage.removeItem('stoxify_recent_accounts');
   } catch (e) {}
@@ -4803,9 +5022,10 @@ async function openLoginModal(prefilledIdentifier) {
   }, 120);
 }
 
-function closeLoginModal() {
+function closeLoginModal(options = {}) {
   const overlay = document.getElementById('loginModalOverlay');
   if (overlay) overlay.classList.remove('active');
+  dismissModalState('loginModalOverlay', options);
 }
 
 function saveRecentAccount(u) {}
@@ -5907,6 +6127,7 @@ function openMobileTradeDrawer(action = 'BUY') {
     // transform before activating it so the slide-in transition still plays.
     if (card) card.classList.remove('anim-done');
     drawer.classList.add('active');
+    pushModalState('mobileTradingDrawerOverlay', closeMobileTradeDrawer);
     document.body.style.overflow = 'hidden';
     if (card) {
       const settle = () => {
@@ -5951,7 +6172,7 @@ function openMobileTradeDrawer(action = 'BUY') {
   recalcPageMargin();
 }
 
-function closeMobileTradeDrawer() {
+function closeMobileTradeDrawer(options = {}) {
   const drawer = document.getElementById('mobileTradingDrawerOverlay');
   if (!drawer) return;
   const card = drawer.querySelector('.mobile-drawer-card');
@@ -5963,6 +6184,7 @@ function closeMobileTradeDrawer() {
     drawer.classList.remove('active');
     document.body.style.overflow = '';
   });
+  dismissModalState('mobileTradingDrawerOverlay', options);
 }
 
 function syncDrawerQuantity(val) {
@@ -7349,11 +7571,13 @@ function openOrderSuccessModal(orderData) {
   }
 
   modal.classList.add('active');
+  pushModalState('orderSuccessModal', closeOrderSuccessModal);
 }
 
-function closeOrderSuccessModal() {
+function closeOrderSuccessModal(options = {}) {
   const modal = document.getElementById('orderSuccessModal');
   if (modal) modal.classList.remove('active');
+  dismissModalState('orderSuccessModal', options);
 }
 
 function goToHoldingsFromModal() {
@@ -7485,9 +7709,10 @@ function openOrderConfirmModal(spec) {
   }
 
   modal.classList.add('active');
+  pushModalState('orderConfirmModal', closeOrderConfirmModal);
 }
 
-function closeOrderConfirmModal() {
+function closeOrderConfirmModal(options = {}) {
   const modal = document.getElementById('orderConfirmModal');
   if (modal) modal.classList.remove('active');
   const spec = pendingOrderSpec;
@@ -7499,6 +7724,7 @@ function closeOrderConfirmModal() {
     const drawer = document.getElementById('mobileTradingDrawerOverlay');
     if (drawer) drawer.classList.add('active');
   }
+  dismissModalState('orderConfirmModal', options);
 }
 
 function toggleConfirmChargesDetails() {
@@ -7889,12 +8115,14 @@ function openOptionBuyModal(underlying, strike, optType, ltp, iv, lotSize) {
 
   const modal = document.getElementById('optionBuyModal');
   if (modal) modal.style.display = 'flex';
+  pushModalState('optionBuyModal', closeOptionBuyModal);
 }
 
-function closeOptionBuyModal() {
+function closeOptionBuyModal(options = {}) {
   const modal = document.getElementById('optionBuyModal');
   if (modal) modal.style.display = 'none';
   currentOptionTrade = null;
+  dismissModalState('optionBuyModal', options);
 }
 
 function setOptionAction(action) {
@@ -8334,12 +8562,14 @@ function openIpoBidModal(ipoId) {
 
   const modal = document.getElementById('ipoBidModal');
   if (modal) modal.style.display = 'flex';
+  pushModalState('ipoBidModal', closeIpoBidModal);
 }
 
-function closeIpoBidModal() {
+function closeIpoBidModal(options = {}) {
   const modal = document.getElementById('ipoBidModal');
   if (modal) modal.style.display = 'none';
   currentIpoModalData = null;
+  dismissModalState('ipoBidModal', options);
 }
 
 function stepIpoLots(delta) {
@@ -8455,11 +8685,13 @@ function openSipModal(symbol, name) {
 
   const modal = document.getElementById('sipScheduleModal');
   if (modal) modal.style.display = 'flex';
+  pushModalState('sipScheduleModal', closeSipModal);
 }
 
-function closeSipModal() {
+function closeSipModal(options = {}) {
   const modal = document.getElementById('sipScheduleModal');
   if (modal) modal.style.display = 'none';
+  dismissModalState('sipScheduleModal', options);
 }
 
 async function submitSipSchedule() {
@@ -8961,3 +9193,18 @@ window.loadPortfolioAnalytics = loadPortfolioAnalytics;
 window.openMobileTradeDrawer = openMobileTradeDrawer;
 window.closeMobileTradeDrawer = closeMobileTradeDrawer;
 window.syncDrawerTrigger = syncDrawerTrigger;
+window.pushModalState = pushModalState;
+window.dismissModalState = dismissModalState;
+window.closeAllModalsDirect = closeAllModalsDirect;
+window.closeAddMoneyModal = closeAddMoneyModal;
+window.closeWithdrawModal = closeWithdrawModal;
+window.closeWalletTransactionsModal = closeWalletTransactionsModal;
+window.closeBankPassbookModal = closeBankPassbookModal;
+window.closeEditProfileModal = closeEditProfileModal;
+window.closeMarketHoursModal = closeMarketHoursModal;
+window.closeChargesModal = closeChargesModal;
+window.closeLoginModal = closeLoginModal;
+window.closePwaGuideModal = closePwaGuideModal;
+window.closeOptionBuyModal = closeOptionBuyModal;
+window.closeIpoBidModal = closeIpoBidModal;
+window.closeSipModal = closeSipModal;

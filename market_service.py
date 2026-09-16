@@ -36,6 +36,15 @@ def set_cached(key: str, val: Any, ttl: int = 60):
     _CACHE[key] = val
     _CACHE_EXPIRY[key] = time.time() + ttl
 
+def get_quote_ttl() -> int:
+    """Dynamic cache TTL: 15s during active market hours, 120s when closed."""
+    try:
+        import market_hours
+        status = market_hours.get_market_status()
+        return 15 if status.get("is_open") else 120
+    except Exception:
+        return 60
+
 _POOL = concurrent.futures.ThreadPoolExecutor(max_workers=16)
 
 # Dedicated pool for mutual fund fetches. The stock block in get_explore_data()
@@ -91,7 +100,7 @@ def _refresh_indices_sync():
             results.append(item)
 
     if results:
-        set_cached("indices", results, ttl=60)
+        set_cached("indices", results, ttl=get_quote_ttl())
         return results
     return _CACHE.get("indices", [])
 
@@ -217,34 +226,15 @@ def _refresh_stock_quote_sync(formatted_symbol: str) -> Dict[str, Any]:
             "website": website,
             "logo_url": logo_url
         }
-        set_cached(cache_key, data, ttl=60)
+        set_cached(cache_key, data, ttl=get_quote_ttl())
         return data
     except Exception:
         # Fallback to stale cache if available
         stale = _CACHE.get(cache_key)
         if stale:
             return stale
-        # If no previous cache, generate a fallback based on ticker format
-        fallback = {
-            "symbol": formatted_symbol,
-            "name": name,
-            "asset_type": "STOCK",
-            "price": 100.0,
-            "change": 0.0,
-            "change_pct": 0.0,
-            "previous_close": 100.0,
-            "day_high": 101.5,
-            "day_low": 98.5,
-            "fifty_two_week_high": 125.0,
-            "fifty_two_week_low": 80.0,
-            "market_cap": 50000000000,
-            "pe_ratio": 20.0,
-            "pb_ratio": 2.5,
-            "dividend_yield": 1.0,
-            "volume": 500000,
-            "sector": sector
-        }
-        set_cached(cache_key, fallback, ttl=30)
+        fallback = _get_default_stock_quote(formatted_symbol, name, sector)
+        set_cached(cache_key, fallback, ttl=min(30, get_quote_ttl()))
         return fallback
 
 def _nav_at_or_before(data_list: List[Dict[str, Any]], target: datetime) -> tuple:
@@ -373,55 +363,78 @@ def get_mutual_fund_quote(code: str) -> Dict[str, Any]:
     }
 
 _BASE_STOCK_PRICES = {
-    "RELIANCE.NS": (1322.00, 19.50, 1.50),
-    "TCS.NS": (2304.00, -16.10, -0.69),
-    "HDFCBANK.NS": (1684.50, 12.30, 0.74),
-    "INFY.NS": (1820.00, -8.50, -0.46),
-    "ICICIBANK.NS": (1248.00, 14.20, 1.15),
-    "SBIN.NS": (1016.10, -7.25, -0.71),
-    "BHARTIARTL.NS": (1635.00, 22.40, 1.39),
-    "ITC.NS": (482.00, -2.10, -0.43),
-    "LT.NS": (3580.00, 45.00, 1.27),
-    "BAJFINANCE.NS": (6950.00, -42.00, -0.60),
-    "HINDUNILVR.NS": (2485.00, 11.50, 0.47),
-    "MARUTI.NS": (12250.00, 180.00, 1.49),
-    "SUNPHARMA.NS": (1860.00, -14.00, -0.75),
-    "TITAN.NS": (3460.00, 28.00, 0.82),
-    "TATASTEEL.NS": (152.40, 1.80, 1.20),
-    "ADANIENT.NS": (2850.00, -35.00, -1.21),
-    "ADANIPORTS.NS": (1285.00, 16.50, 1.30),
-    "WIPRO.NS": (542.00, -3.20, -0.59),
-    "POWERGRID.NS": (324.00, 4.20, 1.31),
-    "NTPC.NS": (382.00, 5.10, 1.35),
-    "ONGC.NS": (296.00, -1.80, -0.60),
-    "COALINDIA.NS": (462.00, 6.40, 1.40),
-    "M&M.NS": (2880.00, 38.00, 1.34),
-    "TMCV.NS": (945.00, 12.00, 1.29),
-    "TMPV.NS": (980.00, -8.00, -0.81),
-    "AXISBANK.NS": (1185.00, 11.20, 0.95),
-    "KOTAKBANK.NS": (1765.00, -12.50, -0.70),
-    "ULTRACEMCO.NS": (11200.00, 150.00, 1.36),
-    "ASIANPAINT.NS": (2450.00, -22.00, -0.89),
-    "BAJAJ-AUTO.NS": (9200.00, 110.00, 1.21),
-    "TRENT.NS": (6920.00, 85.00, 1.24),
-    "JIOFIN.NS": (324.50, 3.80, 1.18),
-    "ETERNAL.NS": (262.00, 5.40, 2.10),
-    "HAL.NS": (4856.00, 90.50, 1.90),
-    "BEL.NS": (304.00, 4.50, 1.50),
-    "MAZDOCK.NS": (4210.00, 75.00, 1.82),
-    "COCHINSHIP.NS": (1860.00, -25.00, -1.33),
-    "GRSE.NS": (1750.00, 32.00, 1.86),
-    "BDL.NS": (1180.00, 18.00, 1.55),
-    "IRFC.NS": (156.00, 2.40, 1.56),
-    "IRCTC.NS": (895.00, -7.50, -0.83),
-    "RVNL.NS": (525.00, 14.00, 2.74),
-    "RAILTEL.NS": (410.00, 6.20, 1.53),
-    "BHEL.NS": (285.00, 4.10, 1.46),
-    "TATAPOWER.NS": (418.00, 5.80, 1.41),
-    "SUZLON.NS": (66.50, 1.20, 1.84),
-    "IREDA.NS": (216.00, 4.80, 2.27),
-    "ADANIGREEN.NS": (1780.00, -24.00, -1.33),
-    "ADANIPOWER.NS": (645.00, 11.00, 1.74)
+    "RELIANCE.NS": (1247.8, 12.5, 1.01),
+    "TCS.NS": (2183.8, -67.2, -2.99),
+    "HDFCBANK.NS": (722.65, 6.1, 0.85),
+    "INFY.NS": (1056.1, -20.9, -1.94),
+    "ICICIBANK.NS": (1350.8, 0.4, 0.03),
+    "SBIN.NS": (988.0, 20.0, 2.07),
+    "BHARTIARTL.NS": (1832.7, 2.3, 0.13),
+    "ITC.NS": (263.95, 5.95, 2.31),
+    "LT.NS": (3810.6, -40.1, -1.04),
+    "BAJFINANCE.NS": (1011.5, 2.3, 0.23),
+    "HINDUNILVR.NS": (1966.6, 28.5, 1.47),
+    "MARUTI.NS": (12190.0, -41.0, -0.34),
+    "SUNPHARMA.NS": (1852.1, 17.1, 0.93),
+    "TITAN.NS": (4892.0, 36.0, 0.74),
+    "TATASTEEL.NS": (182.85, -0.8, -0.44),
+    "ADANIENT.NS": (2926.4, -2.2, -0.08),
+    "ADANIPORTS.NS": (1729.3, 15.5, 0.9),
+    "WIPRO.NS": (166.15, -3.85, -2.26),
+    "POWERGRID.NS": (263.3, 0.5, 0.19),
+    "NTPC.NS": (328.15, -1.35, -0.41),
+    "ONGC.NS": (234.72, -1.23, -0.52),
+    "COALINDIA.NS": (422.65, 3.4, 0.81),
+    "M&M.NS": (3085.1, 55.6, 1.84),
+    "TMCV.NS": (423.6, -2.8, -0.66),
+    "TMPV.NS": (300.7, -2.9, -0.96),
+    "AXISBANK.NS": (1244.4, 21.5, 1.76),
+    "KOTAKBANK.NS": (416.15, 6.35, 1.55),
+    "ULTRACEMCO.NS": (10708.0, 11.0, 0.1),
+    "ASIANPAINT.NS": (2429.9, 27.1, 1.13),
+    "BAJAJ-AUTO.NS": (11575.0, 151.0, 1.32),
+    "TRENT.NS": (2771.6, 41.6, 1.52),
+    "JIOFIN.NS": (225.24, -0.36, -0.16),
+    "ETERNAL.NS": (317.65, 2.4, 0.76),
+    "HAL.NS": (4686.0, -9.0, -0.19),
+    "BEL.NS": (388.5, 5.6, 1.46),
+    "MAZDOCK.NS": (2209.6, -26.4, -1.18),
+    "COCHINSHIP.NS": (1311.5, -13.5, -1.02),
+    "GRSE.NS": (2308.7, -50.1, -2.12),
+    "BDL.NS": (1132.2, -2.8, -0.25),
+    "IRFC.NS": (78.87, -0.28, -0.35),
+    "IRCTC.NS": (452.75, -4.45, -0.97),
+    "RVNL.NS": (196.85, -2.15, -1.08),
+    "RAILTEL.NS": (252.6, 0.6, 0.24),
+    "BHEL.NS": (413.0, 0.15, 0.04),
+    "TATAPOWER.NS": (361.8, -1.2, -0.33),
+    "SUZLON.NS": (42.09, -0.81, -1.89),
+    "IREDA.NS": (108.26, -0.74, -0.68),
+    "ADANIGREEN.NS": (1267.4, 12.4, 0.99),
+    "ADANIPOWER.NS": (203.11, 1.11, 0.55),
+    "NHPC.NS": (75.39, -0.65, -0.85),
+    "RECLTD.NS": (314.45, 5.95, 1.93),
+    "PFC.NS": (348.2, 4.2, 1.22),
+    "FEDERALBNK.NS": (340.8, -2.2, -0.64),
+    "BANKBARODA.NS": (233.58, 0.88, 0.38),
+    "PNB.NS": (116.52, 1.82, 1.59),
+    "CANBK.NS": (122.71, 0.34, 0.28),
+    "IDFCFIRSTB.NS": (85.6, 0.8, 0.94),
+    "YESBANK.NS": (23.41, 0.34, 1.47),
+    "CDSL.NS": (1296.7, -14.3, -1.09),
+    "BSE.NS": (3230.1, -79.9, -2.41),
+    "EICHERMOT.NS": (7510.0, 57.5, 0.77),
+    "TVSMOTOR.NS": (4043.3, -6.7, -0.17),
+    "ASHOKLEY.NS": (157.25, 0.6, 0.38),
+    "TATATECH.NS": (750.95, -7.55, -1.0),
+    "TATAELXSI.NS": (3367.3, -72.7, -2.11),
+    "PAYTM.NS": (1789.8, 59.8, 3.46),
+    "VEDL.NS": (255.85, -1.15, -0.45),
+    "JSWSTEEL.NS": (1247.7, 18.5, 1.51),
+    "HINDALCO.NS": (972.5, 13.8, 1.44),
+    "CIPLA.NS": (1360.1, 9.1, 0.67),
+    "DRREDDY.NS": (1146.8, 1.8, 0.16),
+    "APOLLOHOSP.NS": (8677.5, -36.5, -0.42),
 }
 
 def _get_default_stock_quote(symbol: str, name: str = "", sector: str = "NSE Equities") -> Dict[str, Any]:
@@ -433,15 +446,15 @@ def _get_default_stock_quote(symbol: str, name: str = "", sector: str = "NSE Equ
     if base_info:
         price, change, change_pct = base_info
     else:
-        # Python salts str hashing per interpreter (PYTHONHASHSEED), so hash()
-        # gave a symbol a different fallback price after every restart. Use a
-        # stable digest so the synthetic price is reproducible.
-        h = (zlib.crc32(symbol.encode("utf-8")) % 2500) + 120
-        price = float(h)
-        change = round(price * 0.012, 2)
-        change_pct = 1.20
+        price = 100.0
+        change = 0.0
+        change_pct = 0.0
 
     prev_close = round(price - change, 2)
+    clean_sym = symbol.replace(".NS", "").replace(".BO", "").upper()
+    local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_sym}.png")
+    logo_url = f"/static/logos/{clean_sym}.png" if os.path.exists(local_logo) else f"https://images.financialmodelingprep.com/symbol/{clean_sym}.NS.png"
+
     return {
         "symbol": symbol,
         "name": n,
@@ -459,7 +472,8 @@ def _get_default_stock_quote(symbol: str, name: str = "", sector: str = "NSE Equ
         "pb_ratio": 3.2,
         "dividend_yield": 1.1,
         "volume": 1420000,
-        "sector": sec
+        "sector": sec,
+        "logo_url": logo_url
     }
 
 def get_explore_data() -> Dict[str, Any]:
@@ -470,36 +484,85 @@ def get_explore_data() -> Dict[str, Any]:
     all_symbols = [s["symbol"] for s in STOCK_MASTER]
     stock_dict = {}
 
-    # Check which symbols are already warm in single-quote cache
+    # 1. Check which symbols are already warm in single-quote cache
     for s in STOCK_MASTER:
         sym = s["symbol"]
         c_quote = get_cached(f"quote_{sym}")
         if c_quote and c_quote.get("price"):
             stock_dict[sym] = c_quote
 
-    # Concurrently fetch any missing stock quotes with a strict 1.5-second cap
+    # 2. Concurrently fetch any missing stock quotes using fast_info batching
     missing_syms = [s for s in all_symbols if s not in stock_dict]
     if missing_syms:
         try:
-            future_map = {_POOL.submit(get_stock_quote, sym): sym for sym in missing_syms}
-            done, _ = concurrent.futures.wait(future_map.keys(), timeout=1.5)
-            for f in done:
+            def _fetch_missing_fast(sym_list):
+                res = {}
                 try:
-                    q = f.result()
-                    if q and q.get("price"):
-                        stock_dict[q["symbol"]] = q
+                    tickers = yf.Tickers(" ".join(sym_list))
+                    for sym in sym_list:
+                        try:
+                            t = tickers.tickers.get(sym)
+                            if not t:
+                                continue
+                            fast = t.fast_info
+                            price = getattr(fast, "last_price", None)
+                            prev_close = getattr(fast, "previous_close", None)
+                            if price and price > 0:
+                                price = round(float(price), 2)
+                                prev_close = round(float(prev_close or price), 2)
+                                change = round(price - prev_close, 2)
+                                change_pct = round((change / prev_close) * 100, 2) if prev_close else 0.0
+                                matched = next((s for s in STOCK_MASTER if s["symbol"] == sym), None)
+                                n = matched["name"] if matched else sym.replace(".NS", "")
+                                sec = matched.get("sector", "NSE Equities") if matched else "NSE Equities"
+                                clean_sym = sym.replace(".NS", "").replace(".BO", "").upper()
+                                local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_sym}.png")
+                                logo_url = f"/static/logos/{clean_sym}.png" if os.path.exists(local_logo) else f"https://images.financialmodelingprep.com/symbol/{clean_sym}.NS.png"
+                                q_data = {
+                                    "symbol": sym,
+                                    "name": n,
+                                    "asset_type": "STOCK",
+                                    "price": price,
+                                    "change": change,
+                                    "change_pct": change_pct,
+                                    "previous_close": prev_close,
+                                    "prev_close": prev_close,
+                                    "open": round(float(getattr(fast, "open", None) or prev_close), 2),
+                                    "day_high": round(float(getattr(fast, "day_high", None) or (price * 1.015)), 2),
+                                    "day_low": round(float(getattr(fast, "day_low", None) or (price * 0.985)), 2),
+                                    "fifty_two_week_high": round(float(getattr(fast, "year_high", None) or (price * 1.25)), 2),
+                                    "fifty_two_week_low": round(float(getattr(fast, "year_low", None) or (price * 0.80)), 2),
+                                    "market_cap": int(getattr(fast, "market_cap", None) or 500000000000),
+                                    "pe_ratio": 22.5,
+                                    "pb_ratio": 3.0,
+                                    "dividend_yield": 1.2,
+                                    "volume": int(getattr(fast, "last_volume", None) or 1000000),
+                                    "sector": sec,
+                                    "logo_url": logo_url
+                                }
+                                res[sym] = q_data
+                                set_cached(f"quote_{sym}", q_data, ttl=get_quote_ttl())
+                        except Exception:
+                            pass
                 except Exception:
                     pass
-        except Exception as e:
-            print("Explore concurrent fetch error:", e)
+                return res
 
-    # Fill any remaining with instant, realistic baseline quotes
+            fut = _POOL.submit(_fetch_missing_fast, missing_syms)
+            fresh_quotes = fut.result(timeout=3.0)
+            if fresh_quotes:
+                stock_dict.update(fresh_quotes)
+        except Exception:
+            pass
+
+    # 3. Fill any remaining with instant, realistic baseline quotes
     for s in STOCK_MASTER:
         sym = s["symbol"]
         if sym not in stock_dict or not stock_dict[sym].get("price"):
             stock_dict[sym] = _get_default_stock_quote(sym, s["name"], s["sector"])
 
-    all_stocks = list(stock_dict.values())
+    # 4. Strict ordering: strictly preserve STOCK_MASTER catalog order so cards NEVER shuffle or rearrange
+    all_stocks = [stock_dict[s["symbol"]] for s in STOCK_MASTER if s["symbol"] in stock_dict]
 
     # Mutual funds — real AMFI NAVs via mfapi.in. No synthetic prices: a fund we
     # cannot fetch is reported as unavailable rather than shown with invented figures.
@@ -516,9 +579,6 @@ def get_explore_data() -> Dict[str, Any]:
     if missing_mfs:
         try:
             mf_futures = {_MF_POOL.submit(get_mutual_fund_quote, code): code for code in missing_mfs}
-            # One mfapi.in response is ~130KB of NAV history per fund, so this needs a
-            # real budget. The previous 1.2s cap expired before most fetches came back,
-            # which pushed nearly every fund into the old fabricated fallback.
             done_mf, _ = concurrent.futures.wait(mf_futures.keys(), timeout=8.0)
             for f in done_mf:
                 try:
@@ -565,7 +625,8 @@ def get_explore_data() -> Dict[str, Any]:
         "all_stocks": all_stocks,
         "mutual_funds": all_mfs
     }
-    set_cached("explore_data_v4", result, ttl=180)
+    explore_ttl = 30 if get_quote_ttl() <= 15 else 120
+    set_cached("explore_data_v4", result, ttl=explore_ttl)
     return result
 
 def _fetch_groww_chart(symbol: str, timeframe: str) -> Optional[List[Dict[str, Any]]]:

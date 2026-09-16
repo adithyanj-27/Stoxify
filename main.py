@@ -783,6 +783,7 @@ def read_positions(request: Request):
             "total_margin_used": 0.0,
             "is_guest": True
         }
+    service_pending_orders(uid)
     raw_positions = get_positions(uid)
     positions_detail = []
     total_unrealized_pnl = 0.0
