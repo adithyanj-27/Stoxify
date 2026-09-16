@@ -1487,35 +1487,59 @@ async function fetchPortfolioInternal(requestVersion) {
 
     const curVal = data.current_value || 0;
     const invVal = data.invested_value ?? data.invested_amount ?? 0;
-    const totalPnl = data.total_pnl ?? data.total_returns ?? 0;
-    const totalPnlPct = data.total_pnl_pct ?? data.total_returns_pct ?? 0;
+    const totalPnl = data.total_pnl ?? data.total_returns ?? (curVal - invVal);
+    const totalPnlPct = data.total_pnl_pct ?? data.total_returns_pct ?? (invVal > 0 ? ((totalPnl / invVal) * 100) : 0);
     const todayPnl = data.today_pnl ?? data.day_returns ?? 0;
-    const todayPnlPct = data.today_pnl_pct ?? data.day_returns_pct ?? 0;
+    const todayPnlPct = data.today_pnl_pct ?? data.day_returns_pct ?? (curVal > 0 ? ((todayPnl / curVal) * 100) : 0);
 
     const summaryCur = document.getElementById('summaryCurrentVal');
     if (summaryCur) summaryCur.innerText = formatINR(curVal);
     const summaryInv = document.getElementById('summaryInvestedVal');
     if (summaryInv) summaryInv.innerText = formatINR(invVal);
 
-    const isTotalPos = totalPnl >= 0;
+    // 1. TOTAL RETURNS ON TOP (under Current Value in Card 1)
+    const isTotalPos = totalPnl > 0;
+    const isTotalNeg = totalPnl < 0;
+    const totalSign = isTotalPos ? '+' : '';
+    const totalColorClass = isTotalPos ? 'text-positive' : (isTotalNeg ? 'text-negative' : 'text-muted');
+    const formattedTotalPnl = `${totalSign}${formatINR(totalPnl)}`;
+    const formattedTotalPct = `${totalSign}${formatNumber(totalPnlPct)}%`;
+
+    const totalReturnsSub = document.getElementById('summaryTotalReturnsSub');
+    if (totalReturnsSub) {
+      totalReturnsSub.innerHTML = `<span id="summaryTotalReturnsText" class="${totalColorClass}" style="font-weight: 700; font-size: 0.84rem;">Total: ${formattedTotalPnl} (${formattedTotalPct})</span>`;
+    }
+    const totalReturnsText = document.getElementById('summaryTotalReturnsText');
+    if (totalReturnsText) {
+      totalReturnsText.innerText = `Total: ${formattedTotalPnl} (${formattedTotalPct})`;
+      totalReturnsText.className = totalColorClass;
+    }
     const totalReturnsEl = document.getElementById('summaryTotalReturns');
     if (totalReturnsEl) {
-      totalReturnsEl.innerText = formatINR(totalPnl);
-      totalReturnsEl.className = `banner-metric-val ${isTotalPos ? 'text-positive' : 'text-negative'}`;
+      totalReturnsEl.innerText = formattedTotalPnl;
+      totalReturnsEl.className = `banner-metric-val ${totalColorClass}`;
     }
-
     const totalPctEl = document.getElementById('summaryTotalReturnsPct');
     if (totalPctEl) {
-      totalPctEl.innerHTML = `<span class="${isTotalPos ? 'text-positive' : 'text-negative'}">${isTotalPos ? '+' : ''}${formatNumber(totalPnlPct)}%</span>`;
+      totalPctEl.innerHTML = `<span class="${totalColorClass}">${formattedTotalPct}</span>`;
     }
 
+    // 2. 1D RETURNS ON BOTTOM (in Card 3)
     const isDayPos = todayPnl > 0;
     const isDayNeg = todayPnl < 0;
     const daySign = isDayPos ? '+' : '';
     const dayColorClass = isDayPos ? 'text-positive' : (isDayNeg ? 'text-negative' : 'text-muted');
+    const formattedDayPnl = `${daySign}${formatINR(todayPnl)}`;
+    const formattedDayPct = `${daySign}${formatNumber(todayPnlPct)}%`;
+
     const dayPnlEl = document.getElementById('summaryTodayPnl');
     if (dayPnlEl) {
-      dayPnlEl.innerHTML = `<span class="${dayColorClass}">1D: ${daySign}${formatINR(todayPnl)} (${daySign}${formatNumber(todayPnlPct)}%)</span>`;
+      dayPnlEl.innerText = formattedDayPnl;
+      dayPnlEl.className = `banner-metric-val ${dayColorClass}`;
+    }
+    const dayPctEl = document.getElementById('summaryTodayPnlPct');
+    if (dayPctEl) {
+      dayPctEl.innerHTML = `<span class="${dayColorClass}">${formattedDayPct}</span>`;
     }
 
     const tableBody = document.getElementById('holdingsTableBody');
