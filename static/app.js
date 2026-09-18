@@ -3839,6 +3839,7 @@ function enterGuestMode() {
   localStorage.setItem('stoxify_guest_mode', 'true');
   localStorage.removeItem('stoxify_user_id');
   localStorage.removeItem('stoxify_cached_user');
+  clearSessionToken();
   document.documentElement.classList.remove('user-logged-in');
   document.documentElement.classList.add('user-guest');
   currentUser = null;
