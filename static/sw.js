@@ -1,5 +1,5 @@
-// Stoxifyin' PWA Service Worker
-const CACHE_NAME = 'stoxifyin-v9';
+// Stoxifyn PWA Service Worker
+const CACHE_NAME = 'stoxifyn-v1';
 
 // The app shell is precached so a cold offline navigation has something to
 // serve. It previously cached only icons and manifest, so offline never worked
@@ -44,7 +44,7 @@ function offlineResponse(request) {
     return new Response(
       '<!doctype html><meta charset="utf-8">' +
       '<meta name="viewport" content="width=device-width,initial-scale=1">' +
-      "<title>Stoxifyin' — offline</title>" +
+      "<title>Stoxifyn — offline</title>" +
       '<body style="font-family:system-ui,sans-serif;background:#0B0F19;color:#e2e8f0;padding:2rem">' +
       '<h2>You are offline</h2>' +
       '<p>Reconnect to load live market data. Cached screens may still be available.</p>' +

@@ -282,6 +282,10 @@ html {
   overflow-x: hidden;
   box-sizing: border-box;
   -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 button {
@@ -303,6 +307,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   transition: background-color 0.25s ease, color 0.25s ease;
 }
 
@@ -832,23 +837,38 @@ body {
 
 .tab-pane {
   display: none;
+  -webkit-overflow-scrolling: touch;
 }
 
 .tab-pane.active {
   display: block;
+  animation: tabPaneFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes tabPaneFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 #pane-asset-detail.active {
   display: block;
-  animation: assetPaneFadeIn 0.2s ease-out forwards;
+  animation: assetPaneSlideIn 0.26s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-@keyframes assetPaneFadeIn {
+@keyframes assetPaneSlideIn {
   from {
     opacity: 0;
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -1329,14 +1349,15 @@ body {
   right: 0;
   bottom: 0;
   background: rgba(8, 12, 20, 0.8);
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100000;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.24s cubic-bezier(0.16, 1, 0.3, 1);
   padding: 1rem;
 }
 
@@ -1354,9 +1375,29 @@ body {
   max-width: 860px;
   max-height: 90vh;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
   box-shadow: var(--shadow-lg);
   display: flex;
   flex-direction: column;
+}
+
+@media (min-width: 769px) {
+  .modal-overlay.active .modal-card,
+  .modal-overlay.active .modal-container {
+    animation: modalScaleIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+}
+
+@keyframes modalScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .modal-header {
@@ -8272,7 +8313,26 @@ body.viewing-profile .indices-bar {
   color: #1C1917;
 }
 
+/* Smooth Touch Momentum & Scroll Surfaces */
+.table-container,
+.indices-bar,
+.mobile-sub-tabs,
+.tab-pane,
+.modal-card,
+.modal-container,
+.mobile-drawer-card,
+.portfolio-banner,
+.groww-table-scroll {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
 
-
-
-
+/* Accessibility: Respect Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
