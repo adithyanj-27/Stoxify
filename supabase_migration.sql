@@ -90,10 +90,21 @@ ALTER TABLE public.gtt_orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sips ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ipo_bids ENABLE ROW LEVEL SECURITY;
 
+-- RLS is enabled on these tables and NO permissive policy is created, so the
+-- publishable key cannot read or write them (it previously could, on every row
+-- and every column, via FOR ALL USING (true) WITH CHECK (true)).
+--
+-- The backend is unaffected: it authenticates with SUPABASE_SERVICE_ROLE_KEY,
+-- which bypasses RLS. Writes to these tables from the browser were never part
+-- of the design — there is no Supabase key in static/ or public/.
+--
+-- This also drops the permissive policies left behind by earlier revisions of
+-- supabase_schema.sql, which is why the DROPs cover those tables too.
 DROP POLICY IF EXISTS "Allow public full access to gtt_orders" ON public.gtt_orders;
 DROP POLICY IF EXISTS "Allow public full access to sips" ON public.sips;
 DROP POLICY IF EXISTS "Allow public full access to ipo_bids" ON public.ipo_bids;
-
-CREATE POLICY "Allow public full access to gtt_orders" ON public.gtt_orders FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public full access to sips" ON public.sips FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public full access to ipo_bids" ON public.ipo_bids FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow public full access to users" ON public.users;
+DROP POLICY IF EXISTS "Allow public full access to holdings" ON public.holdings;
+DROP POLICY IF EXISTS "Allow public full access to positions" ON public.positions;
+DROP POLICY IF EXISTS "Allow public full access to orders" ON public.orders;
+DROP POLICY IF EXISTS "Allow public full access to watchlist" ON public.watchlist;

@@ -616,7 +616,12 @@ def get_explore_data() -> Dict[str, Any]:
     # Rank gainers and losers
     gainers = sorted([s for s in all_stocks if s.get("change", 0) >= 0], key=lambda x: x.get("change_pct", 0), reverse=True)[:8]
     losers = sorted([s for s in all_stocks if s.get("change", 0) < 0], key=lambda x: x.get("change_pct", 0))[:8]
-    most_bought = all_stocks[:8]
+    # Was `all_stocks[:8]` — literally the first eight entries of the master
+    # list, which has nothing to do with what anyone bought. Rank by traded
+    # volume, the same field gainers/losers already read.
+    most_bought = sorted(
+        all_stocks, key=lambda x: x.get("volume") or 0, reverse=True
+    )[:8]
 
     result = {
         "most_bought": most_bought,

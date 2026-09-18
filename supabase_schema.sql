@@ -103,8 +103,32 @@ ALTER TABLE public.positions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.watchlist ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Allow public full access to users" ON public.users FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public full access to holdings" ON public.holdings FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public full access to positions" ON public.positions FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public full access to orders" ON public.orders FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public full access to watchlist" ON public.watchlist FOR ALL USING (true) WITH CHECK (true);
+-- No permissive policies.
+--
+-- RLS is enabled above but these tables previously carried
+--   FOR ALL USING (true) WITH CHECK (true)
+-- which permits every operation on every row for any holder of the project's
+-- publishable key — including reading and rewriting users.pin / users.password.
+--
+-- Nothing legitimately needs that access over the REST API: the browser never
+-- talks to Supabase directly (no key is shipped in static/ or public/), and the
+-- backend authenticates with the secret/service-role key, which bypasses RLS
+-- entirely. So the correct configuration is *no* policy for anon/authenticated,
+-- which makes the publishable key useless instead of omnipotent.
+--
+-- If a future feature needs browser-side Supabase access, add an explicit
+-- per-user policy for that one table rather than reopening these:
+--   CREATE POLICY "<table>_own_rows" ON public.<table>
+--     FOR ALL TO authenticated
+--     USING (EXISTS (SELECT 1 FROM public.users u
+--                    WHERE u.id = <table>.user_id AND u.auth_id = auth.uid()::text))
+--     WITH CHECK (EXISTS (SELECT 1 FROM public.users u
+--                    WHERE u.id = <table>.user_id AND u.auth_id = auth.uid()::text));
+
+-- Drop the permissive policies in case this file is re-applied to a project
+-- that already has them.
+DROP POLICY IF EXISTS "Allow public full access to users" ON public.users;
+DROP POLICY IF EXISTS "Allow public full access to holdings" ON public.holdings;
+DROP POLICY IF EXISTS "Allow public full access to positions" ON public.positions;
+DROP POLICY IF EXISTS "Allow public full access to orders" ON public.orders;
+DROP POLICY IF EXISTS "Allow public full access to watchlist" ON public.watchlist;

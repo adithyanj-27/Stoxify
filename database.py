@@ -12,6 +12,10 @@ import urllib.parse
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 import concurrent.futures
+import logging
+import security
+
+logger = logging.getLogger("stoxify.database")
 
 _TRADE_SYNC_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=4)
 
@@ -28,14 +32,31 @@ if os.path.exists(ENV_FILE):
     except Exception:
         pass
 
-DEFAULT_SUPABASE_URL = "https://pqyjxpaqbjeelewcjwmd.supabase.co"
-DEFAULT_SUPABASE_KEY = "sb_publishable__ywLDIS3oh2MnKdoXcnkYg_rNjN_tHw"
-
-SUPABASE_URL = (os.environ.get("SUPABASE_URL") or DEFAULT_SUPABASE_URL).rstrip("/")
+# Cloud credentials come from the environment only. These used to be hardcoded
+# defaults, which wrote a working key straight into git history — so the project
+# URL and that key must be treated as burned and rotated.
+SUPABASE_URL = (
+    os.environ.get("SUPABASE_URL")
+    or os.environ.get("SUPABASE_PROJECT_URL")
+    or ""
+).rstrip("/")
 if SUPABASE_URL.endswith("/rest/v1"):
     SUPABASE_URL = SUPABASE_URL[:-8].rstrip("/")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_ANON_KEY") or DEFAULT_SUPABASE_KEY
-SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+
+# Server-side table access prefers the secret key so Row Level Security can be
+# locked down without the backend losing access to its own data. The
+# publishable/anon key is for browsers and is deliberately not preferred here
+# (it never appears in the shipped frontend either).
+SUPABASE_SERVICE_ROLE_KEY = (
+    os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    or os.environ.get("SUPABASE_SECRET_KEY")
+)
+SUPABASE_KEY = (
+    SUPABASE_SERVICE_ROLE_KEY
+    or os.environ.get("SUPABASE_KEY")
+    or os.environ.get("SUPABASE_ANON_KEY")
+    or ""
+)
 
 def supabase_api(method: str, table_or_endpoint: str, payload: Optional[Any] = None, params: Optional[Dict[str, str]] = None) -> Optional[Any]:
     if not is_supabase_enabled():
@@ -960,7 +981,7 @@ def create_user(
         clean_username = f"{base_name}_{random.randint(1000, 9999)}"
     else:
         clean_username = username.strip().lstrip("@").lower()
-    clean_password = password.strip() if password else None
+    clean_password = security.hash_secret(password.strip()) if password and password.strip() else None
     # Keep the IFSC the user actually typed. Deriving it from the bank name
     # silently replaced it (selecting "SBI" + typing SBIN0001234 stored STAT0001234).
     clean_ifsc = (ifsc or "").strip().upper() or f"{bank_name.split()[0].upper()[:4]}0001234"
@@ -972,6 +993,12 @@ def create_user(
     clean_pin = (pin or "").strip()
     if clean_pin and len(clean_pin) != 4:
         clean_pin = ""
+    # Hash at the storage boundary (not in the API layer) so *every* caller —
+    # the HTTP handlers and direct callers alike — stores a digest. Note this
+    # must happen after the length check above, which blanks anything that is
+    # not a 4-digit PIN and would otherwise discard a pre-hashed value.
+    if clean_pin:
+        clean_pin = security.hash_secret(clean_pin)
     has_completed_tour = 0
 
     # 1. Insert into local SQLite (Bank gets ₹10 Lakh initial credit, trading wallet starts at ₹0 until added via UPI)
@@ -1145,9 +1172,11 @@ def update_user(
         params.append(bank_account.strip())
         sb_payload["bank_account"] = bank_account.strip()
     if pin is not None:
+        # Digits are stored, never the credential itself (see security.py).
+        stored_pin_value = security.hash_secret(pin.strip())
         fields.append("pin = ?")
-        params.append(pin.strip())
-        sb_payload["pin"] = pin.strip()
+        params.append(stored_pin_value)
+        sb_payload["pin"] = stored_pin_value
     if avatar_color is not None:
         fields.append("avatar_color = ?")
         params.append(avatar_color.strip())
@@ -1158,7 +1187,7 @@ def update_user(
         params.append(clean_user)
         sb_payload["username"] = clean_user
     if password is not None:
-        clean_pwd = password.strip()
+        clean_pwd = security.hash_secret(password.strip())
         fields.append("password = ?")
         params.append(clean_pwd)
         sb_payload["password"] = clean_pwd
@@ -1468,10 +1497,12 @@ def transfer_bank_to_wallet(user_id: str, amount: float, pin: str) -> Dict[str, 
     stored_pass = (user.get("password") or "").strip()
     entered_pin = (pin or "").strip()
 
+    # Secrets are stored as PBKDF2 digests now, so they must be verified rather
+    # than compared. verify_secret also accepts legacy plaintext rows.
     pin_valid = False
-    if stored_pin and entered_pin == stored_pin:
+    if stored_pin and security.verify_secret(entered_pin, stored_pin):
         pin_valid = True
-    elif not stored_pin and stored_pass and entered_pin == stored_pass:
+    elif not stored_pin and stored_pass and security.verify_secret(entered_pin, stored_pass):
         pin_valid = True
     elif not stored_pin and not stored_pass:
         pin_valid = True
@@ -1584,10 +1615,11 @@ def withdraw_wallet_to_bank(user_id: str, amount: float, pin: str) -> Dict[str, 
     stored_pass = (user.get("password") or "").strip()
     entered_pin = (pin or "").strip()
 
+    # See transfer_bank_to_wallet(): digests must be verified, not compared.
     pin_valid = False
-    if stored_pin and entered_pin == stored_pin:
+    if stored_pin and security.verify_secret(entered_pin, stored_pin):
         pin_valid = True
-    elif not stored_pin and stored_pass and entered_pin == stored_pass:
+    elif not stored_pin and stored_pass and security.verify_secret(entered_pin, stored_pass):
         pin_valid = True
     elif not stored_pin and not stored_pass:
         pin_valid = True
@@ -3497,9 +3529,31 @@ def check_gtt_orders(symbol: str, current_price: float, user_id: Optional[str] =
 
         for g in active_gtts:
             act = (g.get("action") or "BUY").upper()
-            trig = float(g.get("trigger_price") or 0.0)
-            hit = (current_price >= trig) if act == "BUY" else (current_price <= trig)
-            if hit and trig > 0:
+            try:
+                trig = float(g.get("trigger_price") or 0.0)
+            except (TypeError, ValueError):
+                trig = 0.0
+            try:
+                target = float(g.get("target_price") or 0.0)
+            except (TypeError, ValueError):
+                target = 0.0
+            try:
+                stop = float(g.get("stop_loss_price") or 0.0)
+            except (TypeError, ValueError):
+                stop = 0.0
+
+            # target_price / stop_loss_price used to be selected and then never
+            # read, so a GTT carrying only those levels could never fire. All
+            # three are now evaluated and any one of them is sufficient.
+            hit = False
+            if trig > 0 and ((act == "BUY" and current_price >= trig) or (act == "SELL" and current_price <= trig)):
+                hit = True
+            elif target > 0 and current_price >= target:
+                hit = True
+            elif stop > 0 and current_price <= stop:
+                hit = True
+
+            if hit:
                 conn_claim = get_connection()
                 cur_claim = conn_claim.cursor()
                 cur_claim.execute("UPDATE gtt_orders SET status = 'TRIGGERED' WHERE id = ? AND status = 'ACTIVE'", (g["id"],))
@@ -3520,7 +3574,8 @@ def check_gtt_orders(symbol: str, current_price: float, user_id: Optional[str] =
                         user_id=g["user_id"]
                     )
     except Exception:
-        pass
+        # Was a bare `pass`, which is how a GTT could silently never fire.
+        logger.warning("GTT evaluation failed for symbol %s", symbol, exc_info=True)
 
 def get_orders(limit: int = 100, status_filter: Optional[str] = None, user_id: str = "default") -> List[Dict[str, Any]]:
     # 1. Try Supabase first
@@ -4171,7 +4226,15 @@ SECTOR_MAP = {
     "JSWSTEEL.NS": "Metals & Mining"
 }
 
-def get_sector_allocation(user_id: str = "default") -> List[Dict[str, Any]]:
+def get_sector_allocation(user_id: str = "default", price_lookup=None) -> List[Dict[str, Any]]:
+    """Sector weights of the portfolio.
+
+    `price_lookup(holding)` should return the live price, so this measures
+    market value the same way /api/portfolio does. It used to weight by
+    `avg_price` unconditionally, which is why the sector chart and the
+    portfolio summary never reconciled. Without a lookup (or when a quote is
+    unavailable) the holding falls back to cost basis.
+    """
     holdings = get_holdings(user_id)
     if not holdings:
         return []
@@ -4180,7 +4243,15 @@ def get_sector_allocation(user_id: str = "default") -> List[Dict[str, Any]]:
     total_val = 0.0
 
     for h in holdings:
-        val = h["quantity"] * h["avg_price"]
+        price = None
+        if price_lookup is not None:
+            try:
+                price = price_lookup(h)
+            except Exception:
+                price = None
+        if not price or price <= 0:
+            price = h["avg_price"]
+        val = h["quantity"] * price
         total_val += val
         if h.get("asset_type") == "MUTUAL_FUND":
             sector = "Mutual Funds (Equities)"

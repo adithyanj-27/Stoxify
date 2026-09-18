@@ -18,6 +18,50 @@ if (localStorage.getItem('stoxify_user_id') === 'default') {
   localStorage.removeItem('stoxify_user_id');
 }
 
+/* --------------------------------------------------------------------------
+   Session identity
+   The server issues a signed token at login and treats it as the only source
+   of identity — the legacy `x-user-id` header is no longer trusted, because
+   honouring it let any caller act as any account. Attaching the token here,
+   once, means every existing call site carries it without being rewritten.
+
+   The token is only sent while `stoxify_user_id` is set, so the existing
+   logout paths (which clear that key) also drop the credential without
+   needing to know this exists.
+   -------------------------------------------------------------------------- */
+const SESSION_TOKEN_KEY = 'stoxify_session_token';
+
+(function installSessionInterceptor() {
+  if (typeof window === 'undefined' || !window.fetch) return;
+  const originalFetch = window.fetch.bind(window);
+
+  window.fetch = function (input, init) {
+    try {
+      if (typeof input !== 'string') return originalFetch(input, init);
+
+      const sameOrigin = input.indexOf('/') === 0 || input.indexOf(window.location.origin) === 0;
+      const isApi = input.indexOf('/api/') !== -1;
+      const token = localStorage.getItem(SESSION_TOKEN_KEY);
+      const uid = localStorage.getItem('stoxify_user_id');
+
+      if (sameOrigin && isApi && token && uid && uid !== 'guest') {
+        const headers = new Headers((init && init.headers) || {});
+        if (!headers.has('Authorization')) {
+          headers.set('Authorization', 'Bearer ' + token);
+        }
+        return originalFetch(input, Object.assign({}, init, { headers }));
+      }
+    } catch (e) {
+      // Never let credential attachment break a request.
+    }
+    return originalFetch(input, init);
+  };
+})();
+
+function clearSessionToken() {
+  try { localStorage.removeItem(SESSION_TOKEN_KEY); } catch (e) {}
+}
+
 // Ensure active user never inherits a contradictory stale guest flag
 (function sanitizeGuestMode() {
   try {
@@ -3932,7 +3976,9 @@ function openEditProfileModal() {
     }).catch(() => {});
   }
 
-  if (pinInput) pinInput.value = currentUser.pin || '';
+  // Never prefill a PIN field: the server no longer returns the PIN, and
+  // echoing a credential back into the DOM was a needless exposure.
+  if (pinInput) pinInput.value = '';
 
   selectedEditAvatarColor = currentUser.avatar_color || '#0EA5E9';
   highlightSelectedAvatarColor(selectedEditAvatarColor);
@@ -5105,6 +5151,9 @@ async function submitLogin() {
     }
 
     currentUser = data.user;
+    if (data.session_token) {
+      localStorage.setItem(SESSION_TOKEN_KEY, data.session_token);
+    }
     localStorage.removeItem('stoxify_guest_mode');
     localStorage.setItem('stoxify_user_id', currentUser.id);
     localStorage.setItem('stoxify_cached_user', JSON.stringify(currentUser));
@@ -6779,7 +6828,7 @@ function generateNewRandomBank() {
 
 function showOnboardingPage() {
   if (currentUser && currentUser.id && !isGuest()) {
-    if (!currentUser.pin) {
+    if (!currentUser.has_pin) {
       goToObStep(6);
       showObPinView();
       return;
@@ -7472,8 +7521,10 @@ async function submitObPin() {
       showToast(data.detail || 'Could not save your PIN. Please try again.', true);
       return;
     }
+    if (data.session_token) {
+      localStorage.setItem(SESSION_TOKEN_KEY, data.session_token);
+    }
     currentUser = data.user || currentUser || {};
-    currentUser.pin = pin;
     if (targetId && !currentUser.id) currentUser.id = targetId;
     if (targetPhone && !currentUser.phone) currentUser.phone = targetPhone;
     localStorage.setItem('stoxify_cached_user', JSON.stringify(currentUser));
@@ -7487,7 +7538,7 @@ async function submitObPin() {
 }
 
 function finishOnboarding() {
-  if (!currentUser || !currentUser.pin) {
+  if (!currentUser || !currentUser.has_pin) {
     showObPinView();
     showToast('Please create your 4-digit PIN to finish registration and secure your login.', true);
     return;

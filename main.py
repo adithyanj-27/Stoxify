@@ -1,8 +1,16 @@
 import os
+import base64
+import hashlib
+import hmac
+import logging
+import secrets
+import threading
+import time
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, Query, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 
@@ -26,12 +34,18 @@ import market_service
 import market_hours
 import fo_service
 import ipo_service
+import security
 from datetime import datetime, timezone, timedelta
 
 app = FastAPI(title="Stoxifyin", description="Stoxifyin - Stock & Mutual Fund Broker Platform", version="1.0.0")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
+# `static/` is the single source of truth for the frontend. `public/` used to
+# carry a second copy of every asset (and `public/static/` a third), which had
+# to be re-synced by hand on every edit and had already drifted. It has been
+# removed; PUBLIC_DIR stays as a harmless legacy fallback in the lookups below
+# and resolves to nothing.
 PUBLIC_DIR = os.path.join(BASE_DIR, "public")
 
 def get_holding_quote(holding: Dict[str, Any]) -> Dict[str, Any]:
@@ -44,13 +58,24 @@ def get_holding_quote(holding: Dict[str, Any]) -> Dict[str, Any]:
         return {"price": holding["avg_price"], "change": 0.0, "change_pct": 0.0}
 
 
+def _is_trusted_proxy_request(request: Request) -> bool:
+    """True when the request demonstrably transited the Vercel proxy.
+
+    `x-vercel-original-url` is client-settable, so rewriting the routed path
+    from it unconditionally let any caller choose which route handled their
+    request. The platform also injects `x-vercel-id` on the way through, so
+    its presence is used as the proof of transit.
+    """
+    return bool(request.headers.get("x-vercel-id"))
+
+
 @app.middleware("http")
 async def normalize_vercel_path(request: Request, call_next):
     orig = request.headers.get("x-vercel-original-url")
-    if orig:
+    if orig and _is_trusted_proxy_request(request):
         clean_path = orig.split("?")[0]
         request.scope["path"] = clean_path
-    else:
+    elif not orig:
         path = request.scope.get("path", "")
         if path.startswith("/api/index.py"):
             sub = path.replace("/api/index.py", "", 1)
@@ -58,6 +83,12 @@ async def normalize_vercel_path(request: Request, call_next):
         elif path.startswith("/index.py"):
             sub = path.replace("/index.py", "", 1)
             request.scope["path"] = sub if sub.startswith("/") else ("/" + sub)
+
+    if request.method != "OPTIONS" and _check_rate_limit(request):
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Too many requests. Please slow down and try again shortly."},
+        )
     return await call_next(request)
 
 @app.on_event("startup")
@@ -67,11 +98,171 @@ def startup():
     except Exception:
         pass
 
+logger = logging.getLogger("stoxify")
+
+# --- Session tokens ------------------------------------------------------
+# Identity used to be a raw client-supplied `x-user-id` header / `?user_id=`
+# parameter, so any caller could act as any account by changing one value.
+# The server now issues a signed token at login and treats it as the only
+# authoritative source of identity.
+
+SESSION_TTL_SECONDS = 60 * 60 * 24 * 14  # 14 days
+_EPHEMERAL_SESSION_SECRET = secrets.token_bytes(32)
+
+
+def _session_secret() -> bytes:
+    """Signing key for session tokens.
+
+    Prefers $SESSION_SECRET. Falling back to a key persisted next to the
+    database keeps tokens valid across a local restart; that fallback is
+    per-instance on serverless, which is why SESSION_SECRET must be set in
+    any real deployment (tokens otherwise stop verifying when an instance is
+    replaced).
+    """
+    env = os.environ.get("SESSION_SECRET")
+    if env:
+        return env.encode("utf-8")
+    secret_path = os.path.join(BASE_DIR, ".session_secret")
+    try:
+        if os.path.exists(secret_path):
+            with open(secret_path, "rb") as fh:
+                stored = fh.read().strip()
+            if stored:
+                return stored
+        generated = secrets.token_bytes(32)
+        with open(secret_path, "wb") as fh:
+            fh.write(generated)
+        os.chmod(secret_path, 0o600)
+        return generated
+    except OSError:
+        logger.warning(
+            "SESSION_SECRET is not set and no writable location was available; "
+            "using an ephemeral in-process secret (sessions will not survive a restart)."
+        )
+        return _EPHEMERAL_SESSION_SECRET
+
+
+def issue_session_token(user_id: str) -> str:
+    """Mint a signed, expiring token for `user_id`."""
+    expires = int(time.time()) + SESSION_TTL_SECONDS
+    payload = f"{user_id}.{expires}"
+    signature = hmac.new(_session_secret(), payload.encode("utf-8"), hashlib.sha256).digest()
+    return f"{payload}.{base64.urlsafe_b64encode(signature).decode('ascii').rstrip('=')}"
+
+
+def verify_session_token(token: Optional[str]) -> Optional[str]:
+    """Return the user id carried by a valid token, else None."""
+    if not token:
+        return None
+    parts = token.rsplit(".", 2)
+    if len(parts) != 3:
+        return None
+    user_id, expires, signature_b64 = parts
+    payload = f"{user_id}.{expires}"
+    expected = hmac.new(_session_secret(), payload.encode("utf-8"), hashlib.sha256).digest()
+    try:
+        provided = base64.urlsafe_b64decode(signature_b64 + "=" * (-len(signature_b64) % 4))
+    except Exception:
+        return None
+    if not hmac.compare_digest(expected, provided):
+        return None
+    try:
+        if int(expires) < int(time.time()):
+            return None
+    except ValueError:
+        return None
+    return user_id
+
+
+def _request_token(request: Request) -> Optional[str]:
+    header = request.headers.get("authorization") or ""
+    if header.lower().startswith("bearer "):
+        return header[7:].strip()
+    return request.headers.get("x-session-token") or request.query_params.get("session_token")
+
+
+# Never let credential material cross the API boundary.
+CREDENTIAL_FIELDS = ("pin", "password", "auth_id")
+
+
+def public_user(user: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Strip credential fields from a user row before it is returned.
+
+    `has_pin` is added back as a boolean so the client can still tell whether an
+    account has been activated without being handed the PIN itself.
+    """
+    if not user:
+        return user
+    projected = {k: v for k, v in user.items() if k not in CREDENTIAL_FIELDS}
+    projected["has_pin"] = bool(user.get("pin"))
+    return projected
+
+
+def public_users(users: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    return [public_user(u) or {} for u in (users or [])]
+
+
 def get_user_id(request: Request) -> Optional[str]:
-    uid = request.headers.get("x-user-id") or request.query_params.get("user_id")
-    if uid and uid not in ["default", "guest", "null", "undefined", ""]:
-        return uid
+    """Identity for the current request, derived only from a verified token.
+
+    A guest (no token) resolves to None so the existing guest payloads and
+    guest fallbacks keep working. A legacy `x-user-id` header or `?user_id=`
+    parameter is deliberately *not* consulted: honouring it is exactly what
+    let any caller act as any account.
+    """
+    token_uid = verify_session_token(_request_token(request))
+    if token_uid and token_uid not in ("default", "guest"):
+        return token_uid
     return None
+
+
+# --- Rate limiting -------------------------------------------------------
+# Cheap in-process fixed-window limiter. On serverless this is per-instance,
+# so it raises the cost of credential stuffing rather than removing it; a
+# shared store is required for a hard guarantee.
+_RATE_LOCK = threading.Lock()
+_RATE_BUCKETS: Dict[str, deque] = {}
+
+
+def _rate_limited(key: str, limit: int, window_seconds: int) -> bool:
+    now = time.time()
+    with _RATE_LOCK:
+        bucket = _RATE_BUCKETS.setdefault(key, deque())
+        while bucket and now - bucket[0] > window_seconds:
+            bucket.popleft()
+        if len(bucket) >= limit:
+            return True
+        bucket.append(now)
+        return False
+
+
+def _client_ip(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for") or ""
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+# (path predicate, limit, window seconds)
+_RATE_RULES: List[Any] = [
+    (lambda p: p in ("/api/user/login", "/user/login"), 12, 300),
+    (lambda p: p in ("/api/user/create", "/user/create"), 10, 3600),
+    (lambda p: p.startswith("/api/order"), 90, 60),
+    (lambda p: p.startswith("/api/search"), 240, 60),
+    (lambda p: p.startswith("/api/quote"), 240, 60),
+]
+
+
+def _check_rate_limit(request: Request) -> bool:
+    """True when the request should be rejected with 429."""
+    path = request.scope.get("path", "")
+    for predicate, limit, window in _RATE_RULES:
+        try:
+            if predicate(path):
+                return _rate_limited(f"{limit}:{window}:{_client_ip(request)}", limit, window)
+        except Exception:
+            continue
+    return False
 
 @app.get("/favicon.ico")
 def favicon():
@@ -263,12 +454,15 @@ def api_create_user(req: CreateUserRequest):
             raise HTTPException(status_code=400, detail="Age must be an integer of at least 18")
 
     # This mobile number is the account's identity, so it has to be unique.
+    # A duplicate is refused outright. Returning the existing account row here
+    # handed any unauthenticated caller the matched account's PIN, PAN and bank
+    # details — and that leaked PIN then logged them straight in.
     clean_phone = (req.phone or "").strip()
     if clean_phone and phone_exists(clean_phone, exclude_user_id=req.id):
-        existing_user = find_user_by_identifier(clean_phone)
-        if existing_user and existing_user.get("id") not in ["default", "guest"]:
-            return {"success": True, "user": existing_user, "already_created": True}
-        raise HTTPException(status_code=400, detail="An account already exists for this mobile number. Please log in instead")
+        raise HTTPException(
+            status_code=400,
+            detail="An account already exists for this mobile number. Please log in instead",
+        )
 
     if req.pin and len(str(req.pin).strip()) != 4:
         raise HTTPException(status_code=400, detail="Trading PIN must be exactly 4 digits")
@@ -321,7 +515,7 @@ def api_create_user(req: CreateUserRequest):
         state=req.state,
         pincode=req.pincode
     )
-    return {"success": True, "user": u}
+    return {"success": True, "user": public_user(u)}
 
 class CompleteTourRequest(BaseModel):
     id: Optional[str] = None
@@ -356,19 +550,44 @@ class UpdateProfileRequest(BaseModel):
 @app.post("/api/user/profile")
 @app.put("/api/user/profile")
 def api_update_user_profile(req: UpdateProfileRequest, request: Request):
-    uid = req.id or get_user_id(request)
-    if not uid or str(uid).lower() in ["guest", "none", "null", "undefined"]:
-        if req.phone:
-            u_found = find_user_by_identifier(req.phone.strip())
-            if u_found and u_found.get("id") not in ["default", "guest"]:
-                uid = u_found.get("id")
-        elif req.email:
-            u_found = find_user_by_identifier(req.email.strip())
-            if u_found and u_found.get("id") not in ["default", "guest"]:
-                uid = u_found.get("id")
+    session_uid = get_user_id(request)
 
-    if not uid or str(uid).lower() in ["guest", "none", "null", "undefined"]:
-        raise HTTPException(status_code=401, detail="Account required to edit profile")
+    if session_uid:
+        # Authenticated: the session decides whose profile this is. A
+        # body-supplied `id` is ignored, so it can no longer be used to edit
+        # someone else's account — or to reset their PIN.
+        uid = session_uid
+    else:
+        # The one unauthenticated path that is allowed: first-time PIN
+        # activation of an account that has no credential yet. Without it a
+        # freshly registered account could never set a PIN. It requires
+        # knowledge of the registered mobile number, and only the PIN can be
+        # written.
+        target = (
+            find_user_by_identifier(req.phone.strip())
+            if req.phone and req.phone.strip()
+            else None
+        )
+        if not target or target.get("id") in ["default", "guest"]:
+            raise HTTPException(status_code=401, detail="Please log in to update this profile")
+        if (target.get("pin") or "") or (target.get("password") or ""):
+            raise HTTPException(status_code=401, detail="Please log in to update this profile")
+        clean_pin = (req.pin or "").strip()
+        if len(clean_pin) != 4 or not clean_pin.isdigit():
+            raise HTTPException(
+                status_code=400,
+                detail="Account has no PIN set. Please choose a 4-digit PIN to activate it.",
+            )
+        activated = update_user(user_id=target["id"], pin=clean_pin)
+        # Issuing a session here grants nothing new: the caller could already
+        # set this account's PIN, which is the login factor.
+        return {
+            "success": True,
+            "user": public_user(activated or get_user(target["id"])),
+            "session_token": issue_session_token(target["id"]),
+            "expires_in": SESSION_TTL_SECONDS,
+            "message": "PIN set successfully. Your account is now active.",
+        }
 
     if req.name is not None and not req.name.strip():
         raise HTTPException(status_code=400, detail="Name cannot be empty")
@@ -401,14 +620,17 @@ def api_update_user_profile(req: UpdateProfileRequest, request: Request):
 
     clean_password = None
     if req.password is not None:
-        clean_password = req.password.strip()
-        if clean_password and len(clean_password) < 6:
+        raw_password = req.password.strip()
+        if raw_password and len(raw_password) < 6:
             raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+        clean_password = raw_password or None
 
+    pending_pin = None
     if req.pin is not None:
         clean_pin = req.pin.strip()
         if clean_pin and (len(clean_pin) != 4 or not clean_pin.isdigit()):
             raise HTTPException(status_code=400, detail="PIN must be exactly 4 digits")
+        pending_pin = clean_pin or None
 
     updated = update_user(
         user_id=uid,
@@ -419,16 +641,16 @@ def api_update_user_profile(req: UpdateProfileRequest, request: Request):
         dob=req.dob.strip() if req.dob else None,
         bank_name=req.bank_name.strip() if req.bank_name else None,
         bank_account=req.bank_account.strip() if req.bank_account else None,
-        pin=req.pin.strip() if req.pin else None,
+        pin=pending_pin,
         avatar_color=req.avatar_color,
         username=clean_username if req.username is not None else None,
-        password=clean_password if req.password is not None else None
+        password=clean_password
     )
     if not updated:
         updated = get_user(uid)
     if not updated:
         raise HTTPException(status_code=404, detail="User not found")
-    return {"success": True, "user": updated, "message": "Profile updated successfully"}
+    return {"success": True, "user": public_user(updated), "message": "Profile updated successfully"}
 
 class LoginRequest(BaseModel):
     identifier: str
@@ -468,21 +690,38 @@ def api_login_user(req: LoginRequest):
             valid = True
         else:
             raise HTTPException(status_code=400, detail="Account has no PIN set. Please enter a 4-digit PIN to set it and log in.")
-    elif user_pin and entered_secret == user_pin:
+    elif user_pin and security.verify_secret(entered_secret, user_pin):
         valid = True
-    elif user_password and entered_secret == user_password:
+    elif user_password and security.verify_secret(entered_secret, user_password):
         valid = True
 
     if not valid:
         raise HTTPException(status_code=401, detail="Incorrect 4-digit PIN. Please try again.")
+
+    # The secret is now known to be correct, so a row still holding a legacy
+    # plaintext credential can be upgraded in place. This migrates the database
+    # as people log in rather than forcing every account to reset.
+    if security.needs_rehash(user_pin) and user_pin == entered_secret:
+        try:
+            update_user(user["id"], pin=entered_secret)
+        except Exception:
+            logger.warning("PIN rehash failed for %s", user["id"], exc_info=True)
+    if user_password and security.needs_rehash(user_password) and user_password == entered_secret:
+        try:
+            update_user(user["id"], password=entered_secret)
+        except Exception:
+            logger.warning("Password rehash failed for %s", user["id"], exc_info=True)
 
     if not user.get("auth_id") and user.get("email"):
         try:
             aid = sync_user_to_supabase_auth(
                 user_id=user["id"],
                 email=user.get("email"),
-                password=user.get("password") or (entered_secret if len(entered_secret) >= 6 else None),
-                pin=user.get("pin") or (entered_secret if len(entered_secret) == 4 else None),
+                # Stored values are digests now, so they must never be pushed to
+                # Supabase Auth as a password. Use the secret the user just
+                # proved knowledge of.
+                password=(entered_secret if len(entered_secret) >= 6 else None),
+                pin=(entered_secret if len(entered_secret) == 4 else None),
                 name=user.get("name"),
                 phone=user.get("phone"),
                 pan=user.get("pan"),
@@ -495,7 +734,9 @@ def api_login_user(req: LoginRequest):
 
     return {
         "success": True,
-        "user": user,
+        "user": public_user(user),
+        "session_token": issue_session_token(user["id"]),
+        "expires_in": SESSION_TTL_SECONDS,
         "message": f"Welcome back, {user.get('name', 'Trader')}!"
     }
 
@@ -505,7 +746,7 @@ def api_get_current_user(request: Request):
     if uid and uid not in ["default", "guest"]:
         u = get_user(uid)
         if u and u.get("id") not in ["default", "guest"]:
-            return u
+            return public_user(u)
         # A client that supplied an account ID had an authenticated local
         # session, but that account no longer exists.  Return an explicit
         # rejection rather than a guest payload so clients can discard their
@@ -515,8 +756,20 @@ def api_get_current_user(request: Request):
     return {"is_guest": True, "id": None, "name": "Guest", "balance": 0.0}
 
 @app.get("/api/user/list")
-def api_list_users():
-    return list_users()
+def api_list_users(request: Request):
+    """Only ever the caller's own account.
+
+    This previously returned every account in the database — name, email,
+    phone, balance — to anyone who asked, which is a ready-made directory of
+    your users. The web app does not call this endpoint at all.
+    """
+    uid = get_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Account required")
+    own = get_user(uid)
+    if not own:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return [public_user(own)]
 
 # --- Market Status & Simulation Controls ---
 @app.get("/api/market-status")
@@ -927,7 +1180,10 @@ def place_order(order: OrderRequest, request: Request):
     try:
         check_open_limit_orders(order.symbol, exec_price, user_id=uid)
     except Exception:
-        pass
+        # The order itself is already accepted, so this must not fail the
+        # request — but swallowing it entirely is how a resting order could
+        # sit unfilled with nothing to show for it.
+        logger.warning("Post-order pending-order sweep failed for %s", order.symbol, exc_info=True)
 
     return result
 
@@ -980,6 +1236,7 @@ def service_pending_orders(uid: str) -> int:
             check_open_limit_orders(symbol, price, user_id=uid)
             checked += 1
         except Exception:
+            logger.warning("Pending-order sweep failed for %s", symbol, exc_info=True)
             continue
     return checked
 
@@ -1307,7 +1564,31 @@ def api_sector_allocation(request: Request):
     uid = get_user_id(request)
     if not uid:
         return []
-    return get_sector_allocation(uid)
+
+    # Measure at market value so this agrees with /api/portfolio. Quotes are
+    # fetched concurrently for the same reason read_portfolio does it.
+    holdings = get_holdings(uid)
+    if not holdings:
+        return []
+
+    sample_by_symbol: Dict[str, Any] = {}
+    for h in holdings:
+        sample_by_symbol.setdefault(h["symbol"], h)
+
+    def fetch_price(symbol: str):
+        try:
+            return symbol, float(get_holding_quote(sample_by_symbol[symbol]).get("price") or 0.0)
+        except Exception:
+            return symbol, 0.0
+
+    try:
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            price_by_symbol = dict(pool.map(fetch_price, list(sample_by_symbol.keys())))
+    except Exception:
+        logger.warning("Live quotes unavailable for sector allocation", exc_info=True)
+        price_by_symbol = {}
+
+    return get_sector_allocation(uid, price_lookup=lambda h: price_by_symbol.get(h["symbol"]))
 
 # --- Single Page Application (SPA) Deep-Linking Browser Routes ---
 @app.get("/explore")

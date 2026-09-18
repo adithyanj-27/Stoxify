@@ -1,8 +1,16 @@
 // Stoxifyin' PWA Service Worker
-const CACHE_NAME = 'stoxifyin-v8';
-const STATIC_ASSETS = [
-  '/manifest.json',
+const CACHE_NAME = 'stoxifyin-v9';
+
+// The app shell is precached so a cold offline navigation has something to
+// serve. It previously cached only icons and manifest, so offline never worked
+// for the app itself.
+const SHELL_ASSETS = [
+  '/',
+  '/index.html',
+  '/static/app.js',
+  '/static/style.css',
   '/static/manifest.json',
+  '/manifest.json',
   '/icon-192.png',
   '/icon-512.png',
   '/static/icon-192.png',
@@ -13,7 +21,8 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS).catch(() => {});
+      // A single missing asset must not abort the whole install.
+      return cache.addAll(SHELL_ASSETS).catch(() => {});
     })
   );
 });
@@ -28,35 +37,49 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
-  if (event.request.url.includes('/api/')) return;
-
-  const url = event.request.url;
-
-  // Always fetch live fresh versions for app shell, scripts, styles, and HTML
-  if (
-    url.includes('app.js') || 
-    url.includes('style.css') || 
-    url.includes('sw.js') ||
-    url.endsWith('/') || 
-    url.includes('index.html') ||
-    url.includes('?v=')
-  ) {
-    event.respondWith(
-      fetch(event.request, { cache: 'no-store' })
-        .then((response) => {
-          return response;
-        })
-        .catch(() => caches.match(event.request))
+/** A real Response, so respondWith() never receives undefined. */
+function offlineResponse(request) {
+  const acceptsHtml = (request.headers.get('accept') || '').includes('text/html');
+  if (request.mode === 'navigate' || acceptsHtml) {
+    return new Response(
+      '<!doctype html><meta charset="utf-8">' +
+      '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+      "<title>Stoxifyin' — offline</title>" +
+      '<body style="font-family:system-ui,sans-serif;background:#0B0F19;color:#e2e8f0;padding:2rem">' +
+      '<h2>You are offline</h2>' +
+      '<p>Reconnect to load live market data. Cached screens may still be available.</p>' +
+      '</body>',
+      { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
     );
-    return;
   }
+  return new Response('', { status: 504, statusText: 'Offline' });
+}
 
-  // Cache-first fallback for static icons/images
+self.addEventListener('fetch', (event) => {
+  const request = event.request;
+  if (request.method !== 'GET') return;
+
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith('/api/')) return;
+
+  // Network-first, so a connected user always gets the current build. The
+  // cache is only a fallback — but it is a *real* fallback now: the previous
+  // implementation ended in `caches.match(request)`, which resolves to
+  // undefined on a miss and made respondWith() throw.
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      return cached || fetch(event.request);
-    })
+    fetch(request, { cache: 'no-store' })
+      .then((response) => {
+        if (response && response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE_NAME)
+            .then((cache) => cache.put(request, copy))
+            .catch(() => {});
+        }
+        return response;
+      })
+      .catch(() =>
+        caches.match(request).then((cached) => cached || offlineResponse(request))
+      )
   );
 });

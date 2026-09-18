@@ -13,6 +13,9 @@ npm-debug.log*
 # Environment & Secrets
 .env
 .env*.local
+# Local session-token signing key, generated on first run when SESSION_SECRET
+# is not set. Never commit this: it mints valid logins for every account.
+.session_secret
 
 
 # Database & Vercel local build

@@ -230,7 +230,14 @@ def get_today_holiday() -> Dict[str, Any]:
         "source": None
     }
 
-def get_market_status() -> Dict[str, Any]:
+def get_market_status(ignore_simulation: bool = False) -> Dict[str, Any]:
+    """Current session state.
+
+    `ignore_simulation=True` reports the *real* exchange session even when the
+    simulation toggle is on. Order validation uses it so that intraday (MIS) is
+    genuinely restricted outside 09:15-15:30 IST, while the simulation toggle
+    stays useful for market-data browsing.
+    """
     now = get_ist_now()
     weekday = now.weekday()  # 0=Monday, 4=Friday, 5=Saturday, 6=Sunday
     current_time = now.time()
@@ -238,7 +245,7 @@ def get_market_status() -> Dict[str, Any]:
     time_str = now.strftime("%I:%M:%S %p IST")
     date_str = now.strftime("%d %b %Y")
 
-    if _SIMULATION_MODE:
+    if _SIMULATION_MODE and not ignore_simulation:
         return {
             "is_open": True,
             "session": "REGULAR",
@@ -373,12 +380,19 @@ def get_market_status() -> Dict[str, Any]:
 
 def validate_order_timing(product_type: str) -> Tuple[bool, str, str]:
     product = product_type.upper()
-    status = get_market_status()
+    # The real session, deliberately ignoring the simulation toggle: intraday
+    # used to return success unconditionally, so MIS could be placed on a
+    # Sunday while the README promised strict market-hours enforcement.
+    status = get_market_status(ignore_simulation=True)
 
     if product == "INTRADAY":
         if not status["intraday_allowed"]:
-            # In paper trading / simulation platform, allow execution as 24/7 simulated intraday
-            return (True, "INTRADAY", "Simulated Intraday 5x order executed")
+            return (
+                False,
+                "INTRADAY",
+                "Intraday (MIS) orders are accepted only between 09:15 AM and 03:20 PM IST "
+                "on trading days. Place this as a Delivery order instead.",
+            )
         return (True, "NORMAL", "")
 
     # Delivery orders

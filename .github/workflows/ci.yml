@@ -1,0 +1,44 @@
+name: CI
+
+# The verification suites existed but nothing ran them, which is how
+# test_api_contract.py sat red without anyone noticing.
+#
+# Every suite below forces Supabase off (or points it at a dead endpoint), so
+# CI never touches the real project. test_user_credentials.py is deliberately
+# NOT run here: it writes to the live Supabase project.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Defect probes (12 known defects must stay fixed)
+        run: python probe_bugs.py
+
+      - name: Regression probes
+        run: python probe_regressions.py
+
+      - name: API contract (frontend payloads vs Pydantic models)
+        run: python test_api_contract.py
+
+      - name: Broker engine end to end
+        run: python test_app.py
+
+      - name: Order lifecycle
+        run: python test_trade_lifecycle.py
+
+      - name: Frontend syntax
+        run: node --check static/app.js

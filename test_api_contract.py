@@ -7,9 +7,13 @@ port) so a local run never touches the cloud project.
 
 Run:  python test_api_contract.py
 """
+import base64
+import hashlib
+import hmac
 import os
 import sys
 import tempfile
+import time
 
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8")
@@ -32,12 +36,29 @@ import main
 FAILURES = []
 
 
-class FakeRequest:
-    """Minimal stand-in for starlette's Request (headers + query params)."""
+def _signed_token(user_id, expires, key=None):
+    """Mint a token with an arbitrary expiry, optionally under a wrong key."""
+    payload = f"{user_id}.{expires}"
+    secret = key if key is not None else main._session_secret()
+    signature = hmac.new(secret, payload.encode("utf-8"), hashlib.sha256).digest()
+    return f"{payload}.{base64.urlsafe_b64encode(signature).decode('ascii').rstrip('=')}"
 
-    def __init__(self, user_id=None):
-        self.headers = {"x-user-id": user_id} if user_id else {}
-        self.query_params = {}
+
+class FakeRequest:
+    """Minimal stand-in for starlette's Request (headers + query params).
+
+    Identity is now a server-signed session token, so a logged-in stand-in must
+    carry a real one. `legacy_id` deliberately sends the old `x-user-id` header
+    instead, which must no longer authenticate on its own.
+    """
+
+    def __init__(self, user_id=None, legacy_id=None, query_id=None):
+        self.headers = {}
+        self.query_params = {"user_id": query_id} if query_id else {}
+        if user_id:
+            self.headers["authorization"] = f"Bearer {main.issue_session_token(user_id)}"
+        if legacy_id:
+            self.headers["x-user-id"] = legacy_id
 
 
 def check(name, expected, actual, note=""):
@@ -49,6 +70,25 @@ def check(name, expected, actual, note=""):
         FAILURES.append(name)
     elif note:
         print(f"        {note}")
+
+
+print("=" * 72)
+print(" 0. Identity is a signed token, not a client-supplied id")
+print("=" * 72)
+# A bare `x-user-id` used to be accepted as proof of identity, which let any
+# caller act as any account by changing one value. It must now do nothing.
+check("a bare x-user-id header does not authenticate",
+      None, main.get_user_id(FakeRequest(legacy_id="STOX-777001")))
+check("a ?user_id= parameter does not authenticate",
+      None, main.get_user_id(FakeRequest(query_id="STOX-777001")))
+check("an issued session token authenticates",
+      "STOX-777001", main.get_user_id(FakeRequest(user_id="STOX-777001")))
+check("a token with a forged signature is rejected",
+      None, main.verify_session_token("STOX-777001.9999999999.forged"))
+check("an expired token is rejected",
+      None, main.verify_session_token(_signed_token("STOX-777001", int(time.time()) - 10)))
+check("a token re-signed with the wrong key is rejected",
+      None, main.verify_session_token(_signed_token("STOX-777001", int(time.time()) + 600, b"wrong-key")))
 
 
 print("=" * 72)
