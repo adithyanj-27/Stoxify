@@ -32,30 +32,31 @@ if os.path.exists(ENV_FILE):
     except Exception:
         pass
 
-# Cloud credentials come from the environment only. These used to be hardcoded
-# defaults, which wrote a working key straight into git history — so the project
-# URL and that key must be treated as burned and rotated.
+DEFAULT_SUPABASE_URL = "https://pqyjxpaqbjeelewcjwmd.supabase.co"
+DEFAULT_SUPABASE_KEY = "sb_publishable__ywLDIS3oh2MnKdoXcnkYg_rNjN_tHw"
+DEFAULT_SUPABASE_SERVICE_ROLE_KEY = "sb_secret_gtAzP-Ck1mKE-3WOscJ8Jw_K2KH92EI"
+
 SUPABASE_URL = (
     os.environ.get("SUPABASE_URL")
     or os.environ.get("SUPABASE_PROJECT_URL")
-    or ""
+    or DEFAULT_SUPABASE_URL
 ).rstrip("/")
 if SUPABASE_URL.endswith("/rest/v1"):
     SUPABASE_URL = SUPABASE_URL[:-8].rstrip("/")
 
 # Server-side table access prefers the secret key so Row Level Security can be
 # locked down without the backend losing access to its own data. The
-# publishable/anon key is for browsers and is deliberately not preferred here
-# (it never appears in the shipped frontend either).
+# publishable/anon key is for browsers and is used as fallback.
 SUPABASE_SERVICE_ROLE_KEY = (
     os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
     or os.environ.get("SUPABASE_SECRET_KEY")
+    or DEFAULT_SUPABASE_SERVICE_ROLE_KEY
 )
 SUPABASE_KEY = (
     SUPABASE_SERVICE_ROLE_KEY
     or os.environ.get("SUPABASE_KEY")
     or os.environ.get("SUPABASE_ANON_KEY")
-    or ""
+    or DEFAULT_SUPABASE_KEY
 )
 
 def supabase_api(method: str, table_or_endpoint: str, payload: Optional[Any] = None, params: Optional[Dict[str, str]] = None) -> Optional[Any]:

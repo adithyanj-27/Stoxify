@@ -3693,7 +3693,8 @@ body.pwa-installed #mobileInstallBanner {
     z-index: 100100 !important;
   }
 
-  /* Hide bottom nav bar & sticky action bar when any modal/drawer is open */
+  /* Hide bottom nav bar & sticky action bar when any modal/drawer is open or in onboarding */
+  body:has(#pane-onboarding.active) .mobile-bottom-bar,
   body:has(.modal-overlay.active) .mobile-bottom-bar,
   body:has(.mobile-drawer-overlay.active) .mobile-bottom-bar,
   body:has(.modal-overlay.active) .asset-mobile-action-bar,

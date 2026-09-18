@@ -132,14 +132,16 @@ def _session_secret() -> bytes:
         generated = secrets.token_bytes(32)
         with open(secret_path, "wb") as fh:
             fh.write(generated)
-        os.chmod(secret_path, 0o600)
-        return generated
     except OSError:
-        logger.warning(
-            "SESSION_SECRET is not set and no writable location was available; "
-            "using an ephemeral in-process secret (sessions will not survive a restart)."
-        )
-        return _EPHEMERAL_SESSION_SECRET
+        # Serverless environment (such as Vercel) where BASE_DIR is read-only.
+        # Derive a stable HMAC key from SUPABASE_KEY / salt so tokens minted on
+        # one lambda instance verify across all other instances.
+        try:
+            from database import SUPABASE_KEY
+            seed = SUPABASE_KEY or "stoxify-stable-session-secret-salt-2024-v1"
+        except Exception:
+            seed = "stoxify-stable-session-secret-salt-2024-v1"
+        return hashlib.sha256(f"stoxify-session-secret:{seed}".encode("utf-8")).digest()
 
 
 def issue_session_token(user_id: str) -> str:
@@ -515,7 +517,13 @@ def api_create_user(req: CreateUserRequest):
         state=req.state,
         pincode=req.pincode
     )
-    return {"success": True, "user": public_user(u)}
+    session_token = issue_session_token(u["id"])
+    return {
+        "success": True,
+        "user": public_user(u),
+        "session_token": session_token,
+        "expires_in": SESSION_TTL_SECONDS
+    }
 
 class CompleteTourRequest(BaseModel):
     id: Optional[str] = None

@@ -6890,6 +6890,12 @@ function showOnboardingPage() {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+function closeOnboardingWizard() {
+  const obPane = document.getElementById('pane-onboarding');
+  if (obPane) obPane.classList.remove('active');
+  navigateTo('/explore', false);
+}
+
 /* The username picker (and its availability check) was removed along with the
    username field: the account is identified by its mobile number. The
    /api/user/check-username endpoint still exists for legacy usernames. */
@@ -6997,6 +7003,7 @@ async function submitObStep1() {
     const chkData = await chk.json();
     if (chk.ok && chkData && chkData.exists) {
       showToast('An account with this mobile number already exists. Please log in.', true);
+      closeOnboardingWizard();
       openLoginModal(phone);
       return;
     }
@@ -7348,6 +7355,7 @@ async function submitObStep5() {
       showToast(msg, true);
       if (msg.includes('already exists') || msg.includes('log in instead')) {
         setTimeout(() => {
+          closeOnboardingWizard();
           openLoginModal(obUserData.phone);
         }, 1200);
       }
@@ -7355,6 +7363,9 @@ async function submitObStep5() {
     }
 
     currentUser = result.user;
+    if (result.session_token) {
+      localStorage.setItem(SESSION_TOKEN_KEY, result.session_token);
+    }
     localStorage.removeItem('stoxify_guest_mode');
     localStorage.setItem('stoxify_user_id', currentUser.id);
     localStorage.setItem('stoxify_cached_user', JSON.stringify(currentUser));

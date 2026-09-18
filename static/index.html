@@ -49,7 +49,7 @@
           // For logged-out visitors on the home page ('/' or '/welcome'), display the welcome screen!
           var currentPath = window.location.pathname;
           var isRootOrWelcome = (currentPath === '/' || currentPath === '/welcome' || currentPath === '');
-          if (hasSession || (isGuest && !isRootOrWelcome)) {
+          if (hasSession || (isGuest && !isRootOrWelcome) || currentPath === '/onboarding' || currentPath === '/login') {
             document.documentElement.classList.add('welcome-dismissed');
           }
           if (window.location.pathname === '/profile') {
