@@ -781,8 +781,7 @@ def get_explore_data() -> Dict[str, Any]:
         "losers": losers,
         "all_stocks": all_stocks,
         "mutual_funds": all_mfs,
-        "etfs": all_etfs,
-        "bullion": get_live_bullion_rates()
+        "etfs": all_etfs
     }
     explore_ttl = 30 if get_quote_ttl() <= 15 else 120
     set_cached("explore_data_v5", result, ttl=explore_ttl)

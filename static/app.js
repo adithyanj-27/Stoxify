@@ -1284,11 +1284,6 @@ function renderRecentlyViewedMutualFunds() {
 
 function renderExploreStocks() {
   renderRecentlyViewedStocks();
-  if (state.exploreData && state.exploreData.bullion) {
-    renderLiveBullionRates(state.exploreData.bullion);
-  } else {
-    renderLiveBullionRates(null);
-  }
 
   if (!state.exploreData || !state.exploreData.all_stocks) return;
   const grid = document.getElementById('stocksGrid');
@@ -1539,48 +1534,6 @@ function renderExploreMutualFunds() {
   }).join('');
 }
 
-// --- Live Indian Bullion (Gold & Silver per gram) ---
-function renderLiveBullionRates(bullion) {
-  if (!bullion) {
-    fetch('/api/bullion/rates')
-      .then(r => r.json())
-      .then(data => {
-        if (state.exploreData) state.exploreData.bullion = data;
-        renderLiveBullionRates(data);
-      })
-      .catch(() => {});
-    return;
-  }
-
-  const gold = bullion.gold;
-  const silver = bullion.silver;
-
-  if (gold) {
-    const goldRateEl = document.getElementById('spotlightGoldRate');
-    const goldChgEl = document.getElementById('spotlightGoldRateChange');
-    if (goldRateEl && gold.price) {
-      goldRateEl.innerHTML = `${formatINR(gold.price)} <span style="font-size: 0.8rem; font-weight: 500; color: var(--text-muted);">/ g</span>`;
-    }
-    if (goldChgEl) {
-      const isPos = (gold.change || 0) >= 0;
-      goldChgEl.style.color = isPos ? '#10B981' : '#EF4444';
-      goldChgEl.innerText = `${isPos ? '+' : ''}${formatINR(gold.change)} (${isPos ? '+' : ''}${formatNumber(gold.change_pct)}%)`;
-    }
-  }
-
-  if (silver) {
-    const silverRateEl = document.getElementById('spotlightSilverRate');
-    const silverChgEl = document.getElementById('spotlightSilverRateChange');
-    if (silverRateEl && silver.price) {
-      silverRateEl.innerHTML = `${formatINR(silver.price)} <span style="font-size: 0.8rem; font-weight: 500; color: var(--text-muted);">/ g</span>`;
-    }
-    if (silverChgEl) {
-      const isPos = (silver.change || 0) >= 0;
-      silverChgEl.style.color = isPos ? '#10B981' : '#EF4444';
-      silverChgEl.innerText = `${isPos ? '+' : ''}${formatINR(silver.change)} (${isPos ? '+' : ''}${formatNumber(silver.change_pct)}%)`;
-    }
-  }
-}
 
 function filterEtfCategory(category) {
   state.exploreStockFilter = 'etf';
