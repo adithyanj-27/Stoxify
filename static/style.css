@@ -858,17 +858,15 @@ body {
 
 #pane-asset-detail.active {
   display: block;
-  animation: assetPaneSlideIn 0.26s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: assetPaneFadeIn 0.2s ease-out;
 }
 
-@keyframes assetPaneSlideIn {
+@keyframes assetPaneFadeIn {
   from {
     opacity: 0;
-    transform: translateY(8px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
@@ -6674,16 +6672,17 @@ html.user-guest #navProfileWrapper {
    GROWW-STYLE MOBILE ACTION BAR (STOCKS & MUTUAL FUNDS)
    ========================================================================== */
 .asset-mobile-action-bar {
-  display: none;
+  display: none !important;
 }
 
 @media (max-width: 768px) {
-  .asset-mobile-action-bar {
+  body.viewing-asset-detail .asset-mobile-action-bar,
+  html.viewing-asset-detail .asset-mobile-action-bar {
     display: flex !important;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
     z-index: 10050 !important;
     background: var(--bg-card);
     padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0px));

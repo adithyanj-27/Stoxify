@@ -1568,15 +1568,6 @@
         </div>
       </div>
 
-      <!-- Sticky Mobile Action Bar (Groww Style) -->
-      <div class="asset-mobile-action-bar" id="assetMobileActionBar">
-        <button type="button" class="mob-trade-action-btn sell" id="assetMobBtnSell" onclick="openMobileTradeDrawer('SELL')">
-          SELL
-        </button>
-        <button type="button" class="mob-trade-action-btn buy" id="assetMobBtnBuy" onclick="openMobileTradeDrawer('BUY')">
-          BUY
-        </button>
-      </div>
     </section>
 
     <!-- 7. DEDICATED PROFILE & ACCOUNT PAGE (GROWW STYLE) -->
@@ -3414,6 +3405,16 @@
       </div>
     </div>
   </div>
+  <!-- Sticky Mobile Action Bar for Asset Detail View (Groww Style) -->
+  <div class="asset-mobile-action-bar" id="assetMobileActionBar">
+    <button type="button" class="mob-trade-action-btn sell" id="assetMobBtnSell" onclick="openMobileTradeDrawer('SELL')">
+      SELL
+    </button>
+    <button type="button" class="mob-trade-action-btn buy" id="assetMobBtnBuy" onclick="openMobileTradeDrawer('BUY')">
+      BUY
+    </button>
+  </div>
+
   <!-- Fixed Bottom App Navigation Bar (Explore, Holdings, Positions, Orders, Watchlist) -->
   <nav class="mobile-bottom-bar" id="mobileBottomBar">
     <button class="mobile-nav-item active" id="mob-nav-explore" onclick="navigateTo('/explore')">
