@@ -132,6 +132,7 @@ def _session_secret() -> bytes:
         generated = secrets.token_bytes(32)
         with open(secret_path, "wb") as fh:
             fh.write(generated)
+        return generated
     except OSError:
         # Serverless environment (such as Vercel) where BASE_DIR is read-only.
         # Derive a stable HMAC key from SUPABASE_KEY / salt so tokens minted on
