@@ -641,7 +641,6 @@ function switchExploreSubnav(subId) {
     stocks: document.getElementById('explore-stocks-container'),
     fo: document.getElementById('explore-fo-container'),
     mf: document.getElementById('explore-mf-container'),
-    etf: document.getElementById('explore-etf-container'),
     ipo: document.getElementById('explore-ipo-container')
   };
 
@@ -656,8 +655,6 @@ function switchExploreSubnav(subId) {
     fetchOptionChain();
   } else if (subId === 'mf') {
     renderExploreMutualFunds();
-  } else if (subId === 'etf') {
-    renderExploreETFs();
   } else if (subId === 'ipo') {
     fetchIpos();
   }
@@ -867,10 +864,11 @@ async function fetchExploreData() {
   }
 }
 
-function filterExploreStocks(filter) {
+function filterExploreStocks(filter, btnEl) {
   state.exploreStockFilter = filter;
-  document.querySelectorAll('.filter-pills .pill-btn').forEach(btn => btn.classList.remove('active'));
-  event.target.classList.add('active');
+  document.querySelectorAll('#explore-stocks-container .filter-pills .pill-btn').forEach(btn => btn.classList.remove('active'));
+  const targetBtn = btnEl || (typeof event !== 'undefined' && event ? event.currentTarget || event.target : null);
+  if (targetBtn && targetBtn.classList) targetBtn.classList.add('active');
   renderExploreStocks();
 }
 
@@ -1286,6 +1284,12 @@ function renderRecentlyViewedMutualFunds() {
 
 function renderExploreStocks() {
   renderRecentlyViewedStocks();
+  if (state.exploreData && state.exploreData.bullion) {
+    renderLiveBullionRates(state.exploreData.bullion);
+  } else {
+    renderLiveBullionRates(null);
+  }
+
   if (!state.exploreData || !state.exploreData.all_stocks) return;
   const grid = document.getElementById('stocksGrid');
   const title = document.getElementById('exploreStocksTitle');
@@ -1331,6 +1335,10 @@ function renderExploreStocks() {
     list = state.exploreData.losers;
     title.innerText = `Top Losers Today (${list.length})`;
     if (desc) desc.innerText = 'Stocks with the highest daily percentage loss on NSE';
+  } else if (state.exploreStockFilter === 'etf') {
+    list = state.exploreData.etfs || [];
+    title.innerText = `Exchange Traded Funds (ETFs) on NSE (${list.length})`;
+    if (desc) desc.innerText = 'Trade physical Gold, Silver, Nifty Indices, and Global Tech with instant Demat liquidity on NSE';
   } else {
     const filterKey = state.exploreStockFilter.toLowerCase();
     list = state.exploreData.all_stocks.filter(s => {
@@ -1344,25 +1352,29 @@ function renderExploreStocks() {
   }
 
   if (list.length === 0) {
-    grid.innerHTML = '<div style="color: var(--text-muted); font-size: 0.9rem; padding: 3rem; text-align: center;">No stocks found in this category.</div>';
+    grid.innerHTML = '<div style="color: var(--text-muted); font-size: 0.9rem; padding: 3rem; text-align: center;">No securities found in this category.</div>';
     return;
   }
 
   grid.innerHTML = list.map(s => {
+    const aType = s.asset_type || (s.category && !s.sector ? 'ETF' : 'STOCK');
     const cleanSym = (s.symbol || '').replace('.NS', '').replace('.BO', '');
     const isPos = (s.change || 0) >= 0;
     const badgeClass = isPos ? 'badge-positive' : 'badge-negative';
+    const subText = aType === 'ETF'
+      ? `${cleanSym} • ${s.category || 'ETF'} • NSE`
+      : `${cleanSym} • ${s.sector || 'NSE'}`;
     return `
-      <div class="stock-card" onclick="openAssetModal('${s.symbol}', 'STOCK')">
+      <div class="stock-card" onclick="openAssetModal('${s.symbol}', '${aType}')">
         <div class="card-top">
           <div class="card-header-left">
-            ${renderAssetAvatar(s, 'STOCK')}
+            ${renderAssetAvatar(s, aType)}
             <div class="card-info">
               <div class="card-title" title="${s.name}">${s.name}</div>
-              <div class="card-subtitle">${cleanSym} • ${s.sector || 'NSE'}</div>
+              <div class="card-subtitle">${subText}</div>
             </div>
           </div>
-          ${renderCardStarBtn(s.symbol, s.name, 'STOCK')}
+          ${renderCardStarBtn(s.symbol, s.name, aType)}
         </div>
         <div class="card-bottom">
           <div class="card-price">${formatINR(s.price)}</div>
@@ -1508,86 +1520,59 @@ function renderExploreMutualFunds() {
   }).join('');
 }
 
-// --- ETFs & Commodities View ---
-function filterEtfCategory(category, btnEl) {
-  state.exploreEtfFilter = category;
-  document.querySelectorAll('#etfFilterPills .pill-btn').forEach(b => b.classList.remove('active'));
-  if (btnEl) btnEl.classList.add('active');
-  renderExploreETFs();
+// --- Live Indian Bullion (Gold & Silver per gram) ---
+function renderLiveBullionRates(bullion) {
+  if (!bullion) {
+    fetch('/api/bullion/rates')
+      .then(r => r.json())
+      .then(data => {
+        if (state.exploreData) state.exploreData.bullion = data;
+        renderLiveBullionRates(data);
+      })
+      .catch(() => {});
+    return;
+  }
+
+  const gold = bullion.gold;
+  const silver = bullion.silver;
+
+  if (gold) {
+    const goldRateEl = document.getElementById('spotlightGoldRate');
+    const goldChgEl = document.getElementById('spotlightGoldRateChange');
+    if (goldRateEl && gold.price) {
+      goldRateEl.innerHTML = `${formatINR(gold.price)} <span style="font-size: 0.8rem; font-weight: 500; color: var(--text-muted);">/ g</span>`;
+    }
+    if (goldChgEl) {
+      const isPos = (gold.change || 0) >= 0;
+      goldChgEl.style.color = isPos ? '#10B981' : '#EF4444';
+      goldChgEl.innerText = `${isPos ? '+' : ''}${formatINR(gold.change)} (${isPos ? '+' : ''}${formatNumber(gold.change_pct)}%)`;
+    }
+  }
+
+  if (silver) {
+    const silverRateEl = document.getElementById('spotlightSilverRate');
+    const silverChgEl = document.getElementById('spotlightSilverRateChange');
+    if (silverRateEl && silver.price) {
+      silverRateEl.innerHTML = `${formatINR(silver.price)} <span style="font-size: 0.8rem; font-weight: 500; color: var(--text-muted);">/ g</span>`;
+    }
+    if (silverChgEl) {
+      const isPos = (silver.change || 0) >= 0;
+      silverChgEl.style.color = isPos ? '#10B981' : '#EF4444';
+      silverChgEl.innerText = `${isPos ? '+' : ''}${formatINR(silver.change)} (${isPos ? '+' : ''}${formatNumber(silver.change_pct)}%)`;
+    }
+  }
+}
+
+function filterEtfCategory(category) {
+  state.exploreStockFilter = 'etf';
+  switchExploreSubnav('stocks');
+  renderExploreStocks();
 }
 
 function renderExploreETFs() {
-  const grid = document.getElementById('etfGrid');
-  if (!grid) return;
-
-  const allEtfs = (state.exploreData && state.exploreData.etfs) || [];
-
-  // Update spotlight prices if live quotes are available
-  const goldQuote = allEtfs.find(e => e.symbol === 'GOLDBEES.NS');
-  if (goldQuote && goldQuote.price) {
-    const goldPriceEl = document.getElementById('spotlightGoldPrice');
-    const goldChangeEl = document.getElementById('spotlightGoldChange');
-    if (goldPriceEl) goldPriceEl.innerText = formatINR(goldQuote.price);
-    if (goldChangeEl) {
-      const isPos = (goldQuote.change || 0) >= 0;
-      goldChangeEl.style.color = isPos ? '#10B981' : '#EF4444';
-      goldChangeEl.innerText = `${isPos ? '+' : ''}${formatNumber(goldQuote.change)} (${isPos ? '+' : ''}${formatNumber(goldQuote.change_pct)}%)`;
-    }
-  }
-
-  const silverQuote = allEtfs.find(e => e.symbol === 'SILVERBEES.NS');
-  if (silverQuote && silverQuote.price) {
-    const silverPriceEl = document.getElementById('spotlightSilverPrice');
-    const silverChangeEl = document.getElementById('spotlightSilverChange');
-    if (silverPriceEl) silverPriceEl.innerText = formatINR(silverQuote.price);
-    if (silverChangeEl) {
-      const isPos = (silverQuote.change || 0) >= 0;
-      silverChangeEl.style.color = isPos ? '#10B981' : '#EF4444';
-      silverChangeEl.innerText = `${isPos ? '+' : ''}${formatNumber(silverQuote.change)} (${isPos ? '+' : ''}${formatNumber(silverQuote.change_pct)}%)`;
-    }
-  }
-
-  if (allEtfs.length === 0) {
-    grid.innerHTML = '<div style="color: var(--text-muted); font-size: 0.9rem; padding: 2rem;">Fetching live ETF quotes from NSE...</div>';
-    if (!state.exploreData) fetchExploreData();
-    return;
-  }
-
-  const filter = state.exploreEtfFilter || 'all';
-  const list = filter === 'all'
-    ? allEtfs
-    : allEtfs.filter(e => (e.category || '').toLowerCase() === filter.toLowerCase());
-
-  if (list.length === 0) {
-    grid.innerHTML = '<div style="color: var(--text-muted); font-size: 0.9rem; padding: 2rem;">No ETFs found in this category.</div>';
-    return;
-  }
-
-  grid.innerHTML = list.map(etf => {
-    const cleanSym = (etf.symbol || '').replace('.NS', '').replace('.BO', '');
-    const isPos = (etf.change || 0) >= 0;
-    const badgeClass = isPos ? 'badge-positive' : 'badge-negative';
-    return `
-      <div class="stock-card" onclick="openAssetModal('${etf.symbol}', 'ETF')">
-        <div class="card-top">
-          <div class="card-header-left">
-            ${renderAssetAvatar(etf, 'ETF')}
-            <div class="card-info">
-              <div class="card-title" title="${etf.name}">${etf.name}</div>
-              <div class="card-subtitle">${cleanSym} • ${etf.category || 'ETF'}</div>
-            </div>
-          </div>
-          ${renderCardStarBtn(etf.symbol, etf.name, 'ETF')}
-        </div>
-        <div class="card-bottom">
-          <div class="card-price">${formatINR(etf.price)}</div>
-          <div class="card-change">
-            <span class="${badgeClass}">${isPos ? '+' : ''}${formatNumber(etf.change_pct)}%</span>
-          </div>
-        </div>
-      </div>
-    `;
-  }).join('');
+  state.exploreStockFilter = 'etf';
+  switchExploreSubnav('stocks');
+  renderExploreStocks();
 }
 
 // --- Holdings View (Delivery CNC) ---
@@ -3030,7 +3015,10 @@ function openChargesModal() {
 }
 
 function openPageChargesModal() {
-  if (!currentPageAsset) return;
+  if (!currentPageAsset) {
+    openProfileChargesModal();
+    return;
+  }
   const qtyInput = document.getElementById('pageOrderQuantity');
   const qty = parseInt((qtyInput ? qtyInput.value : '1') || '1', 10);
   const limInput = document.getElementById('pageOrderLimitPrice');
@@ -3056,11 +3044,116 @@ function openPageChargesModal() {
   renderChargesModalContent(c, pageOrderState.action, pageOrderState.product, totalVal);
 }
 
+function openProfileChargesModal() {
+  const list = document.getElementById('chargesBreakdownList');
+  if (!list) return;
+
+  const titleEl = document.getElementById('chargesModalTitle');
+  if (titleEl) titleEl.innerText = 'Brokerage & Regulatory Tariff';
+
+  const totRow = document.getElementById('chargesModalTotalRow');
+  if (totRow) totRow.style.display = 'none';
+
+  const divEl = document.getElementById('chargesModalDivider');
+  if (divEl) divEl.style.display = 'none';
+
+  list.innerHTML = `
+    <div style="display: flex; flex-direction: column; gap: 0.65rem;">
+      <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 8px; padding: 0.65rem 0.85rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+          <span style="font-weight: 700; color: var(--text-main);">Account Opening & AMC</span>
+          <span class="badge-positive" style="font-size: 0.75rem; padding: 1px 7px;">FREE</span>
+        </div>
+        <div style="font-size: 0.76rem; color: var(--text-muted);">₹0 Account opening fee • ₹0 Annual Maintenance Charges (AMC)</div>
+      </div>
+
+      <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.65rem 0.85rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+          <span style="font-weight: 700; color: var(--text-main);">Equity Delivery (CNC)</span>
+          <span style="font-weight: 800; color: var(--brand-green);">₹0 Brokerage</span>
+        </div>
+        <div style="font-size: 0.76rem; color: var(--text-muted);">Standard Groww: 0.05% or flat ₹20/order max (₹0 on Stoxify paper trading)</div>
+      </div>
+
+      <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.65rem 0.85rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+          <span style="font-weight: 700; color: var(--text-main);">Equity Intraday (MIS)</span>
+          <span style="font-weight: 700; color: var(--text-main);">0.05% or ₹20</span>
+        </div>
+        <div style="font-size: 0.76rem; color: var(--text-muted);">0.05% or flat ₹20 per executed order, whichever is lower (5x leverage)</div>
+      </div>
+
+      <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.65rem 0.85rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+          <span style="font-weight: 700; color: var(--text-main);">Futures & Options (F&O)</span>
+          <span style="font-weight: 700; color: var(--text-main);">Flat ₹20 / order</span>
+        </div>
+        <div style="font-size: 0.76rem; color: var(--text-muted);">₹20 per executed order across index & equity derivatives</div>
+      </div>
+
+      <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.65rem 0.85rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+          <span style="font-weight: 700; color: var(--text-main);">Direct Mutual Funds & SIPs</span>
+          <span class="badge-positive" style="font-size: 0.75rem; padding: 1px 7px;">₹0 FEES</span>
+        </div>
+        <div style="font-size: 0.76rem; color: var(--text-muted);">₹0 commission and ₹0 distributor charges on direct mutual fund schemes</div>
+      </div>
+
+      <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.65rem 0.85rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+          <span style="font-weight: 700; color: var(--text-main);">CDSL DP Charges</span>
+          <span style="font-weight: 700; color: var(--text-main);">₹13.50 + GST</span>
+        </div>
+        <div style="font-size: 0.76rem; color: var(--text-muted);">Per company/scrip debited from Demat on delivery sell (irrespective of quantity)</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.78rem; padding: 0.5rem 0.25rem;">
+        <div style="display: flex; justify-content: space-between; color: var(--text-muted);">
+          <span>Securities Transaction Tax (STT)</span>
+          <span style="color: var(--text-main); font-weight: 600;">0.1% Delivery • 0.025% Intraday Sell</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; color: var(--text-muted);">
+          <span>Exchange Turnover (NSE/BSE)</span>
+          <span style="color: var(--text-main); font-weight: 600;">NSE: 0.00297% • BSE: 0.00375%</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; color: var(--text-muted);">
+          <span>SEBI Turnover Charges</span>
+          <span style="color: var(--text-main); font-weight: 600;">₹10 / crore (0.0001%)</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; color: var(--text-muted);">
+          <span>Stamp Duty (Government)</span>
+          <span style="color: var(--text-main); font-weight: 600;">0.015% Delivery Buy • 0.003% Intraday Buy</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; color: var(--text-muted);">
+          <span>GST (Goods & Services Tax)</span>
+          <span style="color: var(--text-main); font-weight: 600;">18% on (Brokerage + Txn + DP charges)</span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const noteEl = document.getElementById('chargesModalNote');
+  if (noteEl) {
+    noteEl.innerText = 'Prescribed by SEBI, Exchanges (NSE/BSE), and CDSL. Compliant with standard Indian discount broker tariff cards.';
+  }
+
+  const modal = document.getElementById('chargesModalOverlay');
+  if (modal) modal.classList.add('active');
+  pushModalState('chargesModalOverlay', closeChargesModal);
+}
+
 function renderChargesModalContent(c, action, product, totalVal) {
   const isSell = (action || '').toUpperCase() === 'SELL';
   const isIntra = (product || '').toUpperCase() === 'INTRADAY';
   const list = document.getElementById('chargesBreakdownList');
   if (!list) return;
+
+  const titleEl = document.getElementById('chargesModalTitle');
+  if (titleEl) titleEl.innerText = 'Estimated Taxes & Charges';
+  const totRow = document.getElementById('chargesModalTotalRow');
+  if (totRow) totRow.style.display = 'flex';
+  const divEl = document.getElementById('chargesModalDivider');
+  if (divEl) divEl.style.display = 'block';
 
   let html = `
     <div style="display: flex; justify-content: space-between;"><span>Brokerage (Groww: 0.05% max ₹20)</span><strong>${formatINR(c.brokerage)}</strong></div>
@@ -5071,15 +5164,25 @@ async function loadAndRenderWalletTransactions() {
     container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 3.5rem 1rem;">Loading transactions...</div>';
   }
 
+  if (isGuest()) {
+    _walletTxState.rawTransactions = [];
+    renderWalletTxList();
+    return;
+  }
+
   try {
-    const uid = (currentUser && currentUser.id) || localStorage.getItem('stoxify_user_id') || 'default';
+    const uid = (currentUser && currentUser.id) || localStorage.getItem('stoxify_user_id');
+    const token = localStorage.getItem(SESSION_TOKEN_KEY);
     const headers = {
       'Content-Type': 'application/json'
     };
+    if (token) {
+      headers['Authorization'] = 'Bearer ' + token;
+    }
     if (uid && uid !== 'default' && uid !== 'guest') {
       headers['X-User-Id'] = uid;
     }
-    const queryUid = encodeURIComponent(uid || 'default');
+    const queryUid = encodeURIComponent(uid || '');
     const res = await fetch(`/api/funds/wallet-transactions?user_id=${queryUid}`, {
       headers
     });
@@ -5434,7 +5537,6 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
 
     fetchPageMarketDepth(data.symbol);
     renderPageFundamentals(data);
-    fetchPageStockInsights(data.symbol, data.asset_type);
 
     document.getElementById('pageAboutTitle').innerText = data.name;
     document.getElementById('pageAboutText').innerText = data.description || `${data.name} is a leading Indian security actively traded on the National Stock Exchange (NSE).`;
@@ -5617,139 +5719,6 @@ function renderPageFundamentals(data) {
       <div class="fundamental-item"><span class="f-name">EPS (TTM)</span><strong class="f-val">${eps}</strong></div>
       <div class="fundamental-item"><span class="f-name">Dividend Yield</span><strong class="f-val">${divYield}</strong></div>
     `;
-  }
-}
-
-async function fetchPageStockInsights(symbol, assetType = 'STOCK') {
-  const analystSec = document.getElementById('pageAnalystSection');
-  const divSec = document.getElementById('pageDividendsSection');
-
-  // Only show Analyst Consensus and Dividend History for Equities
-  if (assetType !== 'STOCK') {
-    if (analystSec) analystSec.style.display = 'none';
-    if (divSec) divSec.style.display = 'none';
-    return;
-  }
-
-  try {
-    const res = await fetch(`/api/stock/insights?symbol=${encodeURIComponent(symbol)}`);
-    const data = await res.json();
-
-    // 1. Render Analyst Section
-    if (analystSec && data.targets && data.recommendations) {
-      const rec = data.recommendations;
-      const tgt = data.targets;
-
-      const badge = document.getElementById('analystConsensusBadge');
-      if (badge) {
-        badge.innerText = rec.consensus || 'Buy';
-        if (rec.consensus === 'Strong Buy' || rec.consensus === 'Buy') {
-          badge.style.color = '#10B981';
-          badge.style.background = 'rgba(16, 185, 129, 0.1)';
-          badge.style.borderColor = 'rgba(16, 185, 129, 0.3)';
-        } else if (rec.consensus === 'Hold') {
-          badge.style.color = '#F59E0B';
-          badge.style.background = 'rgba(245, 158, 11, 0.1)';
-          badge.style.borderColor = 'rgba(245, 158, 11, 0.3)';
-        } else {
-          badge.style.color = '#EF4444';
-          badge.style.background = 'rgba(239, 68, 68, 0.1)';
-          badge.style.borderColor = 'rgba(239, 68, 68, 0.3)';
-        }
-      }
-
-      const buyLabel = document.getElementById('analystBuyPctLabel');
-      if (buyLabel) buyLabel.innerText = `${rec.buy_pct}% Buy`;
-
-      const totalCovering = document.getElementById('analystTotalCovering');
-      if (totalCovering) totalCovering.innerText = `Covered by ${rec.total} Analysts`;
-
-      const meterBuy = document.getElementById('analystMeterBuy');
-      if (meterBuy) meterBuy.style.width = `${rec.buy_pct}%`;
-      const meterHold = document.getElementById('analystMeterHold');
-      if (meterHold) meterHold.style.width = `${rec.hold_pct}%`;
-      const meterSell = document.getElementById('analystMeterSell');
-      if (meterSell) meterSell.style.width = `${rec.sell_pct}%`;
-
-      const buyCntEl = document.getElementById('analystBuyCount');
-      if (buyCntEl) buyCntEl.innerText = `${(rec.strong_buy || 0) + (rec.buy || 0)} Buy`;
-      const holdCntEl = document.getElementById('analystHoldCount');
-      if (holdCntEl) holdCntEl.innerText = `${rec.hold || 0} Hold`;
-      const sellCntEl = document.getElementById('analystSellCount');
-      if (sellCntEl) sellCntEl.innerText = `${(rec.sell || 0) + (rec.strong_sell || 0)} Sell`;
-
-      const tgtLow = document.getElementById('analystTargetLow');
-      if (tgtLow) tgtLow.innerText = formatINR(tgt.low);
-      const tgtMean = document.getElementById('analystTargetMean');
-      if (tgtMean) tgtMean.innerText = formatINR(tgt.mean);
-      const tgtHigh = document.getElementById('analystTargetHigh');
-      if (tgtHigh) tgtHigh.innerText = formatINR(tgt.high);
-
-      const upsidePill = document.getElementById('analystUpsidePill');
-      if (upsidePill) {
-        const isPos = (tgt.upside_pct || 0) >= 0;
-        upsidePill.innerText = `${isPos ? '+' : ''}${tgt.upside_pct}%`;
-        upsidePill.style.color = isPos ? '#10B981' : '#EF4444';
-        upsidePill.style.background = isPos ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)';
-      }
-
-      analystSec.style.display = 'block';
-    } else if (analystSec) {
-      analystSec.style.display = 'none';
-    }
-
-    // 2. Render Dividends Section
-    if (divSec) {
-      const divList = document.getElementById('pageDividendsList');
-      const hasDivs = data.dividends && data.dividends.length > 0;
-      const hasSplits = data.splits && data.splits.length > 0;
-
-      if ((hasDivs || hasSplits) && divList) {
-        let itemsHtml = '';
-
-        if (hasSplits) {
-          data.splits.forEach(s => {
-            itemsHtml += `
-              <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(99, 102, 241, 0.06); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: 8px; padding: 0.65rem 0.9rem;">
-                <div style="display: flex; align-items: center; gap: 0.6rem;">
-                  <span style="font-size: 1.1rem;">🎁</span>
-                  <div>
-                    <div style="font-weight: 700; font-size: 0.9rem; color: #818CF8;">${s.ratio}</div>
-                    <div style="font-size: 0.74rem; color: var(--text-muted);">Corporate Action • Ex-Date: ${s.date}</div>
-                  </div>
-                </div>
-                <span class="pill-btn" style="background: rgba(99, 102, 241, 0.2); color: #818CF8; border: none; font-size: 0.7rem; font-weight: 700;">Bonus / Split</span>
-              </div>
-            `;
-          });
-        }
-
-        if (hasDivs) {
-          data.dividends.forEach(d => {
-            itemsHtml += `
-              <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.65rem 0.9rem;">
-                <div style="display: flex; align-items: center; gap: 0.6rem;">
-                  <span style="font-size: 1.1rem;">💵</span>
-                  <div>
-                    <div style="font-weight: 700; font-size: 0.9rem; color: var(--text-main);">${formatINR(d.amount)} <span style="font-weight: 400; font-size: 0.78rem; color: var(--text-muted);">/ share</span></div>
-                    <div style="font-size: 0.74rem; color: var(--text-muted);">Ex-Dividend Date: ${d.date}</div>
-                  </div>
-                </div>
-                ${d.yield_pct ? `<span class="pill-btn" style="background: rgba(16, 185, 129, 0.1); color: #10B981; border: none; font-size: 0.72rem; font-weight: 600;">Yield: ${d.yield_pct}%</span>` : ''}
-              </div>
-            `;
-          });
-        }
-
-        divList.innerHTML = itemsHtml;
-        divSec.style.display = 'block';
-      } else {
-        divSec.style.display = 'none';
-      }
-    }
-  } catch (err) {
-    if (analystSec) analystSec.style.display = 'none';
-    if (divSec) divSec.style.display = 'none';
   }
 }
 
@@ -6432,11 +6401,6 @@ setInterval(async () => {
 }, 5000);
 
 function openMobileTradeDrawer(action = 'BUY') {
-  if (isGuest()) {
-    showToast('Please create your free account to unlock ₹10,00,000 virtual balance and start trading.', false);
-    navigateTo('/onboarding');
-    return;
-  }
   setPageOrderAction(action);
   const drawer = document.getElementById('mobileTradingDrawerOverlay');
   if (drawer) {
@@ -6874,9 +6838,9 @@ async function executePageTrade() {
 
   if (!currentPageAsset) {
     const path = window.location.pathname;
-    const sym = path.startsWith('/stock/') ? path.replace('/stock/', '').trim() : (path.startsWith('/mf/') ? path.replace('/mf/', '').trim() : '');
+    const sym = path.startsWith('/stock/') ? path.replace('/stock/', '').trim() : (path.startsWith('/mf/') ? path.replace('/mf/', '').trim() : (path.startsWith('/etf/') ? path.replace('/etf/', '').trim() : ''));
     if (sym) {
-      await showAssetPage(sym, path.startsWith('/mf/') ? 'MUTUAL_FUND' : 'STOCK');
+      await showAssetPage(sym, path.startsWith('/mf/') ? 'MUTUAL_FUND' : (path.startsWith('/etf/') ? 'ETF' : 'STOCK'));
     }
     if (!currentPageAsset) {
       showToast('Asset quote not loaded yet. Please wait a moment or refresh.', true);
@@ -9539,3 +9503,5 @@ window.closePwaGuideModal = closePwaGuideModal;
 window.closeOptionBuyModal = closeOptionBuyModal;
 window.closeIpoBidModal = closeIpoBidModal;
 window.closeSipModal = closeSipModal;
+window.openPageChargesModal = openPageChargesModal;
+window.openProfileChargesModal = openProfileChargesModal;

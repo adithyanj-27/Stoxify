@@ -3998,20 +3998,31 @@ body.pwa-installed #mobileInstallBanner {
 
 .mob-action-toggle .trade-tab-btn {
   border-radius: 8px;
-  border-bottom: none !important;
-  padding: 0.55rem 0.5rem;
-  font-size: 0.88rem;
-  font-weight: 600;
+  border: none !important;
+  padding: 0.65rem 0.5rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--text-muted);
+  transition: all 0.18s ease;
 }
 
 .mob-action-toggle .trade-tab-btn.active.buy {
   background: var(--accent-green);
   color: #052e16;
+  font-weight: 800;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
 }
 
 .mob-action-toggle .trade-tab-btn.active.sell {
   background: var(--danger-red);
   color: #ffffff;
+  font-weight: 800;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
 }
 
 .order-calc-card {
@@ -6701,9 +6712,9 @@ html.user-guest #navProfileWrapper {
   }
 
   .mob-trade-action-btn.sell {
-    background: rgba(239, 68, 68, 0.15);
-    color: #ef4444;
-    border: 1.5px solid rgba(239, 68, 68, 0.4);
+    background: #ef4444;
+    color: #ffffff;
+    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
   }
 
   .mob-trade-action-btn.buy {

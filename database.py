@@ -1928,6 +1928,7 @@ def get_wallet_transactions(
         )
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_wallet_tx_user ON wallet_transactions(user_id, id DESC)")
+    cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_tx_user_ref ON wallet_transactions(user_id, reference_id) WHERE reference_id IS NOT NULL")
     conn.commit()
     
     # 1. Sync remote orders and wallet transactions from Supabase if enabled
@@ -1945,9 +1946,16 @@ def get_wallet_transactions(
                 "limit": "150"
             })
             if sb_rows and isinstance(sb_rows, list):
+                cursor.execute("SELECT reference_id FROM wallet_transactions WHERE user_id = ? AND reference_id IS NOT NULL", (user_id,))
+                local_refs = {r["reference_id"] for r in cursor.fetchall()}
                 for row in sb_rows:
+                    r_ref = row.get("reference_id")
+                    if r_ref and r_ref in local_refs:
+                        continue
+                    if r_ref:
+                        local_refs.add(r_ref)
                     cursor.execute("""
-                        INSERT OR IGNORE INTO wallet_transactions (
+                        INSERT INTO wallet_transactions (
                             user_id, type, title, amount, balance_after, direction, status,
                             reference_id, description, symbol, asset_type, created_at
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1955,7 +1963,7 @@ def get_wallet_transactions(
                         user_id, row.get("type") or "DEPOSIT", row.get("title") or "Transaction",
                         float(row.get("amount") or 0.0), float(row.get("balance_after") or 0.0),
                         row.get("direction") or "CREDIT", row.get("status") or "SUCCESS",
-                        row.get("reference_id"), row.get("description"), row.get("symbol"),
+                        r_ref, row.get("description"), row.get("symbol"),
                         row.get("asset_type") or "STOCK", row.get("created_at")
                     ))
                 conn.commit()
@@ -2046,15 +2054,24 @@ def get_wallet_transactions(
     """, (user_id,))
     for ord_row in cursor.fetchall():
         ord_ref = f"ORD-STX-{ord_row['id']}"
-        if ord_ref in existing_refs:
-            continue
-        existing_refs.add(ord_ref)
         o_type = ord_row["order_type"].upper()
         status = ord_row["status"].upper()
         asset = ord_row["asset_type"] or "STOCK"
         cat_name = "Stocks" if asset == "STOCK" else (asset.capitalize() + "s" if not asset.endswith("s") else asset.capitalize())
         is_exec = "EXECUTED" in status
         is_failed = status in ("CANCELLED", "REJECTED", "FAILED")
+        resolved_status = "SUCCESS" if is_exec else ("FAILED" if is_failed else status)
+
+        if ord_ref in existing_refs:
+            # Keep status in sync if order transitioned (e.g. OPEN -> CANCELLED or EXECUTED)
+            cursor.execute("""
+                UPDATE wallet_transactions 
+                SET status = ? 
+                WHERE user_id = ? AND reference_id = ? AND status != ?
+            """, (resolved_status, user_id, ord_ref, resolved_status))
+            continue
+
+        existing_refs.add(ord_ref)
         
         if o_type == "BUY":
             buy_amt = float(ord_row["blocked_amount"] or ord_row["net_amount"] or ord_row["total_amount"] or 0.0)
@@ -2066,7 +2083,7 @@ def get_wallet_transactions(
                 "title": title,
                 "amount": round(buy_amt, 2),
                 "direction": "DEBIT",
-                "status": "SUCCESS" if is_exec else ("FAILED" if is_failed else status),
+                "status": resolved_status,
                 "reference_id": ord_ref,
                 "description": f"Bought {ord_row['quantity']} shares of {ord_row['symbol']}",
                 "symbol": ord_row["symbol"],
@@ -2080,7 +2097,7 @@ def get_wallet_transactions(
                 "title": f"Received from {cat_name}",
                 "amount": round(sell_amt, 2),
                 "direction": "CREDIT",
-                "status": "SUCCESS" if is_exec else ("FAILED" if is_failed else status),
+                "status": resolved_status,
                 "reference_id": ord_ref,
                 "description": f"Sold {ord_row['quantity']} shares of {ord_row['symbol']}",
                 "symbol": ord_row["symbol"],
@@ -2134,46 +2151,26 @@ def get_wallet_transactions(
         for e in new_events:
             c_time = e.get("created_at") or datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
             cursor.execute("""
-                INSERT INTO wallet_transactions (
+                INSERT OR IGNORE INTO wallet_transactions (
                     user_id, type, title, amount, balance_after, direction, status,
                     reference_id, description, symbol, asset_type, created_at
-                ) VALUES (?, ?, ?, ?, 0.0, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 user_id, e["type"], e["title"], e["amount"],
-                e["direction"], e["status"], e["reference_id"], e["description"],
+                current_balance, e["direction"], e["status"], e["reference_id"], e["description"],
                 e["symbol"], e["asset_type"], c_time
             ))
         conn.commit()
 
-    # Rebalance running ledger balance_after values chronologically
+    # Fill balance_after ONLY for rows where balance_after is 0 or missing (do not overwrite recorded historical balances)
     cursor.execute("""
         SELECT id, type, amount, direction, status, created_at, balance_after
-        FROM wallet_transactions WHERE user_id = ?
+        FROM wallet_transactions WHERE user_id = ? AND balance_after <= 0.0
     """, (user_id,))
-    all_ledger = [dict(r) for r in cursor.fetchall()]
-    
-    if all_ledger and (new_events or any(r["balance_after"] == 0.0 for r in all_ledger)):
-        def _sort_ts(row):
-            dt = _parse_tx_dt(row.get("created_at"))
-            return (dt.timestamp() if dt else 0.0, row["id"])
-        all_ledger.sort(key=_sort_ts)
-        
-        net_delta = 0.0
-        for r in all_ledger:
-            if r["status"] in ("SUCCESS", "COMPLETED", "EXECUTED", "OPEN"):
-                if r["direction"] == "CREDIT":
-                    net_delta += r["amount"]
-                else:
-                    net_delta -= r["amount"]
-        start_bal = max(0.0, round(current_balance - net_delta, 2))
-        run_bal = start_bal
-        for r in all_ledger:
-            if r["status"] in ("SUCCESS", "COMPLETED", "EXECUTED", "OPEN"):
-                if r["direction"] == "CREDIT":
-                    run_bal = round(run_bal + r["amount"], 2)
-                else:
-                    run_bal = round(run_bal - r["amount"], 2)
-            cursor.execute("UPDATE wallet_transactions SET balance_after = ? WHERE id = ?", (run_bal, r["id"]))
+    unfilled_rows = cursor.fetchall()
+    if unfilled_rows:
+        for r in unfilled_rows:
+            cursor.execute("UPDATE wallet_transactions SET balance_after = ? WHERE id = ?", (current_balance, r["id"]))
         conn.commit()
 
     # Query wallet transactions sorted newest first

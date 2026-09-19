@@ -1379,9 +1379,13 @@ def api_get_wallet_transactions(
     filter: Optional[str] = None,
     only_failed: Optional[bool] = False
 ):
-    uid = get_user_id(request) or request.query_params.get("user_id") or "default"
-    if uid in ["guest", "null", "undefined"]:
-        uid = "default"
+    uid = get_user_id(request)
+    if not uid:
+        param_uid = request.query_params.get("user_id")
+        if param_uid and param_uid not in ["guest", "default", "null", "undefined"]:
+            uid = param_uid
+    if not uid or uid in ["guest", "default", "null", "undefined"]:
+        return {"transactions": [], "balance": 0.0, "total_count": 0, "success": True}
     return get_wallet_transactions(uid, filter_type=filter, only_failed=bool(only_failed))
 
 @app.post("/api/account/restore")
@@ -1556,9 +1560,9 @@ def api_stock_peers(symbol: str):
 def api_stock_news(symbol: str):
     return market_service.get_stock_news(symbol)
 
-@app.get("/api/stock/insights")
-def api_stock_insights(symbol: str):
-    return market_service.get_stock_insights(symbol)
+@app.get("/api/bullion/rates")
+def api_bullion_rates():
+    return market_service.get_live_bullion_rates()
 
 # --- Portfolio Analytics & Tax Reporting ---
 @app.get("/api/analytics/tax-report")
