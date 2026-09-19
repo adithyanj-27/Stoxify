@@ -1712,51 +1712,54 @@ async function fetchPortfolioInternal(requestVersion) {
       }).join('');
     }
 
-    // Render Mobile Cards
+    // Render Mobile Cards (Groww Style)
     if (mobileList) {
       mobileList.innerHTML = (data.holdings || []).map(h => {
-        const isPosTotal = h.total_pnl >= 0;
+        const isPosTotal = (h.total_pnl || 0) >= 0;
         const totalClass = isPosTotal ? 'text-positive' : 'text-negative';
         const totalSign = isPosTotal ? '+' : '';
         const invVal = Number(h.invested_value !== undefined ? h.invested_value : (h.quantity * h.avg_price)) || 0;
         const curVal = Number(h.current_value !== undefined ? h.current_value : (h.quantity * h.current_price)) || 0;
+        const isPosChange = (h.change || 0) >= 0;
+        const chgSign = isPosChange ? '+' : '';
+        const chgClass = isPosChange ? 'text-positive' : 'text-negative';
 
         return `
-          <div class="mobile-card-item">
-            <div class="mobile-card-top">
-              <div>
-                <button type="button" class="holding-name-link mobile-holding-title" onclick="openHoldingDetails('${h.symbol}', '${h.asset_type}')" title="View details for ${h.name}">${h.name}</button>
-                <div class="mobile-card-symbol">${h.symbol} • ${h.quantity} shares</div>
+          <div class="mobile-card-item groww-holding-card">
+            <div class="groww-holding-header" onclick="openHoldingDetails('${h.symbol}', '${h.asset_type}')">
+              <div class="groww-holding-left">
+                ${renderAssetAvatar(h, h.asset_type)}
+                <div class="groww-holding-identity">
+                  <div class="groww-holding-name" title="${h.name}">${h.name}</div>
+                  <div class="groww-holding-sub">${h.quantity} shares • Avg. ${formatINR(h.avg_price)}</div>
+                </div>
               </div>
-              <div class="mobile-card-price" style="text-align: right;">
-                <div style="font-size: 1rem; font-weight: 800;">${formatINR(curVal)}</div>
-                <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">Invested: ${formatINR(invVal)}</div>
-                <div class="${totalClass}" style="font-size: 0.78rem; font-weight: 700; margin-top: 2px;">
+              <div class="groww-holding-right">
+                <div class="groww-holding-curval">${formatINR(curVal)}</div>
+                <div class="groww-holding-returns ${totalClass}">
                   ${totalSign}${formatINR(h.total_pnl)} (${totalSign}${formatNumber(h.total_pnl_pct)}%)
                 </div>
               </div>
             </div>
-            <div class="mobile-card-grid" style="grid-template-columns: repeat(2, 1fr); gap: 0.6rem; margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(255, 255, 255, 0.06);">
-              <div>
-                <span style="color:var(--text-muted); font-size: 0.74rem; display: block;">Current Price (LTP)</span>
-                <strong style="font-size: 0.88rem; color: var(--text-primary);">${formatINR(h.current_price)}</strong>
+
+            <div class="groww-holding-stats">
+              <div class="groww-stat-item">
+                <span class="groww-stat-label">Invested</span>
+                <span class="groww-stat-val">${formatINR(invVal)}</span>
               </div>
-              <div>
-                <span style="color:var(--text-muted); font-size: 0.74rem; display: block;">Invested Price (Avg)</span>
-                <strong style="font-size: 0.88rem; color: var(--brand-cyan, #0EA5E9);">${formatINR(h.avg_price)}</strong>
-              </div>
-              <div>
-                <span style="color:var(--text-muted); font-size: 0.74rem; display: block;">Current Value</span>
-                <strong style="font-size: 0.85rem;">${formatINR(curVal)}</strong>
-              </div>
-              <div>
-                <span style="color:var(--text-muted); font-size: 0.74rem; display: block;">Invested Value</span>
-                <strong style="font-size: 0.85rem;">${formatINR(invVal)}</strong>
+              <div class="groww-stat-item">
+                <span class="groww-stat-label">LTP</span>
+                <span class="groww-stat-val">${formatINR(h.current_price)} <small class="${chgClass}">(${chgSign}${formatNumber(h.change_pct)}%)</small></span>
               </div>
             </div>
-            <div class="mobile-card-actions" style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
-              <button class="pill-btn" style="flex: 1;" onclick="openAssetModal('${h.symbol}', '${h.asset_type}', 'BUY')">+ Add More</button>
-              <button class="btn-danger" style="flex: 1; padding: 0.4rem 0.85rem; font-size: 0.8rem;" onclick="startHoldingSale('${h.symbol}', '${h.asset_type}', ${Number(h.quantity) || 0})">Sell</button>
+
+            <div class="groww-holding-actions">
+              <button type="button" class="groww-h-btn add" onclick="openAssetModal('${h.symbol}', '${h.asset_type}', 'BUY')">
+                + Add More
+              </button>
+              <button type="button" class="groww-h-btn sell" onclick="startHoldingSale('${h.symbol}', '${h.asset_type}', ${Number(h.quantity) || 0})">
+                Sell
+              </button>
             </div>
           </div>
         `;

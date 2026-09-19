@@ -2102,6 +2102,195 @@ body.pwa-installed #mobileInstallBanner {
   border-color: var(--border-active);
 }
 
+/* ==========================================================================
+   GROWW-STYLE HOLDINGS CARD (MOBILE)
+   ========================================================================== */
+.groww-holding-card {
+  border-radius: 14px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+  transition: border-color 0.18s ease, transform 0.18s ease;
+}
+
+.groww-holding-card:hover {
+  border-color: var(--border-active);
+}
+
+.groww-holding-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.groww-holding-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.groww-holding-left .asset-avatar,
+.groww-holding-left .asset-avatar-sm {
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px !important;
+  border-radius: 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 0.95rem !important;
+  font-weight: 800 !important;
+  flex-shrink: 0;
+}
+
+.groww-holding-left img {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 10px !important;
+  object-fit: contain;
+}
+
+.groww-holding-identity {
+  min-width: 0;
+  flex: 1;
+}
+
+.groww-holding-name {
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.groww-holding-sub {
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.groww-holding-right {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.groww-holding-curval {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.groww-holding-returns {
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.groww-holding-stats {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.55rem 0.75rem;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+}
+
+[data-theme="light"] .groww-holding-stats {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+.groww-stat-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+}
+
+.groww-stat-label {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  font-weight: 500;
+}
+
+.groww-stat-val {
+  color: var(--text-secondary);
+  font-weight: 700;
+  font-size: 0.84rem;
+}
+
+.groww-stat-val small {
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.groww-holding-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+  margin-top: 0.1rem;
+}
+
+.groww-h-btn {
+  height: 38px;
+  border-radius: 8px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, transform 0.1s ease, border-color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.groww-h-btn:active {
+  transform: scale(0.98);
+}
+
+.groww-h-btn.add {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+}
+
+.groww-h-btn.add:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border-active);
+}
+
+[data-theme="light"] .groww-h-btn.add {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.groww-h-btn.sell {
+  background: #EF4444;
+  color: #FFFFFF;
+  border: none;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
+}
+
+.groww-h-btn.sell:hover {
+  background: #DC2626;
+}
+
 .mobile-card-top {
   display: flex;
   justify-content: space-between;
