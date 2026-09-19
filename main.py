@@ -1555,6 +1555,10 @@ def api_stock_peers(symbol: str):
 def api_stock_news(symbol: str):
     return market_service.get_stock_news(symbol)
 
+@app.get("/api/stock/insights")
+def api_stock_insights(symbol: str):
+    return market_service.get_stock_insights(symbol)
+
 # --- Portfolio Analytics & Tax Reporting ---
 @app.get("/api/analytics/tax-report")
 def api_tax_report(request: Request):

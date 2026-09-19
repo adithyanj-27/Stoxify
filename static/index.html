@@ -317,7 +317,7 @@
           <circle cx="11" cy="11" r="8"></circle>
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         </svg>
-        <input type="text" id="globalSearchInput" placeholder="Search stocks, mutual funds (e.g. Tata Motors, Parag Parikh)..." autocomplete="off">
+        <input type="text" id="globalSearchInput" placeholder="Search stocks, mutual funds, ETFs, gold (e.g. Reliance, Gold BeES)..." autocomplete="off">
         <button type="button" class="search-clear-btn" id="searchClearBtn" aria-label="Close search" onclick="closeSearchBar(event)" title="Close search">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -584,6 +584,7 @@
         <button class="sub-nav-btn active" id="subnav-stocks" onclick="switchExploreSubnav('stocks')">Stocks</button>
         <button class="sub-nav-btn" id="subnav-fo" onclick="switchExploreSubnav('fo')">F&O (Futures & Options)</button>
         <button class="sub-nav-btn" id="subnav-mf" onclick="switchExploreSubnav('mf')">Mutual Funds</button>
+        <button class="sub-nav-btn" id="subnav-etf" onclick="switchExploreSubnav('etf')">ETFs & Gold</button>
         <button class="sub-nav-btn" id="subnav-ipo" onclick="switchExploreSubnav('ipo')">IPOs</button>
       </div>
 
@@ -736,6 +737,74 @@
 
         <div class="cards-grid" id="mfGrid">
           <div style="color: var(--text-muted); font-size: 0.9rem; padding: 2rem;">Fetching live NAVs from AMFI...</div>
+        </div>
+      </div>
+
+      <!-- ETFs & Commodities Hub Sub-view -->
+      <div id="explore-etf-container" style="display: none;">
+        <div class="section-header" style="margin-bottom: 0.75rem; flex-direction: column; align-items: flex-start; gap: 0.25rem;">
+          <h2 class="section-title">ETFs & Commodities</h2>
+          <p class="section-desc" style="margin: 0; max-width: 650px;">Invest in 99.5% pure physical Gold, Silver, broad market Indices, and US Tech with 1-click liquidity on NSE.</p>
+        </div>
+
+        <!-- Gold & Silver Spotlight Cards -->
+        <div class="etf-spotlight-row" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+          <div class="etf-spotlight-card gold-spotlight" onclick="openAssetModal('GOLDBEES.NS', 'ETF')" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(217, 119, 6, 0.05) 100%); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 14px; padding: 1.25rem; cursor: pointer; transition: all 0.2s ease; position: relative; overflow: hidden;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+              <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <div style="width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #F59E0B, #D97706); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35);">
+                  🪙
+                </div>
+                <div>
+                  <div style="font-weight: 800; font-size: 1.05rem; color: #FBBF24;">Gold BeES</div>
+                  <div style="font-size: 0.78rem; color: var(--text-muted);">99.5% Pure Physical Gold</div>
+                </div>
+              </div>
+              <span class="pill-btn" style="background: rgba(245, 158, 11, 0.2); color: #FBBF24; font-size: 0.75rem; border: none; font-weight: 700;">Spotlight</span>
+            </div>
+            <div style="display: flex; align-items: baseline; justify-content: space-between;">
+              <div>
+                <div style="font-size: 1.35rem; font-weight: 800; color: var(--text-main);" id="spotlightGoldPrice">₹126.48</div>
+                <div style="font-size: 0.8rem; font-weight: 600; color: #10B981;" id="spotlightGoldChange">+0.82 (+0.65%)</div>
+              </div>
+              <button class="btn-primary" style="padding: 0.45rem 1rem; font-size: 0.82rem; font-weight: 700; background: linear-gradient(135deg, #F59E0B, #D97706); border: none; color: #000;">Invest in Gold →</button>
+            </div>
+          </div>
+
+          <div class="etf-spotlight-card silver-spotlight" onclick="openAssetModal('SILVERBEES.NS', 'ETF')" style="background: linear-gradient(135deg, rgba(148, 163, 184, 0.14) 0%, rgba(100, 116, 139, 0.05) 100%); border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 14px; padding: 1.25rem; cursor: pointer; transition: all 0.2s ease; position: relative; overflow: hidden;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+              <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <div style="width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #94A3B8, #64748B); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; box-shadow: 0 4px 12px rgba(148, 163, 184, 0.35);">
+                  ⚪
+                </div>
+                <div>
+                  <div style="font-weight: 800; font-size: 1.05rem; color: #E2E8F0;">Silver BeES</div>
+                  <div style="font-size: 0.78rem; color: var(--text-muted);">Physical Silver Bullion</div>
+                </div>
+              </div>
+              <span class="pill-btn" style="background: rgba(148, 163, 184, 0.2); color: #E2E8F0; font-size: 0.75rem; border: none; font-weight: 700;">Spotlight</span>
+            </div>
+            <div style="display: flex; align-items: baseline; justify-content: space-between;">
+              <div>
+                <div style="font-size: 1.35rem; font-weight: 800; color: var(--text-main);" id="spotlightSilverPrice">₹224.07</div>
+                <div style="font-size: 0.8rem; font-weight: 600; color: #10B981;" id="spotlightSilverChange">+1.45 (+0.65%)</div>
+              </div>
+              <button class="btn-primary" style="padding: 0.45rem 1rem; font-size: 0.82rem; font-weight: 700; background: linear-gradient(135deg, #94A3B8, #64748B); border: none; color: #000;">Invest in Silver →</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ETF Category Filter Pills -->
+        <div class="filter-pills" id="etfFilterPills" style="margin-bottom: 1.25rem; overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; padding-bottom: 4px;">
+          <button class="pill-btn active" onclick="filterEtfCategory('all', this)" id="pillEtfAll">All ETFs</button>
+          <button class="pill-btn" onclick="filterEtfCategory('Gold & Silver', this)" id="pillEtfGoldSilver">Gold & Silver</button>
+          <button class="pill-btn" onclick="filterEtfCategory('Index', this)" id="pillEtfIndex">Index ETFs</button>
+          <button class="pill-btn" onclick="filterEtfCategory('Sectoral', this)" id="pillEtfSectoral">Sectoral</button>
+          <button class="pill-btn" onclick="filterEtfCategory('Global', this)" id="pillEtfGlobal">Global / US Tech</button>
+        </div>
+
+        <div class="cards-grid" id="etfGrid">
+          <div style="color: var(--text-muted); font-size: 0.9rem; padding: 2rem;">Loading live ETFs & Commodities...</div>
         </div>
       </div>
 
@@ -1300,6 +1369,68 @@
             <div class="asset-section-card" id="pageFundamentalsSection">
               <h3 class="section-heading">Fundamentals & Key Ratios</h3>
               <div class="fundamentals-grid" id="pageFundamentalsGrid"></div>
+            </div>
+
+            <!-- Dalal Street Analyst Consensus & Price Targets Card -->
+            <div class="asset-section-card" id="pageAnalystSection" style="display: none;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+                <div>
+                  <h3 class="section-heading" style="margin-bottom: 0.2rem;">Analyst Rating & 1-Year Price Target</h3>
+                  <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">Institutional Wall St & Dalal St consensus forecasts based on exchange filings</p>
+                </div>
+                <span class="pill-btn" id="analystConsensusBadge" style="color: var(--accent-green); background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.3); font-weight: 700;">Strong Buy</span>
+              </div>
+
+              <!-- Consensus Bar Meter -->
+              <div style="margin-bottom: 1.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; margin-bottom: 0.45rem;">
+                  <span style="font-weight: 700; color: var(--text-main);" id="analystBuyPctLabel">92% Buy</span>
+                  <span style="color: var(--text-muted); font-size: 0.8rem;" id="analystTotalCovering">Covered by 26 Analysts</span>
+                </div>
+                <div style="display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: rgba(255, 255, 255, 0.08); gap: 2px;">
+                  <div id="analystMeterBuy" style="width: 85%; background: #10B981;" title="Buy"></div>
+                  <div id="analystMeterHold" style="width: 10%; background: #F59E0B;" title="Hold"></div>
+                  <div id="analystMeterSell" style="width: 5%; background: #EF4444;" title="Sell"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin-top: 0.4rem;">
+                  <span style="color: #10B981; font-weight: 600;" id="analystBuyCount">22 Buy</span>
+                  <span style="color: #F59E0B; font-weight: 600;" id="analystHoldCount">3 Hold</span>
+                  <span style="color: #EF4444; font-weight: 600;" id="analystSellCount">1 Sell</span>
+                </div>
+              </div>
+
+              <!-- Target Price Cards Grid -->
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem;">
+                <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 0.85rem;">
+                  <span style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Low Target</span>
+                  <strong style="font-size: 1.05rem; color: var(--text-main);" id="analystTargetLow">₹0.00</strong>
+                </div>
+                <div style="background: rgba(16, 185, 129, 0.06); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 10px; padding: 0.85rem;">
+                  <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <span style="font-size: 0.75rem; color: #10B981; font-weight: 600; display: block; margin-bottom: 0.25rem;">Avg Target (Mean)</span>
+                    <span id="analystUpsidePill" class="pill-btn" style="padding: 1px 6px; font-size: 0.7rem; background: rgba(16, 185, 129, 0.2); color: #10B981; border: none; font-weight: 700;">+0.0%</span>
+                  </div>
+                  <strong style="font-size: 1.15rem; color: #10B981; font-weight: 800;" id="analystTargetMean">₹0.00</strong>
+                </div>
+                <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 0.85rem;">
+                  <span style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">High Target</span>
+                  <strong style="font-size: 1.05rem; color: var(--text-main);" id="analystTargetHigh">₹0.00</strong>
+                </div>
+              </div>
+            </div>
+
+            <!-- Dividend History & Corporate Actions Card -->
+            <div class="asset-section-card" id="pageDividendsSection" style="display: none;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <div>
+                  <h3 class="section-heading" style="margin-bottom: 0.2rem;">Dividends & Corporate Actions</h3>
+                  <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">Verified cash dividend payouts, bonus shares, and stock split history</p>
+                </div>
+                <span class="pill-btn" style="color: #38BDF8; background: rgba(14, 165, 233, 0.1); border-color: rgba(14, 165, 233, 0.3); font-weight: 600;">NSE Filings</span>
+              </div>
+              <div id="pageDividendsList" style="display: flex; flex-direction: column; gap: 0.6rem;">
+                <div style="color: var(--text-muted); font-size: 0.85rem; padding: 1rem;">Loading dividend records...</div>
+              </div>
             </div>
 
             <!-- Mutual Fund SIP Return Calculator (Groww Style Compounding) -->

@@ -290,6 +290,7 @@ const state = {
   ordersSubnav: 'executed',
   exploreStockFilter: 'all',
   exploreMfFilter: 'all',
+  exploreEtfFilter: 'all',
   exploreData: null,
   account: { balance: 0.0, bank_balance: 1000000.0 },
   watchlist: getLocalWatchlistSet(),
@@ -640,6 +641,7 @@ function switchExploreSubnav(subId) {
     stocks: document.getElementById('explore-stocks-container'),
     fo: document.getElementById('explore-fo-container'),
     mf: document.getElementById('explore-mf-container'),
+    etf: document.getElementById('explore-etf-container'),
     ipo: document.getElementById('explore-ipo-container')
   };
 
@@ -654,6 +656,8 @@ function switchExploreSubnav(subId) {
     fetchOptionChain();
   } else if (subId === 'mf') {
     renderExploreMutualFunds();
+  } else if (subId === 'etf') {
+    renderExploreETFs();
   } else if (subId === 'ipo') {
     fetchIpos();
   }
@@ -1041,8 +1045,9 @@ function renderAssetAvatar(item, assetType, isHero = false) {
   const sym = item.symbol || '';
   const isIndex = sym.startsWith('^') || assetType === 'INDEX';
   const isMF = assetType === 'MUTUAL_FUND' || item.asset_type === 'MUTUAL_FUND';
-  const cleanSym = sym.replace('.NS', '').replace('.BO', '');
-  const initial = isIndex ? 'IDX' : getCleanInitial(item.name, item.symbol);
+  const isETF = assetType === 'ETF' || item.asset_type === 'ETF';
+  const cleanSym = sym.replace('.NS', '').replace('.BO', '').toUpperCase();
+  const initial = isIndex ? 'IDX' : (isETF && (cleanSym.includes('GOLD') || cleanSym.includes('SILVER')) ? (cleanSym.includes('GOLD') ? '🪙' : '⚪') : getCleanInitial(item.name, item.symbol));
   const logoUrl = isIndex ? '' : getAssetLogoUrl(sym, item);
 
   const palettes = [
@@ -1054,15 +1059,30 @@ function renderAssetAvatar(item, assetType, isHero = false) {
     { bg: 'rgba(168, 85, 247, 0.12)', text: '#C084FC', border: 'rgba(168, 85, 247, 0.3)' },
   ];
   const idx = (initial.charCodeAt(0) || 0) % palettes.length;
-  const p = isIndex
-    ? { bg: 'linear-gradient(135deg, rgba(14, 165, 233, 0.2) 0%, rgba(16, 185, 129, 0.2) 100%)', text: '#38BDF8', border: 'rgba(14, 165, 233, 0.4)' }
-    : palettes[idx];
+  let p = palettes[idx];
+
+  const isGold = isETF && cleanSym.includes('GOLD');
+  const isSilver = isETF && cleanSym.includes('SILVER');
+
+  if (isIndex) {
+    p = { bg: 'linear-gradient(135deg, rgba(14, 165, 233, 0.2) 0%, rgba(16, 185, 129, 0.2) 100%)', text: '#38BDF8', border: 'rgba(14, 165, 233, 0.4)' };
+  } else if (isGold) {
+    p = { bg: 'linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(217, 119, 6, 0.2) 100%)', text: '#F59E0B', border: 'rgba(245, 158, 11, 0.4)' };
+  } else if (isSilver) {
+    p = { bg: 'linear-gradient(135deg, rgba(148, 163, 184, 0.2) 0%, rgba(100, 116, 139, 0.2) 100%)', text: '#E2E8F0', border: 'rgba(148, 163, 184, 0.4)' };
+  } else if (isETF) {
+    p = { bg: 'rgba(99, 102, 241, 0.15)', text: '#818CF8', border: 'rgba(99, 102, 241, 0.35)' };
+  }
 
   const fallbackHtml = isIndex
     ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>`
     : (isMF
       ? `<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>`
-      : initial);
+      : (isGold
+        ? '🪙'
+        : (isSilver
+          ? '⚪'
+          : initial)));
 
   if (isIndex) {
     if (isHero) {
@@ -1488,6 +1508,88 @@ function renderExploreMutualFunds() {
   }).join('');
 }
 
+// --- ETFs & Commodities View ---
+function filterEtfCategory(category, btnEl) {
+  state.exploreEtfFilter = category;
+  document.querySelectorAll('#etfFilterPills .pill-btn').forEach(b => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+  renderExploreETFs();
+}
+
+function renderExploreETFs() {
+  const grid = document.getElementById('etfGrid');
+  if (!grid) return;
+
+  const allEtfs = (state.exploreData && state.exploreData.etfs) || [];
+
+  // Update spotlight prices if live quotes are available
+  const goldQuote = allEtfs.find(e => e.symbol === 'GOLDBEES.NS');
+  if (goldQuote && goldQuote.price) {
+    const goldPriceEl = document.getElementById('spotlightGoldPrice');
+    const goldChangeEl = document.getElementById('spotlightGoldChange');
+    if (goldPriceEl) goldPriceEl.innerText = formatINR(goldQuote.price);
+    if (goldChangeEl) {
+      const isPos = (goldQuote.change || 0) >= 0;
+      goldChangeEl.style.color = isPos ? '#10B981' : '#EF4444';
+      goldChangeEl.innerText = `${isPos ? '+' : ''}${formatNumber(goldQuote.change)} (${isPos ? '+' : ''}${formatNumber(goldQuote.change_pct)}%)`;
+    }
+  }
+
+  const silverQuote = allEtfs.find(e => e.symbol === 'SILVERBEES.NS');
+  if (silverQuote && silverQuote.price) {
+    const silverPriceEl = document.getElementById('spotlightSilverPrice');
+    const silverChangeEl = document.getElementById('spotlightSilverChange');
+    if (silverPriceEl) silverPriceEl.innerText = formatINR(silverQuote.price);
+    if (silverChangeEl) {
+      const isPos = (silverQuote.change || 0) >= 0;
+      silverChangeEl.style.color = isPos ? '#10B981' : '#EF4444';
+      silverChangeEl.innerText = `${isPos ? '+' : ''}${formatNumber(silverQuote.change)} (${isPos ? '+' : ''}${formatNumber(silverQuote.change_pct)}%)`;
+    }
+  }
+
+  if (allEtfs.length === 0) {
+    grid.innerHTML = '<div style="color: var(--text-muted); font-size: 0.9rem; padding: 2rem;">Fetching live ETF quotes from NSE...</div>';
+    if (!state.exploreData) fetchExploreData();
+    return;
+  }
+
+  const filter = state.exploreEtfFilter || 'all';
+  const list = filter === 'all'
+    ? allEtfs
+    : allEtfs.filter(e => (e.category || '').toLowerCase() === filter.toLowerCase());
+
+  if (list.length === 0) {
+    grid.innerHTML = '<div style="color: var(--text-muted); font-size: 0.9rem; padding: 2rem;">No ETFs found in this category.</div>';
+    return;
+  }
+
+  grid.innerHTML = list.map(etf => {
+    const cleanSym = (etf.symbol || '').replace('.NS', '').replace('.BO', '');
+    const isPos = (etf.change || 0) >= 0;
+    const badgeClass = isPos ? 'badge-positive' : 'badge-negative';
+    return `
+      <div class="stock-card" onclick="openAssetModal('${etf.symbol}', 'ETF')">
+        <div class="card-top">
+          <div class="card-header-left">
+            ${renderAssetAvatar(etf, 'ETF')}
+            <div class="card-info">
+              <div class="card-title" title="${etf.name}">${etf.name}</div>
+              <div class="card-subtitle">${cleanSym} • ${etf.category || 'ETF'}</div>
+            </div>
+          </div>
+          ${renderCardStarBtn(etf.symbol, etf.name, 'ETF')}
+        </div>
+        <div class="card-bottom">
+          <div class="card-price">${formatINR(etf.price)}</div>
+          <div class="card-change">
+            <span class="${badgeClass}">${isPos ? '+' : ''}${formatNumber(etf.change_pct)}%</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
 // --- Holdings View (Delivery CNC) ---
 // Navigation, polling, and trade completion can request the same portfolio at
 // once. Coalesce those reads to avoid duplicate backend/cloud work.
@@ -1624,7 +1726,7 @@ async function fetchPortfolioInternal(requestVersion) {
               <button type="button" class="holding-name-link" onclick="openHoldingDetails('${h.symbol}', '${h.asset_type}')" title="View details for ${h.name}">${h.name}</button>
               <div style="font-size: 0.75rem; color: var(--text-muted);">${h.symbol}</div>
             </td>
-            <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;">${h.asset_type === 'MUTUAL_FUND' ? 'Mutual Fund' : 'Stock'}</span></td>
+            <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;">${h.asset_type === 'MUTUAL_FUND' ? 'Mutual Fund' : (h.asset_type === 'ETF' ? 'ETF' : 'Stock')}</span></td>
             <td style="font-weight: 600;">${h.quantity}</td>
             <td>
               <div style="font-weight: 600;">${formatINR(h.avg_price)}</div>
@@ -2323,6 +2425,8 @@ function openAssetModal(symbol, assetType = 'STOCK', preselectAction = 'BUY') {
   }
   if (assetType === 'MUTUAL_FUND' || symbol.match(/^\d+$/)) {
     navigateTo('/mf/' + cleanSym);
+  } else if (assetType === 'ETF') {
+    navigateTo('/etf/' + cleanSym);
   } else {
     navigateTo('/stock/' + cleanSym);
   }
@@ -3575,6 +3679,9 @@ function handleRoute() {
   if (path.startsWith('/stock/')) {
     const sym = decodeURIComponent(path.replace('/stock/', '')).trim();
     showAssetPage(sym, 'STOCK');
+  } else if (path.startsWith('/etf/')) {
+    const sym = decodeURIComponent(path.replace('/etf/', '')).trim();
+    showAssetPage(sym, 'ETF');
   } else if (path.startsWith('/mf/')) {
     const sym = decodeURIComponent(path.replace('/mf/', '')).trim();
     showAssetPage(sym, 'MUTUAL_FUND');
@@ -5223,16 +5330,18 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
 
   const cleanSymInit = (symbol || '').replace('.NS', '').replace('.BO', '');
   const isMFInit = assetType === 'MUTUAL_FUND' || symbol.match(/^\d+$/);
+  const isETFInit = assetType === 'ETF';
   const isIndexInit = (symbol || '').startsWith('^') || assetType === 'INDEX';
   const indexNameInit = isIndexInit ? (INDEX_NAMES[symbol] || symbol.replace('^', '')) : null;
 
-  document.getElementById('assetBreadcrumbCategory').innerText = isIndexInit ? 'Indices' : (isMFInit ? 'Mutual Funds' : 'Stocks');
+  document.getElementById('assetBreadcrumbCategory').innerText = isIndexInit ? 'Indices' : (isMFInit ? 'Mutual Funds' : (isETFInit ? 'ETFs & Gold' : 'Stocks'));
   document.getElementById('pageAssetSymbol').innerText = isIndexInit ? (INDEX_NAMES[symbol] || cleanSymInit) : cleanSymInit;
   const dSymInit = document.getElementById('drawerAssetSymbol');
   if (dSymInit) dSymInit.innerText = isIndexInit ? (INDEX_NAMES[symbol] || cleanSymInit) : cleanSymInit;
 
   const knownInit = (state.exploreData && state.exploreData.all_stocks)
-    ? state.exploreData.all_stocks.find(s => (s.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase() === cleanSymInit.toUpperCase())
+    ? (state.exploreData.all_stocks.find(s => (s.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase() === cleanSymInit.toUpperCase()) ||
+       (state.exploreData.etfs && state.exploreData.etfs.find(e => (e.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase() === cleanSymInit.toUpperCase())))
     : null;
   if (knownInit) {
     document.getElementById('assetBreadcrumbName').innerText = knownInit.name;
@@ -5254,18 +5363,19 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
     const indexName = isIndex ? (INDEX_NAMES[data.symbol] || data.name || data.symbol.replace('^', '')) : null;
     const cleanSym = isIndex ? (INDEX_NAMES[data.symbol] || data.symbol.replace('^', '')) : (data.symbol || '').replace('.NS', '').replace('.BO', '');
     const isMF = data.asset_type === 'MUTUAL_FUND';
+    const isETF = data.asset_type === 'ETF' || assetType === 'ETF';
     if (!isIndex) {
-      recordRecentlyViewed(data, isMF ? 'MUTUAL_FUND' : 'STOCK');
+      recordRecentlyViewed(data, isMF ? 'MUTUAL_FUND' : (isETF ? 'ETF' : 'STOCK'));
     }
     
-    document.getElementById('assetBreadcrumbCategory').innerText = isIndex ? 'Indices' : (isMF ? 'Mutual Funds' : 'Stocks');
+    document.getElementById('assetBreadcrumbCategory').innerText = isIndex ? 'Indices' : (isMF ? 'Mutual Funds' : (isETF ? 'ETFs & Gold' : 'Stocks'));
     document.getElementById('assetBreadcrumbName').innerText = isIndex ? indexName : data.name;
 
-    document.getElementById('pageAssetAvatar').innerHTML = renderAssetAvatar(data, isIndex ? 'INDEX' : data.asset_type, true);
+    document.getElementById('pageAssetAvatar').innerHTML = renderAssetAvatar(data, isIndex ? 'INDEX' : (isETF ? 'ETF' : data.asset_type), true);
     document.getElementById('pageAssetTitle').innerText = isIndex ? indexName : data.name;
     document.getElementById('pageAssetSymbol').innerText = isIndex ? (INDEX_NAMES[data.symbol] || cleanSym) : cleanSym;
-    document.getElementById('pageAssetBadge').innerText = isIndex ? 'INDEX' : (isMF ? 'Mutual Fund' : (data.exchange || 'NSE'));
-    document.getElementById('pageAssetSector').innerText = isIndex ? 'Market Index' : (data.sector || (isMF ? data.category || 'Direct Plan' : 'Equities'));
+    document.getElementById('pageAssetBadge').innerText = isIndex ? 'INDEX' : (isMF ? 'Mutual Fund' : (isETF ? 'ETF • NSE' : (data.exchange || 'NSE')));
+    document.getElementById('pageAssetSector').innerText = isIndex ? 'Market Index' : (data.sector || (isMF ? data.category || 'Direct Plan' : (isETF ? data.category || 'ETF' : 'Equities')));
     document.getElementById('pageAssetPrice').innerText = formatINR(data.price);
 
     const isPos = data.change >= 0;
@@ -5324,6 +5434,7 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
 
     fetchPageMarketDepth(data.symbol);
     renderPageFundamentals(data);
+    fetchPageStockInsights(data.symbol, data.asset_type);
 
     document.getElementById('pageAboutTitle').innerText = data.name;
     document.getElementById('pageAboutText').innerText = data.description || `${data.name} is a leading Indian security actively traded on the National Stock Exchange (NSE).`;
@@ -5506,6 +5617,139 @@ function renderPageFundamentals(data) {
       <div class="fundamental-item"><span class="f-name">EPS (TTM)</span><strong class="f-val">${eps}</strong></div>
       <div class="fundamental-item"><span class="f-name">Dividend Yield</span><strong class="f-val">${divYield}</strong></div>
     `;
+  }
+}
+
+async function fetchPageStockInsights(symbol, assetType = 'STOCK') {
+  const analystSec = document.getElementById('pageAnalystSection');
+  const divSec = document.getElementById('pageDividendsSection');
+
+  // Only show Analyst Consensus and Dividend History for Equities
+  if (assetType !== 'STOCK') {
+    if (analystSec) analystSec.style.display = 'none';
+    if (divSec) divSec.style.display = 'none';
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/stock/insights?symbol=${encodeURIComponent(symbol)}`);
+    const data = await res.json();
+
+    // 1. Render Analyst Section
+    if (analystSec && data.targets && data.recommendations) {
+      const rec = data.recommendations;
+      const tgt = data.targets;
+
+      const badge = document.getElementById('analystConsensusBadge');
+      if (badge) {
+        badge.innerText = rec.consensus || 'Buy';
+        if (rec.consensus === 'Strong Buy' || rec.consensus === 'Buy') {
+          badge.style.color = '#10B981';
+          badge.style.background = 'rgba(16, 185, 129, 0.1)';
+          badge.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+        } else if (rec.consensus === 'Hold') {
+          badge.style.color = '#F59E0B';
+          badge.style.background = 'rgba(245, 158, 11, 0.1)';
+          badge.style.borderColor = 'rgba(245, 158, 11, 0.3)';
+        } else {
+          badge.style.color = '#EF4444';
+          badge.style.background = 'rgba(239, 68, 68, 0.1)';
+          badge.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+        }
+      }
+
+      const buyLabel = document.getElementById('analystBuyPctLabel');
+      if (buyLabel) buyLabel.innerText = `${rec.buy_pct}% Buy`;
+
+      const totalCovering = document.getElementById('analystTotalCovering');
+      if (totalCovering) totalCovering.innerText = `Covered by ${rec.total} Analysts`;
+
+      const meterBuy = document.getElementById('analystMeterBuy');
+      if (meterBuy) meterBuy.style.width = `${rec.buy_pct}%`;
+      const meterHold = document.getElementById('analystMeterHold');
+      if (meterHold) meterHold.style.width = `${rec.hold_pct}%`;
+      const meterSell = document.getElementById('analystMeterSell');
+      if (meterSell) meterSell.style.width = `${rec.sell_pct}%`;
+
+      const buyCntEl = document.getElementById('analystBuyCount');
+      if (buyCntEl) buyCntEl.innerText = `${(rec.strong_buy || 0) + (rec.buy || 0)} Buy`;
+      const holdCntEl = document.getElementById('analystHoldCount');
+      if (holdCntEl) holdCntEl.innerText = `${rec.hold || 0} Hold`;
+      const sellCntEl = document.getElementById('analystSellCount');
+      if (sellCntEl) sellCntEl.innerText = `${(rec.sell || 0) + (rec.strong_sell || 0)} Sell`;
+
+      const tgtLow = document.getElementById('analystTargetLow');
+      if (tgtLow) tgtLow.innerText = formatINR(tgt.low);
+      const tgtMean = document.getElementById('analystTargetMean');
+      if (tgtMean) tgtMean.innerText = formatINR(tgt.mean);
+      const tgtHigh = document.getElementById('analystTargetHigh');
+      if (tgtHigh) tgtHigh.innerText = formatINR(tgt.high);
+
+      const upsidePill = document.getElementById('analystUpsidePill');
+      if (upsidePill) {
+        const isPos = (tgt.upside_pct || 0) >= 0;
+        upsidePill.innerText = `${isPos ? '+' : ''}${tgt.upside_pct}%`;
+        upsidePill.style.color = isPos ? '#10B981' : '#EF4444';
+        upsidePill.style.background = isPos ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)';
+      }
+
+      analystSec.style.display = 'block';
+    } else if (analystSec) {
+      analystSec.style.display = 'none';
+    }
+
+    // 2. Render Dividends Section
+    if (divSec) {
+      const divList = document.getElementById('pageDividendsList');
+      const hasDivs = data.dividends && data.dividends.length > 0;
+      const hasSplits = data.splits && data.splits.length > 0;
+
+      if ((hasDivs || hasSplits) && divList) {
+        let itemsHtml = '';
+
+        if (hasSplits) {
+          data.splits.forEach(s => {
+            itemsHtml += `
+              <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(99, 102, 241, 0.06); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: 8px; padding: 0.65rem 0.9rem;">
+                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                  <span style="font-size: 1.1rem;">🎁</span>
+                  <div>
+                    <div style="font-weight: 700; font-size: 0.9rem; color: #818CF8;">${s.ratio}</div>
+                    <div style="font-size: 0.74rem; color: var(--text-muted);">Corporate Action • Ex-Date: ${s.date}</div>
+                  </div>
+                </div>
+                <span class="pill-btn" style="background: rgba(99, 102, 241, 0.2); color: #818CF8; border: none; font-size: 0.7rem; font-weight: 700;">Bonus / Split</span>
+              </div>
+            `;
+          });
+        }
+
+        if (hasDivs) {
+          data.dividends.forEach(d => {
+            itemsHtml += `
+              <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.65rem 0.9rem;">
+                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                  <span style="font-size: 1.1rem;">💵</span>
+                  <div>
+                    <div style="font-weight: 700; font-size: 0.9rem; color: var(--text-main);">${formatINR(d.amount)} <span style="font-weight: 400; font-size: 0.78rem; color: var(--text-muted);">/ share</span></div>
+                    <div style="font-size: 0.74rem; color: var(--text-muted);">Ex-Dividend Date: ${d.date}</div>
+                  </div>
+                </div>
+                ${d.yield_pct ? `<span class="pill-btn" style="background: rgba(16, 185, 129, 0.1); color: #10B981; border: none; font-size: 0.72rem; font-weight: 600;">Yield: ${d.yield_pct}%</span>` : ''}
+              </div>
+            `;
+          });
+        }
+
+        divList.innerHTML = itemsHtml;
+        divSec.style.display = 'block';
+      } else {
+        divSec.style.display = 'none';
+      }
+    }
+  } catch (err) {
+    if (analystSec) analystSec.style.display = 'none';
+    if (divSec) divSec.style.display = 'none';
   }
 }
 

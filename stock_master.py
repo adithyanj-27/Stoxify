@@ -107,3 +107,28 @@ MUTUAL_FUND_MASTER = [
     {"code": "120716", "name": "UTI Nifty 50 Index Fund - Direct Plan - Growth", "category": "Index Fund", "fund_house": "UTI Mutual Fund", "rating": 5},
     {"code": "148712", "name": "Navi Nifty 50 Index Fund - Direct Plan - Growth", "category": "Index Fund", "fund_house": "Navi Mutual Fund", "rating": 5}
 ]
+
+ETF_MASTER = [
+    # --- Commodities (Gold & Silver) ---
+    {"symbol": "GOLDBEES.NS", "name": "Nippon India ETF Gold BeES", "category": "Gold & Silver", "sector": "Commodity / Gold", "aliases": ["gold", "goldbees", "gold bees", "nippon gold", "sona", "bullion", "etf"]},
+    {"symbol": "SILVERBEES.NS", "name": "Nippon India ETF Silver BeES", "category": "Gold & Silver", "sector": "Commodity / Silver", "aliases": ["silver", "silverbees", "silver bees", "nippon silver", "chandi", "bullion", "etf"]},
+    {"symbol": "HDFCGOLD.NS", "name": "HDFC Gold ETF", "category": "Gold & Silver", "sector": "Commodity / Gold", "aliases": ["hdfc gold", "gold", "hdfc etf", "etf"]},
+    {"symbol": "SETFGOLD.NS", "name": "SBI Gold ETF", "category": "Gold & Silver", "sector": "Commodity / Gold", "aliases": ["sbi gold", "gold", "sbi etf", "setfgold", "etf"]},
+    {"symbol": "HDFCSILVER.NS", "name": "HDFC Silver ETF", "category": "Gold & Silver", "sector": "Commodity / Silver", "aliases": ["hdfc silver", "silver", "etf"]},
+
+    # --- Broad Market Index ETFs ---
+    {"symbol": "NIFTYBEES.NS", "name": "Nippon India ETF Nifty BeES", "category": "Index", "sector": "Market Index", "aliases": ["nifty", "niftybees", "nifty 50", "index etf", "bees", "etf"]},
+    {"symbol": "BANKBEES.NS", "name": "Nippon India ETF Bank BeES", "category": "Index", "sector": "Banking Index", "aliases": ["bankbees", "bank nifty", "bank bees", "etf"]},
+    {"symbol": "JUNIORBEES.NS", "name": "Nippon India ETF Junior BeES", "category": "Index", "sector": "Nifty Next 50", "aliases": ["juniorbees", "next 50", "junior bees", "etf"]},
+    {"symbol": "MID150BEES.NS", "name": "Nippon India ETF Nifty Midcap 150", "category": "Index", "sector": "Midcap Index", "aliases": ["midcap bees", "midcap", "mid150bees", "etf"]},
+
+    # --- Sectoral & Thematic ETFs ---
+    {"symbol": "ITBEES.NS", "name": "Nippon India ETF Nifty IT", "category": "Sectoral", "sector": "IT Sector", "aliases": ["itbees", "it bees", "tech etf", "it", "nifty it", "etf"]},
+    {"symbol": "PHARMABEES.NS", "name": "Nippon India ETF Nifty Pharma", "category": "Sectoral", "sector": "Pharma Sector", "aliases": ["pharmabees", "pharma bees", "healthcare", "etf"]},
+    {"symbol": "AUTOBEES.NS", "name": "Nippon India ETF Nifty Auto", "category": "Sectoral", "sector": "Auto Sector", "aliases": ["autobees", "auto bees", "automobiles", "etf"]},
+    {"symbol": "CPSEETF.NS", "name": "CPSE ETF", "category": "Sectoral", "sector": "PSU Sector", "aliases": ["cpse", "cpse etf", "psu etf", "maharatna", "etf"]},
+
+    # --- Global & US Tech ETFs ---
+    {"symbol": "MON100.NS", "name": "Motilal Oswal Nasdaq 100 ETF", "category": "Global", "sector": "US Tech / Global", "aliases": ["nasdaq", "mon100", "us tech", "apple", "nvidia", "microsoft", "global etf", "etf"]},
+    {"symbol": "MAFANG.NS", "name": "Mirae Asset NYSE FANG+ ETF", "category": "Global", "sector": "US Tech / Global", "aliases": ["fang", "mafang", "faang", "us tech", "meta", "google", "amazon", "etf"]}
+]
