@@ -1580,6 +1580,13 @@ async function fetchPortfolioInternal(requestVersion) {
     const data = await res.json();
     if (requestVersion !== portfolioRequestVersion) return data;
     state.account.balance = data.balance || 0;
+    state.portfolioData = data;
+    state.holdingsMap = {};
+    (data.holdings || []).forEach(h => {
+      state.holdingsMap[h.symbol] = h;
+      const clean = (h.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase();
+      state.holdingsMap[clean] = h;
+    });
 
     const navBal = document.getElementById('navBalanceDisplay');
     if (navBal) navBal.innerText = formatINR(data.balance);
@@ -2357,9 +2364,9 @@ function selectSearchResult(symbol, assetType) {
 }
 
 // --- Asset Detail & Trade Modal ---
-function openAssetModal(symbol, assetType = 'STOCK', preselectAction = 'BUY') {
+function openAssetModal(symbol, assetType = 'STOCK', preselectAction = null) {
   const cleanSym = (symbol || '').replace('.NS', '').replace('.BO', '');
-  if (preselectAction && preselectAction !== 'BUY') {
+  if (preselectAction) {
     sessionStorage.setItem('stoxify_preselect_action', preselectAction);
   } else {
     sessionStorage.removeItem('stoxify_preselect_action');
@@ -2375,20 +2382,35 @@ function openAssetModal(symbol, assetType = 'STOCK', preselectAction = 'BUY') {
 }
 
 // --- Groww-Style Mobile Holding Bottom Sheet ---
-function openHoldingBottomSheet(symbol) {
-  if (!state.portfolioData || !state.portfolioData.holdings) {
-    openHoldingDetails(symbol, 'STOCK');
-    return;
-  }
-  const h = state.portfolioData.holdings.find(item => item.symbol === symbol);
+async function openHoldingBottomSheet(symbol) {
+  if (!symbol) return;
+  const clean = (symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase();
+  let h = (state.holdingsMap && (state.holdingsMap[symbol] || state.holdingsMap[clean])) ||
+          (state.portfolioData && state.portfolioData.holdings && state.portfolioData.holdings.find(item => 
+            item.symbol === symbol || (item.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase() === clean
+          ));
+
   if (!h) {
-    openHoldingDetails(symbol, 'STOCK');
-    return;
+    try {
+      const res = await fetch('/api/portfolio');
+      const data = await res.json();
+      state.portfolioData = data;
+      state.holdingsMap = {};
+      (data.holdings || []).forEach(item => {
+        state.holdingsMap[item.symbol] = item;
+        state.holdingsMap[(item.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase()] = item;
+      });
+      h = state.holdingsMap[symbol] || state.holdingsMap[clean];
+    } catch (e) {
+      console.warn('Failed to fetch portfolio for holding sheet:', e);
+    }
   }
 
   const overlay = document.getElementById('holdingDetailDrawerOverlay');
-  if (!overlay) {
-    openHoldingDetails(symbol, h.asset_type);
+  if (!overlay) return;
+
+  if (!h) {
+    console.warn('Holding not found in portfolio for symbol:', symbol);
     return;
   }
 
@@ -2407,9 +2429,9 @@ function openHoldingBottomSheet(symbol) {
   const addBtn = document.getElementById('holdingSheetAddBtn');
   const sellBtn = document.getElementById('holdingSheetSellBtn');
 
-  if (avatarEl) avatarEl.innerHTML = renderAssetAvatar(h, h.asset_type);
-  if (titleEl) titleEl.innerText = h.name;
-  if (symEl) symEl.innerText = (h.symbol || '').replace('.NS', '').replace('.BO', '');
+  if (avatarEl) avatarEl.innerHTML = renderAssetAvatar(h, h.asset_type || 'STOCK');
+  if (titleEl) titleEl.innerText = h.name || h.symbol;
+  if (symEl) symEl.innerText = clean;
   if (priceEl) priceEl.innerText = formatINR(h.current_price);
 
   const chgPos = (h.change || 0) >= 0;
@@ -2440,19 +2462,19 @@ function openHoldingBottomSheet(symbol) {
   if (overviewBtn) {
     overviewBtn.onclick = () => {
       closeHoldingBottomSheet();
-      openAssetModal(h.symbol, h.asset_type, 'BUY');
+      openAssetModal(h.symbol, h.asset_type || 'STOCK', null);
     };
   }
   if (addBtn) {
     addBtn.onclick = () => {
       closeHoldingBottomSheet();
-      openAssetModal(h.symbol, h.asset_type, 'BUY');
+      openAssetModal(h.symbol, h.asset_type || 'STOCK', 'BUY');
     };
   }
   if (sellBtn) {
     sellBtn.onclick = () => {
       closeHoldingBottomSheet();
-      startHoldingSale(h.symbol, h.asset_type, Number(h.quantity) || 0);
+      startHoldingSale(h.symbol, h.asset_type || 'STOCK', Number(h.quantity) || 0);
     };
   }
 
@@ -2467,7 +2489,7 @@ function closeHoldingBottomSheet() {
 }
 
 function openHoldingDetails(symbol, assetType = 'STOCK') {
-  openAssetModal(symbol, assetType, 'BUY');
+  openHoldingBottomSheet(symbol);
 }
 
 function startHoldingSale(symbol, assetType = 'STOCK', quantity = 0) {
@@ -5635,6 +5657,10 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
               openMobileTradeDrawer('SELL');
             }
           }).catch(() => {});
+        }
+      } else if (preselect === 'BUY') {
+        if (window.innerWidth <= 768) {
+          openMobileTradeDrawer('BUY');
         }
       }
     }
