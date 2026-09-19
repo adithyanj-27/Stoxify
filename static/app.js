@@ -348,6 +348,34 @@ function formatChange(change, changePct) {
   return `${sign}${formatNumber(change)} (${sign}${formatNumber(changePct)}%)`;
 }
 
+function formatISTDateTime(val) {
+  if (!val) return { date: 'Recent', time: '' };
+  try {
+    const s = String(val).trim();
+    let parseable = s;
+    if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/.test(s) && !s.includes('+') && !s.endsWith('Z')) {
+      parseable = s.replace(' ', 'T') + 'Z';
+    }
+    const d = new Date(parseable);
+    if (isNaN(d.getTime())) return { date: s, time: '' };
+    const date = d.toLocaleDateString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+    const time = d.toLocaleTimeString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+    return { date, time };
+  } catch (_) {
+    return { date: 'Recent', time: '' };
+  }
+}
+
 function formatMarketCap(val) {
   if (val === null || val === undefined || isNaN(val) || Number(val) <= 0) return '—';
   const cr = Number(val) / 1e7;
@@ -1997,9 +2025,11 @@ async function fetchOrders() {
         const rowsHtml = executedOrders.map(o => {
           const isBuy = o.order_type === 'BUY';
           const isPnlPos = o.realized_pnl >= 0;
+          const orderIst = formatISTDateTime(o.timestamp || o.created_at);
+          const orderDateDisplay = orderIst.time ? `${orderIst.date} • ${orderIst.time}` : (o.timestamp || 'Today');
           return `
             <tr>
-              <td style="font-size: 0.8rem; color: var(--text-muted);">${o.timestamp || 'Today'}</td>
+              <td style="font-size: 0.8rem; color: var(--text-muted);">${orderDateDisplay}</td>
               <td>
                 <button type="button" class="holding-name-link" onclick="openHoldingDetails('${o.symbol}', '${o.asset_type || 'STOCK'}')" title="View details for ${o.name}">${o.name}</button>
                 <div style="font-size: 0.75rem; color: var(--text-muted);">${o.symbol}</div>
@@ -2025,6 +2055,8 @@ async function fetchOrders() {
         if (execMobileList) {
           execMobileList.innerHTML = executedOrders.map(o => {
             const isBuy = o.order_type === 'BUY';
+            const orderIst = formatISTDateTime(o.timestamp || o.created_at);
+            const mobileTimeDisplay = orderIst.time ? `${orderIst.date.split(',')[0]} ${orderIst.time}` : ((o.timestamp || 'Today').split(' ')[1] || 'Today');
             return `
               <div class="mobile-card-item">
                 <div class="mobile-card-top">
@@ -2042,7 +2074,7 @@ async function fetchOrders() {
                   <div><span style="color:var(--text-muted);">Qty:</span> <strong>${o.quantity}</strong></div>
                   <div><span style="color:var(--text-muted);">Exec Price:</span> <strong>${formatINR(o.price)}</strong></div>
                   <div><span style="color:var(--text-muted);">Variety:</span> <strong>${o.order_variety || 'MARKET'}</strong></div>
-                  <div><span style="color:var(--text-muted);">Time:</span> <strong>${(o.timestamp || 'Today').split(' ')[1] || 'Today'}</strong></div>
+                  <div><span style="color:var(--text-muted);">Time:</span> <strong>${mobileTimeDisplay}</strong></div>
                 </div>
               </div>
             `;
@@ -5320,7 +5352,13 @@ function renderWalletTxList() {
       ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00D09C" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="17" y1="7" x2="7" y2="17"></line><polyline points="17 17 7 17 7 7"></polyline></svg>`
       : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg>`;
 
-    const dateStr = tx.date_formatted || 'Recent';
+    let dateStr = tx.date_formatted || 'Recent';
+    let timeStr = tx.time_formatted || '';
+    if (tx.created_at) {
+      const ist = formatISTDateTime(tx.created_at);
+      if (ist.date && ist.date !== 'Recent') dateStr = ist.date;
+      if (ist.time) timeStr = ist.time;
+    }
     const amtStr = tx.amount_formatted || `${isCredit ? '+' : ''}₹${Number(tx.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     const balStr = tx.balance_formatted || `Bal: ₹${Number(tx.balance_after || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     const failedBadge = tx.is_failed ? `<span class="groww-tx-badge-failed">${tx.status || 'FAILED'}</span>` : '';
@@ -5334,7 +5372,7 @@ function renderWalletTxList() {
           </div>
           <div class="groww-tx-meta">
             <div class="groww-tx-item-title">${safeTitle}</div>
-            <div class="groww-tx-item-date">${dateStr}${tx.time_formatted ? ` • ${tx.time_formatted}` : ''}</div>
+            <div class="groww-tx-item-date">${dateStr}${timeStr ? ` • ${timeStr}` : ''}</div>
           </div>
         </div>
         <div class="groww-tx-right">

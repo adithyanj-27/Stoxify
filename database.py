@@ -9,8 +9,10 @@ import re
 import time
 import urllib.request
 import urllib.parse
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Any
+
+IST = timezone(timedelta(hours=5, minutes=30))
 import concurrent.futures
 import logging
 import security
@@ -1803,13 +1805,18 @@ def _parse_tx_dt(value) -> Optional[datetime]:
     if not text:
         return None
     try:
-        return datetime.fromisoformat(text.replace("Z", "+00:00")).replace(tzinfo=None)
+        iso_text = text.replace("Z", "+00:00")
+        if "+" in iso_text or iso_text.endswith("+00:00"):
+            dt = datetime.fromisoformat(iso_text)
+            return dt.astimezone(IST)
     except Exception:
         pass
     try:
-        return datetime.strptime(text[:19], "%Y-%m-%d %H:%M:%S")
+        dt = datetime.strptime(text[:19], "%Y-%m-%d %H:%M:%S")
+        return dt.replace(tzinfo=timezone.utc).astimezone(IST)
     except Exception:
-        return None
+        pass
+    return None
 
 def record_wallet_transaction(
     user_id: str,
@@ -1971,9 +1978,34 @@ def get_wallet_transactions(
             pass
             
     # 2. Continuous Reconciliation of All Transactions (Bank, Orders, IPOs, Implied Deposits)
+    # Purge any duplicate synthetic deposits or bank-init records mistakenly copied into wallet
+    cursor.execute("""
+        DELETE FROM wallet_transactions 
+        WHERE user_id = ? AND (
+            reference_id LIKE 'BANK-INIT-%' 
+            OR (reference_id LIKE 'UPI/STX/%' AND EXISTS (
+                SELECT 1 FROM wallet_transactions w2 
+                WHERE w2.user_id = wallet_transactions.user_id 
+                  AND w2.type = 'DEPOSIT' 
+                  AND w2.reference_id NOT LIKE 'UPI/STX/%' 
+                  AND w2.reference_id NOT LIKE 'BANK-INIT-%'
+            ))
+            OR (reference_id LIKE 'DEP-INIT-%' AND EXISTS (
+                SELECT 1 FROM wallet_transactions w2 
+                WHERE w2.user_id = wallet_transactions.user_id 
+                  AND w2.type = 'DEPOSIT' 
+                  AND w2.reference_id NOT LIKE 'DEP-INIT-%'
+            ))
+        )
+    """, (user_id,))
+    conn.commit()
+
     cursor.execute("SELECT reference_id FROM wallet_transactions WHERE user_id = ? AND reference_id IS NOT NULL", (user_id,))
     existing_refs = {r["reference_id"] for r in cursor.fetchall()}
     
+    cursor.execute("SELECT COUNT(*) FROM wallet_transactions WHERE user_id = ? AND type = 'DEPOSIT'", (user_id,))
+    has_deposit = (cursor.fetchone()[0] or 0) > 0
+
     new_events = []
     
     # A. Bank deposits & withdrawals
@@ -1983,12 +2015,16 @@ def get_wallet_transactions(
     """, (user_id,))
     for btx in cursor.fetchall():
         b_ref = btx["reference_id"] or f"TXN-{btx['id']}"
-        if b_ref in existing_refs:
+        if b_ref in existing_refs or b_ref.startswith("BANK-INIT-") or b_ref.startswith("UPI/STX/"):
             continue
-        existing_refs.add(b_ref)
         b_type = btx["type"]
         amt = float(btx["amount"] or 0.0)
-        if b_type in ("BANK_DEPOSIT", "INITIAL_CREDIT", "DEPOSIT"):
+        # Never treat INITIAL_CREDIT (welcome bank account capital) as a wallet deposit
+        if b_type in ("BANK_DEPOSIT", "DEPOSIT"):
+            # If user already has deposit(s) in wallet, do not duplicate from bank
+            if has_deposit or any(e["type"] == "DEPOSIT" for e in new_events):
+                continue
+            existing_refs.add(b_ref)
             new_events.append({
                 "type": "DEPOSIT",
                 "title": "Stoxify Balance Deposit",
@@ -2002,6 +2038,7 @@ def get_wallet_transactions(
                 "created_at": btx["created_at"]
             })
         elif b_type == "WITHDRAWAL":
+            existing_refs.add(b_ref)
             new_events.append({
                 "type": "WITHDRAWAL",
                 "title": "Money Withdrawn",
@@ -2015,11 +2052,9 @@ def get_wallet_transactions(
                 "created_at": btx["created_at"]
             })
 
-    # B. Implied initial/bank deposit if no deposit row is recorded yet
-    cursor.execute("SELECT COUNT(*) FROM wallet_transactions WHERE user_id = ? AND type = 'DEPOSIT'", (user_id,))
-    deposit_count = cursor.fetchone()[0]
-    has_deposit = deposit_count > 0 or any(e["type"] == "DEPOSIT" for e in new_events)
-    if not has_deposit:
+    # B. Implied initial/bank deposit ONLY if strictly no deposit row exists anywhere
+    has_any_deposit = has_deposit or any(e["type"] == "DEPOSIT" for e in new_events)
+    if not has_any_deposit:
         bank_bal = float(u.get("bank_balance") or 1000000.0) if u else 1000000.0
         implied_amt = 0.0
         if bank_bal < 1000000.0:
@@ -2230,7 +2265,7 @@ def get_wallet_transactions(
             "is_failed": is_failed,
             "date_formatted": date_str,
             "time_formatted": time_str,
-            "created_at": r.get("created_at"),
+            "created_at": dt.isoformat() if dt else r.get("created_at"),
             "symbol": r.get("symbol"),
             "reference_id": r.get("reference_id"),
             "description": r.get("description")
