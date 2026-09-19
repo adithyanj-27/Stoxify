@@ -1243,26 +1243,26 @@ def get_stock_news(symbol: str) -> List[Dict[str, Any]]:
     ]
 
 def get_live_bullion_rates() -> Dict[str, Any]:
-    cached = get_cached("live_bullion_rates_v1")
+    cached = get_cached("live_bullion_rates_v2")
     if cached:
         return cached
 
-    # Defaults (realistic Indian bullion benchmark rates in INR / gram)
+    # Defaults (realistic Indian bullion benchmark rates in INR / gram, Sep 2026)
     gold_data = {
         "title": "24K Pure Gold",
         "purity": "99.9% 24 Karat Bullion",
         "unit": "per gram",
-        "price": 14868.0,
-        "change": 95.0,
-        "change_pct": 0.64
+        "price": 15713.0,
+        "change": 0.0,
+        "change_pct": 0.0
     }
     silver_data = {
         "title": "Fine Silver",
         "purity": "99.9% Pure Bullion",
         "unit": "per gram",
-        "price": 223.6,
-        "change": -0.1,
-        "change_pct": -0.04
+        "price": 105.0,
+        "change": 0.0,
+        "change_pct": 0.0
     }
 
     try:
@@ -1271,22 +1271,24 @@ def get_live_bullion_rates() -> Dict[str, Any]:
         si = tickers.tickers.get("SI=F")
         fx = tickers.tickers.get("INR=X")
 
-        fx_rate = 95.88
+        fx_rate = 85.5
         if fx:
             fast_fx = getattr(fx, "fast_info", None)
-            fx_rate = float(getattr(fast_fx, "last_price", 95.88) or 95.88)
+            fx_rate = float(getattr(fast_fx, "last_price", 85.5) or 85.5)
 
         oz_to_g = 31.1034768
-        # Indian tariff factor: 1.09 (6% basic customs duty + 3% GST on physical bullion)
-        duty_gst = 1.09
+        # Indian total premium factor over COMEX: ~29%
+        # Includes: 15% basic customs duty + 2.5% AIDC + 3% GST + local premium
+        # Calibrated against live IBJA / retail India gold rates
+        duty_premium = 1.29
 
         if gc:
             fast_gc = getattr(gc, "fast_info", None)
             gc_price = getattr(fast_gc, "last_price", None)
             gc_prev = getattr(fast_gc, "previous_close", None)
             if gc_price and gc_price > 0:
-                g_cur = round(((float(gc_price) * fx_rate) / oz_to_g) * duty_gst, 2)
-                g_p = round(((float(gc_prev or gc_price) * fx_rate) / oz_to_g) * duty_gst, 2)
+                g_cur = round(((float(gc_price) * fx_rate) / oz_to_g) * duty_premium, 2)
+                g_p = round(((float(gc_prev or gc_price) * fx_rate) / oz_to_g) * duty_premium, 2)
                 g_chg = round(g_cur - g_p, 2)
                 g_pct = round((g_chg / g_p) * 100, 2) if g_p else 0.0
                 gold_data["price"] = g_cur
@@ -1298,8 +1300,8 @@ def get_live_bullion_rates() -> Dict[str, Any]:
             si_price = getattr(fast_si, "last_price", None)
             si_prev = getattr(fast_si, "previous_close", None)
             if si_price and si_price > 0:
-                s_cur = round(((float(si_price) * fx_rate) / oz_to_g) * duty_gst, 2)
-                s_p = round(((float(si_prev or si_price) * fx_rate) / oz_to_g) * duty_gst, 2)
+                s_cur = round(((float(si_price) * fx_rate) / oz_to_g) * duty_premium, 2)
+                s_p = round(((float(si_prev or si_price) * fx_rate) / oz_to_g) * duty_premium, 2)
                 s_chg = round(s_cur - s_p, 2)
                 s_pct = round((s_chg / s_p) * 100, 2) if s_p else 0.0
                 silver_data["price"] = s_cur
@@ -1312,5 +1314,6 @@ def get_live_bullion_rates() -> Dict[str, Any]:
         "gold": gold_data,
         "silver": silver_data
     }
-    set_cached("live_bullion_rates_v1", result, ttl=60)
+    set_cached("live_bullion_rates_v2", result, ttl=60)
     return result
+

@@ -20,8 +20,8 @@ def open_browser():
 def main():
     print("""
 =========================================================
-  STOXIFY - STOCK & MUTUAL FUND BROKER PLATFORM
-  "Modern Stock & Mutual Fund Broker Platform"
+  STOXIFY - STOCK MARKET SIMULATOR & PAPER TRADING PLATFORM
+  "Virtual Stock Market Simulator & Paper Trading Platform"
 =========================================================
   Status: Online & Ready
   Starting Account Balance: Rs. 10,00,000

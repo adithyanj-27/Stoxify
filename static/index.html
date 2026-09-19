@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Stoxify — Stock & Mutual Fund Broker Platform</title>
+  <title>Stoxify — Stock Market Simulator & Paper Trading Platform</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#080D14">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -637,8 +637,8 @@
               </div>
               <div style="display: flex; align-items: baseline; justify-content: space-between;">
                 <div>
-                  <div style="font-size: 1.35rem; font-weight: 800; color: var(--text-main);" id="spotlightGoldRate">₹14,868.00 <span style="font-size: 0.8rem; font-weight: 500; color: var(--text-muted);">/ g</span></div>
-                  <div style="font-size: 0.8rem; font-weight: 600; color: #10B981;" id="spotlightGoldRateChange">+95.09 (+0.64%)</div>
+                  <div style="font-size: 1.35rem; font-weight: 800; color: var(--text-main);" id="spotlightGoldRate">₹15,713.00 <span style="font-size: 0.8rem; font-weight: 500; color: var(--text-muted);">/ g</span></div>
+                  <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted);" id="spotlightGoldRateChange">Loading...</div>
                 </div>
                 <button type="button" class="btn-primary" onclick="openAssetModal('GOLDBEES.NS', 'ETF')" style="padding: 0.4rem 0.85rem; font-size: 0.78rem; font-weight: 700; background: linear-gradient(135deg, #F59E0B, #D97706); border: none; color: #000; border-radius: 6px; cursor: pointer;">Gold ETF →</button>
               </div>
@@ -658,12 +658,25 @@
               </div>
               <div style="display: flex; align-items: baseline; justify-content: space-between;">
                 <div>
-                  <div style="font-size: 1.35rem; font-weight: 800; color: var(--text-main);" id="spotlightSilverRate">₹223.60 <span style="font-size: 0.8rem; font-weight: 500; color: var(--text-muted);">/ g</span></div>
-                  <div style="font-size: 0.8rem; font-weight: 600; color: #EF4444;" id="spotlightSilverRateChange">-0.10 (-0.04%)</div>
+                  <div style="font-size: 1.35rem; font-weight: 800; color: var(--text-main);" id="spotlightSilverRate">₹105.00 <span style="font-size: 0.8rem; font-weight: 500; color: var(--text-muted);">/ g</span></div>
+                  <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted);" id="spotlightSilverRateChange">Loading...</div>
                 </div>
                 <button type="button" class="btn-primary" onclick="openAssetModal('SILVERBEES.NS', 'ETF')" style="padding: 0.4rem 0.85rem; font-size: 0.78rem; font-weight: 700; background: linear-gradient(135deg, #94A3B8, #64748B); border: none; color: #000; border-radius: 6px; cursor: pointer;">Silver ETF →</button>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- Top ETFs on NSE — Dedicated Carousel Section -->
+        <div class="groww-section-block" id="etfCarouselSection" style="margin-top: 1.25rem;">
+          <div class="groww-section-header">
+            <div>
+              <h3 class="groww-section-title">Top ETFs on NSE</h3>
+              <span class="groww-section-sub">Exchange Traded Funds — Gold, Silver, Index & Sectoral ETFs</span>
+            </div>
+          </div>
+          <div class="most-bought-carousel" id="etfCarousel">
+            <div style="color: var(--text-muted); font-size: 0.85rem; padding: 1rem;">Loading ETFs...</div>
           </div>
         </div>
 
@@ -678,7 +691,6 @@
           <button class="pill-btn active" onclick="filterExploreStocks('all')">All / Most Active</button>
           <button class="pill-btn" onclick="filterExploreStocks('gainers')">Top Gainers</button>
           <button class="pill-btn" onclick="filterExploreStocks('losers')">Top Losers</button>
-          <button class="pill-btn" onclick="filterExploreStocks('etf')">ETFs & Gold</button>
           <button class="pill-btn" onclick="filterExploreStocks('Defense')">Defense</button>
           <button class="pill-btn" onclick="filterExploreStocks('Railways')">Railways</button>
           <button class="pill-btn" onclick="filterExploreStocks('Energy')">Energy</button>

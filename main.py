@@ -37,7 +37,7 @@ import ipo_service
 import security
 from datetime import datetime, timezone, timedelta
 
-app = FastAPI(title="Stoxify", description="Stoxify - Stock & Mutual Fund Broker Platform", version="1.0.0")
+app = FastAPI(title="Stoxify", description="Stoxify - Stock Market Simulator & Paper Trading Platform", version="1.0.0")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")

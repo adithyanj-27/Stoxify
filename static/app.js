@@ -1322,6 +1322,29 @@ function renderExploreStocks() {
     }).join('');
   }
 
+  // Populate "Top ETFs on NSE" horizontal carousel
+  const etfContainer = document.getElementById('etfCarousel');
+  if (etfContainer && state.exploreData.etfs && state.exploreData.etfs.length > 0) {
+    etfContainer.innerHTML = state.exploreData.etfs.map(s => {
+      const isPos = (s.change || 0) >= 0;
+      const cleanSym = (s.symbol || '').replace('.NS', '').replace('.BO', '');
+      const badgeClass = isPos ? 'badge-positive' : 'badge-negative';
+      return `
+        <div class="most-bought-card" onclick="openAssetModal('${s.symbol}', 'ETF')">
+          <div class="mb-top">
+            ${renderAssetAvatar(s, 'ETF')}
+            <span class="mb-sym-pill">${cleanSym}</span>
+          </div>
+          <div class="mb-name" title="${s.name}">${s.name}</div>
+          <div class="mb-bottom">
+            <span class="mb-price">${formatINR(s.price)}</span>
+            <span class="${badgeClass} mb-badge">${isPos ? '+' : ''}${formatNumber(s.change_pct)}%</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
   let list = [];
   if (state.exploreStockFilter === 'all') {
     list = state.exploreData.all_stocks;
@@ -1335,10 +1358,6 @@ function renderExploreStocks() {
     list = state.exploreData.losers;
     title.innerText = `Top Losers Today (${list.length})`;
     if (desc) desc.innerText = 'Stocks with the highest daily percentage loss on NSE';
-  } else if (state.exploreStockFilter === 'etf') {
-    list = state.exploreData.etfs || [];
-    title.innerText = `Exchange Traded Funds (ETFs) on NSE (${list.length})`;
-    if (desc) desc.innerText = 'Trade physical Gold, Silver, Nifty Indices, and Global Tech with instant Demat liquidity on NSE';
   } else {
     const filterKey = state.exploreStockFilter.toLowerCase();
     list = state.exploreData.all_stocks.filter(s => {

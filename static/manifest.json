@@ -1,5 +1,5 @@
 {
-  "name": "Stoxify — Stock & Mutual Fund Broker",
+  "name": "Stoxify — Stock Market Simulator & Paper Trading",
   "short_name": "Stoxify",
   "start_url": "/?source=pwa",
   "scope": "/",
@@ -8,7 +8,7 @@
   "background_color": "#080D14",
   "theme_color": "#080D14",
   "orientation": "portrait-primary",
-  "description": "Modern Stock & Mutual Fund Paper Trading Platform",
+  "description": "Virtual stock market simulator with paper trading for stocks, F&O, mutual funds & ETFs",
   "icons": [
     {
       "src": "/static/icon-192.png",

@@ -1,4 +1,4 @@
-# Stoxify — Modern Stock & Mutual Fund Broker Platform
+# Stoxify — Stock Market Simulator & Paper Trading Platform
 
 > *"Master Dalal Street with real market tools and zero capital risk."*
 

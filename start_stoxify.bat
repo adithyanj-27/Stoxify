@@ -1,5 +1,5 @@
 @echo off
-title Stoxify - Stock & Mutual Fund Broker Platform
+title Stoxify - Stock Market Simulator & Paper Trading Platform
 echo ========================================
 echo        STARTING STOXIFY PLATFORM
 echo ========================================
