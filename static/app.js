@@ -1743,13 +1743,17 @@ async function fetchPortfolioInternal(requestVersion) {
             </div>
 
             <div class="groww-holding-stats">
-              <div class="groww-stat-item">
+              <div class="groww-stat-col left">
                 <span class="groww-stat-label">Invested</span>
                 <span class="groww-stat-val">${formatINR(invVal)}</span>
               </div>
-              <div class="groww-stat-item">
-                <span class="groww-stat-label">LTP</span>
-                <span class="groww-stat-val">${formatINR(h.current_price)} <small class="${chgClass}">(${chgSign}${formatNumber(h.change_pct)}%)</small></span>
+              <div class="groww-stat-divider"></div>
+              <div class="groww-stat-col right">
+                <span class="groww-stat-label">Market Price (LTP)</span>
+                <div class="groww-stat-val">
+                  ${formatINR(h.current_price)}
+                  <span class="groww-stat-pill ${chgClass}">${chgSign}${formatNumber(h.change_pct)}%</span>
+                </div>
               </div>
             </div>
 
