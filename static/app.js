@@ -3240,7 +3240,7 @@ function updateInstallButtonsVisibility() {
 if ('getInstalledRelatedApps' in navigator) {
   navigator.getInstalledRelatedApps().then(apps => {
     if (apps && apps.length > 0) {
-      console.log('Stoxifyn related PWA detected on device');
+      console.log('Stoxify related PWA detected on device');
     }
   }).catch(() => {});
 }
@@ -3311,7 +3311,7 @@ async function triggerNativeInstallPrompt() {
 
 async function installPWA() {
   if (isAppInstalled()) {
-    showToast("Stoxifyn is already running in app mode!");
+    showToast("Stoxify is already running in app mode!");
     return;
   }
   if (deferredInstallPrompt) {
@@ -3347,7 +3347,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js', { scope: '/' }).then((reg) => {
       reg.update();
-      console.log('Stoxifyn PWA Service Worker registered:', reg.scope);
+      console.log('Stoxify PWA Service Worker registered:', reg.scope);
     }).catch((err) => {
       console.warn('Service Worker registration skipped:', err);
     });
@@ -4604,10 +4604,10 @@ async function executeUpiPayment() {
         type: 'BANK_DEPOSIT',
         amount: data.amount || currentUpiAddAmount,
         from_account: `${bankName} ${actualAcc}`,
-        to_account: 'Stoxifyn Trading Wallet',
+        to_account: 'Stoxify Trading Wallet',
         reference_id: txnRef,
         status: 'SUCCESS',
-        note: 'Simulated bank transfer to Stoxifyn trading wallet',
+        note: 'Simulated bank transfer to Stoxify trading wallet',
         created_at: new Date().toISOString()
       });
 
@@ -4725,7 +4725,7 @@ async function executeWithdrawal() {
 
   if (pin.length !== 4) {
     if (errEl) {
-      errEl.innerText = "Please enter your 4-digit Stoxifyn PIN";
+      errEl.innerText = "Please enter your 4-digit Stoxify PIN";
       errEl.style.display = 'block';
     }
     return;
@@ -4784,7 +4784,7 @@ async function executeWithdrawal() {
         user_id: uid,
         type: 'WITHDRAWAL',
         amount: amt,
-        from_account: 'Stoxifyn Trading Wallet',
+        from_account: 'Stoxify Trading Wallet',
         to_account: `${bName} ${actualAcc}`,
         reference_id: wdrRef,
         status: 'SUCCESS',
@@ -7557,7 +7557,7 @@ function finishOnboarding() {
   }
   updateNavbarProfile();
   navigateTo('/explore');
-  showToast(`Welcome to Stoxifyn, ${currentUser.name}!`);
+  showToast(`Welcome to Stoxify, ${currentUser.name}!`);
 }
 
 

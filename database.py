@@ -1556,13 +1556,13 @@ def transfer_bank_to_wallet(user_id: str, amount: float, pin: str) -> Dict[str, 
 
     cursor.execute("""
         INSERT INTO bank_transactions (user_id, type, amount, from_account, to_account, reference_id, status, note)
-        VALUES (?, 'BANK_DEPOSIT', ?, ?, 'Stoxifyn Trading Wallet', ?, 'SUCCESS', ?)
+        VALUES (?, 'BANK_DEPOSIT', ?, ?, 'Stoxify Trading Wallet', ?, 'SUCCESS', ?)
     """, (
         user_id,
         amount,
         f"{db_user.get('bank_name', 'Bank')} •••• {str(db_user.get('bank_account', ''))[-4:]}",
         tx_ref,
-        "Simulated bank transfer to Stoxifyn trading wallet"
+        "Simulated bank transfer to Stoxify trading wallet"
     ))
 
     conn.commit()
@@ -1593,7 +1593,7 @@ def transfer_bank_to_wallet(user_id: str, amount: float, pin: str) -> Dict[str, 
 
     return {
         "success": True,
-        "message": f"₹{amount:,.2f} added to Stoxifyn wallet from your {db_user.get('bank_name', 'Bank')} account!",
+        "message": f"₹{amount:,.2f} added to Stoxify wallet from your {db_user.get('bank_name', 'Bank')} account!",
         "amount": amount,
         "balance": new_wallet_balance,
         "wallet_balance": new_wallet_balance,
@@ -1673,7 +1673,7 @@ def withdraw_wallet_to_bank(user_id: str, amount: float, pin: str) -> Dict[str, 
 
     cursor.execute("""
         INSERT INTO bank_transactions (user_id, type, amount, from_account, to_account, reference_id, status, note)
-        VALUES (?, 'WITHDRAWAL', ?, 'Stoxifyn Trading Wallet', ?, ?, 'SUCCESS', ?)
+        VALUES (?, 'WITHDRAWAL', ?, 'Stoxify Trading Wallet', ?, ?, 'SUCCESS', ?)
     """, (
         user_id,
         amount,
@@ -1757,13 +1757,13 @@ def get_bank_account_details(user_id: str) -> Dict[str, Any]:
             diff = round(1000000.0 - bank_balance, 2)
             cursor.execute("""
                 INSERT OR IGNORE INTO bank_transactions (user_id, type, amount, from_account, to_account, reference_id, status, note, created_at)
-                VALUES (?, 'BANK_DEPOSIT', ?, ?, 'Stoxifyn Trading Wallet', ?, 'SUCCESS', 'Simulated bank transfer to Stoxifyn trading wallet', ?)
+                VALUES (?, 'BANK_DEPOSIT', ?, ?, 'Stoxify Trading Wallet', ?, 'SUCCESS', 'Simulated bank transfer to Stoxify trading wallet', ?)
             """, (user_id, diff, masked_acc, f"UPI/STX/{user_id[-6:] if len(user_id) >= 6 else user_id}", updated_time))
         elif bank_balance > 1000000.0:
             diff = round(bank_balance - 1000000.0, 2)
             cursor.execute("""
                 INSERT OR IGNORE INTO bank_transactions (user_id, type, amount, from_account, to_account, reference_id, status, note, created_at)
-                VALUES (?, 'WITHDRAWAL', ?, 'Stoxifyn Trading Wallet', ?, ?, 'SUCCESS', 'Simulated withdrawal to linked bank account', ?)
+                VALUES (?, 'WITHDRAWAL', ?, 'Stoxify Trading Wallet', ?, ?, 'SUCCESS', 'Simulated withdrawal to linked bank account', ?)
             """, (user_id, diff, masked_acc, f"WDR/STX/{user_id[-6:] if len(user_id) >= 6 else user_id}", updated_time))
         conn.commit()
 

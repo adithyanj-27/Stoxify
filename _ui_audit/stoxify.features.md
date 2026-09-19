@@ -40,7 +40,7 @@ Legend for **Status**: ✅ works end-to-end · ⚠️ partial / works with cavea
 |---|---|---|---|---|
 | Sticky indices bar (NIFTY 50, SENSEX, BANK NIFTY, NIFTY IT) | `#indicesBar` | `fetchIndices()` 399 | `GET /api/indices` (main.py:496) | ✅ (clicking opens the index asset page via `openAssetModal`) |
 | Global search box + dropdown | `#globalSearchInput`, `#searchResultsDropdown` | `selectSearchResult()` 1577, search listener 1502 | `GET /api/search` (main.py:505) | ✅ |
-| "Most Bought on Stoxifyn" carousel | `#mostBoughtCarousel` | `renderExploreStocks()` 720 | `GET /api/explore` (main.py:501) | ✅ |
+| "Most Bought on Stoxify" carousel | `#mostBoughtCarousel` | `renderExploreStocks()` 720 | `GET /api/explore` (main.py:501) | ✅ |
 | "Top Indian Equities" grid + sector/gainers/losers filter pills | `#stocksGrid`, pills | `renderExploreStocks()` 720, `filterExploreStocks()` 512 | `GET /api/explore` | ✅ (filters are client-side over the returned list) |
 | "Recently Viewed" stocks carousel + Clear | `#recentStocksSection`, `#recentStocksCarousel` | `renderRecentlyViewedStocks()` 644, `clearRecentlyViewed()` 631 | none (localStorage) | ✅ |
 | Popular Mutual Funds grid | `#mfGrid` | `renderExploreMutualFunds()` 811 | `GET /api/explore` | ✅ |

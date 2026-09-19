@@ -1,6 +1,6 @@
 {
-  "name": "Stoxifyn — Stock & Mutual Fund Broker",
-  "short_name": "Stoxifyn",
+  "name": "Stoxify — Stock & Mutual Fund Broker",
+  "short_name": "Stoxify",
   "start_url": "/?source=pwa",
   "scope": "/",
   "id": "/",

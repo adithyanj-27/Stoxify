@@ -37,7 +37,7 @@ import ipo_service
 import security
 from datetime import datetime, timezone, timedelta
 
-app = FastAPI(title="Stoxifyn", description="Stoxifyn - Stock & Mutual Fund Broker Platform", version="1.0.0")
+app = FastAPI(title="Stoxify", description="Stoxify - Stock & Mutual Fund Broker Platform", version="1.0.0")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
@@ -292,7 +292,7 @@ def read_root():
     ]:
         if os.path.exists(candidate):
             return FileResponse(candidate, headers=NO_CACHE_HEADERS)
-    return Response(content="<h1>Stoxifyn is Online</h1>", media_type="text/html", headers=NO_CACHE_HEADERS)
+    return Response(content="<h1>Stoxify is Online</h1>", media_type="text/html", headers=NO_CACHE_HEADERS)
 
 @app.get("/static/style.css")
 @app.get("/style.css")
