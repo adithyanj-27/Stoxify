@@ -1,8 +1,11 @@
 import os
 import sys
+import tempfile
 
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding='utf-8')
+
+os.environ["VERCEL"] = "1"
 
 # Set clean test environment
 def test_all():
@@ -13,6 +16,15 @@ def test_all():
     # 1. Test Database
     print("\n[1/4] Testing Database & Persistence...")
     import database
+    database.DB_PATH = os.path.join(tempfile.gettempdir(), "stoxify_test_app.db")
+    if os.path.exists(database.DB_PATH):
+        try:
+            os.remove(database.DB_PATH)
+        except Exception:
+            pass
+    database.SUPABASE_URL = ""
+    database.SUPABASE_KEY = ""
+    database._db_initialized = False
     database.init_db()
     database.reset_account(1000000.0)
     acc = database.get_account()
