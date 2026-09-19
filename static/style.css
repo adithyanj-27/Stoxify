@@ -2105,41 +2105,51 @@ body.pwa-installed #mobileInstallBanner {
 /* ==========================================================================
    GROWW-STYLE HOLDINGS CARD (MOBILE)
    ========================================================================== */
-.groww-holding-card {
-  border-radius: 14px;
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+/* ==========================================================================
+   GROWW-STYLE MOBILE HOLDINGS LIST & BOTTOM SHEET
+   ========================================================================== */
+.groww-holdings-list-card {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  overflow: hidden;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
-  transition: border-color 0.18s ease, transform 0.18s ease;
 }
 
-.groww-holding-card:hover {
-  border-color: var(--border-active);
-}
-
-.groww-holding-header {
+.groww-holding-row {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 0.75rem;
+  align-items: center;
+  padding: 0.95rem 1rem;
+  border-bottom: 1px solid var(--border-subtle);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  transition: background 0.12s ease;
 }
 
-.groww-holding-left {
+.groww-holding-row:last-child {
+  border-bottom: none;
+}
+
+.groww-holding-row:active {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+[data-theme="light"] .groww-holding-row:active {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.groww-holding-row-left {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.85rem;
   min-width: 0;
   flex: 1;
+  padding-right: 0.5rem;
 }
 
-.groww-holding-left .asset-avatar,
-.groww-holding-left .asset-avatar-sm {
+.groww-holding-row-left .asset-avatar,
+.groww-holding-row-left .asset-avatar-sm {
   width: 40px !important;
   height: 40px !important;
   min-width: 40px !important;
@@ -2152,43 +2162,41 @@ body.pwa-installed #mobileInstallBanner {
   flex-shrink: 0;
 }
 
-.groww-holding-left img {
+.groww-holding-row-left img {
   width: 40px !important;
   height: 40px !important;
   border-radius: 10px !important;
   object-fit: contain;
 }
 
-.groww-holding-identity {
+.groww-holding-row-identity {
   min-width: 0;
   flex: 1;
 }
 
-.groww-holding-name {
-  font-size: 0.95rem;
+.groww-holding-row-name {
+  font-size: 0.96rem;
   font-weight: 700;
   color: var(--text-primary);
   line-height: 1.35;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  white-space: nowrap;
   overflow: hidden;
-  word-break: break-word;
+  text-overflow: ellipsis;
 }
 
-.groww-holding-sub {
+.groww-holding-row-sub {
   font-size: 0.76rem;
   font-weight: 500;
   color: var(--text-muted);
   margin-top: 2px;
 }
 
-.groww-holding-right {
+.groww-holding-row-right {
   text-align: right;
   flex-shrink: 0;
 }
 
-.groww-holding-curval {
+.groww-holding-row-curval {
   font-size: 1.05rem;
   font-weight: 800;
   color: var(--text-primary);
@@ -2196,140 +2204,103 @@ body.pwa-installed #mobileInstallBanner {
   line-height: 1.3;
 }
 
-.groww-holding-returns {
+.groww-holding-row-returns {
   font-size: 0.78rem;
   font-weight: 700;
   margin-top: 2px;
 }
 
-.groww-holding-stats {
+/* Groww Holding Detail Bottom Sheet Specifics */
+.holding-sheet-grid {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.65rem 0.85rem;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.85rem;
+  padding: 1rem;
   background: rgba(255, 255, 255, 0.025);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  margin-bottom: 0.85rem;
 }
 
-[data-theme="light"] .groww-holding-stats {
-  background: rgba(0, 0, 0, 0.025);
-  border-color: rgba(0, 0, 0, 0.06);
+[data-theme="light"] .holding-sheet-grid {
+  background: rgba(0, 0, 0, 0.02);
 }
 
-.groww-stat-divider {
-  width: 1px;
-  height: 28px;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-[data-theme="light"] .groww-stat-divider {
-  background: rgba(0, 0, 0, 0.08);
-}
-
-.groww-stat-col {
+.holding-sheet-item {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  min-width: 0;
+  gap: 2px;
 }
 
-.groww-stat-col.left {
-  text-align: left;
-  align-items: flex-start;
-}
-
-.groww-stat-col.right {
-  text-align: right;
-  align-items: flex-end;
-}
-
-.groww-stat-label {
-  color: var(--text-muted);
+.holding-sheet-label {
   font-size: 0.72rem;
   font-weight: 500;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
 
-.groww-stat-val {
-  color: var(--text-primary);
+.holding-sheet-val {
+  font-size: 0.96rem;
   font-weight: 700;
-  font-size: 0.88rem;
+  color: var(--text-primary);
+}
+
+.holding-sheet-details-link {
+  width: 100%;
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  white-space: nowrap;
-}
-
-.groww-stat-pill {
-  font-size: 0.72rem;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  color: var(--brand-cyan, #0EA5E9);
+  font-size: 0.88rem;
   font-weight: 700;
-  padding: 1px 5px;
-  border-radius: 4px;
+  cursor: pointer;
+  margin-bottom: 1rem;
+  transition: background 0.15s ease;
 }
 
-.groww-stat-pill.text-positive {
-  background: rgba(16, 185, 129, 0.12);
-  color: #10B981;
+.holding-sheet-details-link:active {
+  background: rgba(14, 165, 233, 0.08);
 }
 
-.groww-stat-pill.text-negative {
-  background: rgba(239, 68, 68, 0.12);
-  color: #EF4444;
-}
-
-.groww-holding-actions {
+.holding-sheet-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.65rem;
-  margin-top: 0.1rem;
+  gap: 0.85rem;
 }
 
-.groww-h-btn {
-  height: 38px;
-  border-radius: 8px;
-  font-size: 0.86rem;
-  font-weight: 700;
+.holding-sheet-btn {
+  height: 48px;
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s ease, transform 0.1s ease, border-color 0.15s ease;
-  -webkit-tap-highlight-color: transparent;
+  border: none;
+  transition: transform 0.15s ease, filter 0.15s ease;
 }
 
-.groww-h-btn:active {
-  transform: scale(0.98);
+.holding-sheet-btn:active {
+  transform: scale(0.97);
 }
 
-.groww-h-btn.add {
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--text-primary);
-  border: 1px solid var(--border-subtle);
+.holding-sheet-btn.add {
+  background: #00D09C;
+  color: #000000;
+  box-shadow: 0 4px 12px rgba(0, 208, 156, 0.25);
 }
 
-.groww-h-btn.add:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: var(--border-active);
-}
-
-[data-theme="light"] .groww-h-btn.add {
-  background: #f1f5f9;
-  border-color: #cbd5e1;
-  color: #0f172a;
-}
-
-.groww-h-btn.sell {
+.holding-sheet-btn.sell {
   background: #EF4444;
   color: #FFFFFF;
-  border: none;
-  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
-}
-
-.groww-h-btn.sell:hover {
-  background: #DC2626;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
 }
 
 .mobile-card-top {

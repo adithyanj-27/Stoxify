@@ -1712,62 +1712,40 @@ async function fetchPortfolioInternal(requestVersion) {
       }).join('');
     }
 
-    // Render Mobile Cards (Groww Style)
+    // Render Mobile Holdings List (Groww Style)
     if (mobileList) {
-      mobileList.innerHTML = (data.holdings || []).map(h => {
-        const isPosTotal = (h.total_pnl || 0) >= 0;
-        const totalClass = isPosTotal ? 'text-positive' : 'text-negative';
-        const totalSign = isPosTotal ? '+' : '';
-        const invVal = Number(h.invested_value !== undefined ? h.invested_value : (h.quantity * h.avg_price)) || 0;
-        const curVal = Number(h.current_value !== undefined ? h.current_value : (h.quantity * h.current_price)) || 0;
-        const isPosChange = (h.change || 0) >= 0;
-        const chgSign = isPosChange ? '+' : '';
-        const chgClass = isPosChange ? 'text-positive' : 'text-negative';
+      if (!data.holdings || data.holdings.length === 0) {
+        mobileList.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 3rem 1rem;">No active holdings yet. Explore stocks and mutual funds to start investing!</div>`;
+      } else {
+        mobileList.innerHTML = `
+          <div class="groww-holdings-list-card">
+            ${data.holdings.map(h => {
+              const isPosTotal = (h.total_pnl || 0) >= 0;
+              const totalClass = isPosTotal ? 'text-positive' : 'text-negative';
+              const totalSign = isPosTotal ? '+' : '';
+              const curVal = Number(h.current_value !== undefined ? h.current_value : (h.quantity * h.current_price)) || 0;
 
-        return `
-          <div class="mobile-card-item groww-holding-card">
-            <div class="groww-holding-header" onclick="openHoldingDetails('${h.symbol}', '${h.asset_type}')">
-              <div class="groww-holding-left">
-                ${renderAssetAvatar(h, h.asset_type)}
-                <div class="groww-holding-identity">
-                  <div class="groww-holding-name" title="${h.name}">${h.name}</div>
-                  <div class="groww-holding-sub">${h.quantity} shares • Avg. ${formatINR(h.avg_price)}</div>
+              return `
+                <div class="groww-holding-row" onclick="openHoldingBottomSheet('${h.symbol}')">
+                  <div class="groww-holding-row-left">
+                    ${renderAssetAvatar(h, h.asset_type)}
+                    <div class="groww-holding-row-identity">
+                      <div class="groww-holding-row-name" title="${h.name}">${h.name}</div>
+                      <div class="groww-holding-row-sub">${h.quantity} shares • Avg. ${formatINR(h.avg_price)}</div>
+                    </div>
+                  </div>
+                  <div class="groww-holding-row-right">
+                    <div class="groww-holding-row-curval">${formatINR(curVal)}</div>
+                    <div class="groww-holding-row-returns ${totalClass}">
+                      ${totalSign}${formatINR(h.total_pnl)} (${totalSign}${formatNumber(h.total_pnl_pct)}%)
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div class="groww-holding-right">
-                <div class="groww-holding-curval">${formatINR(curVal)}</div>
-                <div class="groww-holding-returns ${totalClass}">
-                  ${totalSign}${formatINR(h.total_pnl)} (${totalSign}${formatNumber(h.total_pnl_pct)}%)
-                </div>
-              </div>
-            </div>
-
-            <div class="groww-holding-stats">
-              <div class="groww-stat-col left">
-                <span class="groww-stat-label">Invested</span>
-                <span class="groww-stat-val">${formatINR(invVal)}</span>
-              </div>
-              <div class="groww-stat-divider"></div>
-              <div class="groww-stat-col right">
-                <span class="groww-stat-label">Market Price (LTP)</span>
-                <div class="groww-stat-val">
-                  ${formatINR(h.current_price)}
-                  <span class="groww-stat-pill ${chgClass}">${chgSign}${formatNumber(h.change_pct)}%</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="groww-holding-actions">
-              <button type="button" class="groww-h-btn add" onclick="openAssetModal('${h.symbol}', '${h.asset_type}', 'BUY')">
-                + Add More
-              </button>
-              <button type="button" class="groww-h-btn sell" onclick="startHoldingSale('${h.symbol}', '${h.asset_type}', ${Number(h.quantity) || 0})">
-                Sell
-              </button>
-            </div>
+              `;
+            }).join('')}
           </div>
         `;
-      }).join('');
+      }
     }
 
   } catch (err) {
@@ -2396,8 +2374,98 @@ function openAssetModal(symbol, assetType = 'STOCK', preselectAction = 'BUY') {
   }
 }
 
-// Holdings have a known product and quantity. Carry those values through the
-// route change instead of waiting for a second portfolio request before Sell.
+// --- Groww-Style Mobile Holding Bottom Sheet ---
+function openHoldingBottomSheet(symbol) {
+  if (!state.portfolioData || !state.portfolioData.holdings) {
+    openHoldingDetails(symbol, 'STOCK');
+    return;
+  }
+  const h = state.portfolioData.holdings.find(item => item.symbol === symbol);
+  if (!h) {
+    openHoldingDetails(symbol, 'STOCK');
+    return;
+  }
+
+  const overlay = document.getElementById('holdingDetailDrawerOverlay');
+  if (!overlay) {
+    openHoldingDetails(symbol, h.asset_type);
+    return;
+  }
+
+  const avatarEl = document.getElementById('holdingSheetAvatar');
+  const titleEl = document.getElementById('holdingSheetTitle');
+  const symEl = document.getElementById('holdingSheetSymbol');
+  const priceEl = document.getElementById('holdingSheetPrice');
+  const changeEl = document.getElementById('holdingSheetChange');
+  const qtyEl = document.getElementById('holdingSheetQty');
+  const avgEl = document.getElementById('holdingSheetAvg');
+  const invEl = document.getElementById('holdingSheetInv');
+  const curEl = document.getElementById('holdingSheetCur');
+  const totalPnlEl = document.getElementById('holdingSheetTotalPnl');
+  const dayPnlEl = document.getElementById('holdingSheetDayPnl');
+  const overviewBtn = document.getElementById('holdingSheetOverviewBtn');
+  const addBtn = document.getElementById('holdingSheetAddBtn');
+  const sellBtn = document.getElementById('holdingSheetSellBtn');
+
+  if (avatarEl) avatarEl.innerHTML = renderAssetAvatar(h, h.asset_type);
+  if (titleEl) titleEl.innerText = h.name;
+  if (symEl) symEl.innerText = (h.symbol || '').replace('.NS', '').replace('.BO', '');
+  if (priceEl) priceEl.innerText = formatINR(h.current_price);
+
+  const chgPos = (h.change || 0) >= 0;
+  if (changeEl) {
+    changeEl.className = chgPos ? 'badge-positive' : 'badge-negative';
+    changeEl.innerText = `${chgPos ? '+' : ''}${formatNumber(h.change_pct)}%`;
+  }
+
+  const invVal = Number(h.invested_value !== undefined ? h.invested_value : (h.quantity * h.avg_price)) || 0;
+  const curVal = Number(h.current_value !== undefined ? h.current_value : (h.quantity * h.current_price)) || 0;
+  const totPos = (h.total_pnl || 0) >= 0;
+  const dayPos = (h.today_pnl || 0) >= 0;
+
+  if (qtyEl) qtyEl.innerText = `${h.quantity} shares`;
+  if (avgEl) avgEl.innerText = formatINR(h.avg_price);
+  if (invEl) invEl.innerText = formatINR(invVal);
+  if (curEl) curEl.innerText = formatINR(curVal);
+
+  if (totalPnlEl) {
+    totalPnlEl.className = `holding-sheet-val ${totPos ? 'text-positive' : 'text-negative'}`;
+    totalPnlEl.innerText = `${totPos ? '+' : ''}${formatINR(h.total_pnl)} (${totPos ? '+' : ''}${formatNumber(h.total_pnl_pct)}%)`;
+  }
+  if (dayPnlEl) {
+    dayPnlEl.className = `holding-sheet-val ${dayPos ? 'text-positive' : 'text-negative'}`;
+    dayPnlEl.innerText = `${dayPos ? '+' : ''}${formatINR(h.today_pnl || 0)}`;
+  }
+
+  if (overviewBtn) {
+    overviewBtn.onclick = () => {
+      closeHoldingBottomSheet();
+      openAssetModal(h.symbol, h.asset_type, 'BUY');
+    };
+  }
+  if (addBtn) {
+    addBtn.onclick = () => {
+      closeHoldingBottomSheet();
+      openAssetModal(h.symbol, h.asset_type, 'BUY');
+    };
+  }
+  if (sellBtn) {
+    sellBtn.onclick = () => {
+      closeHoldingBottomSheet();
+      startHoldingSale(h.symbol, h.asset_type, Number(h.quantity) || 0);
+    };
+  }
+
+  overlay.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeHoldingBottomSheet() {
+  const overlay = document.getElementById('holdingDetailDrawerOverlay');
+  if (overlay) overlay.classList.remove('active');
+  document.body.style.overflow = '';
+}
+
 function openHoldingDetails(symbol, assetType = 'STOCK') {
   openAssetModal(symbol, assetType, 'BUY');
 }
@@ -9484,3 +9552,5 @@ window.closeIpoBidModal = closeIpoBidModal;
 window.closeSipModal = closeSipModal;
 window.openPageChargesModal = openPageChargesModal;
 window.openProfileChargesModal = openProfileChargesModal;
+window.openHoldingBottomSheet = openHoldingBottomSheet;
+window.closeHoldingBottomSheet = closeHoldingBottomSheet;

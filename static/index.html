@@ -2084,6 +2084,71 @@
     </section>
   </main>
 
+  <!-- Groww-Style Mobile Holding Detail Bottom Sheet -->
+  <div class="mobile-drawer-overlay" id="holdingDetailDrawerOverlay" onclick="if(event.target===this)closeHoldingBottomSheet()">
+    <div class="mobile-drawer-card">
+      <div class="drawer-drag-pill" onclick="closeHoldingBottomSheet()"></div>
+      <div class="mobile-drawer-header">
+        <div class="drawer-asset-info">
+          <div class="drawer-avatar" id="holdingSheetAvatar"></div>
+          <div>
+            <h3 class="drawer-title" id="holdingSheetTitle">Stock Name</h3>
+            <div class="drawer-sub">
+              <span id="holdingSheetSymbol">SYMBOL</span> • 
+              <span id="holdingSheetPrice" style="font-weight: 800; color: var(--text-primary);">₹0.00</span>
+              <span id="holdingSheetChange" class="badge-positive" style="margin-left: 4px;">+0.00%</span>
+            </div>
+          </div>
+        </div>
+        <button class="drawer-close-btn" onclick="closeHoldingBottomSheet()" aria-label="Close">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+
+      <div class="mobile-drawer-body" style="padding-top: 0.75rem;">
+        <!-- Investment Breakdown Grid -->
+        <div class="holding-sheet-grid">
+          <div class="holding-sheet-item">
+            <span class="holding-sheet-label">Shares Held</span>
+            <strong class="holding-sheet-val" id="holdingSheetQty">0</strong>
+          </div>
+          <div class="holding-sheet-item">
+            <span class="holding-sheet-label">Average Price</span>
+            <strong class="holding-sheet-val" id="holdingSheetAvg">₹0.00</strong>
+          </div>
+          <div class="holding-sheet-item">
+            <span class="holding-sheet-label">Invested Value</span>
+            <strong class="holding-sheet-val" id="holdingSheetInv">₹0.00</strong>
+          </div>
+          <div class="holding-sheet-item">
+            <span class="holding-sheet-label">Current Value</span>
+            <strong class="holding-sheet-val" id="holdingSheetCur">₹0.00</strong>
+          </div>
+          <div class="holding-sheet-item">
+            <span class="holding-sheet-label">Total Returns</span>
+            <strong class="holding-sheet-val" id="holdingSheetTotalPnl">₹0.00</strong>
+          </div>
+          <div class="holding-sheet-item">
+            <span class="holding-sheet-label">1D Returns</span>
+            <strong class="holding-sheet-val" id="holdingSheetDayPnl">₹0.00</strong>
+          </div>
+        </div>
+
+        <!-- Full details navigation link -->
+        <button type="button" class="holding-sheet-details-link" id="holdingSheetOverviewBtn">
+          <span>See Stock Overview & Charts</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </button>
+
+        <!-- Bottom Actions -->
+        <div class="holding-sheet-actions">
+          <button type="button" class="holding-sheet-btn add" id="holdingSheetAddBtn">+ ADD MORE</button>
+          <button type="button" class="holding-sheet-btn sell" id="holdingSheetSellBtn">SELL</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Native Groww/Kite Mobile Slide-Up Trading Drawer -->
   <div class="mobile-drawer-overlay" id="mobileTradingDrawerOverlay" onclick="if(event.target===this)closeMobileTradeDrawer()">
     <div class="mobile-drawer-card">
