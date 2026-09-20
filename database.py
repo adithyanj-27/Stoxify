@@ -2081,6 +2081,48 @@ def get_wallet_transactions(
                     "created_at": c_time
                 })
 
+    # Purge any duplicate order transactions (same symbol, same type, created within 120s of each other)
+    cursor.execute("""
+        SELECT id, symbol, type, amount, balance_after, created_at, reference_id, description
+        FROM wallet_transactions
+        WHERE user_id = ? AND type IN ('BUY', 'SELL')
+        ORDER BY id ASC
+    """, (user_id,))
+    order_txs = cursor.fetchall()
+    
+    seen_trades = []
+    dup_ids_to_delete = []
+    for tx in order_txs:
+        t_dt = _parse_tx_dt(tx["created_at"])
+        t_ts = t_dt.timestamp() if t_dt else 0.0
+        sym = (tx["symbol"] or "").upper()
+        ttype = (tx["type"] or "").upper()
+        
+        dup_found = False
+        for seen in seen_trades:
+            if seen["symbol"] == sym and seen["type"] == ttype and abs(seen["timestamp"] - t_ts) < 120:
+                dup_found = True
+                tx_desc = tx["description"] or ""
+                seen_desc = seen["description"] or ""
+                # Prefer genuine trade record (has 'at ₹' in description or was created first)
+                if " at " in tx_desc and " at " not in seen_desc:
+                    dup_ids_to_delete.append(seen["id"])
+                    seen_trades.remove(seen)
+                    seen_trades.append({"id": tx["id"], "symbol": sym, "type": ttype, "timestamp": t_ts, "reference_id": tx["reference_id"], "description": tx_desc})
+                else:
+                    dup_ids_to_delete.append(tx["id"])
+                break
+        if not dup_found:
+            seen_trades.append({"id": tx["id"], "symbol": sym, "type": ttype, "timestamp": t_ts, "reference_id": tx["reference_id"], "description": tx["description"] or ""})
+
+    if dup_ids_to_delete:
+        placeholders = ",".join("?" * len(dup_ids_to_delete))
+        cursor.execute(f"DELETE FROM wallet_transactions WHERE id IN ({placeholders})", dup_ids_to_delete)
+        conn.commit()
+        # Refresh existing_refs
+        cursor.execute("SELECT reference_id FROM wallet_transactions WHERE user_id = ? AND reference_id IS NOT NULL", (user_id,))
+        existing_refs = {r["reference_id"] for r in cursor.fetchall()}
+
     # C. Stock and Mutual Fund orders
     cursor.execute("""
         SELECT id, symbol, name, asset_type, order_type, product_type, quantity, price,
@@ -2104,6 +2146,27 @@ def get_wallet_transactions(
                 SET status = ? 
                 WHERE user_id = ? AND reference_id = ? AND status != ?
             """, (resolved_status, user_id, ord_ref, resolved_status))
+            continue
+
+        # Check if an existing wallet transaction already represents this exact trade
+        ord_time = _parse_tx_dt(ord_row["timestamp"])
+        ord_ts = ord_time.timestamp() if ord_time else 0.0
+        ord_sym = (ord_row["symbol"] or "").upper()
+        
+        already_recorded = False
+        for seen in seen_trades:
+            if seen["symbol"] == ord_sym and seen["type"] == o_type and abs(seen["timestamp"] - ord_ts) < 120:
+                already_recorded = True
+                cursor.execute("""
+                    UPDATE wallet_transactions 
+                    SET reference_id = ?, status = ?
+                    WHERE id = ?
+                """, (ord_ref, resolved_status, seen["id"]))
+                existing_refs.add(ord_ref)
+                seen["reference_id"] = ord_ref
+                break
+                
+        if already_recorded:
             continue
 
         existing_refs.add(ord_ref)
