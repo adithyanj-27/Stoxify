@@ -5814,8 +5814,11 @@ function renderPageFundamentals(data) {
   } else {
     const pe = (data.pe_ratio !== undefined && data.pe_ratio !== null) ? data.pe_ratio : '—';
     const pb = (data.pb_ratio !== undefined && data.pb_ratio !== null) ? data.pb_ratio : '—';
-    const indPe = data.industry_pe || (data.pe_ratio ? (data.pe_ratio * 0.94).toFixed(2) : '—');
-    const d2e = (data.debt_to_equity !== undefined && data.debt_to_equity !== null) ? data.debt_to_equity : '—';
+    const indPe = (data.industry_pe !== undefined && data.industry_pe !== null) ? data.industry_pe : (data.pe_ratio ? (data.pe_ratio * 0.94).toFixed(2) : '—');
+    const isBankOrFinancial = data.sector === 'Banking' || data.sector === 'Finance' || (data.industry && data.industry.includes('Bank'));
+    const d2e = (data.debt_to_equity !== undefined && data.debt_to_equity !== null)
+      ? data.debt_to_equity
+      : (isBankOrFinancial ? 'N/A' : '—');
     const roe = (data.roe !== undefined && data.roe !== null) ? data.roe + '%' : '—';
     const eps = (data.eps !== undefined && data.eps !== null) ? '₹' + data.eps : '—';
     const divYield = (data.dividend_yield !== undefined && data.dividend_yield !== null)

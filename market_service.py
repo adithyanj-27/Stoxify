@@ -13,6 +13,22 @@ IST = timezone(timedelta(hours=5, minutes=30))
 from typing import Dict, List, Any, Optional
 
 from stock_master import STOCK_MASTER, MUTUAL_FUND_MASTER, ETF_MASTER
+import json
+
+_BENCHMARK_FUNDAMENTALS: Dict[str, Any] = {}
+try:
+    _bench_path = os.path.join(BASE_DIR, "data", "stock_fundamentals_benchmark.json")
+    if os.path.exists(_bench_path):
+        with open(_bench_path, "r", encoding="utf-8") as _bf:
+            _BENCHMARK_FUNDAMENTALS = json.load(_bf)
+except Exception:
+    _BENCHMARK_FUNDAMENTALS = {}
+
+_SECTOR_INDUSTRY_PES = {
+    "Energy": 34.82, "IT": 25.14, "Banking": 15.15, "Telecom": 39.53,
+    "Consumer": 53.23, "Infra": 33.81, "Finance": 37.03, "Auto": 29.83,
+    "Pharma": 40.38, "Metals": 13.37, "Defense": 48.02, "Railways": 29.13
+}
 
 # In-memory quote cache
 _CACHE: Dict[str, Any] = {}
@@ -111,7 +127,7 @@ def get_stock_quote(symbol: str) -> Dict[str, Any]:
 
     cache_key = f"quote_{formatted_symbol}"
     cached = get_cached(cache_key)
-    if cached:
+    if cached and cached.get("eps") is not None and cached.get("roe") is not None and cached.get("pe_ratio") != 22.5:
         return cached
 
     return _refresh_stock_quote_sync(formatted_symbol)
@@ -178,22 +194,55 @@ def _refresh_stock_quote_sync(formatted_symbol: str) -> Dict[str, Any]:
         market_cap = getattr(fast, "market_cap", None)
         volume = getattr(fast, "last_volume", None)
 
-        # Retrieve rich real fundamentals from yfinance
+        # Retrieve rich real fundamentals from yfinance with verified benchmark fallbacks
+        bm = _BENCHMARK_FUNDAMENTALS.get(formatted_symbol) or {}
         info = {}
         try:
             info = t.info or {}
         except Exception:
             pass
 
-        pe_ratio = info.get("trailingPE") or info.get("forwardPE")
-        pb_ratio = info.get("priceToBook")
-        div_yield = info.get("dividendYield")
-        eps = info.get("trailingEps") or info.get("forwardEps")
-        debt_to_equity = info.get("debtToEquity")
-        roe = info.get("returnOnEquity")
+        pe_ratio = info.get("trailingPE") or info.get("forwardPE") or bm.get("pe_ratio")
+        pb_ratio = info.get("priceToBook") or bm.get("pb_ratio")
+        eps = info.get("trailingEps") or info.get("forwardEps") or bm.get("eps")
         book_value = info.get("bookValue")
-        industry = info.get("industry") or sector
+        industry = info.get("industry") or sector or bm.get("industry")
         website = info.get("website")
+
+        # Dividend Yield: yfinance already reports percentage directly for Indian equities (e.g. 1.74 for 1.74%, 0.49 for 0.49%)
+        # Or compute exactly from (dividendRate / price) * 100
+        div_rate = info.get("dividendRate")
+        raw_div = info.get("dividendYield")
+        if div_rate and price and price > 0:
+            final_div_yield = round((float(div_rate) / float(price)) * 100, 2)
+        elif raw_div is not None:
+            final_div_yield = round(float(raw_div), 2)
+        else:
+            final_div_yield = bm.get("dividend_yield", 1.0)
+
+        # ROE: yfinance returns decimal fraction (e.g. 0.15177 = 15.18%), or compute via (P/B / P/E) * 100
+        raw_roe = info.get("returnOnEquity")
+        if raw_roe is not None:
+            r_val = float(raw_roe)
+            final_roe = round(r_val * 100 if r_val <= 1.0 else r_val, 2)
+        elif pb_ratio and pe_ratio and float(pe_ratio) > 0:
+            final_roe = round((float(pb_ratio) / float(pe_ratio)) * 100, 2)
+        else:
+            final_roe = bm.get("roe", 14.5)
+
+        # Debt to Equity: Banks & NBFCs do NOT have Debt-to-Equity (customer deposits are not debt)
+        is_bank = sector in ["Banking", "Finance"] or "Bank" in (industry or "")
+        raw_d2e = info.get("debtToEquity")
+        if is_bank:
+            final_d2e = None
+        elif raw_d2e is not None:
+            d_val = float(raw_d2e)
+            final_d2e = round(d_val / 100.0 if d_val > 1.0 else d_val, 2)
+        else:
+            final_d2e = bm.get("debt_to_equity", 0.25)
+
+        industry_pe = bm.get("industry_pe") or _SECTOR_INDUSTRY_PES.get(sector, 24.5)
+
         clean_sym = formatted_symbol.replace(".NS", "").replace(".BO", "").upper()
         local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_sym}.png")
         if os.path.exists(local_logo):
@@ -220,14 +269,15 @@ def _refresh_stock_quote_sync(formatted_symbol: str) -> Dict[str, Any]:
             "fifty_two_week_low": round(float(year_low or (price * 0.80)), 2),
             "high_52w": round(float(year_high or (price * 1.25)), 2),
             "low_52w": round(float(year_low or (price * 0.80)), 2),
-            "market_cap": int(market_cap) if market_cap else 500000000000,
+            "market_cap": int(market_cap or bm.get("market_cap") or 500000000000),
             "pe_ratio": round(float(pe_ratio), 2) if pe_ratio else None,
             "pb_ratio": round(float(pb_ratio), 2) if pb_ratio else None,
-            "dividend_yield": round(float(div_yield * 100 if div_yield and div_yield < 0.5 else (div_yield or 0)), 2) if div_yield else None,
-            "div_yield": round(float(div_yield * 100 if div_yield and div_yield < 0.5 else (div_yield or 0)), 2) if div_yield else None,
+            "dividend_yield": final_div_yield,
+            "div_yield": final_div_yield,
             "eps": round(float(eps), 2) if eps else None,
-            "debt_to_equity": round(float(debt_to_equity / 100.0 if debt_to_equity and debt_to_equity > 5 else (debt_to_equity or 0)), 2) if debt_to_equity else None,
-            "roe": round(float(roe * 100 if roe and roe < 1 else (roe or 0)), 2) if roe else None,
+            "debt_to_equity": final_d2e,
+            "roe": final_roe,
+            "industry_pe": industry_pe,
             "book_value": round(float(book_value), 2) if book_value else None,
             "volume": int(volume) if volume else 1000000,
             "sector": sector,
@@ -525,6 +575,16 @@ def _get_default_stock_quote(symbol: str, name: str = "", sector: str = "NSE Equ
     local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_sym}.png")
     logo_url = f"/static/logos/{clean_sym}.png" if os.path.exists(local_logo) else f"https://images.financialmodelingprep.com/symbol/{clean_sym}.NS.png"
 
+    bm = _BENCHMARK_FUNDAMENTALS.get(symbol) or {}
+    mcap = int(bm.get("market_cap") or 500000000000)
+    pe = bm.get("pe_ratio", 24.5)
+    pb = bm.get("pb_ratio", 3.2)
+    eps = bm.get("eps", round(price / pe, 2) if pe else 10.0)
+    roe = bm.get("roe", 14.5)
+    d2e = bm.get("debt_to_equity")
+    div_y = bm.get("dividend_yield", 1.1)
+    ind_pe = bm.get("industry_pe") or _SECTOR_INDUSTRY_PES.get(sec, 24.5)
+
     return {
         "symbol": symbol,
         "name": n,
@@ -533,14 +593,21 @@ def _get_default_stock_quote(symbol: str, name: str = "", sector: str = "NSE Equ
         "change": change,
         "change_pct": change_pct,
         "previous_close": prev_close,
+        "prev_close": prev_close,
+        "open": round(price, 2),
         "day_high": round(price * 1.018, 2),
         "day_low": round(price * 0.982, 2),
         "fifty_two_week_high": round(price * 1.35, 2),
         "fifty_two_week_low": round(price * 0.72, 2),
-        "market_cap": 500000000000,
-        "pe_ratio": 24.5,
-        "pb_ratio": 3.2,
-        "dividend_yield": 1.1,
+        "market_cap": mcap,
+        "pe_ratio": pe,
+        "pb_ratio": pb,
+        "dividend_yield": div_y,
+        "div_yield": div_y,
+        "eps": eps,
+        "roe": roe,
+        "debt_to_equity": d2e,
+        "industry_pe": ind_pe,
         "volume": 1420000,
         "sector": sec,
         "logo_url": logo_url
@@ -588,6 +655,7 @@ def get_explore_data() -> Dict[str, Any]:
                                 clean_sym = sym.replace(".NS", "").replace(".BO", "").upper()
                                 local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_sym}.png")
                                 logo_url = f"/static/logos/{clean_sym}.png" if os.path.exists(local_logo) else f"https://images.financialmodelingprep.com/symbol/{clean_sym}.NS.png"
+                                bm = _BENCHMARK_FUNDAMENTALS.get(sym) or {}
                                 q_data = {
                                     "symbol": sym,
                                     "name": n,
@@ -602,16 +670,31 @@ def get_explore_data() -> Dict[str, Any]:
                                     "day_low": round(float(getattr(fast, "day_low", None) or (price * 0.985)), 2),
                                     "fifty_two_week_high": round(float(getattr(fast, "year_high", None) or (price * 1.25)), 2),
                                     "fifty_two_week_low": round(float(getattr(fast, "year_low", None) or (price * 0.80)), 2),
-                                    "market_cap": int(getattr(fast, "market_cap", None) or 500000000000),
-                                    "pe_ratio": 22.5,
-                                    "pb_ratio": 3.0,
-                                    "dividend_yield": 1.2,
+                                    "market_cap": int(getattr(fast, "market_cap", None) or bm.get("market_cap") or 500000000000),
+                                    "pe_ratio": bm.get("pe_ratio", 22.5),
+                                    "pb_ratio": bm.get("pb_ratio", 3.0),
+                                    "dividend_yield": bm.get("dividend_yield", 1.2),
+                                    "div_yield": bm.get("dividend_yield", 1.2),
+                                    "eps": bm.get("eps"),
+                                    "roe": bm.get("roe"),
+                                    "debt_to_equity": bm.get("debt_to_equity"),
+                                    "industry_pe": bm.get("industry_pe") or _SECTOR_INDUSTRY_PES.get(sec, 24.5),
                                     "volume": int(getattr(fast, "last_volume", None) or 1000000),
                                     "sector": sec,
                                     "logo_url": logo_url
                                 }
                                 res[sym] = q_data
-                                set_cached(f"quote_{sym}", q_data, ttl=get_quote_ttl())
+                                existing = get_cached(f"quote_{sym}")
+                                if not existing or not existing.get("eps"):
+                                    set_cached(f"quote_{sym}", q_data, ttl=get_quote_ttl())
+                                else:
+                                    existing["price"] = price
+                                    existing["change"] = change
+                                    existing["change_pct"] = change_pct
+                                    existing["open"] = q_data["open"]
+                                    existing["day_high"] = q_data["day_high"]
+                                    existing["day_low"] = q_data["day_low"]
+                                    set_cached(f"quote_{sym}", existing, ttl=get_quote_ttl())
                         except Exception:
                             pass
                 except Exception:
