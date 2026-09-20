@@ -598,6 +598,8 @@ function switchTab(tabId, updateUrl = true) {
   document.documentElement.classList.remove('viewing-asset-detail');
   document.body.classList.remove('viewing-profile');
   document.documentElement.classList.remove('viewing-profile');
+  const navAvatarBtn = document.getElementById('navUserAvatarBtn');
+  if (navAvatarBtn) navAvatarBtn.classList.remove('active');
   closeMobileTradeDrawer();
 
   if (updateUrl) {
@@ -3774,6 +3776,8 @@ function goBackFromAssetPage() {
 function goBackFromProfilePage() {
   document.body.classList.remove('viewing-profile');
   document.documentElement.classList.remove('viewing-profile');
+  const navAvatarBtn = document.getElementById('navUserAvatarBtn');
+  if (navAvatarBtn) navAvatarBtn.classList.remove('active');
   if (window.history.length > 1) {
     window.history.back();
   } else {
@@ -3789,6 +3793,9 @@ function showProfilePage() {
   closeMobileTradeDrawer();
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.mobile-bottom-bar .mobile-nav-item').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.nav-links .nav-btn').forEach(btn => btn.classList.remove('active'));
+  const navAvatarBtn = document.getElementById('navUserAvatarBtn');
+  if (navAvatarBtn) navAvatarBtn.classList.add('active');
   const profilePane = document.getElementById('pane-profile');
   if (profilePane) profilePane.classList.add('active');
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -3868,6 +3875,8 @@ function handleRoute() {
   if (path !== '/profile') {
     document.body.classList.remove('viewing-profile');
     document.documentElement.classList.remove('viewing-profile');
+    const navAvatarBtn = document.getElementById('navUserAvatarBtn');
+    if (navAvatarBtn) navAvatarBtn.classList.remove('active');
   }
 
   if (path.startsWith('/stock/')) {
@@ -4161,14 +4170,7 @@ function logoutUser() {
 }
 
 function toggleProfileDropdown() {
-  if (window.innerWidth <= 768) {
-    // Mobile view: Open dedicated Groww-style full profile page
-    navigateTo('/profile');
-    return;
-  }
-  const menu = document.getElementById('userDropdownMenu');
-  if (!menu) return;
-  menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+  navigateTo('/profile');
 }
 
 document.addEventListener('click', (e) => {
