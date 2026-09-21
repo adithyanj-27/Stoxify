@@ -15,12 +15,23 @@ from main import (
     UpdateProfileRequest
 )
 
+class FakeRequest:
+    def __init__(self, user_id=None):
+        self.headers = {}
+        if user_id:
+            from main import issue_session_token
+            self.headers["authorization"] = f"Bearer {issue_session_token(user_id)}"
+
 def test_credentials_flow():
     print("=======================================================")
     print(" Testing Username & Password System (Stoxify v7.2)")
     print("=======================================================")
 
     database.init_db()
+    for ident in ["9876543210", "arjun_stocks", "arjun_pro", "arjun.test@example.com", "arjun.new@example.com"]:
+        old_u = database.find_user_by_identifier(ident)
+        if old_u and old_u.get("id"):
+            database.delete_user(old_u["id"])
 
     # 1. Test api_check_username API endpoint
     print("\n[1/5] Testing Username Availability API...")
@@ -59,7 +70,9 @@ def test_credentials_flow():
     user_data = create_res["user"]
     user_id = user_data["id"]
     assert user_data["username"] == "arjun_stocks"
-    assert user_data["pin"] == "5432"
+    assert user_data.get("has_pin") is True
+    import security
+    assert security.verify_secret("5432", database.get_user(user_id)["pin"])
     print(f" ✓ User created successfully! ID: {user_id}, Username: @{user_data['username']}")
 
     # Check that username is now taken
@@ -135,7 +148,7 @@ def test_credentials_flow():
         pin="9999",
         email="arjun.new@example.com",
         phone="9876543210"
-    ), request=None)
+    ), request=FakeRequest(user_id=user_id))
     assert upd_res["success"] is True
     assert upd_res["user"]["username"] == "arjun_pro"
     print(" ✓ Profile updated: Username changed to 'arjun_pro', PIN updated to '9999'")

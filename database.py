@@ -35,8 +35,8 @@ if os.path.exists(ENV_FILE):
         pass
 
 DEFAULT_SUPABASE_URL = "https://pqyjxpaqbjeelewcjwmd.supabase.co"
-DEFAULT_SUPABASE_KEY = "sb_publishable__ywLDIS3oh2MnKdoXcnkYg_rNjN_tHw"
-DEFAULT_SUPABASE_SERVICE_ROLE_KEY = "sb_secret_gtAzP-Ck1mKE-3WOscJ8Jw_K2KH92EI"
+DEFAULT_SUPABASE_KEY = ""
+DEFAULT_SUPABASE_SERVICE_ROLE_KEY = ""
 
 SUPABASE_URL = (
     os.environ.get("SUPABASE_URL")
@@ -1055,12 +1055,14 @@ def create_user(
         sb_user_payload = {
             "id": user_id,
             "name": name,
+            "username": clean_username,
+            "password": clean_password,
             "email": (email or "").strip(),
             "phone": phone or "",
             "pan": pan or "ABCDE1234F",
             "bank_name": bank_name,
             "bank_account": bank_account,
-            "pin": pin,
+            "pin": clean_pin,
             "balance": 0.0,
             "total_deposited": 0.0,
             "avatar_color": avatar_color,
