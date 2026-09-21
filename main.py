@@ -17,7 +17,7 @@ from typing import Optional, List, Dict, Any
 from database import (
     init_db, get_account, get_holdings, get_positions, execute_trade, 
     calculate_trade_charges,
-    exit_position, cancel_order, check_open_limit_orders,
+    exit_position, cancel_order, check_open_limit_orders, auto_square_off_intraday,
     get_orders, get_watchlist, add_to_watchlist, remove_from_watchlist,
     deposit_funds, reset_account, restore_balance, delete_user, create_user, update_user, get_user, list_users, find_user_by_identifier,
     check_username_available, sync_user_to_supabase_auth, mark_tour_completed,
@@ -91,14 +91,35 @@ async def normalize_vercel_path(request: Request, call_next):
         )
     return await call_next(request)
 
+logger = logging.getLogger("stoxify")
+
+def _auto_square_off_worker():
+    while True:
+        try:
+            if market_hours.is_intraday_auto_square_off_due():
+                res = auto_square_off_intraday()
+                if res.get("squared_off_positions_count", 0) > 0 or res.get("cancelled_orders_count", 0) > 0:
+                    logger.info("Auto square-off executed: %s positions closed, %s orders cancelled",
+                                res.get("squared_off_positions_count"), res.get("cancelled_orders_count"))
+        except Exception:
+            logger.exception("Error in auto square-off background worker")
+        time.sleep(15)
+
 @app.on_event("startup")
 def startup():
     try:
         init_db()
     except Exception:
         pass
+    try:
+        # If server starts up while market is closed or cutoff is reached, auto square-off immediately
+        if market_hours.is_intraday_auto_square_off_due():
+            auto_square_off_intraday()
+        t = threading.Thread(target=_auto_square_off_worker, daemon=True, name="stoxify-auto-square-off")
+        t.start()
+    except Exception:
+        pass
 
-logger = logging.getLogger("stoxify")
 
 # --- Session tokens ------------------------------------------------------
 # Identity used to be a raw client-supplied `x-user-id` header / `?user_id=`
@@ -784,6 +805,8 @@ def api_list_users(request: Request):
 @app.get("/api/market-status")
 @app.get("/market-status")
 def read_market_status():
+    if market_hours.is_intraday_auto_square_off_due():
+        auto_square_off_intraday()
     return market_hours.get_market_status()
 
 @app.get("/api/market-holidays")
@@ -799,6 +822,8 @@ class SimulationToggleRequest(BaseModel):
 @app.post("/market-status/toggle-simulation")
 def toggle_simulation(req: SimulationToggleRequest):
     market_hours.set_simulation_mode(req.enabled)
+    if market_hours.is_intraday_auto_square_off_due():
+        auto_square_off_intraday()
     return market_hours.get_market_status()
 
 # --- Financial Data & Quote Endpoints ---
@@ -808,6 +833,8 @@ def read_account(request: Request):
     uid = get_user_id(request)
     if not uid:
         return {"balance": 0.0, "total_deposited": 0.0, "bank_balance": 0.0, "is_guest": True}
+    if market_hours.is_intraday_auto_square_off_due():
+        auto_square_off_intraday(user_id=uid)
     account = get_account(uid)
     if not account.get("exists", True):
         # Stale/unknown client-side user id: never present phantom capital.
@@ -1046,6 +1073,9 @@ def read_positions(request: Request):
             "is_guest": True
         }
     service_pending_orders(uid)
+    sq_res = None
+    if market_hours.is_intraday_auto_square_off_due():
+        sq_res = auto_square_off_intraday(user_id=uid)
     raw_positions = get_positions(uid)
     positions_detail = []
     total_unrealized_pnl = 0.0
@@ -1082,7 +1112,10 @@ def read_positions(request: Request):
     return {
         "positions": positions_detail,
         "total_unrealized_pnl": round(total_unrealized_pnl, 2),
-        "total_margin_used": round(total_margin_used, 2)
+        "total_margin_used": round(total_margin_used, 2),
+        "auto_squared_off": bool(sq_res and (sq_res.get("squared_off_positions_count", 0) > 0 or sq_res.get("cancelled_orders_count", 0) > 0)),
+        "squared_off_positions_count": (sq_res.get("squared_off_positions_count", 0) if sq_res else 0),
+        "cancelled_orders_count": (sq_res.get("cancelled_orders_count", 0) if sq_res else 0)
     }
 
 class ExitPositionRequest(BaseModel):
@@ -1114,6 +1147,21 @@ def exit_all_positions(request: Request):
         if r.get("success"):
             exited.append(pos["symbol"])
     return {"status": "success", "exited_count": len(exited), "symbols": exited}
+
+@app.post("/api/position/auto-square-off")
+@app.post("/position/auto-square-off")
+def trigger_auto_square_off(request: Request, force: bool = False):
+    uid = get_user_id(request)
+    if not force and not market_hours.is_intraday_auto_square_off_due():
+        return {
+            "status": "skipped",
+            "message": "Market is open for intraday trading (cutoff not reached)",
+            "squared_off_positions_count": 0,
+            "cancelled_orders_count": 0
+        }
+    res = auto_square_off_intraday(user_id=uid if uid else None)
+    return {"status": "success", **res}
+
 
 class OrderRequest(BaseModel):
     symbol: str
@@ -1257,6 +1305,8 @@ def read_orders(request: Request, limit: int = 100, status: Optional[str] = None
         return []
     # The Orders tab is the natural heartbeat for the simulated matching engine.
     service_pending_orders(uid)
+    if market_hours.is_intraday_auto_square_off_due():
+        auto_square_off_intraday(user_id=uid)
     return get_orders(limit=limit, status_filter=status, user_id=uid)
 
 @app.get("/api/watchlist")

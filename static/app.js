@@ -527,6 +527,14 @@ async function fetchMarketStatus() {
         holBanner.style.display = 'none';
       }
     }
+
+    // Auto square-off reactive check: if intraday cutoff reached or market closed, refresh active positions
+    if (data && !data.intraday_allowed && state.hasActiveIntradayPositions) {
+      state.hasActiveIntradayPositions = false;
+      fetchPositions();
+      fetchAccount();
+      fetchOrders();
+    }
   } catch (err) {
     console.error('Failed to fetch market status:', err);
   }
@@ -1821,6 +1829,25 @@ async function fetchPositionsInternal(requestVersion) {
     const data = await res.json();
     if (requestVersion !== positionsRequestVersion) return data;
     const positions = data.positions || [];
+    state.hasActiveIntradayPositions = positions.length > 0;
+
+    if (data.auto_squared_off) {
+      const count = data.squared_off_positions_count || 0;
+      const orderCount = data.cancelled_orders_count || 0;
+      let msg = 'Market closed / cutoff reached: ';
+      if (count > 0 && orderCount > 0) {
+        msg += `${count} open intraday position(s) auto squared off and ${orderCount} pending order(s) cancelled.`;
+      } else if (count > 0) {
+        msg += `${count} open intraday position(s) auto squared off at market price.`;
+      } else if (orderCount > 0) {
+        msg += `${orderCount} pending intraday order(s) cancelled.`;
+      } else {
+        msg += 'Intraday positions auto squared off.';
+      }
+      showToast(msg, false);
+      fetchAccount();
+      fetchOrders();
+    }
 
     // Update badges
     const navBadge = document.getElementById('navPositionsBadge');

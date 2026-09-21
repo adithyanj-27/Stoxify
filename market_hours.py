@@ -401,6 +401,12 @@ def validate_order_timing(product_type: str) -> Tuple[bool, str, str]:
     else:
         return (True, "AMO", "Order placed as After-Market Order (AMO)")
 
+def is_intraday_auto_square_off_due(ignore_simulation: bool = False) -> bool:
+    """Returns True if the market is closed or the 03:20 PM IST intraday cutoff has been reached."""
+    status = get_market_status(ignore_simulation=ignore_simulation)
+    return not status.get("intraday_allowed", True)
+
+
 def get_all_market_holidays() -> Dict[str, Any]:
     """
     Returns the complete list of live trading holidays and today's status for the UI.

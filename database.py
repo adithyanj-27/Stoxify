@@ -15,11 +15,13 @@ from typing import Dict, List, Optional, Any
 IST = timezone(timedelta(hours=5, minutes=30))
 import concurrent.futures
 import logging
+import threading
 import security
 
 logger = logging.getLogger("stoxify.database")
 
 _TRADE_SYNC_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+_auto_sq_lock = threading.Lock()
 
 # 1. Automatic .env loading (Zero third-party dependency)
 ENV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
@@ -3336,16 +3338,18 @@ def execute_trade(
             conn.close()
 
             cat_label = "Stocks" if asset_type == "STOCK" else (asset_type.capitalize() + "s" if not asset_type.endswith("s") else asset_type.capitalize())
+            tx_title = f"Received from {cat_label} (Auto Square-off)" if order_tag == "AUTO_SQUARE_OFF" else f"Received from {cat_label}"
+            tx_desc = f"Auto squared off {quantity} shares of {symbol} at ₹{effective_price:,.2f} (Market Close / Cutoff)" if order_tag == "AUTO_SQUARE_OFF" else f"Sold {quantity} shares of {symbol} at ₹{effective_price:,.2f}"
             record_wallet_transaction(
                 user_id=user_id,
                 tx_type="SELL",
-                title=f"Received from {cat_label}",
+                title=tx_title,
                 amount=round(new_balance - balance, 2),
                 balance_after=new_balance,
                 direction="CREDIT",
                 status="SUCCESS",
                 reference_id=f"ORD-STX-{order_id}",
-                description=f"Sold {quantity} shares of {symbol} at ₹{effective_price:,.2f}",
+                description=tx_desc,
                 symbol=symbol,
                 asset_type=asset_type
             )
@@ -3423,7 +3427,7 @@ def execute_trade(
         conn.close()
         return {"success": False, "error": str(e)}
 
-def exit_position(symbol: str, exit_price: float, user_id: str = "default") -> Dict[str, Any]:
+def exit_position(symbol: str, exit_price: float, user_id: str = "default", order_tag: str = "NORMAL") -> Dict[str, Any]:
     sym_variants = get_symbol_variants(symbol)
     sym_clause = " OR ".join(["UPPER(symbol) = ?"] * len(sym_variants))
     sym_params = [v.upper() for v in sym_variants]
@@ -3452,6 +3456,7 @@ def exit_position(symbol: str, exit_price: float, user_id: str = "default") -> D
         quantity=pos["quantity"],
         price=exit_price,
         order_variety="MARKET",
+        order_tag=order_tag,
         user_id=user_id
     )
 
@@ -4370,4 +4375,96 @@ def get_sector_allocation(user_id: str = "default", price_lookup=None) -> List[D
         })
     results.sort(key=lambda x: x["amount"], reverse=True)
     return results
+
+
+def auto_square_off_intraday(user_id: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Squares off all open INTRADAY (MIS) positions and cancels pending INTRADAY orders.
+    Can be scoped to a specific user_id or all users across the system.
+    """
+    with _auto_sq_lock:
+        import market_service
+
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        # 1. Cancel unexecuted pending INTRADAY orders (Limit / Stop-Loss)
+        if user_id:
+            cursor.execute("""
+                SELECT id, user_id, symbol FROM orders
+                WHERE user_id = ? AND product_type = 'INTRADAY' AND status IN ('OPEN', 'TRIGGER_PENDING')
+            """, (user_id,))
+        else:
+            cursor.execute("""
+                SELECT id, user_id, symbol FROM orders
+                WHERE product_type = 'INTRADAY' AND status IN ('OPEN', 'TRIGGER_PENDING')
+            """)
+        pending_rows = [dict(r) for r in cursor.fetchall()]
+        conn.close()
+
+        cancelled_orders = []
+        for row in pending_rows:
+            try:
+                res = cancel_order(order_id=row["id"], user_id=row["user_id"])
+                if res.get("success"):
+                    cancelled_orders.append({
+                        "order_id": row["id"],
+                        "user_id": row["user_id"],
+                        "symbol": row["symbol"]
+                    })
+            except Exception as e:
+                logger.warning(f"Error cancelling pending intraday order #{row['id']}: {e}")
+
+        # 2. Exit all open INTRADAY positions at market price
+        conn = get_connection()
+        cursor = conn.cursor()
+        if user_id:
+            cursor.execute("""
+                SELECT user_id, symbol, quantity, avg_price, margin_used
+                FROM positions
+                WHERE user_id = ? AND product_type = 'INTRADAY' AND quantity > 0.0001
+            """, (user_id,))
+        else:
+            cursor.execute("""
+                SELECT user_id, symbol, quantity, avg_price, margin_used
+                FROM positions
+                WHERE product_type = 'INTRADAY' AND quantity > 0.0001
+            """)
+        pos_rows = [dict(r) for r in cursor.fetchall()]
+        conn.close()
+
+        squared_off_positions = []
+        for pos in pos_rows:
+            sym = pos["symbol"]
+            u_id = pos["user_id"]
+            exit_price = 0.0
+            try:
+                q = market_service.get_stock_quote(sym)
+                if q and float(q.get("price") or 0.0) > 0:
+                    exit_price = float(q["price"])
+            except Exception:
+                pass
+            if exit_price <= 0:
+                exit_price = float(pos.get("avg_price") or 0.0)
+
+            try:
+                res = exit_position(symbol=sym, exit_price=exit_price, user_id=u_id, order_tag="AUTO_SQUARE_OFF")
+                if res.get("success"):
+                    squared_off_positions.append({
+                        "symbol": sym,
+                        "user_id": u_id,
+                        "quantity": pos["quantity"],
+                        "exit_price": exit_price,
+                        "realized_pnl": res.get("realized_pnl", 0.0)
+                    })
+            except Exception as e:
+                logger.warning(f"Error auto squaring off position for {sym} ({u_id}): {e}")
+
+        return {
+            "success": True,
+            "cancelled_orders_count": len(cancelled_orders),
+            "squared_off_positions_count": len(squared_off_positions),
+            "cancelled_orders": cancelled_orders,
+            "squared_off_positions": squared_off_positions
+        }
 
