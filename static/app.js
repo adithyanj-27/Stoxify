@@ -8898,18 +8898,21 @@ function renderIpos(filter) {
     let metric3Label = 'Subscription';
     let metric3Val = subscription;
     if (isUpcoming) {
-      metric3Label = 'Expected Lot';
-      metric3Val = `${ipo.lot_size || 35} Shares`;
-    } else if (isListed) {
-      metric3Label = 'Listing Gain';
-      metric3Val = ipo.gmp_pct ? `+${ipo.gmp_pct}%` : (ipo.listing_price || 'Debuted');
+      metric3Label = 'Bidding Window';
+      metric3Val = (ipo.open_date && ipo.close_date) ? `${ipo.open_date} – ${ipo.close_date}` : (ipo.open_date || 'Upcoming');
+    } else if (isClosed || isListed) {
+      metric3Label = 'Bidding Period';
+      metric3Val = (ipo.open_date && ipo.close_date) ? `${ipo.open_date} – ${ipo.close_date}` : (ipo.close_date || 'Closed');
     }
 
     let metric4Label = 'Closes On';
     let metric4Val = ipo.close_date || '—';
     if (isUpcoming) {
-      metric4Label = 'Issue Date';
+      metric4Label = 'Opens On';
       metric4Val = ipo.open_date || 'Announcing Soon';
+    } else if (isClosed) {
+      metric4Label = 'Closed On';
+      metric4Val = ipo.close_date || '—';
     } else if (isListed) {
       metric4Label = 'Listing Date';
       metric4Val = ipo.listing_date || ipo.close_date || 'Listed';
@@ -8960,21 +8963,8 @@ function renderIpos(filter) {
         </div>
 
         <div class="ipo-footer">
-          ${isOpen ? `
-            <button class="btn-primary" style="flex: 1; padding: 0.65rem 0.9rem; font-size: 0.85rem; font-weight: 700; border-radius: 8px; justify-content: center;" onclick="openIpoBidModal('${ipo.id}')">
-              Apply (ASBA)
-            </button>
-          ` : isUpcoming ? `
-            <button class="btn-subtle" style="flex: 1; padding: 0.65rem 0.9rem; font-size: 0.85rem; font-weight: 600; border-radius: 8px; justify-content: center;" onclick="showToast('Alert set for ${safeName}! We will notify you when bids open.')">
-              Pre-apply / Alert
-            </button>
-          ` : `
-            <button class="btn-subtle" style="flex: 1; padding: 0.65rem 0.9rem; font-size: 0.85rem; font-weight: 600; border-radius: 8px; justify-content: center;" onclick="showToast('${safeName} ${ipo.listing_price ? 'listed at ' + ipo.listing_price : 'trading on NSE'}')">
-              Listing Details
-            </button>
-          `}
-          <a class="btn-subtle" style="padding: 0.65rem 0.8rem; font-size: 0.82rem; border-radius: 8px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap;" href="${ipo.source_url || 'https://www.nseindia.com/market-data/all-upcoming-issues-ipo'}" target="_blank" rel="noopener noreferrer" title="View Official NSE Document">
-            NSE ↗
+          <a class="btn-subtle" style="width: 100%; padding: 0.65rem 0.9rem; font-size: 0.85rem; font-weight: 600; border-radius: 8px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;" href="${ipo.source_url || 'https://www.nseindia.com/market-data/all-upcoming-issues-ipo'}" target="_blank" rel="noopener noreferrer" title="View Official NSE Document">
+            <span>View Official Details on NSE</span> ↗
           </a>
         </div>
       </div>

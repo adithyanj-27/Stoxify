@@ -501,10 +501,14 @@ CURATED_IPOS: List[Dict[str, Any]] = [
 
 
 def _parse_date(value: Any) -> Optional[datetime]:
-    if not value or str(value).strip() in {"-", "--"}:
+    if not value or str(value).strip() in {"-", "--", "—", "none", "null"}:
         return None
     text = str(value).strip()
-    for fmt in ("%d-%b-%Y", "%d-%B-%Y", "%d-%m-%Y", "%d-%b-%y"):
+    for fmt in (
+        "%d %b %Y", "%d %B %Y", "%d %m %Y", "%d %b %y",
+        "%d-%b-%Y", "%d-%B-%Y", "%d-%m-%Y", "%d-%b-%y",
+        "%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y"
+    ):
         try:
             return datetime.strptime(text.title(), fmt)
         except ValueError:
