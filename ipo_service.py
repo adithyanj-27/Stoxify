@@ -546,6 +546,48 @@ def _format_issue_size(value: Any) -> str:
     return f"{shares:,.0f} shares"
 
 
+def resolve_ipo_status(
+    open_date_str: Any,
+    close_date_str: Any,
+    listing_date_str: Any = None,
+    default_status: str = "UPCOMING"
+) -> str:
+    """
+    Dynamically computes the IPO status (OPEN, UPCOMING, CLOSED, RECENTLY_LISTED)
+    based on the current calendar date vs open/close/listing dates.
+    """
+    try:
+        today = datetime.now().date()
+        open_dt = _parse_date(open_date_str)
+        close_dt = _parse_date(close_date_str)
+        listing_dt = _parse_date(listing_date_str)
+
+        open_d = open_dt.date() if open_dt else None
+        close_d = close_dt.date() if close_dt else None
+        listing_d = listing_dt.date() if listing_dt else None
+
+        # 1. Past close date -> Closed or Recently Listed
+        if close_d and today > close_d:
+            if listing_d and today >= listing_d:
+                return "RECENTLY_LISTED"
+            return "CLOSED"
+
+        # 2. Future open date -> Upcoming
+        if open_d and today < open_d:
+            return "UPCOMING"
+
+        # 3. Active bidding window -> Open
+        if open_d and close_d and open_d <= today <= close_d:
+            return "OPEN"
+
+        if open_d and today >= open_d and not close_d:
+            return "OPEN"
+    except Exception:
+        pass
+
+    return default_status
+
+
 def _current_item(row: Dict[str, Any]) -> Dict[str, Any]:
     low, high = _price_range(row.get("issuePrice"))
     symbol = str(row.get("symbol") or "IPO").upper()
@@ -554,22 +596,25 @@ def _current_item(row: Dict[str, Any]) -> Dict[str, Any]:
         subscription = round(float(multiple), 2)
     except (TypeError, ValueError):
         subscription = None
+    open_d = _display_date(row.get("issueStartDate"))
+    close_d = _display_date(row.get("issueEndDate"))
+    status = resolve_ipo_status(open_d, close_d, default_status="OPEN")
     return {
         "id": f"nse-{symbol.lower()}-{str(row.get('issueStartDate') or '').lower()}",
         "symbol": symbol,
         "name": row.get("companyName") or symbol,
-        "status": "OPEN",
+        "status": status,
         "series": row.get("series") or "EQ",
         "category": row.get("category") or "NSE IPO",
         "price_band": _display_price(row.get("issuePrice")),
         "min_price": low,
         "max_price": high,
-        "open_date": _display_date(row.get("issueStartDate")),
-        "close_date": _display_date(row.get("issueEndDate")),
+        "open_date": open_d,
+        "close_date": close_d,
         "listing_date": "—",
         "issue_size": _format_issue_size(row.get("issueSize")),
         "subscription_times": subscription,
-        "source": "NSE",
+        "source": "NSE Live Feed",
         "source_url": "https://www.nseindia.com/market-data/all-upcoming-issues-ipo",
         "is_new": False,
     }
@@ -578,22 +623,26 @@ def _current_item(row: Dict[str, Any]) -> Dict[str, Any]:
 def _past_item(row: Dict[str, Any]) -> Dict[str, Any]:
     low, high = _price_range(row.get("priceRange") or row.get("issuePrice"))
     symbol = str(row.get("symbol") or row.get("htmSym") or "IPO").upper()
+    open_d = _display_date(row.get("ipoStartDate"))
+    close_d = _display_date(row.get("ipoEndDate"))
+    listing_d = _display_date(row.get("listingDate"))
+    status = resolve_ipo_status(open_d, close_d, listing_d, default_status="RECENTLY_LISTED")
     return {
         "id": f"nse-{symbol.lower()}-{str(row.get('ipoStartDate') or '').lower()}",
         "symbol": symbol,
         "name": row.get("company") or symbol,
-        "status": "RECENTLY_LISTED",
+        "status": status,
         "series": row.get("securityType") or "EQ",
         "category": "NSE IPO",
         "price_band": _display_price(row.get("priceRange") or row.get("issuePrice")),
         "min_price": low,
         "max_price": high,
-        "open_date": _display_date(row.get("ipoStartDate")),
-        "close_date": _display_date(row.get("ipoEndDate")),
-        "listing_date": _display_date(row.get("listingDate")),
+        "open_date": open_d,
+        "close_date": close_d,
+        "listing_date": listing_d,
         "issue_size": "—",
         "subscription_times": None,
-        "source": "NSE",
+        "source": "NSE Live Feed",
         "source_url": "https://www.nseindia.com/market-data/all-upcoming-issues-ipo",
         "is_new": False,
     }
@@ -648,14 +697,29 @@ def get_ipos(status_filter: Optional[str] = None) -> List[Dict[str, Any]]:
             if not _CACHE["ipos"]:
                 _CACHE.update({"at": now, "ipos": list(CURATED_IPOS)})
 
-    issues = list(_CACHE.get("ipos") or CURATED_IPOS)
+    raw_issues = list(_CACHE.get("ipos") or CURATED_IPOS)
+    # Dynamically re-evaluate status against current calendar date so that IPOs change with time
+    evaluated = []
+    for issue in raw_issues:
+        item = dict(issue)
+        item["status"] = resolve_ipo_status(
+            item.get("open_date"),
+            item.get("close_date"),
+            item.get("listing_date"),
+            default_status=item.get("status", "UPCOMING")
+        )
+        evaluated.append(item)
+
     if not status_filter or status_filter.upper() == "ALL":
-        return issues
+        return evaluated
     wanted = status_filter.upper()
-    return [issue for issue in issues if issue.get("status", "").upper() == wanted]
+    if wanted in ("CLOSED", "RECENTLY_LISTED", "LISTED"):
+        return [issue for issue in evaluated if issue.get("status", "").upper() in ("CLOSED", "RECENTLY_LISTED", "LISTED")]
+    return [issue for issue in evaluated if issue.get("status", "").upper() == wanted]
 
 
 def get_ipo_by_id(ipo_id: str) -> Optional[Dict[str, Any]]:
     key = str(ipo_id).strip().upper()
     return next((issue for issue in get_ipos()
                  if issue.get("id", "").upper() == key or issue.get("symbol", "").upper() == key), None)
+

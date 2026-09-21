@@ -8709,7 +8709,7 @@ async function fetchIpos() {
     // Update tab counts
     const openCount = allIpos.filter(i => i.status === 'OPEN').length;
     const upcomingCount = allIpos.filter(i => i.status === 'UPCOMING').length;
-    const listedCount = allIpos.filter(i => i.status === 'RECENTLY_LISTED' || i.status === 'LISTED').length;
+    const listedCount = allIpos.filter(i => i.status === 'RECENTLY_LISTED' || i.status === 'LISTED' || i.status === 'CLOSED').length;
 
     const elOpen = document.getElementById('ipoCountOpen');
     const elUpcoming = document.getElementById('ipoCountUpcoming');
@@ -8853,7 +8853,7 @@ function renderIpos(filter) {
     if (filter === 'ALL') return true;
     if (filter === 'OPEN') return item.status === 'OPEN';
     if (filter === 'UPCOMING') return item.status === 'UPCOMING';
-    if (filter === 'RECENTLY_LISTED') return item.status === 'RECENTLY_LISTED' || item.status === 'LISTED';
+    if (filter === 'RECENTLY_LISTED') return item.status === 'RECENTLY_LISTED' || item.status === 'LISTED' || item.status === 'CLOSED';
     return item.status === filter;
   });
 
@@ -8874,6 +8874,7 @@ function renderIpos(filter) {
   grid.innerHTML = filtered.map((ipo, idx) => {
     const isOpen = ipo.status === 'OPEN';
     const isUpcoming = ipo.status === 'UPCOMING';
+    const isClosed = ipo.status === 'CLOSED';
     const isListed = ipo.status === 'RECENTLY_LISTED' || ipo.status === 'LISTED';
 
     let statusLabel = 'OPEN NOW';
@@ -8881,6 +8882,9 @@ function renderIpos(filter) {
     if (isUpcoming) {
       statusLabel = 'UPCOMING';
       badgeClass = 'badge-neutral';
+    } else if (isClosed) {
+      statusLabel = 'CLOSED';
+      badgeClass = 'badge-negative';
     } else if (isListed) {
       statusLabel = 'LISTED';
       badgeClass = 'badge-neutral';
