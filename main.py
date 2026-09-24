@@ -847,8 +847,15 @@ def read_indices():
     return market_service.get_indices()
 
 @app.get("/api/explore")
-def read_explore():
+def read_explore(refresh: Optional[int] = 0):
+    if refresh:
+        market_service.clear_explore_cache()
     return market_service.get_explore_data()
+
+@app.post("/api/stocks/sync-new-listings")
+@app.post("/api/stocks/refresh")
+def sync_new_listings():
+    return market_service.sync_new_listings()
 
 @app.get("/api/search")
 @app.get("/search")

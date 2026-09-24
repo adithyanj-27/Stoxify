@@ -550,12 +550,17 @@
             <h2 class="section-title" id="exploreStocksTitle">Top Indian Equities (NSE / BSE)</h2>
             <p class="section-desc" id="exploreStocksDesc">Live market quotes directly from National Stock Exchange (NSE)</p>
           </div>
+          <button class="btn-refresh-stocks" id="btnSyncNewListings" onclick="handleSyncNewListings(event)" title="Check NSE & Yahoo Finance for newly listed stocks">
+            <span class="refresh-icon">🔄</span>
+            <span class="refresh-text">Refresh Stocks</span>
+          </button>
         </div>
 
         <div class="filter-pills">
           <button class="pill-btn active" onclick="filterExploreStocks('all')">All / Most Active</button>
           <button class="pill-btn" onclick="filterExploreStocks('gainers')">Top Gainers</button>
           <button class="pill-btn" onclick="filterExploreStocks('losers')">Top Losers</button>
+          <button class="pill-btn pill-btn-recent" onclick="filterExploreStocks('recent')">✨ Recently Listed</button>
           <button class="pill-btn" onclick="filterExploreStocks('Defense')">Defense</button>
           <button class="pill-btn" onclick="filterExploreStocks('Railways')">Railways</button>
           <button class="pill-btn" onclick="filterExploreStocks('Energy')">Energy</button>

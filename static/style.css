@@ -8581,3 +8581,84 @@ body.viewing-profile .indices-bar {
     scroll-behavior: auto !important;
   }
 }
+
+/* --- Explore Stocks Refresh Button & New Listings --- */
+.btn-refresh-stocks {
+  background: rgba(14, 165, 233, 0.08);
+  color: var(--brand-cyan, #38bdf8);
+  font-size: 0.82rem;
+  font-weight: 600;
+  border: 1px solid rgba(14, 165, 233, 0.28);
+  padding: 0.45rem 0.95rem;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  user-select: none;
+  backdrop-filter: blur(8px);
+}
+
+.btn-refresh-stocks:hover {
+  background: rgba(14, 165, 233, 0.18);
+  border-color: rgba(14, 165, 233, 0.55);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.2);
+}
+
+.btn-refresh-stocks:active {
+  transform: translateY(0);
+}
+
+.btn-refresh-stocks:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-refresh-stocks .refresh-icon {
+  font-size: 0.9rem;
+  display: inline-block;
+  line-height: 1;
+  transition: transform 0.3s ease;
+}
+
+.btn-refresh-stocks .refresh-icon.spin {
+  animation: spinListingIcon 0.8s linear infinite;
+}
+
+@keyframes spinListingIcon {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.badge-new-stock {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  background: rgba(0, 208, 156, 0.15);
+  color: #00d09c;
+  border: 1px solid rgba(0, 208, 156, 0.35);
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.pill-btn-recent {
+  border-color: rgba(0, 208, 156, 0.35) !important;
+  color: #00d09c !important;
+}
+
+.pill-btn-recent:hover,
+.pill-btn-recent.active {
+  background: rgba(0, 208, 156, 0.16) !important;
+  border-color: #00d09c !important;
+  color: #00d09c !important;
+}
+

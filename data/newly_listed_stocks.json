@@ -1,0 +1,213 @@
+[
+  {
+    "symbol": "SONA.NS",
+    "name": "Sonaselection India Limited",
+    "sector": "Consumer",
+    "listing_date": "24 Sep 2026",
+    "is_new_listing": true,
+    "aliases": [
+      "sona",
+      "sonaselection",
+      "sonaselection india"
+    ]
+  },
+  {
+    "symbol": "HEROMOTORS.NS",
+    "name": "Hero Motors Limited",
+    "sector": "Auto",
+    "listing_date": "23 Sep 2026",
+    "is_new_listing": true,
+    "aliases": [
+      "heromotors",
+      "hero motors"
+    ]
+  },
+  {
+    "symbol": "SSRETAIL.NS",
+    "name": "SS Retail Limited",
+    "sector": "Consumer",
+    "listing_date": "23 Sep 2026",
+    "is_new_listing": true,
+    "aliases": [
+      "ssretail",
+      "ss retail"
+    ]
+  },
+  {
+    "symbol": "JSIPL.NS",
+    "name": "Jindal Supreme (India) Limited",
+    "sector": "Metals",
+    "listing_date": "23 Sep 2026",
+    "is_new_listing": true,
+    "aliases": [
+      "jsipl",
+      "jindal supreme"
+    ]
+  },
+  {
+    "symbol": "MANIKA.NS",
+    "name": "Manika Plastech Limited",
+    "sector": "Consumer",
+    "listing_date": "21 Sep 2026",
+    "is_new_listing": true,
+    "aliases": [
+      "manika",
+      "manika plastech"
+    ]
+  },
+  {
+    "symbol": "VEEGALAND.NS",
+    "name": "Veegaland Developers Limited",
+    "sector": "Infra",
+    "listing_date": "18 Sep 2026",
+    "is_new_listing": true,
+    "aliases": [
+      "veegaland",
+      "veegaland developers"
+    ]
+  },
+  {
+    "symbol": "MPIMANIPAL.NS",
+    "name": "Manipal Payment and Identity Solutions",
+    "sector": "Finance",
+    "listing_date": "17 Sep 2026",
+    "is_new_listing": true,
+    "aliases": [
+      "manipal",
+      "mpimanipal",
+      "manipal payment"
+    ]
+  },
+  {
+    "symbol": "KARAMTARA.NS",
+    "name": "Karamtara Engineering Limited",
+    "sector": "Infra",
+    "listing_date": "17 Sep 2026",
+    "is_new_listing": true,
+    "aliases": [
+      "karamtara",
+      "karamtara engineering"
+    ]
+  },
+  {
+    "symbol": "LCCPROJECT.NS",
+    "name": "LCC Projects Limited",
+    "sector": "Infra",
+    "listing_date": "17 Sep 2026",
+    "is_new_listing": true,
+    "aliases": [
+      "lccproject",
+      "lcc projects"
+    ]
+  },
+  {
+    "symbol": "RENTOMOJO.NS",
+    "name": "Rentomojo Limited",
+    "sector": "Consumer",
+    "listing_date": "17 Sep 2026",
+    "is_new_listing": true,
+    "aliases": [
+      "rentomojo"
+    ]
+  },
+  {
+    "symbol": "STEAMHOUSE.NS",
+    "name": "Steamhouse India Limited",
+    "sector": "Energy",
+    "listing_date": "17 Sep 2026",
+    "is_new_listing": true,
+    "aliases": [
+      "steamhouse",
+      "steamhouse india"
+    ]
+  },
+  {
+    "symbol": "ARCIL.NS",
+    "name": "Asset Reconstruction Company (India)",
+    "sector": "Finance",
+    "listing_date": "17 Sep 2026",
+    "is_new_listing": true,
+    "aliases": [
+      "arcil",
+      "asset reconstruction"
+    ]
+  },
+  {
+    "symbol": "GLASSWALL.NS",
+    "name": "Glass Wall Systems (India) Limited",
+    "sector": "Infra",
+    "listing_date": "16 Sep 2026",
+    "is_new_listing": true,
+    "aliases": [
+      "glasswall",
+      "glass wall"
+    ]
+  },
+  {
+    "symbol": "KANOHAR.NS",
+    "name": "Kanohar Electricals Limited",
+    "sector": "Energy",
+    "listing_date": "16 Sep 2026",
+    "is_new_listing": true,
+    "aliases": [
+      "kanohar",
+      "kanohar electricals"
+    ]
+  },
+  {
+    "symbol": "PRASOLCHEM.NS",
+    "name": "Prasol Chemicals Limited",
+    "sector": "Pharma",
+    "listing_date": "16 Sep 2026",
+    "is_new_listing": true,
+    "aliases": [
+      "prasolchem",
+      "prasol chemicals"
+    ]
+  },
+  {
+    "symbol": "PRANAV.NS",
+    "name": "Pranav Constructions Limited",
+    "sector": "Infra",
+    "listing_date": "15 Sep 2026",
+    "is_new_listing": true,
+    "aliases": [
+      "pranav",
+      "pranav constructions"
+    ]
+  },
+  {
+    "symbol": "DEEPA.NS",
+    "name": "Deepa Jewellers Limited",
+    "sector": "Consumer",
+    "listing_date": "08 Sep 2026",
+    "is_new_listing": true,
+    "aliases": [
+      "deepa",
+      "deepa jewellers"
+    ]
+  },
+  {
+    "symbol": "PERNIASPOP.NS",
+    "name": "Purple Style Labs Limited",
+    "sector": "Consumer",
+    "listing_date": "07 Sep 2026",
+    "is_new_listing": true,
+    "aliases": [
+      "perniaspop",
+      "purple style",
+      "pernia"
+    ]
+  },
+  {
+    "symbol": "MOMSBELIEF.NS",
+    "name": "Rays of Belief Limited- For Profit Social Enterprise (FPSE)",
+    "sector": "NSE IPO",
+    "listing_date": "\u2014",
+    "is_new_listing": true,
+    "aliases": [
+      "momsbelief",
+      "rays of belief limited- for profit social enterprise (fpse)"
+    ]
+  }
+]

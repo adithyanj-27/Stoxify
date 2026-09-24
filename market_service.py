@@ -63,6 +63,183 @@ def get_quote_ttl() -> int:
 
 _POOL = concurrent.futures.ThreadPoolExecutor(max_workers=16)
 
+# --- Dynamic Newly Listed Stocks & Catalog Synchronization ---
+_NEW_LISTINGS_FILE = os.path.join(BASE_DIR, "data", "newly_listed_stocks.json")
+
+def _infer_sector(name: str, symbol: str, default: str = "NSE IPO") -> str:
+    n = (name + " " + symbol).upper()
+    if any(k in n for k in ["MOTOR", "AUTO", "TYRE", "VEHICLE"]):
+        return "Auto"
+    if any(k in n for k in ["TECH", "SOFTWARE", "DIGITAL", "SYSTEMS", "INFO", "DATA", "CYBER"]):
+        return "IT"
+    if any(k in n for k in ["BANK", "FINANCE", "PAYMENT", "CAPITAL", "SECURITIES", "INVESTMENT", "ASSET", "WEALTH", "INSURANCE"]):
+        return "Finance"
+    if any(k in n for k in ["PHARMA", "HEALTH", "CHEM", "BIO", "LAB", "MEDIC", "HOSPITAL"]):
+        return "Pharma"
+    if any(k in n for k in ["POWER", "ENERGY", "SOLAR", "GAS", "OIL", "GREEN"]):
+        return "Energy"
+    if any(k in n for k in ["INFRA", "CONSTRUCT", "BUILD", "REALTY", "DEVELOPER", "PROJECT", "ENGINEER"]):
+        return "Infra"
+    if any(k in n for k in ["METAL", "STEEL", "ALUM", "MINING", "IRON", "ZINC"]):
+        return "Metals"
+    if any(k in n for k in ["RETAIL", "FOOD", "CONSUMER", "STYLE", "FASHION", "JEWEL", "HOTEL", "RESTAURANT", "BEV"]):
+        return "Consumer"
+    if any(k in n for k in ["DEFENSE", "AERO", "SHIP", "NAVY"]):
+        return "Defense"
+    if any(k in n for k in ["RAIL"]):
+        return "Railways"
+    return default
+
+def load_new_listings() -> List[Dict[str, Any]]:
+    if os.path.exists(_NEW_LISTINGS_FILE):
+        try:
+            with open(_NEW_LISTINGS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    return data
+        except Exception:
+            pass
+    return []
+
+def save_new_listings(items: List[Dict[str, Any]]) -> None:
+    try:
+        os.makedirs(os.path.dirname(_NEW_LISTINGS_FILE), exist_ok=True)
+        with open(_NEW_LISTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(items, f, indent=2)
+    except Exception:
+        pass
+
+def get_combined_stock_master() -> List[Dict[str, Any]]:
+    dynamic = load_new_listings()
+    combined = list(STOCK_MASTER)
+    seen = {s["symbol"].upper() for s in STOCK_MASTER}
+    for d in dynamic:
+        sym = d.get("symbol", "").upper()
+        if sym and sym not in seen:
+            combined.append(d)
+            seen.add(sym)
+    return combined
+
+def clear_explore_cache():
+    _CACHE.pop("explore_data_v5", None)
+    _CACHE_EXPIRY.pop("explore_data_v5", None)
+
+_INVALID_TICKERS_CACHE: Dict[str, float] = {}
+
+def sync_new_listings() -> Dict[str, Any]:
+    """
+    Checks the official NSE IPO / listing feed and validates with yfinance
+    to discover newly listed stocks actively trading on NSE.
+    Adds them to data/newly_listed_stocks.json and warms their cache.
+    """
+    try:
+        import ipo_service
+        recent_ipos = ipo_service.get_ipos("RECENTLY_LISTED")
+    except Exception:
+        recent_ipos = []
+
+    known_syms = {s["symbol"].upper() for s in STOCK_MASTER}
+    current_dyn = load_new_listings()
+    current_dyn_dict = {d["symbol"].upper(): d for d in current_dyn}
+
+    now = time.time()
+    candidates = []
+    for item in recent_ipos:
+        sym = item.get("symbol", "").strip().upper()
+        if not sym:
+            continue
+        formatted = f"{sym}.NS"
+        if formatted in known_syms:
+            continue
+        if formatted in current_dyn_dict:
+            continue
+        if formatted in _INVALID_TICKERS_CACHE and now < _INVALID_TICKERS_CACHE[formatted]:
+            continue
+        candidates.append((formatted, sym, item))
+
+    newly_added = []
+    if candidates:
+        sym_list = [c[0] for c in candidates]
+        try:
+            tickers = yf.Tickers(" ".join(sym_list))
+        except Exception:
+            tickers = None
+
+        for formatted, sym, item in candidates:
+            try:
+                t = tickers.tickers.get(formatted) if tickers else yf.Ticker(formatted)
+                if not t:
+                    _INVALID_TICKERS_CACHE[formatted] = now + 3600
+                    continue
+                fast = t.fast_info
+                price = getattr(fast, "last_price", None)
+                if not price or price <= 0:
+                    _INVALID_TICKERS_CACHE[formatted] = now + 3600
+                    continue
+                if price and price > 0:
+                    price = round(float(price), 2)
+                    prev_close = round(float(getattr(fast, "previous_close", None) or price), 2)
+                    change = round(price - prev_close, 2)
+                    change_pct = round((change / prev_close) * 100, 2) if prev_close else 0.0
+                    sector = _infer_sector(item.get("name", ""), sym)
+                    clean_sym = sym.upper()
+                    local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_sym}.png")
+                    logo_url = f"/static/logos/{clean_sym}.png" if os.path.exists(local_logo) else f"https://images.financialmodelingprep.com/symbol/{clean_sym}.NS.png"
+
+                    entry = {
+                        "symbol": formatted,
+                        "name": item.get("name") or sym,
+                        "sector": sector,
+                        "listing_date": item.get("listing_date") or "Recently Listed",
+                        "is_new_listing": True,
+                        "aliases": [sym.lower(), (item.get("name") or "").lower()]
+                    }
+                    current_dyn.append(entry)
+                    current_dyn_dict[formatted] = entry
+                    newly_added.append(entry)
+
+                    # Warm single-quote cache
+                    q_data = {
+                        "symbol": formatted,
+                        "name": entry["name"],
+                        "asset_type": "STOCK",
+                        "price": price,
+                        "change": change,
+                        "change_pct": change_pct,
+                        "previous_close": prev_close,
+                        "prev_close": prev_close,
+                        "open": round(float(getattr(fast, "open", None) or prev_close), 2),
+                        "day_high": round(float(getattr(fast, "day_high", None) or (price * 1.015)), 2),
+                        "day_low": round(float(getattr(fast, "day_low", None) or (price * 0.985)), 2),
+                        "fifty_two_week_high": round(float(getattr(fast, "year_high", None) or (price * 1.25)), 2),
+                        "fifty_two_week_low": round(float(getattr(fast, "year_low", None) or (price * 0.80)), 2),
+                        "market_cap": int(getattr(fast, "market_cap", None) or 50000000000),
+                        "pe_ratio": 24.5,
+                        "pb_ratio": 3.0,
+                        "dividend_yield": 0.5,
+                        "div_yield": 0.5,
+                        "volume": int(getattr(fast, "last_volume", None) or 100000),
+                        "sector": sector,
+                        "logo_url": logo_url,
+                        "is_new_listing": True,
+                        "listing_date": entry["listing_date"]
+                    }
+                    set_cached(f"quote_{formatted}", q_data, ttl=get_quote_ttl())
+            except Exception:
+                _INVALID_TICKERS_CACHE[formatted] = now + 3600
+
+        if newly_added:
+            save_new_listings(current_dyn)
+
+    clear_explore_cache()
+    return {
+        "success": True,
+        "added_count": len(newly_added),
+        "added": newly_added,
+        "total_recent": len(current_dyn),
+        "message": f"Successfully synced {len(newly_added)} newly listed stocks" if newly_added else "Catalog is already up to date with all recent NSE listings"
+    }
+
 # Dedicated pool for mutual fund fetches. The stock block in get_explore_data()
 # abandons its slow yfinance futures after 1.5s WITHOUT cancelling them, so they keep
 # occupying _POOL workers for many seconds afterwards. Sharing that pool starved the
@@ -142,7 +319,8 @@ INDEX_META = {
 
 def _refresh_stock_quote_sync(formatted_symbol: str) -> Dict[str, Any]:
     cache_key = f"quote_{formatted_symbol}"
-    matched = next((s for s in STOCK_MASTER if s["symbol"] == formatted_symbol), None)
+    combined_master = get_combined_stock_master()
+    matched = next((s for s in combined_master if s["symbol"] == formatted_symbol), None)
     matched_etf = next((e for e in ETF_MASTER if e["symbol"] == formatted_symbol), None)
 
     idx_info = INDEX_META.get(formatted_symbol)
@@ -283,7 +461,9 @@ def _refresh_stock_quote_sync(formatted_symbol: str) -> Dict[str, Any]:
             "sector": sector,
             "industry": industry,
             "website": website,
-            "logo_url": logo_url
+            "logo_url": logo_url,
+            "is_new_listing": bool(matched and matched.get("is_new_listing")),
+            "listing_date": matched.get("listing_date") if matched else None
         }
         set_cached(cache_key, data, ttl=get_quote_ttl())
         return data
@@ -558,7 +738,7 @@ def _get_default_stock_quote(symbol: str, name: str = "", sector: str = "NSE Equ
     if matched_etf:
         return _get_default_etf_quote(symbol, matched_etf["name"], matched_etf.get("sector", "Commodity / Index"), matched_etf.get("category", "Index"))
 
-    matched = next((s for s in STOCK_MASTER if s["symbol"] == symbol), None)
+    matched = next((s for s in get_combined_stock_master() if s["symbol"] == symbol), None)
     n = name or (matched["name"] if matched else symbol.replace(".NS", ""))
     sec = sector or (matched["sector"] if matched else "NSE Equities")
 
@@ -610,7 +790,9 @@ def _get_default_stock_quote(symbol: str, name: str = "", sector: str = "NSE Equ
         "industry_pe": ind_pe,
         "volume": 1420000,
         "sector": sec,
-        "logo_url": logo_url
+        "logo_url": logo_url,
+        "is_new_listing": bool(matched and matched.get("is_new_listing")),
+        "listing_date": matched.get("listing_date") if matched else None
     }
 
 def get_explore_data() -> Dict[str, Any]:
@@ -618,11 +800,13 @@ def get_explore_data() -> Dict[str, Any]:
     if cached and cached.get("all_stocks") and cached.get("etfs"):
         return cached
 
-    all_symbols = [s["symbol"] for s in STOCK_MASTER]
+    combined_master = get_combined_stock_master()
+    dynamic_items = load_new_listings()
+    all_symbols = [s["symbol"] for s in combined_master]
     stock_dict = {}
 
     # 1. Check which symbols are already warm in single-quote cache
-    for s in STOCK_MASTER:
+    for s in combined_master:
         sym = s["symbol"]
         c_quote = get_cached(f"quote_{sym}")
         if c_quote and c_quote.get("price"):
@@ -649,13 +833,15 @@ def get_explore_data() -> Dict[str, Any]:
                                 prev_close = round(float(prev_close or price), 2)
                                 change = round(price - prev_close, 2)
                                 change_pct = round((change / prev_close) * 100, 2) if prev_close else 0.0
-                                matched = next((s for s in STOCK_MASTER if s["symbol"] == sym), None)
+                                matched = next((s for s in combined_master if s["symbol"] == sym), None)
                                 n = matched["name"] if matched else sym.replace(".NS", "")
                                 sec = matched.get("sector", "NSE Equities") if matched else "NSE Equities"
                                 clean_sym = sym.replace(".NS", "").replace(".BO", "").upper()
                                 local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_sym}.png")
                                 logo_url = f"/static/logos/{clean_sym}.png" if os.path.exists(local_logo) else f"https://images.financialmodelingprep.com/symbol/{clean_sym}.NS.png"
                                 bm = _BENCHMARK_FUNDAMENTALS.get(sym) or {}
+                                is_new = bool(matched and matched.get("is_new_listing"))
+                                list_date = matched.get("listing_date") if matched else None
                                 q_data = {
                                     "symbol": sym,
                                     "name": n,
@@ -681,7 +867,9 @@ def get_explore_data() -> Dict[str, Any]:
                                     "industry_pe": bm.get("industry_pe") or _SECTOR_INDUSTRY_PES.get(sec, 24.5),
                                     "volume": int(getattr(fast, "last_volume", None) or 1000000),
                                     "sector": sec,
-                                    "logo_url": logo_url
+                                    "logo_url": logo_url,
+                                    "is_new_listing": is_new,
+                                    "listing_date": list_date
                                 }
                                 res[sym] = q_data
                                 existing = get_cached(f"quote_{sym}")
@@ -694,6 +882,8 @@ def get_explore_data() -> Dict[str, Any]:
                                     existing["open"] = q_data["open"]
                                     existing["day_high"] = q_data["day_high"]
                                     existing["day_low"] = q_data["day_low"]
+                                    existing["is_new_listing"] = is_new
+                                    existing["listing_date"] = list_date
                                     set_cached(f"quote_{sym}", existing, ttl=get_quote_ttl())
                         except Exception:
                             pass
@@ -709,13 +899,14 @@ def get_explore_data() -> Dict[str, Any]:
             pass
 
     # 3. Fill any remaining with instant, realistic baseline quotes
-    for s in STOCK_MASTER:
+    for s in combined_master:
         sym = s["symbol"]
         if sym not in stock_dict or not stock_dict[sym].get("price"):
             stock_dict[sym] = _get_default_stock_quote(sym, s["name"], s["sector"])
 
-    # 4. Strict ordering: strictly preserve STOCK_MASTER catalog order so cards NEVER shuffle or rearrange
-    all_stocks = [stock_dict[s["symbol"]] for s in STOCK_MASTER if s["symbol"] in stock_dict]
+    # 4. Preserve catalog order and separate recent listings
+    all_stocks = [stock_dict[s["symbol"]] for s in combined_master if s["symbol"] in stock_dict]
+    recent_listings = [stock_dict[s["symbol"]] for s in dynamic_items if s["symbol"] in stock_dict]
 
     # Mutual funds — real AMFI NAVs via mfapi.in. No synthetic prices: a fund we
     # cannot fetch is reported as unavailable rather than shown with invented figures.
@@ -863,6 +1054,7 @@ def get_explore_data() -> Dict[str, Any]:
         "gainers": gainers,
         "losers": losers,
         "all_stocks": all_stocks,
+        "recent_listings": recent_listings,
         "mutual_funds": all_mfs,
         "etfs": all_etfs
     }
@@ -1073,7 +1265,7 @@ def search_market(query: str) -> List[Dict[str, Any]]:
     results = []
     seen_symbols = set()
 
-    for s in STOCK_MASTER:
+    for s in get_combined_stock_master():
         sym_clean = s["symbol"].lower().replace(".ns", "").replace(".bo", "")
         name_clean = s["name"].lower()
         alias_match = any(q in a.lower() for a in s.get("aliases", []))
@@ -1084,12 +1276,14 @@ def search_market(query: str) -> List[Dict[str, Any]]:
                 clean_s = s["symbol"].upper().replace(".NS", "").replace(".BO", "")
                 local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_s}.png")
                 logo_url = f"/static/logos/{clean_s}.png" if os.path.exists(local_logo) else f"https://images.financialmodelingprep.com/symbol/{clean_s}.NS.png"
+                subtext = f"NEW • Listed {s.get('listing_date')}" if s.get("is_new_listing") else f"NSE • {s['sector']}"
                 results.append({
                     "symbol": s["symbol"],
                     "name": s["name"],
                     "asset_type": "STOCK",
                     "logo_url": logo_url,
-                    "subtext": f"NSE • {s['sector']}"
+                    "subtext": subtext,
+                    "is_new_listing": s.get("is_new_listing", False)
                 })
 
     for e in ETF_MASTER:
@@ -1238,13 +1432,14 @@ def get_stock_shareholding(symbol: str) -> Dict[str, Any]:
 
 def get_stock_peers(symbol: str) -> List[Dict[str, Any]]:
     # Find industry sector from master
-    found_stock = next((s for s in STOCK_MASTER if s["symbol"].upper() == symbol.upper() or s["symbol"].split(".")[0].upper() == symbol.split(".")[0].upper()), None)
+    combined = get_combined_stock_master()
+    found_stock = next((s for s in combined if s["symbol"].upper() == symbol.upper() or s["symbol"].split(".")[0].upper() == symbol.split(".")[0].upper()), None)
     sector = found_stock["sector"] if found_stock else "Diversified"
 
     # Find other stocks in same sector
-    peer_candidates = [s for s in STOCK_MASTER if s.get("sector") == sector and s["symbol"].upper() != symbol.upper()]
+    peer_candidates = [s for s in combined if s.get("sector") == sector and s["symbol"].upper() != symbol.upper()]
     if not peer_candidates:
-        peer_candidates = [s for s in STOCK_MASTER if s["symbol"].upper() != symbol.upper()][:4]
+        peer_candidates = [s for s in combined if s["symbol"].upper() != symbol.upper()][:4]
 
     peers = []
     for p in peer_candidates[:4]:

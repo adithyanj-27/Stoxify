@@ -870,9 +870,9 @@ function saveStoredExploreData(data) {
 }
 
 // --- Explore View ---
-async function fetchExploreData() {
+async function fetchExploreData(forceRefresh = false) {
   // 1. Immediately render cached or bundled data so user never waits for an eternity
-  if (!state.exploreData || !state.exploreData.all_stocks || state.exploreData.all_stocks.length === 0) {
+  if (!forceRefresh && (!state.exploreData || !state.exploreData.all_stocks || state.exploreData.all_stocks.length === 0)) {
     state.exploreData = loadStoredExploreData();
     renderExploreStocks();
     renderExploreMutualFunds();
@@ -882,7 +882,8 @@ async function fetchExploreData() {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 9000);
-    const res = await fetch('/api/explore', { signal: controller.signal });
+    const url = forceRefresh ? '/api/explore?refresh=1' : '/api/explore';
+    const res = await fetch(url, { signal: controller.signal });
     clearTimeout(timer);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
@@ -899,6 +900,44 @@ async function fetchExploreData() {
       renderExploreStocks();
       renderExploreMutualFunds();
     }
+  }
+}
+
+async function handleSyncNewListings(e) {
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  const btn = document.getElementById('btnSyncNewListings');
+  if (!btn) return;
+  const icon = btn.querySelector('.refresh-icon');
+  const text = btn.querySelector('.refresh-text');
+  const originalText = text ? text.innerText : 'Refresh Stocks';
+
+  btn.disabled = true;
+  if (icon) icon.classList.add('spin');
+  if (text) text.innerText = 'Checking NSE...';
+
+  try {
+    const res = await fetch('/api/stocks/sync-new-listings', { method: 'POST' });
+    const data = await res.json();
+    if (data && data.success) {
+      if (data.added_count > 0) {
+        showToast(`🎉 Added ${data.added_count} newly listed stocks from NSE!`, false);
+      } else {
+        showToast(`✅ Stocks are up to date (${data.total_recent || 0} recent listings tracked).`, false);
+      }
+      await fetchExploreData(true);
+    } else {
+      showToast((data && data.message) || 'Sync could not be completed.', true);
+    }
+  } catch (err) {
+    console.error('Sync failed:', err);
+    showToast('Failed to sync new listings. Please try again.', true);
+  } finally {
+    btn.disabled = false;
+    if (icon) icon.classList.remove('spin');
+    if (text) text.innerText = originalText;
   }
 }
 
@@ -1383,6 +1422,12 @@ function renderExploreStocks() {
     list = state.exploreData.all_stocks;
     title.innerText = `Explore Top Stocks (${list.length} available)`;
     if (desc) desc.innerText = 'Live market quotes directly from National Stock Exchange (NSE)';
+  } else if (state.exploreStockFilter === 'recent') {
+    list = (state.exploreData.recent_listings && state.exploreData.recent_listings.length > 0)
+      ? state.exploreData.recent_listings
+      : state.exploreData.all_stocks.filter(s => s.is_new_listing);
+    title.innerText = `Recently Listed Stocks (${list.length} available)`;
+    if (desc) desc.innerText = 'Newly debuted equities and recent IPO listings actively trading on NSE';
   } else if (state.exploreStockFilter === 'gainers') {
     list = state.exploreData.gainers;
     title.innerText = `Top Gainers Today (${list.length})`;
@@ -1413,16 +1458,19 @@ function renderExploreStocks() {
     const cleanSym = (s.symbol || '').replace('.NS', '').replace('.BO', '');
     const isPos = (s.change || 0) >= 0;
     const badgeClass = isPos ? 'badge-positive' : 'badge-negative';
+    const newBadge = s.is_new_listing ? `<span class="badge-new-stock">NEW</span>` : '';
     const subText = aType === 'ETF'
       ? `${cleanSym} • ${s.category || 'ETF'} • NSE`
-      : `${cleanSym} • ${s.sector || 'NSE'}`;
+      : (s.is_new_listing && s.listing_date && s.listing_date !== '—')
+        ? `${cleanSym} • Listed ${s.listing_date}`
+        : `${cleanSym} • ${s.sector || 'NSE'}`;
     return `
       <div class="stock-card" onclick="openAssetModal('${s.symbol}', '${aType}')">
         <div class="card-top">
           <div class="card-header-left">
             ${renderAssetAvatar(s, aType)}
             <div class="card-info">
-              <div class="card-title" title="${s.name}">${s.name}</div>
+              <div class="card-title" title="${s.name}">${s.name} ${newBadge}</div>
               <div class="card-subtitle">${subText}</div>
             </div>
           </div>
