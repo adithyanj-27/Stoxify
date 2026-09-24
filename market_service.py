@@ -192,8 +192,13 @@ def sync_new_listings() -> Dict[str, Any]:
                         "sector": sector,
                         "listing_date": item.get("listing_date") or "Recently Listed",
                         "is_new_listing": True,
+                        "base_price": price,
+                        "prev_close": prev_close,
+                        "change": change,
+                        "change_pct": change_pct,
                         "aliases": [sym.lower(), (item.get("name") or "").lower()]
                     }
+                    _BASE_STOCK_PRICES[formatted] = (price, change, change_pct)
                     current_dyn.append(entry)
                     current_dyn_dict[formatted] = entry
                     newly_added.append(entry)
@@ -745,6 +750,10 @@ def _get_default_stock_quote(symbol: str, name: str = "", sector: str = "NSE Equ
     base_info = _BASE_STOCK_PRICES.get(symbol)
     if base_info:
         price, change, change_pct = base_info
+    elif matched and matched.get("base_price"):
+        price = round(float(matched["base_price"]), 2)
+        change = round(float(matched.get("change", 0.0)), 2)
+        change_pct = round(float(matched.get("change_pct", 0.0)), 2)
     else:
         price = 100.0
         change = 0.0
@@ -892,7 +901,7 @@ def get_explore_data() -> Dict[str, Any]:
                 return res
 
             fut = _POOL.submit(_fetch_missing_fast, missing_syms)
-            fresh_quotes = fut.result(timeout=3.0)
+            fresh_quotes = fut.result(timeout=6.0)
             if fresh_quotes:
                 stock_dict.update(fresh_quotes)
         except Exception:

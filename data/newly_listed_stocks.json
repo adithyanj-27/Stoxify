@@ -9,7 +9,11 @@
       "sona",
       "sonaselection",
       "sonaselection india"
-    ]
+    ],
+    "base_price": 107.42,
+    "prev_close": 107.42,
+    "change": 0.0,
+    "change_pct": 0.0
   },
   {
     "symbol": "HEROMOTORS.NS",
@@ -20,7 +24,11 @@
     "aliases": [
       "heromotors",
       "hero motors"
-    ]
+    ],
+    "base_price": 118.08,
+    "prev_close": 98.4,
+    "change": 19.68,
+    "change_pct": 20.0
   },
   {
     "symbol": "SSRETAIL.NS",
@@ -31,7 +39,11 @@
     "aliases": [
       "ssretail",
       "ss retail"
-    ]
+    ],
+    "base_price": 811.8,
+    "prev_close": 748.8,
+    "change": 63.0,
+    "change_pct": 8.41
   },
   {
     "symbol": "JSIPL.NS",
@@ -42,7 +54,11 @@
     "aliases": [
       "jsipl",
       "jindal supreme"
-    ]
+    ],
+    "base_price": 132.3,
+    "prev_close": 126.0,
+    "change": 6.3,
+    "change_pct": 5.0
   },
   {
     "symbol": "MANIKA.NS",
@@ -53,7 +69,11 @@
     "aliases": [
       "manika",
       "manika plastech"
-    ]
+    ],
+    "base_price": 41.46,
+    "prev_close": 42.7,
+    "change": -1.24,
+    "change_pct": -2.9
   },
   {
     "symbol": "VEEGALAND.NS",
@@ -64,7 +84,11 @@
     "aliases": [
       "veegaland",
       "veegaland developers"
-    ]
+    ],
+    "base_price": 142.38,
+    "prev_close": 142.98,
+    "change": -0.6,
+    "change_pct": -0.42
   },
   {
     "symbol": "MPIMANIPAL.NS",
@@ -76,7 +100,11 @@
       "manipal",
       "mpimanipal",
       "manipal payment"
-    ]
+    ],
+    "base_price": 359.95,
+    "prev_close": 372.0,
+    "change": -12.05,
+    "change_pct": -3.24
   },
   {
     "symbol": "KARAMTARA.NS",
@@ -87,7 +115,11 @@
     "aliases": [
       "karamtara",
       "karamtara engineering"
-    ]
+    ],
+    "base_price": 369.05,
+    "prev_close": 366.0,
+    "change": 3.05,
+    "change_pct": 0.83
   },
   {
     "symbol": "LCCPROJECT.NS",
@@ -98,7 +130,11 @@
     "aliases": [
       "lccproject",
       "lcc projects"
-    ]
+    ],
+    "base_price": 144.22,
+    "prev_close": 146.59,
+    "change": -2.37,
+    "change_pct": -1.62
   },
   {
     "symbol": "RENTOMOJO.NS",
@@ -108,7 +144,11 @@
     "is_new_listing": true,
     "aliases": [
       "rentomojo"
-    ]
+    ],
+    "base_price": 501.9,
+    "prev_close": 518.0,
+    "change": -16.1,
+    "change_pct": -3.11
   },
   {
     "symbol": "STEAMHOUSE.NS",
@@ -119,7 +159,11 @@
     "aliases": [
       "steamhouse",
       "steamhouse india"
-    ]
+    ],
+    "base_price": 113.71,
+    "prev_close": 109.84,
+    "change": 3.87,
+    "change_pct": 3.52
   },
   {
     "symbol": "ARCIL.NS",
@@ -130,7 +174,11 @@
     "aliases": [
       "arcil",
       "asset reconstruction"
-    ]
+    ],
+    "base_price": 148.62,
+    "prev_close": 148.7,
+    "change": -0.08,
+    "change_pct": -0.05
   },
   {
     "symbol": "GLASSWALL.NS",
@@ -141,7 +189,11 @@
     "aliases": [
       "glasswall",
       "glass wall"
-    ]
+    ],
+    "base_price": 272.07,
+    "prev_close": 282.5,
+    "change": -10.43,
+    "change_pct": -3.69
   },
   {
     "symbol": "KANOHAR.NS",
@@ -152,7 +204,11 @@
     "aliases": [
       "kanohar",
       "kanohar electricals"
-    ]
+    ],
+    "base_price": 863.3,
+    "prev_close": 911.1,
+    "change": -47.8,
+    "change_pct": -5.25
   },
   {
     "symbol": "PRASOLCHEM.NS",
@@ -163,7 +219,11 @@
     "aliases": [
       "prasolchem",
       "prasol chemicals"
-    ]
+    ],
+    "base_price": 720.7,
+    "prev_close": 744.0,
+    "change": -23.3,
+    "change_pct": -3.13
   },
   {
     "symbol": "PRANAV.NS",
@@ -174,7 +234,11 @@
     "aliases": [
       "pranav",
       "pranav constructions"
-    ]
+    ],
+    "base_price": 100.19,
+    "prev_close": 105.85,
+    "change": -5.66,
+    "change_pct": -5.35
   },
   {
     "symbol": "DEEPA.NS",
@@ -185,7 +249,11 @@
     "aliases": [
       "deepa",
       "deepa jewellers"
-    ]
+    ],
+    "base_price": 194.18,
+    "prev_close": 196.4,
+    "change": -2.22,
+    "change_pct": -1.13
   },
   {
     "symbol": "PERNIASPOP.NS",
@@ -197,7 +265,11 @@
       "perniaspop",
       "purple style",
       "pernia"
-    ]
+    ],
+    "base_price": 530.4,
+    "prev_close": 549.05,
+    "change": -18.65,
+    "change_pct": -3.4
   },
   {
     "symbol": "MOMSBELIEF.NS",
@@ -208,6 +280,10 @@
     "aliases": [
       "momsbelief",
       "rays of belief limited- for profit social enterprise (fpse)"
-    ]
+    ],
+    "base_price": 222.44,
+    "prev_close": 226.0,
+    "change": -3.56,
+    "change_pct": -1.58
   }
 ]
