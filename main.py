@@ -117,6 +117,8 @@ def startup():
             auto_square_off_intraday()
         t = threading.Thread(target=_auto_square_off_worker, daemon=True, name="stoxify-auto-square-off")
         t.start()
+        t_sync = threading.Thread(target=market_service.run_daily_market_sync_worker, daemon=True, name="stoxify-daily-market-sync")
+        t_sync.start()
     except Exception:
         pass
 

@@ -1041,39 +1041,74 @@ const SYMBOL_DOMAINS = {
 window.SYMBOL_DOMAINS = SYMBOL_DOMAINS;
 
 const LOCAL_LOGOS = new Set([
-  "118989","119598","120503","120828","122639","125354","ADANIENT","ADANIGREEN",
-  "ADANIPORTS","ADANIPOWER","APOLLOHOSP","ASHOKLEY","ASIANPAINT","AXISBANK","BAJAJ-AUTO",
-  "BAJFINANCE","BANKBARODA","BDL","BEL","BHARTIARTL","BHEL","BSE","CANBK","CDSL",
-  "CIPLA","COALINDIA","COCHINSHIP","DRREDDY","EICHERMOT","ETERNAL","FEDERALBNK","GRSE",
-  "HAL","HDFCBANK","HINDALCO","HINDUNILVR","ICICIBANK","IDFCFIRSTB","INFY","IRCTC",
-  "IREDA","IRFC","ITC","JIOFIN","JSWSTEEL","KOTAKBANK","LT","M&M","MARUTI","MAZDOCK",
-  "NHPC","NTPC","ONGC","PAYTM","PFC","PNB","POWERGRID","RAILTEL","RECLTD","RELIANCE",
-  "RVNL","SBIN","SUNPHARMA","SUZLON","TATAELXSI","TATAPOWER","TATASTEEL","TATATECH",
-  "TCS","TITAN","TMCV","TMPV","TRENT","TVSMOTOR","ULTRACEMCO","VEDL","WIPRO","YESBANK"
+  "118834","118989","119551","119598","119803","120503","120586","120716","120828","122639",
+  "125354","127042","135781","148712","ACEVECTOR","ADANIENT","ADANIGREEN","ADANIPORTS","ADANIPOWER",
+  "ADROITIND","AONESTEELS","APOLLOHOSP","ARCIL","ARMEE","ASHOKLEY","ASIANPAINT","AUTOBEES",
+  "AXIOMGAS","AXIS","AXISBANK","BAJAJ-AUTO","BAJFINANCE","BANKBARODA","BANKBEES","BDL","BEL",
+  "BHARTIARTL","BHEL","BMISL","BSE","CANBK","CDSL","CIPLA","COALINDIA","COCHINSHIP","COREIN",
+  "CPSEETF","DEEPA","DRREDDY","EICHERMOT","ELEVATE","ETERNAL","FEDERALBNK","GERMAN","GLASSWALL",
+  "GOLDBEES","GREENASIA","GRSE","HAL","HDFC","HDFCBANK","HDFCGOLD","HDFCSILVER","HEROMOTORS",
+  "HIMALAYAN","HINDALCO","HINDUNILVR","ICICI","ICICIBANK","IDFCFIRSTB","INFY","IRCTC","IREDA",
+  "IRFC","ITBEES","ITC","JIOFIN","JSIPL","JSWSTEEL","JUNIORBEES","KANOHAR","KARAMTARA",
+  "KHERIAAUTO","KOTAKBANK","LCCPROJECT","LT","M&M","MAFANG","MANIKA","MARUTI","MAZDOCK",
+  "MF_AXIS","MF_HDFC","MF_ICICI","MF_MIRAE","MF_MOTILAL","MF_NAVI","MF_NIPPON","MF_PPFAS",
+  "MF_QUANT","MF_SBI","MF_TATA","MF_UTI","MID150BEES","MIRAE","MOMSBELIEF","MON100","MONEYVIEW",
+  "MOTILAL","MPIMANIPAL","NAVI","NHPC","NIFTYBEES","NIPPON","NTPC","ONGC","ORIENTCABL","PAYTM",
+  "PERNIASPOP","PFC","PHARMABEES","PNB","POOJALOGIS","POWERGRID","PPFAS","PRANAV","PRASOLCHEM",
+  "QUANT","RAILTEL","RECLTD","RELIANCE","RENTOMOJO","RUNWALENTR","RVNL","SBI","SBIN","SETFGOLD",
+  "SHAHINVEST","SILVERBEES","SONA","SPECTRAA","SRIT","SSRETAIL","STEAMHOUSE","SUNPHARMA","SUZLON",
+  "SWASTIKAIN","TATA","TATAELXSI","TATAPOWER","TATASTEEL","TATATECH","TCS","TITAN","TMCV",
+  "TMPV","TRENT","TVSMOTOR","ULTRACEMCO","UTI","VARMORA","VEDL","VEEGALAND","VINOD","WIPRO","YESBANK"
 ]);
+
+function generateVectorEmblem(symbol) {
+  const sym = (symbol || 'STK').replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase();
+  let hash = 0;
+  for (let i = 0; i < sym.length; i++) hash = sym.charCodeAt(i) + ((hash << 5) - hash);
+  const hue = Math.abs(hash) % 360;
+  const c1 = `hsl(${hue}, 70%, 42%)`;
+  const c2 = `hsl(${(hue + 45) % 360}, 80%, 30%)`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+    <defs>
+      <linearGradient id="g_${sym}" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="${c1}"/>
+        <stop offset="100%" stop-color="${c2}"/>
+      </linearGradient>
+    </defs>
+    <rect width="128" height="128" rx="28" fill="url(#g_${sym})"/>
+    <circle cx="108" cy="20" r="42" fill="white" opacity="0.14"/>
+    <text x="64" y="74" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="${sym.length > 3 ? '34' : '42'}" font-weight="800" text-anchor="middle" dominant-baseline="middle">${sym}</text>
+  </svg>`;
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+}
 
 function getAssetLogoUrl(sym, item) {
   if (!sym) return '';
   if (item && item.logo_url) return item.logo_url;
-  const cleanSym = sym.toUpperCase().replace('.NS', '').replace('.BO', '').trim();
+  const cleanSym = String(sym).toUpperCase().replace('.NS', '').replace('.BO', '').trim();
   if (LOCAL_LOGOS.has(cleanSym)) {
     return `/static/logos/${cleanSym}.png`;
+  }
+  // Check if mutual fund AMFI code or AMC name
+  if (item && item.code && LOCAL_LOGOS.has(String(item.code))) {
+    return `/static/logos/${item.code}.png`;
   }
   // High-resolution real corporate logo CDN covering all NSE Indian equities
   return `https://images.financialmodelingprep.com/symbol/${cleanSym}.NS.png`;
 }
 
-// Automated Logo Error Handler: Cascades through high-reliability CDN sources before falling back to initial badge
+// Automated Logo Error Handler: Cascades through high-reliability CDN sources then falls back to crisp 256x256 vector emblem
 function handleLogoError(img) {
   if (!img) return;
   const rawSym = img.getAttribute('data-symbol') || '';
   const sym = rawSym.toUpperCase().replace('.NS', '').replace('.BO', '').trim();
 
-  // If numeric (e.g. mutual fund AMFI code) or empty, fall back directly to initial / icon
-  if (!sym || /^\d+$/.test(sym)) {
-    img.style.display = 'none';
-    if (img.nextElementSibling) img.nextElementSibling.style.display = 'flex';
-    return;
+  // If numeric (e.g. mutual fund AMFI code)
+  if (/^\d+$/.test(sym)) {
+    if (LOCAL_LOGOS.has(sym)) {
+      img.src = `/static/logos/${sym}.png`;
+      return;
+    }
   }
 
   const step = parseInt(img.getAttribute('data-logo-step') || '0', 10);
@@ -1086,11 +1121,9 @@ function handleLogoError(img) {
     `https://images.financialmodelingprep.com/symbol/${cleanTicker}.NS.png`,
     // 2. FMP High-Res Symbol Logo without .NS
     `https://images.financialmodelingprep.com/symbol/${cleanTicker}.png`,
-    // 3. Clearbit Logo API via corporate domain mapping
-    ...(domain ? [`https://logo.clearbit.com/${domain}`] : []),
-    // 4. Google Favicon CDN 128px via official domain
+    // 3. Google Favicon CDN 128px via official domain
     ...(domain ? [`https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.${domain}&size=128`] : []),
-    // 5. Inferred domains via Google Favicon CDN
+    // 4. Inferred domains via Google Favicon CDN
     `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.${cleanTicker.toLowerCase()}.com&size=128`,
     `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.${cleanTicker.toLowerCase()}.in&size=128`
   ];
@@ -1099,11 +1132,9 @@ function handleLogoError(img) {
     img.setAttribute('data-logo-step', (step + 1).toString());
     img.src = sources[step];
   } else {
-    // All dynamic CDN sources exhausted -> show initial badge
-    img.style.display = 'none';
-    if (img.nextElementSibling) {
-      img.nextElementSibling.style.display = 'flex';
-    }
+    // All CDN sources exhausted -> serve crisp 256x256 vector corporate brand emblem
+    img.onerror = null;
+    img.src = generateVectorEmblem(cleanTicker || 'STK');
   }
 }
 window.handleLogoError = handleLogoError;
@@ -1422,12 +1453,6 @@ function renderExploreStocks() {
     list = state.exploreData.all_stocks;
     title.innerText = `Explore Top Stocks (${list.length} available)`;
     if (desc) desc.innerText = 'Live market quotes directly from National Stock Exchange (NSE)';
-  } else if (state.exploreStockFilter === 'recent') {
-    list = (state.exploreData.recent_listings && state.exploreData.recent_listings.length > 0)
-      ? state.exploreData.recent_listings
-      : state.exploreData.all_stocks.filter(s => s.is_new_listing);
-    title.innerText = `Recently Listed Stocks (${list.length} available)`;
-    if (desc) desc.innerText = 'Newly debuted equities and recent IPO listings actively trading on NSE';
   } else if (state.exploreStockFilter === 'gainers') {
     list = state.exploreData.gainers;
     title.innerText = `Top Gainers Today (${list.length})`;
@@ -8967,13 +8992,14 @@ function renderIpos(filter) {
     }
 
     const safeName = (ipo.name || '').replace(/'/g, "\\'");
+    const ipoLogo = getAssetLogoUrl(ipo.symbol, ipo);
 
     return `
       <div class="ipo-card">
         <div class="ipo-card-header">
           <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0; flex: 1;">
-            <div class="card-avatar" style="width: 40px; height: 40px; border-radius: 10px; font-weight: 800; font-size: 0.88rem; display: flex; align-items: center; justify-content: center; background: ${colorPick.bg}; color: ${colorPick.color}; flex-shrink: 0;">
-              ${(ipo.symbol || 'IP').slice(0, 3)}
+            <div class="card-avatar" style="width: 42px; height: 42px; border-radius: 10px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: ${colorPick.bg}; border: 1px solid rgba(255,255,255,0.08); flex-shrink: 0;">
+              <img src="${ipoLogo}" alt="${ipo.name}" data-symbol="${ipo.symbol || ''}" onerror="handleLogoError(this)" style="width: 30px; height: 30px; object-fit: contain; border-radius: 4px;">
             </div>
             <div style="min-width: 0; flex: 1;">
               <h4 class="ipo-card-title" title="${ipo.name}">${ipo.name}</h4>
@@ -9036,6 +9062,12 @@ function openIpoBidModal(ipoId) {
   document.getElementById('ipoModalPriceBand').innerText = `₹${ipo.min_price} - ₹${ipo.max_price}`;
   document.getElementById('ipoModalLotSize').innerText = `${ipo.lot_size} shares`;
   document.getElementById('ipoModalGmp').innerText = `+₹${ipo.gmp} (+${ipo.gmp_pct}%)`;
+
+  const ipoAvatarEl = document.getElementById('ipoModalAvatar');
+  if (ipoAvatarEl) {
+    const ipoLogo = getAssetLogoUrl(ipo.symbol, ipo);
+    ipoAvatarEl.innerHTML = `<img src="${ipoLogo}" alt="${ipo.name}" data-symbol="${ipo.symbol || ''}" onerror="handleLogoError(this)" style="width: 28px; height: 28px; object-fit: contain; border-radius: 4px;">`;
+  }
 
   document.getElementById('ipoModalLots').value = 1;
   recalcIpoAmount();

@@ -136,6 +136,20 @@ def resolve_ipo_status(
     return default_status
 
 
+def _calculate_lot_size(high_price: Optional[float], series: Optional[str] = "EQ") -> int:
+    """Calculates standard retail lot size compliant with SEBI retail bidding minimum ticket (~Rs 14,000-15,000)."""
+    if not high_price or high_price <= 0:
+        return 50
+    if series and str(series).upper() in ("SM", "ST", "SME"):
+        return max(500, round(120000 / high_price / 100) * 100)
+    shares = round(14500.0 / high_price)
+    if shares <= 15:
+        return max(1, shares)
+    elif shares <= 50:
+        return max(1, round(shares / 5) * 5)
+    return max(1, round(shares / 10) * 10)
+
+
 def _current_item(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     symbol = str(row.get("symbol") or "IPO").upper()
     name = row.get("companyName") or symbol
@@ -143,6 +157,7 @@ def _current_item(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return None
 
     low, high = _price_range(row.get("issuePrice"))
+    lot_size = int(row.get("marketLot") or row.get("minBidQty") or row.get("lotSize") or _calculate_lot_size(high, row.get("series")))
     try:
         multiple = row.get("noOfTime") or row.get("subscription_times")
         subscription = round(float(multiple), 2)
@@ -162,6 +177,7 @@ def _current_item(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "price_band": _display_price(row.get("issuePrice")),
         "min_price": low,
         "max_price": high,
+        "lot_size": lot_size,
         "open_date": open_d,
         "close_date": close_d,
         "listing_date": "—",
@@ -181,6 +197,7 @@ def _forthcoming_item(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return None
 
     low, high = _price_range(data.get("issuePrice"))
+    lot_size = int(row.get("marketLot") or row.get("minBidQty") or row.get("lotSize") or _calculate_lot_size(high, data.get("series") or row.get("series")))
     open_d = _display_date(data.get("issueStartDate") or row.get("startDate"))
     close_d = _display_date(data.get("issueEndDate") or row.get("endDate"))
     status = resolve_ipo_status(open_d, close_d, default_status="UPCOMING")
@@ -194,6 +211,7 @@ def _forthcoming_item(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "price_band": _display_price(data.get("issuePrice")),
         "min_price": low,
         "max_price": high,
+        "lot_size": lot_size,
         "open_date": open_d,
         "close_date": close_d,
         "listing_date": "—",
@@ -212,6 +230,7 @@ def _past_item(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return None
 
     low, high = _price_range(row.get("priceRange") or row.get("issuePrice"))
+    lot_size = int(row.get("marketLot") or row.get("lotSize") or _calculate_lot_size(high, row.get("securityType")))
     open_d = _display_date(row.get("ipoStartDate"))
     close_d = _display_date(row.get("ipoEndDate"))
     listing_d = _display_date(row.get("listingDate"))
@@ -226,6 +245,7 @@ def _past_item(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "price_band": _display_price(row.get("priceRange") or row.get("issuePrice")),
         "min_price": low,
         "max_price": high,
+        "lot_size": lot_size,
         "open_date": open_d,
         "close_date": close_d,
         "listing_date": listing_d,

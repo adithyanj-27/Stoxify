@@ -245,6 +245,99 @@ def sync_new_listings() -> Dict[str, Any]:
         "message": f"Successfully synced {len(newly_added)} newly listed stocks" if newly_added else "Catalog is already up to date with all recent NSE listings"
     }
 
+_DAILY_SYNC_FILE = os.path.join(DATA_DIR, "last_market_sync.json")
+
+def check_and_run_daily_10am_sync(force: bool = False) -> Dict[str, Any]:
+    """
+    Checks if today is an open market trading day (Monday-Friday, not a market holiday).
+    If it is 10:00 AM IST (or past 10:00 AM) and today's sync has not run yet,
+    triggers:
+      1. Live cloud IPO feed refresh (pulls active & upcoming issues from NSE cloud)
+      2. Newly listed stock discovery (validates with yfinance and adds to catalog)
+      3. Refreshes Explore caches and single-quote caches
+    """
+    from datetime import timezone, timedelta
+    ist = timezone(timedelta(hours=5, minutes=30))
+    now_ist = datetime.now(ist)
+    today_iso = now_ist.strftime("%Y-%m-%d")
+
+    # 1. Weekend check (Saturday=5, Sunday=6)
+    if now_ist.weekday() >= 5:
+        return {"executed": False, "reason": "Market closed on weekends (Saturday/Sunday)"}
+
+    # 2. Market holiday check
+    try:
+        from market_hours import fetch_live_market_holidays
+        holidays = fetch_live_market_holidays()
+        if today_iso in holidays:
+            holiday_name = holidays[today_iso].get("name", "Market Holiday")
+            return {"executed": False, "reason": f"Market closed for trading holiday: {holiday_name}"}
+    except Exception as e:
+        logger.warning(f"Error checking market holidays for 10am sync: {e}")
+
+    # 3. Time check: 10:00 AM IST
+    if not force and now_ist.hour < 10:
+        return {"executed": False, "reason": f"Before 10:00 AM IST (current time: {now_ist.strftime('%H:%M')} IST)"}
+
+    # 4. Check if already executed today
+    last_sync_date = ""
+    if os.path.exists(_DAILY_SYNC_FILE):
+        try:
+            with open(_DAILY_SYNC_FILE, "r", encoding="utf-8") as f:
+                last_sync_date = json.load(f).get("last_sync_date", "")
+        except Exception:
+            pass
+
+    if not force and last_sync_date == today_iso:
+        return {"executed": False, "reason": f"Daily sync already completed for {today_iso}"}
+
+    # 5. Execute scheduled sync
+    logger.info(f"[10:00 AM Daily Market Sync] Starting scheduled sync for {today_iso} at {now_ist.strftime('%H:%M:%S')} IST...")
+
+    # 5a. Refresh live IPOs from cloud
+    try:
+        import ipo_service
+        ipos = ipo_service.get_ipos(status_filter=None)
+        logger.info(f"[10:00 AM Daily Market Sync] Fetched {len(ipos)} live cloud IPO entries")
+    except Exception as e:
+        logger.warning(f"[10:00 AM Daily Market Sync] IPO sync error: {e}")
+
+    # 5b. Sync newly listed stocks
+    sync_res = sync_new_listings()
+    added_count = sync_res.get("added_count", 0)
+
+    # 5c. Persist execution record
+    try:
+        with open(_DAILY_SYNC_FILE, "w", encoding="utf-8") as f:
+            json.dump({
+                "last_sync_date": today_iso,
+                "timestamp": now_ist.isoformat(),
+                "added_count": added_count,
+                "message": sync_res.get("message", "")
+            }, f, indent=2)
+    except Exception:
+        pass
+
+    logger.info(f"[10:00 AM Daily Market Sync] Completed successfully. Added {added_count} new stocks.")
+    return {
+        "executed": True,
+        "date": today_iso,
+        "added_count": added_count,
+        "details": sync_res
+    }
+
+def run_daily_market_sync_worker():
+    """
+    Background daemon loop that monitors the clock and triggers
+    the 10:00 AM IST market-day sync.
+    """
+    while True:
+        try:
+            check_and_run_daily_10am_sync()
+        except Exception as e:
+            logger.warning(f"Error in daily market sync worker loop: {e}")
+        time.sleep(30)
+
 # Dedicated pool for mutual fund fetches. The stock block in get_explore_data()
 # abandons its slow yfinance futures after 1.5s WITHOUT cancelling them, so they keep
 # occupying _POOL workers for many seconds afterwards. Sharing that pool starved the
