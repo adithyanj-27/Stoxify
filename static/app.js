@@ -1041,24 +1041,24 @@ const SYMBOL_DOMAINS = {
 window.SYMBOL_DOMAINS = SYMBOL_DOMAINS;
 
 const LOCAL_LOGOS = new Set([
-  "118834","118989","119551","119598","119803","120503","120586","120716","120828","122639",
-  "125354","127042","135781","148712","ACEVECTOR","ADANIENT","ADANIGREEN","ADANIPORTS","ADANIPOWER",
-  "ADROITIND","AONESTEELS","APOLLOHOSP","ARCIL","ARMEE","ASHOKLEY","ASIANPAINT","AUTOBEES",
-  "AXIOMGAS","AXIS","AXISBANK","BAJAJ-AUTO","BAJFINANCE","BANKBARODA","BANKBEES","BDL","BEL",
-  "BHARTIARTL","BHEL","BMISL","BSE","CANBK","CDSL","CIPLA","COALINDIA","COCHINSHIP","COREIN",
-  "CPSEETF","DEEPA","DRREDDY","EICHERMOT","ELEVATE","ETERNAL","FEDERALBNK","GERMAN","GLASSWALL",
-  "GOLDBEES","GREENASIA","GRSE","HAL","HDFC","HDFCBANK","HDFCGOLD","HDFCSILVER","HEROMOTORS",
-  "HIMALAYAN","HINDALCO","HINDUNILVR","ICICI","ICICIBANK","IDFCFIRSTB","INFY","IRCTC","IREDA",
-  "IRFC","ITBEES","ITC","JIOFIN","JSIPL","JSWSTEEL","JUNIORBEES","KANOHAR","KARAMTARA",
-  "KHERIAAUTO","KOTAKBANK","LCCPROJECT","LT","M&M","MAFANG","MANIKA","MARUTI","MAZDOCK",
-  "MF_AXIS","MF_HDFC","MF_ICICI","MF_MIRAE","MF_MOTILAL","MF_NAVI","MF_NIPPON","MF_PPFAS",
-  "MF_QUANT","MF_SBI","MF_TATA","MF_UTI","MID150BEES","MIRAE","MOMSBELIEF","MON100","MONEYVIEW",
-  "MOTILAL","MPIMANIPAL","NAVI","NHPC","NIFTYBEES","NIPPON","NTPC","NSE","NSE.BO","NYKAA","OLAELEC","ONGC","ORIENTCABL","PAYTM",
-  "PERNIASPOP","PFC","PHARMABEES","PNB","POLICYBZR","POOJALOGIS","POWERGRID","PPFAS","PRANAV","PRASOLCHEM",
-  "QUANT","RAILTEL","RECLTD","RELIANCE","RENTOMOJO","RUNWALENTR","RVNL","SBI","SBIN","SETFGOLD",
-  "SHAHINVEST","SILVERBEES","SONA","SPECTRAA","SRIT","SSRETAIL","STEAMHOUSE","SUNPHARMA","SUZLON","SWIGGY",
-  "SWASTIKAIN","TATA","TATAELXSI","TATAPOWER","TATASTEEL","TATATECH","TCS","TITAN","TMCV",
-  "TMPV","TRENT","TVSMOTOR","ULTRACEMCO","UTI","VARMORA","VEDL","VEEGALAND","VINOD","WIPRO","YESBANK","ZOMATO","ANGELONE","DELHIVERY","IEX","MCX"
+  "118834", "118989", "119551", "119598", "119803", "120503", "120586", "120716", "120828", "122639",
+  "125354", "127042", "135781", "148712", "ACEVECTOR", "ADANIENT", "ADANIGREEN", "ADANIPORTS", "ADANIPOWER", "ADROITIND",
+  "ANGELONE", "AONESTEELS", "APOLLOHOSP", "ARCIL", "ARMEE", "ASHOKLEY", "ASIANPAINT", "AUTOBEES", "AXIOMGAS", "AXIS",
+  "AXISBANK", "BAJAJ-AUTO", "BAJFINANCE", "BANKBARODA", "BANKBEES", "BDL", "BEL", "BHARTIARTL", "BHEL", "BMISL",
+  "BSE", "CANBK", "CDSL", "CIPLA", "COALINDIA", "COCHINSHIP", "COREIN", "CPSEETF", "DEEPA", "DELHIVERY",
+  "DRREDDY", "EICHERMOT", "ELEVATE", "ETERNAL", "FEDERALBNK", "GERMAN", "GLASSWALL", "GOLDBEES", "GREENASIA", "GRSE",
+  "HAL", "HDFC", "HDFCBANK", "HDFCGOLD", "HDFCSILVER", "HEROMOTORS", "HIMALAYAN", "HINDALCO", "HINDUNILVR", "ICICI",
+  "ICICIBANK", "IDFCFIRSTB", "IEX", "INFY", "IRCTC", "IREDA", "IRFC", "ITBEES", "ITC", "JIOFIN",
+  "JSIPL", "JSWSTEEL", "JUNIORBEES", "KANOHAR", "KARAMTARA", "KHERIAAUTO", "KOTAKBANK", "LCCPROJECT", "LT", "M&M",
+  "MAFANG", "MANIKA", "MARUTI", "MAZDOCK", "MCX", "MF_AXIS", "MF_HDFC", "MF_ICICI", "MF_MIRAE", "MF_MOTILAL",
+  "MF_NAVI", "MF_NIPPON", "MF_PPFAS", "MF_QUANT", "MF_SBI", "MF_TATA", "MF_UTI", "MID150BEES", "MIRAE", "MOMSBELIEF",
+  "MON100", "MONEYVIEW", "MOTILAL", "MPIMANIPAL", "NAVI", "NHPC", "NIFTYBEES", "NIPPON", "NSE", "NSE.BO",
+  "NTPC", "NYKAA", "OLAELEC", "ONGC", "ORIENTCABL", "PAYTM", "PERNIASPOP", "PFC", "PHARMABEES", "PNB",
+  "POLICYBZR", "POOJALOGIS", "POWERGRID", "PPFAS", "PRANAV", "PRASOLCHEM", "QUANT", "RAILTEL", "RECLTD", "RELIANCE",
+  "RENTOMOJO", "RUNWALENTR", "RVNL", "SBI", "SBIN", "SETFGOLD", "SHAHINVEST", "SILVERBEES", "SONA", "SPECTRAA",
+  "SRIT", "SSRETAIL", "STEAMHOUSE", "SUNPHARMA", "SUZLON", "SWASTIKAIN", "SWIGGY", "TATA", "TATAELXSI", "TATAMOTORS",
+  "TATAPOWER", "TATASTEEL", "TATATECH", "TCS", "TITAN", "TMCV", "TMPV", "TRENT", "TVSMOTOR", "ULTRACEMCO",
+  "UTI", "VARMORA", "VEDL", "VEEGALAND", "VINOD", "VNL", "WIPRO", "YESBANK", "ZOMATO"
 ]);
 
 function generateVectorEmblem(symbol) {
@@ -1084,7 +1084,6 @@ function generateVectorEmblem(symbol) {
 
 function getAssetLogoUrl(sym, item) {
   if (!sym) return '';
-  if (item && item.logo_url) return item.logo_url;
   const cleanSym = String(sym).toUpperCase().replace('.NS', '').replace('.BO', '').trim();
   if (LOCAL_LOGOS.has(cleanSym)) {
     return `/static/logos/${cleanSym}.png`;
@@ -1093,8 +1092,10 @@ function getAssetLogoUrl(sym, item) {
   if (item && item.code && LOCAL_LOGOS.has(String(item.code))) {
     return `/static/logos/${item.code}.png`;
   }
-  // High-resolution real corporate logo CDN covering all NSE Indian equities
-  return `https://images.financialmodelingprep.com/symbol/${cleanSym}.NS.png`;
+  if (item && item.logo_url && !item.logo_url.includes('financialmodelingprep.com')) {
+    return item.logo_url;
+  }
+  return `/static/logos/${cleanSym}.png`;
 }
 
 // Automated Logo Error Handler: Cascades through high-reliability CDN sources then falls back to crisp 256x256 vector emblem
@@ -1117,13 +1118,9 @@ function handleLogoError(img) {
   const domain = rawDomain.replace(/^https?:\/\//i, '').replace(/\/.*$/, '').replace(/^www\./i, '');
 
   const sources = [
-    // 1. FMP High-Res Symbol Logo with .NS
-    `https://images.financialmodelingprep.com/symbol/${cleanTicker}.NS.png`,
-    // 2. FMP High-Res Symbol Logo without .NS
-    `https://images.financialmodelingprep.com/symbol/${cleanTicker}.png`,
-    // 3. Google Favicon CDN 128px via official domain
+    // 1. Google Favicon CDN 128px via official domain
     ...(domain ? [`https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.${domain}&size=128`] : []),
-    // 4. Inferred domains via Google Favicon CDN
+    // 2. Inferred domains via Google Favicon CDN
     `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.${cleanTicker.toLowerCase()}.com&size=128`,
     `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.${cleanTicker.toLowerCase()}.in&size=128`
   ];
