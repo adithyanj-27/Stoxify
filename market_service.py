@@ -3,10 +3,14 @@ import time
 import requests
 import concurrent.futures
 import zlib
+import logging
 from datetime import datetime, timedelta, time as dtime, timezone
 import yfinance as yf
 
+logger = logging.getLogger(__name__)
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, "data")
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -246,6 +250,7 @@ def sync_new_listings() -> Dict[str, Any]:
     }
 
 _DAILY_SYNC_FILE = os.path.join(DATA_DIR, "last_market_sync.json")
+_LAST_SYNC_DATE_MEM = ""
 
 def check_and_run_daily_10am_sync(force: bool = False) -> Dict[str, Any]:
     """
@@ -256,6 +261,7 @@ def check_and_run_daily_10am_sync(force: bool = False) -> Dict[str, Any]:
       2. Newly listed stock discovery (validates with yfinance and adds to catalog)
       3. Refreshes Explore caches and single-quote caches
     """
+    global _LAST_SYNC_DATE_MEM
     from datetime import timezone, timedelta
     ist = timezone(timedelta(hours=5, minutes=30))
     now_ist = datetime.now(ist)
@@ -280,11 +286,11 @@ def check_and_run_daily_10am_sync(force: bool = False) -> Dict[str, Any]:
         return {"executed": False, "reason": f"Before 10:00 AM IST (current time: {now_ist.strftime('%H:%M')} IST)"}
 
     # 4. Check if already executed today
-    last_sync_date = ""
+    last_sync_date = _LAST_SYNC_DATE_MEM
     if os.path.exists(_DAILY_SYNC_FILE):
         try:
             with open(_DAILY_SYNC_FILE, "r", encoding="utf-8") as f:
-                last_sync_date = json.load(f).get("last_sync_date", "")
+                last_sync_date = json.load(f).get("last_sync_date", "") or last_sync_date
         except Exception:
             pass
 
@@ -307,7 +313,9 @@ def check_and_run_daily_10am_sync(force: bool = False) -> Dict[str, Any]:
     added_count = sync_res.get("added_count", 0)
 
     # 5c. Persist execution record
+    _LAST_SYNC_DATE_MEM = today_iso
     try:
+        os.makedirs(os.path.dirname(_DAILY_SYNC_FILE), exist_ok=True)
         with open(_DAILY_SYNC_FILE, "w", encoding="utf-8") as f:
             json.dump({
                 "last_sync_date": today_iso,
