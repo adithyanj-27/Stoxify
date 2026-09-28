@@ -285,5 +285,23 @@
     "prev_close": 226.0,
     "change": -3.56,
     "change_pct": -1.58
+  },
+  {
+    "symbol": "NSE.BO",
+    "name": "National Stock Exchange of India Ltd",
+    "sector": "Finance",
+    "listing_date": "Recently Listed",
+    "is_new_listing": true,
+    "aliases": [
+      "nse",
+      "national stock exchange",
+      "nse india",
+      "nse.bo",
+      "nse.ns"
+    ],
+    "base_price": 1762.7,
+    "prev_close": 1744.2,
+    "change": 18.5,
+    "change_pct": 1.06
   }
 ]

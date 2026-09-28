@@ -1006,5 +1006,33 @@
     "dividend_yield": 0.22,
     "industry": "Medical Care Facilities",
     "industry_pe": 40.38
+  },
+  "NSE.BO": {
+    "name": "National Stock Exchange of India Ltd",
+    "sector": "Finance",
+    "price": 1762.7,
+    "market_cap": 872000000000,
+    "pe_ratio": 34.2,
+    "pb_ratio": 7.8,
+    "eps": 51.54,
+    "roe": 28.5,
+    "debt_to_equity": null,
+    "dividend_yield": 1.65,
+    "industry": "Financial Data & Stock Exchanges",
+    "industry_pe": 32.5
+  },
+  "NSE.NS": {
+    "name": "National Stock Exchange of India Ltd",
+    "sector": "Finance",
+    "price": 1762.7,
+    "market_cap": 872000000000,
+    "pe_ratio": 34.2,
+    "pb_ratio": 7.8,
+    "eps": 51.54,
+    "roe": 28.5,
+    "debt_to_equity": null,
+    "dividend_yield": 1.65,
+    "industry": "Financial Data & Stock Exchanges",
+    "industry_pe": 32.5
   }
 }

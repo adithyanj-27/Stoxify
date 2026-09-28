@@ -71,6 +71,7 @@ STOCK_MASTER = [
     {"symbol": "YESBANK.NS", "name": "Yes Bank Ltd", "sector": "Banking", "aliases": ["yes bank"]},
     {"symbol": "CDSL.NS", "name": "Central Depository Services Ltd", "sector": "Finance", "aliases": ["cdsl", "demat"]},
     {"symbol": "BSE.NS", "name": "BSE Ltd", "sector": "Finance", "aliases": ["bse", "bombay stock exchange"]},
+    {"symbol": "NSE.BO", "name": "National Stock Exchange of India Ltd", "sector": "Finance", "aliases": ["nse", "national stock exchange", "nse india", "nse.bo"]},
 
     # --- Auto & EV ---
     {"symbol": "EICHERMOT.NS", "name": "Eicher Motors Ltd (Royal Enfield)", "sector": "Auto", "aliases": ["eicher", "royal enfield", "bullet"]},
@@ -81,6 +82,8 @@ STOCK_MASTER = [
     {"symbol": "TATATECH.NS", "name": "Tata Technologies Ltd", "sector": "IT", "aliases": ["tata tech", "tata technologies"]},
     {"symbol": "TATAELXSI.NS", "name": "Tata Elxsi Ltd", "sector": "IT", "aliases": ["tata elxsi", "design"]},
     {"symbol": "PAYTM.NS", "name": "One97 Communications (Paytm)", "sector": "IT", "aliases": ["paytm", "one97", "upi"]},
+    {"symbol": "ZOMATO.NS", "name": "Zomato Ltd", "sector": "Consumer", "aliases": ["zomato", "blinkit"]},
+    {"symbol": "SWIGGY.NS", "name": "Swiggy Ltd", "sector": "Consumer", "aliases": ["swiggy", "instamart"]},
 
     # --- Metals & Commodities ---
     {"symbol": "VEDL.NS", "name": "Vedanta Ltd", "sector": "Metals", "aliases": ["vedanta", "anil agarwal"]},

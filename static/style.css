@@ -2908,10 +2908,10 @@ body.pwa-installed #mobileInstallBanner {
   }
 
   .most-bought-card {
-    width: 145px !important;
-    min-width: 145px !important;
-    max-width: 145px !important;
-    flex: 0 0 145px !important;
+    width: 172px !important;
+    min-width: 172px !important;
+    max-width: 172px !important;
+    flex: 0 0 172px !important;
     box-sizing: border-box !important;
     overflow: hidden !important;
     border-radius: 14px !important;
@@ -2923,11 +2923,11 @@ body.pwa-installed #mobileInstallBanner {
 
   .most-bought-card .mb-sym-pill {
     font-size: 0.65rem !important;
-    font-weight: 500 !important;
-    max-width: 60px !important;
+    font-weight: 600 !important;
+    max-width: none !important;
     white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
   }
 
   .most-bought-card .mb-name {
@@ -6774,10 +6774,16 @@ html.user-guest #navProfileWrapper {
   background: var(--bg-main);
   padding: 0.15rem 0.4rem;
   border-radius: 4px;
-  max-width: 75px;
+  max-width: none;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.card-avatar img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  border-radius: inherit !important;
+  display: block !important;
 }
 
 .mb-name {

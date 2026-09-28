@@ -404,9 +404,18 @@ def _refresh_indices_sync():
     return _CACHE.get("indices", [])
 
 def get_stock_quote(symbol: str) -> Dict[str, Any]:
-    formatted_symbol = symbol.strip().upper()
-    if not formatted_symbol.endswith(".NS") and not formatted_symbol.endswith(".BO") and not formatted_symbol.startswith("^"):
-        formatted_symbol += ".NS"
+    raw_sym = symbol.strip().upper()
+    if raw_sym in ("NSE", "NSE.BO"):
+        formatted_symbol = "NSE.BO"
+    elif not raw_sym.endswith(".NS") and not raw_sym.endswith(".BO") and not raw_sym.startswith("^"):
+        # Check if master catalog defines it as a .BO symbol
+        matched_bo = next((s for s in get_combined_stock_master() if s["symbol"] == f"{raw_sym}.BO"), None)
+        if matched_bo:
+            formatted_symbol = f"{raw_sym}.BO"
+        else:
+            formatted_symbol = f"{raw_sym}.NS"
+    else:
+        formatted_symbol = raw_sym
 
     cache_key = f"quote_{formatted_symbol}"
     cached = get_cached(cache_key)
@@ -426,8 +435,9 @@ INDEX_META = {
 def _refresh_stock_quote_sync(formatted_symbol: str) -> Dict[str, Any]:
     cache_key = f"quote_{formatted_symbol}"
     combined_master = get_combined_stock_master()
-    matched = next((s for s in combined_master if s["symbol"] == formatted_symbol), None)
-    matched_etf = next((e for e in ETF_MASTER if e["symbol"] == formatted_symbol), None)
+    clean_sym_lookup = formatted_symbol.replace(".NS", "").replace(".BO", "").upper()
+    matched = next((s for s in combined_master if s["symbol"] == formatted_symbol or s["symbol"].replace(".NS", "").replace(".BO", "").upper() == clean_sym_lookup), None)
+    matched_etf = next((e for e in ETF_MASTER if e["symbol"] == formatted_symbol or e["symbol"].replace(".NS", "").replace(".BO", "").upper() == clean_sym_lookup), None)
 
     idx_info = INDEX_META.get(formatted_symbol)
     if idx_info:
@@ -452,6 +462,34 @@ def _refresh_stock_quote_sync(formatted_symbol: str) -> Dict[str, Any]:
         fast = t.fast_info
         price = getattr(fast, "last_price", None)
         prev_close = getattr(fast, "previous_close", None)
+
+        # Cross-exchange resilience: if .NS returned no data, check .BO (and vice versa)
+        if (price is None or price <= 0) and formatted_symbol.endswith(".NS"):
+            alt_sym = formatted_symbol.replace(".NS", ".BO")
+            try:
+                t_alt = yf.Ticker(alt_sym)
+                alt_price = getattr(t_alt.fast_info, "last_price", None)
+                if alt_price and alt_price > 0:
+                    t = t_alt
+                    fast = t_alt.fast_info
+                    price = alt_price
+                    prev_close = getattr(fast, "previous_close", None)
+                    formatted_symbol = alt_sym
+            except Exception:
+                pass
+        elif (price is None or price <= 0) and formatted_symbol.endswith(".BO"):
+            alt_sym = formatted_symbol.replace(".BO", ".NS")
+            try:
+                t_alt = yf.Ticker(alt_sym)
+                alt_price = getattr(t_alt.fast_info, "last_price", None)
+                if alt_price and alt_price > 0:
+                    t = t_alt
+                    fast = t_alt.fast_info
+                    price = alt_price
+                    prev_close = getattr(fast, "previous_close", None)
+                    formatted_symbol = alt_sym
+            except Exception:
+                pass
 
         if price is None or price <= 0:
             info = t.info or {}
@@ -768,6 +806,11 @@ _BASE_STOCK_PRICES = {
     "YESBANK.NS": (23.41, 0.34, 1.47),
     "CDSL.NS": (1296.7, -14.3, -1.09),
     "BSE.NS": (3230.1, -79.9, -2.41),
+    "NSE.BO": (1762.7, 18.5, 1.06),
+    "NSE.NS": (1762.7, 18.5, 1.06),
+    "NSE": (1762.7, 18.5, 1.06),
+    "ZOMATO.NS": (268.4, 3.2, 1.21),
+    "SWIGGY.NS": (462.1, -4.3, -0.92),
     "EICHERMOT.NS": (7510.0, 57.5, 0.77),
     "TVSMOTOR.NS": (4043.3, -6.7, -0.17),
     "ASHOKLEY.NS": (157.25, 0.6, 0.38),
@@ -844,11 +887,17 @@ def _get_default_stock_quote(symbol: str, name: str = "", sector: str = "NSE Equ
     if matched_etf:
         return _get_default_etf_quote(symbol, matched_etf["name"], matched_etf.get("sector", "Commodity / Index"), matched_etf.get("category", "Index"))
 
-    matched = next((s for s in get_combined_stock_master() if s["symbol"] == symbol), None)
-    n = name or (matched["name"] if matched else symbol.replace(".NS", ""))
+    clean_sym = symbol.replace(".NS", "").replace(".BO", "").upper()
+    matched = next((s for s in get_combined_stock_master() if s["symbol"] == symbol or s["symbol"].replace(".NS", "").replace(".BO", "").upper() == clean_sym), None)
+    n = name or (matched["name"] if matched else clean_sym)
     sec = sector or (matched["sector"] if matched else "NSE Equities")
 
-    base_info = _BASE_STOCK_PRICES.get(symbol)
+    base_info = (
+        _BASE_STOCK_PRICES.get(symbol) or
+        _BASE_STOCK_PRICES.get(clean_sym) or
+        _BASE_STOCK_PRICES.get(f"{clean_sym}.NS") or
+        _BASE_STOCK_PRICES.get(f"{clean_sym}.BO")
+    )
     if base_info:
         price, change, change_pct = base_info
     elif matched and matched.get("base_price"):
@@ -856,16 +905,20 @@ def _get_default_stock_quote(symbol: str, name: str = "", sector: str = "NSE Equ
         change = round(float(matched.get("change", 0.0)), 2)
         change_pct = round(float(matched.get("change_pct", 0.0)), 2)
     else:
-        price = 100.0
+        price = 250.0
         change = 0.0
         change_pct = 0.0
 
     prev_close = round(price - change, 2)
-    clean_sym = symbol.replace(".NS", "").replace(".BO", "").upper()
     local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_sym}.png")
     logo_url = f"/static/logos/{clean_sym}.png" if os.path.exists(local_logo) else f"https://images.financialmodelingprep.com/symbol/{clean_sym}.NS.png"
 
-    bm = _BENCHMARK_FUNDAMENTALS.get(symbol) or {}
+    bm = (
+        _BENCHMARK_FUNDAMENTALS.get(symbol) or
+        _BENCHMARK_FUNDAMENTALS.get(f"{clean_sym}.NS") or
+        _BENCHMARK_FUNDAMENTALS.get(f"{clean_sym}.BO") or
+        {}
+    )
     mcap = int(bm.get("market_cap") or 500000000000)
     pe = bm.get("pe_ratio", 24.5)
     pb = bm.get("pb_ratio", 3.2)

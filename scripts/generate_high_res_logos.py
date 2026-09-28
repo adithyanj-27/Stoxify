@@ -1,16 +1,17 @@
 """
-High-Resolution Logo Generator & Enhancer for Stoxify
-Generates crisp 256x256 transparent PNG brand assets for:
+Professional High-Resolution Logo Generator for Stoxify
+Generates crisp, large, vibrant 256x256 brand assets for:
 - All 91 Indian Equities (72 Base Stocks + 19 Newly Listed)
 - All 12 Mutual Fund AMCs (PPFAS, Quant, Mirae, Nippon, Axis, SBI, HDFC, ICICI, etc.)
-- All 15 ETFs (NIFTYBEES, GOLDBEES, SILVERBEES, BANKBEES, etc.)
-- All 35+ IPO Companies featured in the IPO section
+- All 15 ETFs (Dedicated Gold, Silver, Index and Sectoral Badges - NO generic globes)
+- All 35+ IPO Companies
 """
 import os
 import sys
 import io
 import json
 import requests
+import concurrent.futures
 from PIL import Image, ImageDraw, ImageFont
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -29,311 +30,359 @@ def get_font(size):
     except Exception:
         return ImageFont.load_default()
 
-# Curated Brand Color Palettes (Primary, Secondary, Text Color)
-BRAND_PALETTES = {
-    # Top Equities
-    "RELIANCE": ("#002D62", "#004B87", "#FFFFFF"),
-    "TCS": ("#0072C6", "#003A70", "#FFFFFF"),
-    "HDFCBANK": ("#004C8F", "#ED1C24", "#FFFFFF"),
-    "INFY": ("#007CC3", "#005A9C", "#FFFFFF"),
-    "ICICIBANK": ("#9B1B1E", "#F37021", "#FFFFFF"),
-    "SBIN": ("#280071", "#00A3E0", "#FFFFFF"),
-    "BHARTIARTL": ("#E40000", "#FF4D4D", "#FFFFFF"),
-    "ITC": ("#00205B", "#D4AF37", "#FFFFFF"),
-    "LT": ("#004B87", "#D4AF37", "#FFFFFF"),
-    "BAJFINANCE": ("#0066B2", "#004B87", "#FFFFFF"),
-    "HINDUNILVR": ("#1F36C7", "#0B1A75", "#FFFFFF"),
-    "MARUTI": ("#003B70", "#E31B23", "#FFFFFF"),
-    "SUNPHARMA": ("#F47920", "#C85A00", "#FFFFFF"),
-    "TITAN": ("#003B70", "#C5A059", "#FFFFFF"),
-    "TATASTEEL": ("#0F3E7A", "#0072CE", "#FFFFFF"),
-    "ADANIENT": ("#2A2A84", "#6B52AE", "#FFFFFF"),
-    "ADANIPORTS": ("#1E2269", "#3B82F6", "#FFFFFF"),
-    "ADANIGREEN": ("#10B981", "#059669", "#FFFFFF"),
-    "ADANIPOWER": ("#D97706", "#B45309", "#FFFFFF"),
-    "WIPRO": ("#004B87", "#8A2BE2", "#FFFFFF"),
-    "POWERGRID": ("#00823B", "#005A2B", "#FFFFFF"),
-    "NTPC": ("#003366", "#0284C7", "#FFFFFF"),
-    "ONGC": ("#B22222", "#FFCC00", "#FFFFFF"),
-    "COALINDIA": ("#222222", "#F59E0B", "#FFFFFF"),
-    "M&M": ("#D32F2F", "#B71C1C", "#FFFFFF"),
-    "TMCV": ("#0F3E7A", "#2563EB", "#FFFFFF"),
-    "TMPV": ("#0F3E7A", "#3B82F6", "#FFFFFF"),
-    "TATAMOTORS": ("#0F3E7A", "#2563EB", "#FFFFFF"),
-    "AXISBANK": ("#97144D", "#ED1C24", "#FFFFFF"),
-    "KOTAKBANK": ("#ED1C24", "#003366", "#FFFFFF"),
-    "ULTRACEMCO": ("#F59E0B", "#1F2937", "#FFFFFF"),
-    "ASIANPAINT": ("#E82C2A", "#FFD100", "#FFFFFF"),
-    "BAJAJ-AUTO": ("#004B87", "#0284C7", "#FFFFFF"),
-    "TRENT": ("#1A1A1A", "#C5A059", "#FFFFFF"),
-    "JIOFIN": ("#0A2885", "#0284C7", "#FFFFFF"),
-    "ETERNAL": ("#E23744", "#CB202D", "#FFFFFF"),
-    "ZOMATO": ("#E23744", "#CB202D", "#FFFFFF"),
-    "HAL": ("#004080", "#F59E0B", "#FFFFFF"),
-    "BEL": ("#002D62", "#059669", "#FFFFFF"),
-    "MAZDOCK": ("#002244", "#0284C7", "#FFFFFF"),
-    "COCHINSHIP": ("#00558F", "#06B6D4", "#FFFFFF"),
-    "GRSE": ("#0B2545", "#3B82F6", "#FFFFFF"),
-    "BDL": ("#0A2540", "#DC2626", "#FFFFFF"),
-    "IRFC": ("#8B0000", "#D4AF37", "#FFFFFF"),
-    "IRCTC": ("#8B0000", "#F59E0B", "#FFFFFF"),
-    "RVNL": ("#7A0000", "#D4AF37", "#FFFFFF"),
-    "RAILTEL": ("#1E3A8A", "#D4AF37", "#FFFFFF"),
-    "BHEL": ("#003865", "#0284C7", "#FFFFFF"),
-    "TATAPOWER": ("#0F3E7A", "#06B6D4", "#FFFFFF"),
-    "SUZLON": ("#689F38", "#33691E", "#FFFFFF"),
-    "IREDA": ("#2E7D32", "#10B981", "#FFFFFF"),
-    "NHPC": ("#0277BD", "#0369A1", "#FFFFFF"),
-    "PFC": ("#0D47A1", "#F59E0B", "#FFFFFF"),
-    "RECLTD": ("#0D47A1", "#10B981", "#FFFFFF"),
-    "BANKBARODA": ("#F37021", "#EA580C", "#FFFFFF"),
-    "PNB": ("#D32F2F", "#FBBF24", "#FFFFFF"),
-    "CANBK": ("#0072CE", "#F59E0B", "#FFFFFF"),
-    "IDFCFIRSTB": ("#9D2235", "#BE123C", "#FFFFFF"),
-    "FEDERALBNK": ("#002E6E", "#F59E0B", "#FFFFFF"),
-    "YESBANK": ("#003399", "#DC2626", "#FFFFFF"),
-    "INDUSINDBK": ("#C01818", "#991B1B", "#FFFFFF"),
-    "AUBANK": ("#4A154B", "#F97316", "#FFFFFF"),
-    "BANDHANBNK": ("#005A9C", "#DC2626", "#FFFFFF"),
-    "BSE": ("#0B3C5D", "#F59E0B", "#FFFFFF"),
-    "CDSL": ("#003366", "#2563EB", "#FFFFFF"),
-    "MCX": ("#0A3871", "#0284C7", "#FFFFFF"),
-    "PAYTM": ("#002E6E", "#00BAF2", "#FFFFFF"),
-
-    # Newly Listed Equities
-    "HEROMOTORS": ("#EE2726", "#B91C1C", "#FFFFFF"),
-    "SONA": ("#0F172A", "#3B82F6", "#FFFFFF"),
-    "SSRETAIL": ("#7C3AED", "#6D28D9", "#FFFFFF"),
-    "JSIPL": ("#0369A1", "#0284C7", "#FFFFFF"),
-    "MANIKA": ("#059669", "#10B981", "#FFFFFF"),
-    "VEEGALAND": ("#EA580C", "#F97316", "#FFFFFF"),
-    "MPIMANIPAL": ("#1E40AF", "#3B82F6", "#FFFFFF"),
-    "KARAMTARA": ("#374151", "#4B5563", "#FFFFFF"),
-    "LCCPROJECT": ("#0D9488", "#14B8A6", "#FFFFFF"),
-    "RENTOMOJO": ("#EF4444", "#DC2626", "#FFFFFF"),
-    "STEAMHOUSE": ("#D97706", "#F59E0B", "#FFFFFF"),
-    "ARCIL": ("#1E3A8A", "#2563EB", "#FFFFFF"),
-    "GLASSWALL": ("#0891B2", "#06B6D4", "#FFFFFF"),
-    "KANOHAR": ("#4F46E5", "#6366F1", "#FFFFFF"),
-    "PRASOLCHEM": ("#047857", "#10B981", "#FFFFFF"),
-    "PRANAV": ("#9333EA", "#A855F7", "#FFFFFF"),
-    "DEEPA": ("#C026D3", "#D946EF", "#FFFFFF"),
-    "PERNIASPOP": ("#BE185D", "#EC4899", "#FFFFFF"),
-    "MOMSBELIEF": ("#E11D48", "#F43F5E", "#FFFFFF"),
-
-    # Mutual Fund AMCs
-    "122639": ("#0C2340", "#D4AF37", "#FFFFFF"), # PPFAS
-    "120828": ("#1A1B4B", "#00A3E0", "#FFFFFF"), # Quant
-    "118834": ("#002870", "#F58220", "#FFFFFF"), # Mirae Asset
-    "119803": ("#E60012", "#B91C1C", "#FFFFFF"), # Nippon India
-    "125354": ("#97144D", "#BE123C", "#FFFFFF"), # Axis MF
-    "119551": ("#280071", "#00A3E0", "#FFFFFF"), # SBI MF
-    "120503": ("#004C8F", "#ED1C24", "#FFFFFF"), # HDFC MF
-    "120586": ("#9B1B1E", "#F37021", "#FFFFFF"), # ICICI Pru
-    "127042": ("#FFD100", "#111111", "#111111"), # Motilal Oswal
-    "135781": ("#0F3E7A", "#2563EB", "#FFFFFF"), # Tata MF
-    "120716": ("#E65100", "#0D47A1", "#FFFFFF"), # UTI MF
-    "148712": ("#111827", "#00C269", "#FFFFFF"), # Navi MF
-
-    # ETFs
-    "NIFTYBEES": ("#003366", "#0284C7", "#FFFFFF"),
-    "BANKBEES": ("#0D47A1", "#1E40AF", "#FFFFFF"),
-    "GOLDBEES": ("#B45309", "#F59E0B", "#FFFFFF"),
-    "SILVERBEES": ("#334155", "#94A3B8", "#FFFFFF"),
-    "ITBEES": ("#0077B6", "#00B4D8", "#FFFFFF"),
-    "JUNIORBEES": ("#4338CA", "#6366F1", "#FFFFFF"),
-    "CPSEETF": ("#C2410C", "#EA580C", "#FFFFFF"),
-    "AUTOBEES": ("#15803D", "#22C55E", "#FFFFFF"),
-    "PHARMABEES": ("#0E7490", "#06B6D4", "#FFFFFF"),
-    "MON100": ("#4C1D95", "#7C3AED", "#FFFFFF"),
-    "MAFANG": ("#18181B", "#3B82F6", "#FFFFFF"),
-    "LIQUIDBEES": ("#0F766E", "#14B8A6", "#FFFFFF"),
-    "SETFNIF50": ("#002D62", "#005A9C", "#FFFFFF"),
-    "HDFCMFGETF": ("#004C8F", "#ED1C24", "#FFFFFF"),
-    "ICICIB22": ("#9B1B1E", "#F37021", "#FFFFFF"),
-}
-
 def hex_to_rgb(hex_code):
     hex_code = hex_code.lstrip('#')
     return tuple(int(hex_code[i:i+2], 16) for i in (0, 2, 4))
 
-def render_crisp_vector_logo(symbol, display_name="", category="", size=256):
-    """
-    Renders a stunning 256x256 high-resolution brand logo emblem with smooth anti-aliased
-    curves, gradient styling, brand mark typography, and subtle lighting.
-    """
+# Brand definitions with authentic corporate marks and colors
+BRAND_CONFIGS = {
+    # Banking & Finance
+    "HDFCBANK": {"bg": "#004C8F", "accent": "#ED1C24", "text": "#FFFFFF", "mark": "HDFC"},
+    "ICICIBANK": {"bg": "#9B1B1E", "accent": "#F37021", "text": "#FFFFFF", "mark": "ICICI"},
+    "SBIN": {"bg": "#280071", "accent": "#00A3E0", "text": "#FFFFFF", "mark": "SBI", "circle_accent": True},
+    "AXISBANK": {"bg": "#97144D", "accent": "#ED1C24", "text": "#FFFFFF", "mark": "AXIS"},
+    "KOTAKBANK": {"bg": "#ED1C24", "accent": "#003366", "text": "#FFFFFF", "mark": "KOTAK"},
+    "BANKBARODA": {"bg": "#F37021", "accent": "#EA580C", "text": "#FFFFFF", "mark": "BOB"},
+    "PNB": {"bg": "#D32F2F", "accent": "#FBBF24", "text": "#FFFFFF", "mark": "PNB"},
+    "CANBK": {"bg": "#0072CE", "accent": "#F59E0B", "text": "#FFFFFF", "mark": "CANARA"},
+    "IDFCFIRSTB": {"bg": "#9D2235", "accent": "#BE123C", "text": "#FFFFFF", "mark": "IDFC"},
+    "FEDERALBNK": {"bg": "#002E6E", "accent": "#F59E0B", "text": "#FFFFFF", "mark": "FED"},
+    "YESBANK": {"bg": "#003399", "accent": "#DC2626", "text": "#FFFFFF", "mark": "YES"},
+    "INDUSINDBK": {"bg": "#C01818", "accent": "#991B1B", "text": "#FFFFFF", "mark": "INDUS"},
+    "AUBANK": {"bg": "#4A154B", "accent": "#F97316", "text": "#FFFFFF", "mark": "AU"},
+    "BANDHANBNK": {"bg": "#005A9C", "accent": "#DC2626", "text": "#FFFFFF", "mark": "BANDHAN"},
+    "BAJFINANCE": {"bg": "#0066B2", "accent": "#004B87", "text": "#FFFFFF", "mark": "BAJAJ"},
+    "JIOFIN": {"bg": "#0A2885", "accent": "#0284C7", "text": "#FFFFFF", "mark": "JIO"},
+    "PFC": {"bg": "#0D47A1", "accent": "#F59E0B", "text": "#FFFFFF", "mark": "PFC"},
+    "RECLTD": {"bg": "#0D47A1", "accent": "#10B981", "text": "#FFFFFF", "mark": "REC"},
+    "IRFC": {"bg": "#8B0000", "accent": "#D4AF37", "text": "#FFFFFF", "mark": "IRFC"},
+
+    # IT & Tech
+    "TCS": {"bg": "#0072C6", "accent": "#003A70", "text": "#FFFFFF", "mark": "TCS"},
+    "INFY": {"bg": "#007CC3", "accent": "#005A9C", "text": "#FFFFFF", "mark": "INFY"},
+    "WIPRO": {"bg": "#004B87", "accent": "#8A2BE2", "text": "#FFFFFF", "mark": "WIPRO"},
+    "TATAELXSI": {"bg": "#0F3E7A", "accent": "#2563EB", "text": "#FFFFFF", "mark": "ELXSI"},
+    "TATATECH": {"bg": "#0F3E7A", "accent": "#3B82F6", "text": "#FFFFFF", "mark": "TATA"},
+    "PAYTM": {"bg": "#002E6E", "accent": "#00BAF2", "text": "#FFFFFF", "mark": "Paytm"},
+    "ETERNAL": {"bg": "#E23744", "accent": "#CB202D", "text": "#FFFFFF", "mark": "zomato"},
+    "ZOMATO": {"bg": "#E23744", "accent": "#CB202D", "text": "#FFFFFF", "mark": "zomato"},
+
+    # Conglomerates, Energy & Metals
+    "RELIANCE": {"bg": "#002D62", "accent": "#004B87", "text": "#FFFFFF", "mark": "RIL"},
+    "TATASTEEL": {"bg": "#0F3E7A", "accent": "#0072CE", "text": "#FFFFFF", "mark": "TATA"},
+    "TATAPOWER": {"bg": "#0F3E7A", "accent": "#06B6D4", "text": "#FFFFFF", "mark": "TATA"},
+    "JSWSTEEL": {"bg": "#C026D3", "accent": "#9333EA", "text": "#FFFFFF", "mark": "JSW"},
+    "HINDALCO": {"bg": "#B45309", "accent": "#D97706", "text": "#FFFFFF", "mark": "HINDALCO"},
+    "VEDL": {"bg": "#1E3A8A", "accent": "#2563EB", "text": "#FFFFFF", "mark": "VEDANTA"},
+    "NTPC": {"bg": "#003366", "accent": "#0284C7", "text": "#FFFFFF", "mark": "NTPC"},
+    "POWERGRID": {"bg": "#00823B", "accent": "#005A2B", "text": "#FFFFFF", "mark": "GRID"},
+    "ONGC": {"bg": "#B22222", "accent": "#FFCC00", "text": "#FFFFFF", "mark": "ONGC"},
+    "COALINDIA": {"bg": "#1E293B", "accent": "#F59E0B", "text": "#FFFFFF", "mark": "CIL"},
+    "ADANIENT": {"bg": "#2A2A84", "accent": "#6B52AE", "text": "#FFFFFF", "mark": "ADANI"},
+    "ADANIPORTS": {"bg": "#1E2269", "accent": "#3B82F6", "text": "#FFFFFF", "mark": "ADANI"},
+    "ADANIGREEN": {"bg": "#10B981", "accent": "#059669", "text": "#FFFFFF", "mark": "ADANI"},
+    "ADANIPOWER": {"bg": "#D97706", "accent": "#B45309", "text": "#FFFFFF", "mark": "ADANI"},
+    "SUZLON": {"bg": "#689F38", "accent": "#33691E", "text": "#FFFFFF", "mark": "SUZLON"},
+    "IREDA": {"bg": "#2E7D32", "accent": "#10B981", "text": "#FFFFFF", "mark": "IREDA"},
+    "NHPC": {"bg": "#0277BD", "accent": "#0369A1", "text": "#FFFFFF", "mark": "NHPC"},
+
+    # Auto & Manufacturing
+    "MARUTI": {"bg": "#003B70", "accent": "#E31B23", "text": "#FFFFFF", "mark": "MARUTI"},
+    "TATAMOTORS": {"bg": "#0F3E7A", "accent": "#2563EB", "text": "#FFFFFF", "mark": "TATA"},
+    "TMCV": {"bg": "#0F3E7A", "accent": "#2563EB", "text": "#FFFFFF", "mark": "TATA"},
+    "TMPV": {"bg": "#0F3E7A", "accent": "#3B82F6", "text": "#FFFFFF", "mark": "TATA"},
+    "M&M": {"bg": "#D32F2F", "accent": "#B71C1C", "text": "#FFFFFF", "mark": "M&M"},
+    "BAJAJ-AUTO": {"bg": "#004B87", "accent": "#0284C7", "text": "#FFFFFF", "mark": "BAJAJ"},
+    "TVSMOTOR": {"bg": "#1E40AF", "accent": "#DC2626", "text": "#FFFFFF", "mark": "TVS"},
+    "EICHERMOT": {"bg": "#991B1B", "accent": "#DC2626", "text": "#FFFFFF", "mark": "ROYAL"},
+    "ASHOKLEY": {"bg": "#15803D", "accent": "#16A34A", "text": "#FFFFFF", "mark": "LEYLAND"},
+
+    # Consumer & Industrial
+    "ITC": {"bg": "#00205B", "accent": "#D4AF37", "text": "#FFFFFF", "mark": "ITC"},
+    "HINDUNILVR": {"bg": "#1F36C7", "accent": "#0B1A75", "text": "#FFFFFF", "mark": "HUL"},
+    "TITAN": {"bg": "#003B70", "accent": "#C5A059", "text": "#FFFFFF", "mark": "TITAN"},
+    "ASIANPAINT": {"bg": "#E82C2A", "accent": "#FFD100", "text": "#FFFFFF", "mark": "AP"},
+    "TRENT": {"bg": "#18181B", "accent": "#C5A059", "text": "#FFFFFF", "mark": "TRENT"},
+    "LT": {"bg": "#004B87", "accent": "#D4AF37", "text": "#FFFFFF", "mark": "L&T"},
+    "ULTRACEMCO": {"bg": "#D97706", "accent": "#1F2937", "text": "#FFFFFF", "mark": "ULTRA"},
+    "BHARTIARTL": {"bg": "#E40000", "accent": "#FF4D4D", "text": "#FFFFFF", "mark": "airtel"},
+
+    # Defense & Aerospace
+    "HAL": {"bg": "#004080", "accent": "#F59E0B", "text": "#FFFFFF", "mark": "HAL"},
+    "BEL": {"bg": "#002D62", "accent": "#059669", "text": "#FFFFFF", "mark": "BEL"},
+    "BDL": {"bg": "#0A2540", "accent": "#DC2626", "text": "#FFFFFF", "mark": "BDL"},
+    "MAZDOCK": {"bg": "#002244", "accent": "#0284C7", "text": "#FFFFFF", "mark": "MAZAGON"},
+    "COCHINSHIP": {"bg": "#00558F", "accent": "#06B6D4", "text": "#FFFFFF", "mark": "COCHIN"},
+    "GRSE": {"bg": "#0B2545", "accent": "#3B82F6", "text": "#FFFFFF", "mark": "GRSE"},
+
+    # Railways
+    "IRCTC": {"bg": "#8B0000", "accent": "#F59E0B", "text": "#FFFFFF", "mark": "IRCTC"},
+    "RVNL": {"bg": "#7A0000", "accent": "#D4AF37", "text": "#FFFFFF", "mark": "RVNL"},
+    "RAILTEL": {"bg": "#1E3A8A", "accent": "#D4AF37", "text": "#FFFFFF", "mark": "RAILTEL"},
+    "BHEL": {"bg": "#003865", "accent": "#0284C7", "text": "#FFFFFF", "mark": "BHEL"},
+
+    # Exchanges & Depositories
+    "BSE": {"bg": "#0B3C5D", "accent": "#F59E0B", "text": "#FFFFFF", "mark": "BSE"},
+    "NSE": {"bg": "#0B2545", "accent": "#FF6B00", "text": "#FFFFFF", "mark": "NSE"},
+    "CDSL": {"bg": "#003366", "accent": "#2563EB", "text": "#FFFFFF", "mark": "CDSL"},
+    "MCX": {"bg": "#0A3871", "accent": "#0284C7", "text": "#FFFFFF", "mark": "MCX"},
+    "ANGELONE": {"bg": "#1E40AF", "accent": "#4338CA", "text": "#FFFFFF", "mark": "ANGEL"},
+    "IEX": {"bg": "#0284C7", "accent": "#0369A1", "text": "#FFFFFF", "mark": "IEX"},
+
+    # Consumer Tech & New Economy
+    "SWIGGY": {"bg": "#FC8019", "accent": "#EA580C", "text": "#FFFFFF", "mark": "SWIGGY"},
+    "NYKAA": {"bg": "#FC2779", "accent": "#E11D48", "text": "#FFFFFF", "mark": "NYKAA"},
+    "POLICYBZR": {"bg": "#0F2D6B", "accent": "#F59E0B", "text": "#FFFFFF", "mark": "POLICY"},
+    "DELHIVERY": {"bg": "#E41D2D", "accent": "#1E293B", "text": "#FFFFFF", "mark": "DELH"},
+    "OLAELEC": {"bg": "#0F172A", "accent": "#10B981", "text": "#10B981", "mark": "OLA"},
+
+    # Pharma
+    "SUNPHARMA": {"bg": "#F47920", "accent": "#C85A00", "text": "#FFFFFF", "mark": "SUN"},
+    "CIPLA": {"bg": "#0284C7", "accent": "#0369A1", "text": "#FFFFFF", "mark": "CIPLA"},
+    "DRREDDY": {"bg": "#4338CA", "accent": "#6366F1", "text": "#FFFFFF", "mark": "DR.REDDY"},
+    "APOLLOHOSP": {"bg": "#047857", "accent": "#10B981", "text": "#FFFFFF", "mark": "APOLLO"},
+
+    # Newly Listed Equities
+    "HEROMOTORS": {"bg": "#EE2726", "accent": "#B91C1C", "text": "#FFFFFF", "mark": "HERO"},
+    "SONA": {"bg": "#0F172A", "accent": "#3B82F6", "text": "#FFFFFF", "mark": "SONA"},
+    "SSRETAIL": {"bg": "#7C3AED", "accent": "#6D28D9", "text": "#FFFFFF", "mark": "SSR"},
+    "JSIPL": {"bg": "#0369A1", "accent": "#0284C7", "text": "#FFFFFF", "mark": "JINDAL"},
+    "MANIKA": {"bg": "#059669", "accent": "#10B981", "text": "#FFFFFF", "mark": "MANIKA"},
+    "VEEGALAND": {"bg": "#EA580C", "accent": "#F97316", "text": "#FFFFFF", "mark": "VEEGA"},
+    "MPIMANIPAL": {"bg": "#1E40AF", "accent": "#3B82F6", "text": "#FFFFFF", "mark": "MANIPAL"},
+    "KARAMTARA": {"bg": "#374151", "accent": "#4B5563", "text": "#FFFFFF", "mark": "KT"},
+    "LCCPROJECT": {"bg": "#0D9488", "accent": "#14B8A6", "text": "#FFFFFF", "mark": "LCC"},
+    "RENTOMOJO": {"bg": "#EF4444", "accent": "#DC2626", "text": "#FFFFFF", "mark": "RENTO"},
+    "STEAMHOUSE": {"bg": "#D97706", "accent": "#F59E0B", "text": "#FFFFFF", "mark": "STEAM"},
+    "ARCIL": {"bg": "#1E3A8A", "accent": "#2563EB", "text": "#FFFFFF", "mark": "ARCIL"},
+    "GLASSWALL": {"bg": "#0891B2", "accent": "#06B6D4", "text": "#FFFFFF", "mark": "GLASS"},
+    "KANOHAR": {"bg": "#4F46E5", "accent": "#6366F1", "text": "#FFFFFF", "mark": "KANOHAR"},
+    "PRASOLCHEM": {"bg": "#047857", "accent": "#10B981", "text": "#FFFFFF", "mark": "PRASOL"},
+    "PRANAV": {"bg": "#9333EA", "accent": "#A855F7", "text": "#FFFFFF", "mark": "PRANAV"},
+    "DEEPA": {"bg": "#C026D3", "accent": "#D946EF", "text": "#FFFFFF", "mark": "DEEPA"},
+    "PERNIASPOP": {"bg": "#BE185D", "accent": "#EC4899", "text": "#FFFFFF", "mark": "PERNIA"},
+    "MOMSBELIEF": {"bg": "#E11D48", "accent": "#F43F5E", "text": "#FFFFFF", "mark": "MOM"},
+
+    # Mutual Fund AMCs
+    "122639": {"bg": "#0C2340", "accent": "#D4AF37", "text": "#FFFFFF", "mark": "PPFAS"},
+    "120828": {"bg": "#1A1B4B", "accent": "#00A3E0", "text": "#FFFFFF", "mark": "quant"},
+    "118834": {"bg": "#002870", "accent": "#F58220", "text": "#FFFFFF", "mark": "MIRAE"},
+    "119803": {"bg": "#E60012", "accent": "#B91C1C", "text": "#FFFFFF", "mark": "NIPPON"},
+    "125354": {"bg": "#97144D", "accent": "#BE123C", "text": "#FFFFFF", "mark": "AXIS"},
+    "119551": {"bg": "#280071", "accent": "#00A3E0", "text": "#FFFFFF", "mark": "SBI"},
+    "120503": {"bg": "#004C8F", "accent": "#ED1C24", "text": "#FFFFFF", "mark": "HDFC"},
+    "120586": {"bg": "#9B1B1E", "accent": "#F37021", "text": "#FFFFFF", "mark": "ICICI"},
+    "127042": {"bg": "#111111", "accent": "#FFD100", "text": "#FFD100", "mark": "MO"},
+    "135781": {"bg": "#0F3E7A", "accent": "#2563EB", "text": "#FFFFFF", "mark": "TATA"},
+    "120716": {"bg": "#E65100", "accent": "#0D47A1", "text": "#FFFFFF", "mark": "UTI"},
+    "148712": {"bg": "#111827", "accent": "#00C269", "text": "#00C269", "mark": "navi"},
+}
+
+def render_etf_badge(symbol, size=256):
+    """Generates authentic, stunning ETF badges (Gold, Silver, Index)."""
+    sym = symbol.upper().replace(".NS", "").replace(".BO", "")
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
+    margin = 4
+    corner = 52
 
-    palette = BRAND_PALETTES.get(symbol.upper())
-    if not palette:
-        # Deterministic rich palette based on symbol hash
-        h = sum(ord(c) for c in symbol)
-        colors = [
-            ("#0284C7", "#0369A1", "#FFFFFF"),
-            ("#7C3AED", "#6D28D9", "#FFFFFF"),
-            ("#059669", "#047857", "#FFFFFF"),
-            ("#D97706", "#B45309", "#FFFFFF"),
-            ("#DC2626", "#B91C1C", "#FFFFFF"),
-            ("#2563EB", "#1D4ED8", "#FFFFFF"),
-            ("#4F46E5", "#4338CA", "#FFFFFF"),
-            ("#0D9488", "#0F766E", "#FFFFFF")
-        ]
-        palette = colors[h % len(colors)]
-
-    bg_color = hex_to_rgb(palette[0])
-    accent_color = hex_to_rgb(palette[1])
-    text_color = hex_to_rgb(palette[2])
-
-    # 1. Draw rounded container emblem (236x236 centered in 256x256)
-    margin = 10
-    corner_radius = 48
-    draw.rounded_rectangle(
-        [margin, margin, size - margin, size - margin],
-        radius=corner_radius,
-        fill=bg_color
-    )
-
-    # 2. Modern subtle geometric accent curve in top right
-    draw.pieslice(
-        [size - 130, margin, size - margin, margin + 120],
-        start=270,
-        end=360,
-        fill=(accent_color[0], accent_color[1], accent_color[2], 90)
-    )
-
-    # 3. Clean border
-    draw.rounded_rectangle(
-        [margin, margin, size - margin, size - margin],
-        radius=corner_radius,
-        outline=(255, 255, 255, 30),
-        width=3
-    )
-
-    # 4. Typography / Mark
-    sym_clean = symbol.upper().replace(".NS", "").replace(".BO", "")
-    
-    # If ETF, show special symbol badge
-    if "BEES" in sym_clean or "ETF" in sym_clean:
-        font_main = get_font(52)
-        font_sub = get_font(32)
+    if "GOLD" in sym:
+        # Rich Metallic Gold Emblem
+        bg = hex_to_rgb("#B45309")
+        accent = hex_to_rgb("#F59E0B")
+        draw.rounded_rectangle([margin, margin, size - margin, size - margin], radius=corner, fill=bg)
+        # Gold accent ribbon
+        draw.pieslice([size - 140, margin, size - margin, margin + 130], start=270, end=360, fill=(accent[0], accent[1], accent[2], 120))
+        draw.rounded_rectangle([margin, margin, size - margin, size - margin], radius=corner, outline=(255, 215, 0, 160), width=4)
         
-        main_text = sym_clean[:5] if len(sym_clean) > 7 else sym_clean
-        bbox_m = draw.textbbox((0, 0), main_text, font=font_main)
-        w_m = bbox_m[2] - bbox_m[0]
-        h_m = bbox_m[3] - bbox_m[1]
-        draw.text(((size - w_m) // 2, (size // 2) - h_m - 8), main_text, fill=text_color, font=font_main)
-        
-        sub_text = "ETF"
-        bbox_s = draw.textbbox((0, 0), sub_text, font=font_sub)
-        w_s = bbox_s[2] - bbox_s[0]
-        draw.text(((size - w_s) // 2, (size // 2) + 12), sub_text, fill=(accent_color[0], accent_color[1], accent_color[2], 240), font=font_sub)
+        # Gold Ingot text
+        f_top = get_font(72)
+        f_sub = get_font(38)
+        draw.text((128, 90), "GOLD", fill="#FFFFFF", font=f_top, anchor="mm")
+        draw.text((128, 168), "ETF 🪙", fill="#FEF08A", font=f_sub, anchor="mm")
         return img
 
-    # Main symbol/initial rendering
-    if len(sym_clean) <= 4:
-        font = get_font(68)
-        text = sym_clean
-    elif len(sym_clean) <= 7:
-        font = get_font(54)
-        text = sym_clean
-    else:
-        # First 3-4 letters
-        font = get_font(60)
-        text = sym_clean[:4]
+    if "SILVER" in sym:
+        # Sleek Metallic Silver Emblem
+        bg = hex_to_rgb("#334155")
+        accent = hex_to_rgb("#94A3B8")
+        draw.rounded_rectangle([margin, margin, size - margin, size - margin], radius=corner, fill=bg)
+        draw.pieslice([size - 140, margin, size - margin, margin + 130], start=270, end=360, fill=(accent[0], accent[1], accent[2], 120))
+        draw.rounded_rectangle([margin, margin, size - margin, size - margin], radius=corner, outline=(226, 232, 240, 180), width=4)
+        
+        f_top = get_font(60)
+        f_sub = get_font(38)
+        draw.text((128, 92), "SILVER", fill="#FFFFFF", font=f_top, anchor="mm")
+        draw.text((128, 168), "ETF ⚪", fill="#E2E8F0", font=f_sub, anchor="mm")
+        return img
 
-    bbox = draw.textbbox((0, 0), text, font=font)
-    w = bbox[2] - bbox - [0] if isinstance(bbox, list) else (bbox[2] - bbox[0])
-    h = bbox[3] - bbox[1]
+    if "NIFTY" in sym or "SETFNIF50" in sym or "MID150" in sym:
+        # Nifty Blue Index Emblem
+        bg = hex_to_rgb("#002D62")
+        accent = hex_to_rgb("#0284C7")
+        draw.rounded_rectangle([margin, margin, size - margin, size - margin], radius=corner, fill=bg)
+        draw.rounded_rectangle([margin, margin, size - margin, size - margin], radius=corner, outline=(56, 189, 248, 140), width=4)
+        f_top = get_font(68)
+        f_sub = get_font(36)
+        draw.text((128, 92), "NIFTY", fill="#FFFFFF", font=f_top, anchor="mm")
+        draw.text((128, 166), "50 ETF", fill="#38BDF8", font=f_sub, anchor="mm")
+        return img
 
-    # Center text
-    x = (size - w) // 2
-    y = (size - h) // 2 - 4
-    draw.text((x, y), text, fill=text_color, font=font)
+    if "BANK" in sym:
+        # Banking Navy
+        bg = hex_to_rgb("#0D47A1")
+        accent = hex_to_rgb("#1E40AF")
+        draw.rounded_rectangle([margin, margin, size - margin, size - margin], radius=corner, fill=bg)
+        draw.rounded_rectangle([margin, margin, size - margin, size - margin], radius=corner, outline=(96, 165, 250, 140), width=4)
+        f_top = get_font(68)
+        f_sub = get_font(36)
+        draw.text((128, 92), "BANK", fill="#FFFFFF", font=f_top, anchor="mm")
+        draw.text((128, 166), "ETF", fill="#93C5FD", font=f_sub, anchor="mm")
+        return img
 
+    if "IT" in sym:
+        # Tech Cyan
+        bg = hex_to_rgb("#0077B6")
+        draw.rounded_rectangle([margin, margin, size - margin, size - margin], radius=corner, fill=bg)
+        draw.rounded_rectangle([margin, margin, size - margin, size - margin], radius=corner, outline=(125, 211, 252, 140), width=4)
+        f_top = get_font(84)
+        f_sub = get_font(36)
+        draw.text((128, 90), "IT", fill="#FFFFFF", font=f_top, anchor="mm")
+        draw.text((128, 166), "ETF", fill="#BAE6FD", font=f_sub, anchor="mm")
+        return img
+
+    if "CPSE" in sym:
+        bg = hex_to_rgb("#C2410C")
+        draw.rounded_rectangle([margin, margin, size - margin, size - margin], radius=corner, fill=bg)
+        draw.rounded_rectangle([margin, margin, size - margin, size - margin], radius=corner, outline=(251, 146, 60, 140), width=4)
+        f_top = get_font(64)
+        f_sub = get_font(36)
+        draw.text((128, 92), "CPSE", fill="#FFFFFF", font=f_top, anchor="mm")
+        draw.text((128, 166), "PSU ETF", fill="#FED7AA", font=f_sub, anchor="mm")
+        return img
+
+    # Default ETF Badge
+    bg = hex_to_rgb("#1E293B")
+    draw.rounded_rectangle([margin, margin, size - margin, size - margin], radius=corner, fill=bg)
+    f_top = get_font(52)
+    f_sub = get_font(34)
+    short = sym.replace("BEES", "").replace("ETF", "")[:6]
+    draw.text((128, 92), short, fill="#FFFFFF", font=f_top, anchor="mm")
+    draw.text((128, 166), "ETF", fill="#38BDF8", font=f_sub, anchor="mm")
     return img
 
-def try_download_fmp(symbol):
-    clean = symbol.upper().replace(".NS", "").replace(".BO", "")
-    urls = [
-        f"https://images.financialmodelingprep.com/symbol/{clean}.NS.png",
-        f"https://images.financialmodelingprep.com/symbol/{clean}.png"
-    ]
-    for u in urls:
-        try:
-            r = requests.get(u, timeout=2.5)
-            if r.status_code == 200 and len(r.content) > 1200:
-                im = Image.open(io.BytesIO(r.content))
-                if im.size[0] >= 64 and im.size[1] >= 64:
-                    return im
-        except Exception:
-            pass
-    return None
+def render_brand_logo(symbol, size=256):
+    """Generates a bold, crisp, professional corporate brand logo."""
+    sym = symbol.upper().replace(".NS", "").replace(".BO", "")
+    
+    # If ETF, use dedicated ETF renderer
+    if "BEES" in sym or "ETF" in sym or sym in ("HDFCGOLD", "HDFCSILVER", "SETFGOLD"):
+        return render_etf_badge(sym, size=size)
 
-def process_asset(symbol, force_render=False, display_name=""):
-    clean = symbol.upper().replace(".NS", "").replace(".BO", "")
-    target_path = os.path.join(STATIC_LOGOS_DIR, f"{clean}.png")
+    # Special handling for National Stock Exchange of India (NSE)
+    if sym in ("NSE", "NSE.BO"):
+        img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        margin = 4
+        corner = 52
+        bg = hex_to_rgb("#0A192F")
+        draw.rounded_rectangle([margin, margin, size - margin, size - margin], radius=corner, fill=bg)
+        # Iconic dynamic dual arcs of National Stock Exchange of India
+        draw.arc([margin + 24, margin + 24, size - margin - 24, size - margin - 24], start=25, end=195, fill=hex_to_rgb("#FF5722"), width=16)
+        draw.arc([margin + 42, margin + 42, size - margin - 42, size - margin - 42], start=205, end=355, fill=hex_to_rgb("#FF9800"), width=16)
+        draw.rounded_rectangle([margin, margin, size - margin, size - margin], radius=corner, outline=(255, 255, 255, 45), width=3)
+        f_nse = get_font(78)
+        draw.text((128, 128), "NSE", fill="#FFFFFF", font=f_nse, anchor="mm")
+        return img
 
-    # If we already have a high-res (>=120x120) image and not force_render, keep it
-    if os.path.exists(target_path) and not force_render:
-        try:
-            existing = Image.open(target_path)
-            if existing.size[0] >= 120 and existing.size[1] >= 120:
-                return True
-        except Exception:
-            pass
+    cfg = BRAND_CONFIGS.get(sym)
+    if not cfg:
+        # Deterministic rich palette
+        h = sum(ord(c) for c in sym)
+        palettes = [
+            {"bg": "#0284C7", "accent": "#0369A1", "text": "#FFFFFF"},
+            {"bg": "#7C3AED", "accent": "#6D28D9", "text": "#FFFFFF"},
+            {"bg": "#059669", "accent": "#047857", "text": "#FFFFFF"},
+            {"bg": "#D97706", "accent": "#B45309", "text": "#FFFFFF"},
+            {"bg": "#DC2626", "accent": "#B91C1C", "text": "#FFFFFF"},
+            {"bg": "#2563EB", "accent": "#1D4ED8", "text": "#FFFFFF"},
+            {"bg": "#4F46E5", "accent": "#4338CA", "text": "#FFFFFF"},
+            {"bg": "#0D9488", "accent": "#0F766E", "text": "#FFFFFF"}
+        ]
+        cfg = palettes[h % len(palettes)]
+        cfg["mark"] = sym[:4] if len(sym) > 4 else sym
 
-    # Try downloading from FMP
-    fmp_img = try_download_fmp(clean)
-    if fmp_img:
-        try:
-            # Upscale/fit cleanly into 256x256 transparent square
-            fmp_img = fmp_img.convert("RGBA")
-            canvas = Image.new("RGBA", (256, 256), (0, 0, 0, 0))
-            fmp_img.thumbnail((240, 240), Image.Resampling.LANCZOS)
-            cx = (256 - fmp_img.size[0]) // 2
-            cy = (256 - fmp_img.size[1]) // 2
-            canvas.paste(fmp_img, (cx, cy), fmp_img)
-            canvas.save(target_path, "PNG", optimize=True)
-            return True
-        except Exception:
-            pass
+    bg = hex_to_rgb(cfg["bg"])
+    accent = hex_to_rgb(cfg.get("accent", cfg["bg"]))
+    text_color = hex_to_rgb(cfg.get("text", "#FFFFFF"))
+    mark = cfg.get("mark", sym[:4])
 
-    # Fallback to pristine vector brand emblem (256x256)
-    rendered = render_crisp_vector_logo(clean, display_name=display_name)
-    rendered.save(target_path, "PNG", optimize=True)
-    return True
+    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    margin = 4
+    corner = 52
 
-import concurrent.futures
+    # 1. Main Brand Container
+    draw.rounded_rectangle([margin, margin, size - margin, size - margin], radius=corner, fill=bg)
+
+    # 2. Modern Brand Accent Geometry
+    draw.pieslice([size - 130, margin, size - margin, margin + 120], start=270, end=360, fill=(accent[0], accent[1], accent[2], 100))
+    draw.rounded_rectangle([margin, margin, size - margin, size - margin], radius=corner, outline=(255, 255, 255, 35), width=3)
+
+    # 3. SBI special keyhole circle accent
+    if cfg.get("circle_accent"):
+        draw.ellipse([size - 90, margin + 15, size - 35, margin + 70], fill=(accent[0], accent[1], accent[2], 220))
+        draw.rectangle([size - 66, margin + 50, size - 59, margin + 75], fill=(bg[0], bg[1], bg[2], 255))
+
+    # 4. Bold, Highly Legible Brand Mark Typography
+    mark_len = len(mark)
+    if mark_len <= 3:
+        font_size = 96
+    elif mark_len == 4:
+        font_size = 80
+    elif mark_len <= 6:
+        font_size = 62
+    else:
+        font_size = 50
+
+    font = get_font(font_size)
+    draw.text((128, 128), mark, fill=text_color, font=font, anchor="mm")
+    return img
 
 def run():
-    print("=== STARTING HIGH-RES LOGO PIPELINE ===", flush=True)
+    print("=== OVERWRITING WITH PRISTINE 256x256 HIGH-RES LOGOS ===", flush=True)
     import stock_master
-    
+
     # 1. Base Stocks (72)
     base_stocks = [s["symbol"] for s in stock_master.STOCK_MASTER]
-    print(f"Processing {len(base_stocks)} base stocks in parallel...", flush=True)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=16) as pool:
-        list(pool.map(process_asset, base_stocks))
+    print(f"Generating {len(base_stocks)} Base Equities...", flush=True)
+    for s in base_stocks:
+        clean = s.upper().replace(".NS", "").replace(".BO", "")
+        img = render_brand_logo(clean)
+        img.save(os.path.join(STATIC_LOGOS_DIR, f"{clean}.png"), "PNG", optimize=True)
 
     # 2. Newly Listed Stocks (19)
     try:
         with open(os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "newly_listed_stocks.json"), encoding="utf-8") as f:
             dyn = json.load(f)
             dyn_stocks = [s["symbol"] for s in dyn]
-            print(f"Processing {len(dyn_stocks)} newly listed stocks in parallel...", flush=True)
-            with concurrent.futures.ThreadPoolExecutor(max_workers=16) as pool:
-                list(pool.map(process_asset, dyn_stocks))
+            print(f"Generating {len(dyn_stocks)} Newly Listed Equities...", flush=True)
+            for s in dyn_stocks:
+                clean = s.upper().replace(".NS", "").replace(".BO", "")
+                img = render_brand_logo(clean)
+                img.save(os.path.join(STATIC_LOGOS_DIR, f"{clean}.png"), "PNG", optimize=True)
     except Exception as e:
-        print(f"Newly listed stocks error: {e}", flush=True)
+        print(f"Newly listed error: {e}", flush=True)
 
-    # 3. ETFs (15)
+    # 3. ETFs (15) - Dedicated Gold, Silver, and Index Badges
     etfs = [e["symbol"] for e in stock_master.ETF_MASTER]
-    print(f"Processing {len(etfs)} ETFs...", flush=True)
+    print(f"Generating {len(etfs)} ETFs with dedicated Gold/Silver/Index badges...", flush=True)
     for s in etfs:
-        process_asset(s, force_render=True)
+        clean = s.upper().replace(".NS", "").replace(".BO", "")
+        img = render_etf_badge(clean)
+        img.save(os.path.join(STATIC_LOGOS_DIR, f"{clean}.png"), "PNG", optimize=True)
 
-    # 4. Mutual Funds (12 AMCs)
+    # 4. Mutual Fund AMCs (12)
     mf_amcs = [
         ("122639", "PPFAS"),
         ("120828", "QUANT"),
@@ -348,9 +397,9 @@ def run():
         ("120716", "UTI"),
         ("148712", "NAVI"),
     ]
-    print(f"Processing {len(mf_amcs)} Mutual Fund AMCs...", flush=True)
+    print(f"Generating {len(mf_amcs)} Mutual Fund AMCs...", flush=True)
     for code, amc in mf_amcs:
-        img = render_crisp_vector_logo(code, display_name=amc)
+        img = render_brand_logo(code)
         img.save(os.path.join(STATIC_LOGOS_DIR, f"{code}.png"), "PNG", optimize=True)
         img.save(os.path.join(STATIC_LOGOS_DIR, f"MF_{amc}.png"), "PNG", optimize=True)
         img.save(os.path.join(STATIC_LOGOS_DIR, f"{amc}.png"), "PNG", optimize=True)
@@ -359,14 +408,24 @@ def run():
     try:
         with open(os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "cached_ipos.json"), encoding="utf-8") as f:
             ipos = json.load(f)
-            ipo_syms = [ipo.get("symbol") for ipo in ipos if ipo.get("symbol")]
-            print(f"Processing {len(ipo_syms)} IPO companies in parallel...", flush=True)
-            with concurrent.futures.ThreadPoolExecutor(max_workers=16) as pool:
-                list(pool.map(process_asset, ipo_syms))
+            print(f"Generating {len(ipos)} IPO logos...", flush=True)
+            for ipo in ipos:
+                sym = ipo.get("symbol")
+                if sym:
+                    clean = sym.upper().replace(".NS", "").replace(".BO", "")
+                    img = render_brand_logo(clean)
+                    img.save(os.path.join(STATIC_LOGOS_DIR, f"{clean}.png"), "PNG", optimize=True)
     except Exception as e:
         print(f"IPO logos error: {e}", flush=True)
 
-    print("=== HIGH-RES LOGO PIPELINE COMPLETE ===", flush=True)
+    # 6. Additional Popular Indian Equities & Exchange Aliases
+    extra_popular = ["NSE", "NSE.BO", "SWIGGY", "NYKAA", "POLICYBZR", "DELHIVERY", "OLAELEC", "ANGELONE", "IEX", "MCX", "ZOMATO"]
+    print(f"Generating {len(extra_popular)} Additional Popular Indian Equities...", flush=True)
+    for s in extra_popular:
+        img = render_brand_logo(s)
+        img.save(os.path.join(STATIC_LOGOS_DIR, f"{s}.png"), "PNG", optimize=True)
+
+    print("=== ALL LOGOS REGENERATED AT 256x256 PRISTINE QUALITY ===", flush=True)
 
 if __name__ == "__main__":
     run()
