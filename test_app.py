@@ -50,6 +50,15 @@ def test_all():
     assert len(search_res) > 0, "Expected search results for 'Tata'"
     print(f" ✓ Search Autocomplete: Found {len(search_res)} matching results")
 
+    # Verify single unified stock search result (Groww-style deduplication)
+    fed_res = market_service.search_market("federal bank")
+    fed_matches = [r for r in fed_res if "FEDERAL" in r["symbol"].upper() or "FEDERAL" in r["name"].upper()]
+    assert len(fed_matches) == 1, f"Expected exactly 1 Federal Bank search result, got {len(fed_matches)}: {fed_matches}"
+    assert fed_matches[0]["symbol"] == "FEDERALBNK.NS", f"Expected FEDERALBNK.NS, got {fed_matches[0]['symbol']}"
+    assert fed_matches[0]["exchange"] == "NSE", f"Expected NSE exchange, got {fed_matches[0]['exchange']}"
+    assert "Stock • FEDERALBNK" in fed_matches[0]["subtext"], f"Expected Groww style subtext, got {fed_matches[0]['subtext']}"
+    print(f" ✓ Groww-Style Single Stock Deduplication: {fed_matches[0]['name']} ({fed_matches[0]['subtext']})")
+
     # 3. Test Trade Execution Engine
     print("\n[3/4] Testing Trade Execution & Portfolio Math...")
     # Buy 10 shares of Tata Motors at ₹1000

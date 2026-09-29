@@ -1498,6 +1498,7 @@ def search_market(query: str) -> List[Dict[str, Any]]:
 
     candidates = []
     seen_symbols = set()
+    seen_clean_stocks = set()
 
     # 1. Market Indices (High Priority Benchmarks)
     for sym, idx in INDEX_META.items():
@@ -1524,22 +1525,28 @@ def search_market(query: str) -> List[Dict[str, Any]]:
                 "change": chg,
                 "change_pct": chg_pct,
                 "logo_url": logo_url,
-                "subtext": f"Index • {idx.get('sector', 'Market Benchmark')}"
+                "subtext": f"Index • {idx.get('short', name)}"
             })
 
     # 2. Combined Stock Master (Equities)
     for s in get_combined_stock_master():
-        sym_clean = s["symbol"].lower().replace(".ns", "").replace(".bo", "")
+        sym_clean = s["symbol"].lower().replace(".ns", "").replace(".bo", "").strip()
         name_clean = s["name"].lower()
         aliases = [a.lower() for a in s.get("aliases", [])]
         score = _score_search_candidate(q, sym_clean, name_clean, aliases, is_index=False)
-        if score > 0 and s["symbol"] not in seen_symbols:
+        clean_s = s["symbol"].upper().replace(".NS", "").replace(".BO", "").strip()
+        if score > 0 and clean_s not in seen_clean_stocks:
+            seen_clean_stocks.add(clean_s)
             seen_symbols.add(s["symbol"])
-            clean_s = s["symbol"].upper().replace(".NS", "").replace(".BO", "")
+            # Default to NSE (.NS) for unified Groww-like experience, except BSE-only listings like NSE.BO
+            sym_unified = s["symbol"] if s["symbol"].upper().endswith(".BO") else f"{clean_s}.NS"
+            seen_symbols.add(sym_unified)
+
             local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_s}.png")
             logo_url = f"/static/logos/{clean_s}.png" if os.path.exists(local_logo) else f"https://images.financialmodelingprep.com/symbol/{clean_s}.NS.png"
-            exch = "BSE" if s["symbol"].upper().endswith(".BO") else "NSE"
-            subtext = f"NEW • Listed {s.get('listing_date')}" if s.get("is_new_listing") else f"{exch} • {s.get('sector', 'Equities')}"
+            exch = "BSE" if sym_unified.upper().endswith(".BO") else "NSE"
+            # Groww style subtext: "Stock • FEDERALBNK" (or "NEW • Listed ..." if new listing)
+            subtext = f"NEW • Listed {s.get('listing_date')}" if s.get("is_new_listing") else f"Stock • {clean_s}"
 
             # Fetch quote if cached or baseline
             cq = get_cached(f"quote_{s['symbol']}") or _CACHE.get(f"quote_{s['symbol']}")
@@ -1550,7 +1557,7 @@ def search_market(query: str) -> List[Dict[str, Any]]:
 
             candidates.append({
                 "score": score,
-                "symbol": s["symbol"],
+                "symbol": sym_unified,
                 "name": s["name"],
                 "asset_type": "STOCK",
                 "exchange": exch,
@@ -1564,14 +1571,15 @@ def search_market(query: str) -> List[Dict[str, Any]]:
 
     # 3. ETFs
     for e in ETF_MASTER:
-        sym_clean = e["symbol"].lower().replace(".ns", "").replace(".bo", "")
+        sym_clean = e["symbol"].lower().replace(".ns", "").replace(".bo", "").strip()
         name_clean = e["name"].lower()
         cat_clean = e.get("category", "").lower()
         aliases = [a.lower() for a in e.get("aliases", [])] + [cat_clean]
         score = _score_search_candidate(q, sym_clean, name_clean, aliases, is_index=False)
-        if score > 0 and e["symbol"] not in seen_symbols:
+        clean_e = e["symbol"].upper().replace(".NS", "").replace(".BO", "").strip()
+        if score > 0 and clean_e not in seen_clean_stocks and e["symbol"] not in seen_symbols:
+            seen_clean_stocks.add(clean_e)
             seen_symbols.add(e["symbol"])
-            clean_e = e["symbol"].upper().replace(".NS", "").replace(".BO", "")
             local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_e}.png")
             logo_url = f"/static/logos/{clean_e}.png" if os.path.exists(local_logo) else f"https://images.financialmodelingprep.com/symbol/{clean_e}.NS.png"
 
@@ -1591,7 +1599,7 @@ def search_market(query: str) -> List[Dict[str, Any]]:
                 "change": chg,
                 "change_pct": chg_pct,
                 "logo_url": logo_url,
-                "subtext": f"ETF • {e.get('category', 'Commodity / Index')}"
+                "subtext": f"ETF • {clean_e}"
             })
 
     # 4. Mutual Funds
@@ -1637,6 +1645,8 @@ def search_market(query: str) -> List[Dict[str, Any]]:
             r = requests.get(yf_search_url, headers=headers, timeout=0.85)
             if r.status_code == 200:
                 quotes = r.json().get("quotes", [])
+                # Prioritize NSE (.NS) over BSE (.BO) so NSE entry is parsed first
+                quotes.sort(key=lambda x: 0 if x.get("symbol", "").upper().endswith(".NS") else 1)
                 for item in quotes:
                     sym = item.get("symbol", "")
                     exchange = item.get("exchange", "")
@@ -1644,32 +1654,44 @@ def search_market(query: str) -> List[Dict[str, Any]]:
                     if sym.startswith("0P") or "=" in sym:
                         continue
                     if sym.endswith(".NS") or sym.endswith(".BO") or exchange in ["NSI", "BSE", "NSE"]:
-                        if sym not in seen_symbols:
-                            seen_symbols.add(sym)
-                            short_name = item.get("shortname") or item.get("longname") or sym
-                            exch_label = "NSE" if sym.endswith(".NS") or exchange in ["NSI", "NSE"] else "BSE"
-                            sector_label = item.get("sectorDisp") or item.get("industryDisp") or "Equity"
-                            clean_item_sym = sym.upper().replace(".NS", "").replace(".BO", "")
-                            local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_item_sym}.png")
-                            logo_url = f"/static/logos/{clean_item_sym}.png" if os.path.exists(local_logo) else f"https://images.financialmodelingprep.com/symbol/{clean_item_sym}.NS.png"
-                            candidates.append({
-                                "score": 100,
-                                "symbol": sym,
-                                "name": short_name,
-                                "asset_type": "STOCK",
-                                "exchange": exch_label,
-                                "price": None,
-                                "change": None,
-                                "change_pct": None,
-                                "logo_url": logo_url,
-                                "subtext": f"{exch_label} • {sector_label}"
-                            })
+                        clean_item_sym = sym.upper().replace(".NS", "").replace(".BO", "").strip()
+                        if not clean_item_sym:
+                            continue
+                        if clean_item_sym in seen_clean_stocks or sym in seen_symbols:
+                            continue
+                        seen_clean_stocks.add(clean_item_sym)
+                        seen_symbols.add(sym)
+
+                        short_name = item.get("shortname") or item.get("longname") or clean_item_sym
+                        # Standardize to NSE (.NS) by default for Indian equities
+                        unified_sym = f"{clean_item_sym}.NS"
+                        seen_symbols.add(unified_sym)
+
+                        local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_item_sym}.png")
+                        logo_url = f"/static/logos/{clean_item_sym}.png" if os.path.exists(local_logo) else f"https://images.financialmodelingprep.com/symbol/{clean_item_sym}.NS.png"
+                        candidates.append({
+                            "score": 100,
+                            "symbol": unified_sym,
+                            "name": short_name,
+                            "asset_type": "STOCK",
+                            "exchange": "NSE",
+                            "price": None,
+                            "change": None,
+                            "change_pct": None,
+                            "logo_url": logo_url,
+                            "subtext": f"Stock • {clean_item_sym}"
+                        })
         except Exception:
             pass
 
-    # Strip internal score and limit results to top 15
+    # Strip internal score and limit results to top 15 (with strict clean symbol deduplication)
     final_results = []
-    for c in candidates[:15]:
+    final_seen = set()
+    for c in candidates:
+        sym_key = c["symbol"].upper().replace(".NS", "").replace(".BO", "").strip() if c["asset_type"] in ["STOCK", "ETF"] else c["symbol"].upper().strip()
+        if sym_key in final_seen:
+            continue
+        final_seen.add(sym_key)
         final_results.append({
             "symbol": c["symbol"],
             "name": c["name"],
@@ -1682,6 +1704,8 @@ def search_market(query: str) -> List[Dict[str, Any]]:
             "subtext": c["subtext"],
             "is_new_listing": c.get("is_new_listing", False)
         })
+        if len(final_results) >= 15:
+            break
 
     _SEARCH_CACHE[q] = (now, final_results)
     if len(_SEARCH_CACHE) > 300:

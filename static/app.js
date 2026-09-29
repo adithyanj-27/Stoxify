@@ -2502,14 +2502,27 @@ let currentSearchResults = [];
 let activeSearchIndex = -1;
 
 const TRENDING_SEARCHES = [
-  { symbol: 'NIFTY 50', name: 'NIFTY 50', asset_type: 'INDEX', subtext: 'Benchmark Index', exchange: 'INDEX' },
-  { symbol: 'SENSEX', name: 'BSE SENSEX', asset_type: 'INDEX', subtext: 'Benchmark Index', exchange: 'INDEX' },
-  { symbol: 'RELIANCE.NS', name: 'Reliance Industries', asset_type: 'STOCK', subtext: 'Energy & Petrochemicals', exchange: 'NSE' },
-  { symbol: 'TATAMOTORS.NS', name: 'Tata Motors', asset_type: 'STOCK', subtext: 'Automotive', exchange: 'NSE' },
-  { symbol: 'HDFCBANK.NS', name: 'HDFC Bank', asset_type: 'STOCK', subtext: 'Banking & Financial', exchange: 'NSE' },
-  { symbol: 'GOLDBEES.NS', name: 'Nippon India ETF Gold BeES', asset_type: 'ETF', subtext: 'Gold ETF', exchange: 'NSE' },
-  { symbol: '122639', name: 'Parag Parikh Flexi Cap Fund', asset_type: 'MUTUAL_FUND', subtext: 'Flexi Cap Fund', exchange: 'AMFI' }
+  { symbol: 'NIFTY 50', name: 'NIFTY 50', asset_type: 'INDEX', subtext: 'Index • NIFTY 50', exchange: 'INDEX' },
+  { symbol: 'SENSEX', name: 'BSE SENSEX', asset_type: 'INDEX', subtext: 'Index • SENSEX', exchange: 'INDEX' },
+  { symbol: 'RELIANCE.NS', name: 'Reliance Industries', asset_type: 'STOCK', subtext: 'Stock • RELIANCE', exchange: 'NSE' },
+  { symbol: 'TATAMOTORS.NS', name: 'Tata Motors', asset_type: 'STOCK', subtext: 'Stock • TATAMOTORS', exchange: 'NSE' },
+  { symbol: 'HDFCBANK.NS', name: 'HDFC Bank', asset_type: 'STOCK', subtext: 'Stock • HDFCBANK', exchange: 'NSE' },
+  { symbol: 'GOLDBEES.NS', name: 'Nippon India ETF Gold BeES', asset_type: 'ETF', subtext: 'ETF • GOLDBEES', exchange: 'NSE' },
+  { symbol: '122639', name: 'Parag Parikh Flexi Cap Fund', asset_type: 'MUTUAL_FUND', subtext: 'Mutual Fund • Flexi Cap', exchange: 'AMFI' }
 ];
+
+function formatSearchSubtitle(r) {
+  if (!r) return '';
+  if (r.subtext && (r.subtext.startsWith('Stock •') || r.subtext.startsWith('ETF •') || r.subtext.startsWith('Index •') || r.subtext.startsWith('Mutual Fund •') || r.subtext.startsWith('NEW •'))) {
+    return r.subtext;
+  }
+  const cleanSym = (r.symbol || '').replace('.NS', '').replace('.BO', '').replace('^', '').toUpperCase();
+  const type = (r.asset_type || 'STOCK').toUpperCase();
+  if (type === 'MUTUAL_FUND') return `Mutual Fund • ${r.subtext ? r.subtext.replace('Mutual Fund • ', '') : 'Direct Plan'}`;
+  if (type === 'ETF') return `ETF • ${cleanSym}`;
+  if (type === 'INDEX') return `Index • ${cleanSym}`;
+  return `Stock • ${cleanSym}`;
+}
 
 function getRecentSearches() {
   try {
@@ -2524,12 +2537,13 @@ function saveRecentSearch(item) {
   if (!item || !item.symbol) return;
   try {
     let recent = getRecentSearches();
-    recent = recent.filter(r => (r.symbol || '').toUpperCase() !== item.symbol.toUpperCase());
+    const cleanSym = (item.symbol || '').replace('.NS', '').replace('.BO', '').replace('^', '').toUpperCase();
+    recent = recent.filter(r => (r.symbol || '').replace('.NS', '').replace('.BO', '').replace('^', '').toUpperCase() !== cleanSym);
     recent.unshift({
       symbol: item.symbol,
       name: item.name || item.symbol,
       asset_type: item.asset_type || 'STOCK',
-      subtext: item.subtext || '',
+      subtext: formatSearchSubtitle(item),
       price: item.price || null,
       change_pct: item.change_pct !== undefined ? item.change_pct : null,
       exchange: item.exchange || 'NSE'
@@ -2615,7 +2629,7 @@ function renderSearchZeroState() {
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--text-muted); flex-shrink: 0;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                 <div style="min-width: 0;">
                   <div style="font-weight: 600; font-size: 0.84rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${r.name}</div>
-                  <div style="font-size: 0.72rem; color: var(--text-muted);">${r.symbol} • ${r.exchange || 'NSE'}</div>
+                  <div style="font-size: 0.72rem; color: var(--text-muted);">${formatSearchSubtitle(r)}</div>
                 </div>
               </div>
               <button type="button" class="search-recent-remove" onclick="removeRecentSearch('${r.symbol}', event)" title="Remove">✕</button>
@@ -2669,6 +2683,18 @@ function renderSearchResultsList(results, query) {
     });
   }
 
+  // Deduplicate on client side so each stock/ETF appears only once
+  const seenCleanKeys = new Set();
+  const deduped = [];
+  for (const r of filtered) {
+    const isStockOrEtf = r.asset_type === 'STOCK' || r.asset_type === 'EQUITY' || r.asset_type === 'ETF';
+    const key = isStockOrEtf ? (r.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase() : (r.symbol || '').toUpperCase();
+    if (key && seenCleanKeys.has(key)) continue;
+    if (key) seenCleanKeys.add(key);
+    deduped.push(r);
+  }
+  filtered = deduped;
+
   if (filtered.length === 0) {
     searchDropdown.innerHTML = `
       ${renderSearchCategoryTabs()}
@@ -2684,8 +2710,7 @@ function renderSearchResultsList(results, query) {
   const itemsHtml = filtered.map((r, idx) => {
     const isPos = (r.change_pct || 0) >= 0;
     const hasPrice = r.price !== null && r.price !== undefined && !isNaN(r.price) && r.price > 0;
-    const exch = (r.exchange || (r.symbol && r.symbol.endsWith('.BO') ? 'BSE' : (r.asset_type === 'MUTUAL_FUND' ? 'AMFI' : 'NSE'))).toUpperCase();
-    const exchClass = exch.toLowerCase();
+    const subDisplay = formatSearchSubtitle(r);
 
     return `
       <div class="search-item ${idx === activeSearchIndex ? 'selected' : ''}" data-index="${idx}" onclick="selectSearchResult('${r.symbol}', '${r.asset_type}')">
@@ -2694,9 +2719,7 @@ function renderSearchResultsList(results, query) {
           <div style="min-width: 0; overflow: hidden;">
             <div class="search-item-title" style="font-weight: 700; font-size: 0.88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${r.name}</div>
             <div class="search-item-sub" style="font-size: 0.73rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.35rem; margin-top: 2px;">
-              <span>${r.symbol}</span>
-              <span class="badge-exchange ${exchClass}">${exch}</span>
-              ${r.subtext ? `<span style="opacity: 0.75;">• ${r.subtext}</span>` : ''}
+              <span>${subDisplay}</span>
             </div>
           </div>
         </div>
