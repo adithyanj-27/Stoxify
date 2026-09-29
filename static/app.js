@@ -2033,8 +2033,11 @@ async function fetchPortfolioInternal(requestVersion) {
     const holdings = stockHoldings;
     const stockChartCard = document.getElementById('stockPortfolioChartCard');
 
+    const btnStockAnalysis = document.getElementById('btnToggleStockAnalysis');
+
     if (holdings.length === 0) {
       if (stockChartCard) stockChartCard.style.display = 'none';
+      if (btnStockAnalysis) btnStockAnalysis.style.display = 'none';
       if (tableBody) {
         tableBody.innerHTML = `
           <tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 3.5rem;">No active stock holdings yet. Head to Explore to invest!</td></tr>
@@ -2048,11 +2051,11 @@ async function fetchPortfolioInternal(requestVersion) {
       return;
     }
 
-    if (stockChartCard) {
-      stockChartCard.style.display = 'block';
-      if (typeof updateStockPortfolioCharts === 'function') {
-        updateStockPortfolioCharts(stockHoldings, curVal, invVal);
-      }
+    if (btnStockAnalysis) {
+      btnStockAnalysis.style.display = 'inline-flex';
+    }
+    if (typeof updateStockPortfolioCharts === 'function') {
+      updateStockPortfolioCharts(stockHoldings, curVal, invVal);
     }
 
     // Render Desktop Table
@@ -2208,18 +2211,21 @@ async function renderMutualFundDashboard() {
     const mobList = document.getElementById('mfHoldingsMobileList');
     const mfChartCard = document.getElementById('mfPortfolioChartCard');
 
+    const btnMfAnalysis = document.getElementById('btnToggleMfAnalysis');
+
     if (mfHoldings.length === 0) {
       if (mfChartCard) mfChartCard.style.display = 'none';
+      if (btnMfAnalysis) btnMfAnalysis.style.display = 'none';
       if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 3.5rem;">No active mutual fund investments yet. Head to Explore to discover top-rated funds!</td></tr>';
       if (mobList) mobList.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 2.5rem;">No active mutual fund investments yet.</div>';
       return;
     }
 
-    if (mfChartCard) {
-      mfChartCard.style.display = 'block';
-      if (typeof updateMfPortfolioCharts === 'function') {
-        updateMfPortfolioCharts(mfHoldings, curVal, invVal);
-      }
+    if (btnMfAnalysis) {
+      btnMfAnalysis.style.display = 'inline-flex';
+    }
+    if (typeof updateMfPortfolioCharts === 'function') {
+      updateMfPortfolioCharts(mfHoldings, curVal, invVal);
     }
 
     if (tbody) {
@@ -10892,6 +10898,7 @@ window.switchStockExchange = switchStockExchange;
    ============================================================ */
 const portfolioChartsState = {
   stock: {
+    isOpen: false,
     view: 'performance',
     tf: '1M',
     allocMode: 'holding',
@@ -10902,6 +10909,7 @@ const portfolioChartsState = {
     invVal: 0
   },
   mf: {
+    isOpen: false,
     view: 'performance',
     tf: '1M',
     allocMode: 'holding',
@@ -10942,6 +10950,10 @@ function updateStockPortfolioCharts(holdings, curVal, invVal) {
   portfolioChartsState.stock.curVal = curVal || 0;
   portfolioChartsState.stock.invVal = invVal || 0;
 
+  if (!portfolioChartsState.stock.isOpen) {
+    return;
+  }
+
   if (portfolioChartsState.stock.view === 'performance') {
     renderStockPerformanceChart();
   } else {
@@ -10953,6 +10965,10 @@ function updateMfPortfolioCharts(holdings, curVal, invVal) {
   portfolioChartsState.mf.holdings = holdings || [];
   portfolioChartsState.mf.curVal = curVal || 0;
   portfolioChartsState.mf.invVal = invVal || 0;
+
+  if (!portfolioChartsState.mf.isOpen) {
+    return;
+  }
 
   if (portfolioChartsState.mf.view === 'performance') {
     renderMfPerformanceChart();
@@ -11789,6 +11805,56 @@ function renderMfAllocationChart() {
   }
 }
 
+function toggleStockPortfolioAnalysis(force) {
+  const card = document.getElementById('stockPortfolioChartCard');
+  const btn = document.getElementById('btnToggleStockAnalysis');
+  if (!card) return;
+
+  const willOpen = typeof force === 'boolean' ? force : !portfolioChartsState.stock.isOpen;
+  portfolioChartsState.stock.isOpen = willOpen;
+
+  if (willOpen) {
+    card.style.display = 'block';
+    if (btn) btn.classList.add('active');
+    if (portfolioChartsState.stock.view === 'performance') {
+      renderStockPerformanceChart();
+    } else {
+      renderStockAllocationChart();
+    }
+    if (typeof force !== 'boolean') {
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  } else {
+    card.style.display = 'none';
+    if (btn) btn.classList.remove('active');
+  }
+}
+
+function toggleMfPortfolioAnalysis(force) {
+  const card = document.getElementById('mfPortfolioChartCard');
+  const btn = document.getElementById('btnToggleMfAnalysis');
+  if (!card) return;
+
+  const willOpen = typeof force === 'boolean' ? force : !portfolioChartsState.mf.isOpen;
+  portfolioChartsState.mf.isOpen = willOpen;
+
+  if (willOpen) {
+    card.style.display = 'block';
+    if (btn) btn.classList.add('active');
+    if (portfolioChartsState.mf.view === 'performance') {
+      renderMfPerformanceChart();
+    } else {
+      renderMfAllocationChart();
+    }
+    if (typeof force !== 'boolean') {
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  } else {
+    card.style.display = 'none';
+    if (btn) btn.classList.remove('active');
+  }
+}
+
 // Window Bindings for Inline Click Handlers
 window.switchStockPortfolioView = switchStockPortfolioView;
 window.switchMfPortfolioView = switchMfPortfolioView;
@@ -11798,4 +11864,7 @@ window.switchStockAllocMode = switchStockAllocMode;
 window.switchMfAllocMode = switchMfAllocMode;
 window.updateStockPortfolioCharts = updateStockPortfolioCharts;
 window.updateMfPortfolioCharts = updateMfPortfolioCharts;
+window.toggleStockPortfolioAnalysis = toggleStockPortfolioAnalysis;
+window.toggleMfPortfolioAnalysis = toggleMfPortfolioAnalysis;
+
 

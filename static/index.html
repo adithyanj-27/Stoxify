@@ -729,11 +729,16 @@
 
         <!-- 1. Normal Holdings View -->
         <div id="holdings-list-container">
-          <div class="section-header">
+          <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
             <div>
               <h2 class="section-title">Delivery Holdings</h2>
               <p class="section-desc">Long-term portfolio assets held in demat (Delivery CNC)</p>
             </div>
+            <button type="button" class="portfolio-analysis-trigger-btn" id="btnToggleStockAnalysis" onclick="toggleStockPortfolioAnalysis()" style="display: none;">
+              <span class="analysis-btn-icon">📈</span>
+              <span class="analysis-btn-text">Portfolio Analysis</span>
+              <span class="analysis-btn-chevron" id="stockAnalysisChevron">›</span>
+            </button>
           </div>
 
           <!-- Portfolio Summary Banner -->
@@ -772,6 +777,9 @@
                   <button type="button" class="portfolio-toggle-pill" id="btnStockChartAlloc" onclick="switchStockPortfolioView('allocation')">Allocation</button>
                 </div>
               </div>
+
+              <!-- Close Button -->
+              <button type="button" class="portfolio-chart-close-btn" onclick="toggleStockPortfolioAnalysis(false)" title="Hide Analysis">✕</button>
 
               <!-- Performance Controls: 1D, 1W, 1M, 3M, 6M, 1Y, ALL -->
               <div id="stockPerfControls" class="chart-timeframes">
@@ -979,14 +987,21 @@
       </div>
 
       <div id="mfDashboardAuthContent">
-        <div class="section-header">
+        <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
           <div>
             <h2 class="section-title">Mutual Funds Dashboard</h2>
             <p class="section-desc">Track your direct mutual fund portfolio, live NAVs, and total returns</p>
           </div>
-          <button class="btn-primary" onclick="switchProduct('mf', 'explore')">
-            + Invest in More Funds
-          </button>
+          <div class="section-header-actions" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+            <button type="button" class="portfolio-analysis-trigger-btn" id="btnToggleMfAnalysis" onclick="toggleMfPortfolioAnalysis()" style="display: none;">
+              <span class="analysis-btn-icon">📈</span>
+              <span class="analysis-btn-text">Portfolio Analysis</span>
+              <span class="analysis-btn-chevron" id="mfAnalysisChevron">›</span>
+            </button>
+            <button class="btn-primary" onclick="switchProduct('mf', 'explore')">
+              + Invest in More Funds
+            </button>
+          </div>
         </div>
 
         <!-- MF Portfolio Summary Banner -->
@@ -1025,6 +1040,9 @@
                 <button type="button" class="portfolio-toggle-pill" id="btnMfChartAlloc" onclick="switchMfPortfolioView('allocation')">Allocation</button>
               </div>
             </div>
+
+            <!-- Close Button -->
+            <button type="button" class="portfolio-chart-close-btn" onclick="toggleMfPortfolioAnalysis(false)" title="Hide Analysis">✕</button>
 
             <!-- Performance Controls: 1D, 1W, 1M, 3M, 6M, 1Y, ALL -->
             <div id="mfPerfControls" class="chart-timeframes">

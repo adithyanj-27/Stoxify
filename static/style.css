@@ -9285,5 +9285,83 @@ body.viewing-profile .indices-bar {
   opacity: 0.5;
 }
 
+/* Groww-Style "Portfolio Analysis" Trigger Button */
+.portfolio-analysis-trigger-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 1rem;
+  border-radius: 20px;
+  background: rgba(0, 208, 156, 0.08);
+  border: 1px solid rgba(0, 208, 156, 0.28);
+  color: var(--accent-green, #00d09c);
+  font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  white-space: nowrap;
+}
+
+.portfolio-analysis-trigger-btn:hover {
+  background: rgba(0, 208, 156, 0.16);
+  border-color: #00d09c;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0, 208, 156, 0.2);
+}
+
+.portfolio-analysis-trigger-btn.active {
+  background: #00d09c;
+  border-color: #00d09c;
+  color: #0d1117;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(0, 208, 156, 0.3);
+}
+
+.portfolio-analysis-trigger-btn .analysis-btn-icon {
+  font-size: 0.95rem;
+  display: inline-block;
+  line-height: 1;
+}
+
+.portfolio-analysis-trigger-btn .analysis-btn-chevron {
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-left: 0.15rem;
+}
+
+.portfolio-analysis-trigger-btn.active .analysis-btn-chevron {
+  transform: rotate(90deg);
+}
+
+/* Close button inside portfolio chart card */
+.portfolio-chart-close-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  color: var(--text-muted, #94a3b8);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-left: 0.5rem;
+  flex-shrink: 0;
+}
+
+.portfolio-chart-close-btn:hover {
+  background: rgba(235, 91, 60, 0.15);
+  border-color: rgba(235, 91, 60, 0.4);
+  color: #eb5b3c;
+  transform: scale(1.08);
+}
+
+
 
 
