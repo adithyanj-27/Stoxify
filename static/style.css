@@ -9217,4 +9217,12 @@ body.viewing-profile .indices-bar {
   }
 }
 
+.portfolio-chart-card .chart-timeframes .tf-btn.active {
+  background: rgba(0, 208, 156, 0.16) !important;
+  border-color: #00d09c !important;
+  color: #00d09c !important;
+  font-weight: 700 !important;
+  box-shadow: 0 0 10px rgba(0, 208, 156, 0.2) !important;
+}
+
 

@@ -1118,15 +1118,55 @@ def read_portfolio_chart(request: Request, timeframe: str = "1M", asset_type: st
 
     total_invested_val = sum(float(h.get("quantity", 0)) * float(h.get("avg_price", 0)) for h in holdings)
 
+    # Determine portfolio inception date to avoid plotting 20-year stock histories
+    # before the user even owned or started their portfolio.
+    chart_tf = tf
+    earliest_dt = None
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT MIN(timestamp) FROM orders WHERE user_id = ? AND status LIKE 'EXECUTED%'", (uid,))
+        row = cursor.fetchone()
+        if row and row[0]:
+            earliest_dt = str(row[0])
+        if not earliest_dt:
+            cursor.execute("SELECT MIN(updated_at) FROM positions WHERE user_id = ? AND quantity > 0", (uid,))
+            row = cursor.fetchone()
+            if row and row[0]:
+                earliest_dt = str(row[0])
+        conn.close()
+    except Exception:
+        pass
+
+    days_since_start = 30
+    if earliest_dt:
+        try:
+            clean_dt = earliest_dt.replace("T", " ").split(".")[0].strip()
+            if len(clean_dt) >= 10:
+                parsed_dt = datetime.strptime(clean_dt[:10], "%Y-%m-%d")
+                days_since_start = max(1, (datetime.now() - parsed_dt).days)
+        except Exception:
+            pass
+
+    if tf.upper() == "ALL":
+        if days_since_start <= 7:
+            chart_tf = "1W"
+        elif days_since_start <= 40:
+            chart_tf = "1M"
+        elif days_since_start <= 365:
+            chart_tf = "1Y"
+        else:
+            chart_tf = "ALL"
+
     try:
         def fetch_holding_history(h):
             sym = h.get("symbol", "")
             is_mf = (h.get("asset_type") or "").upper() == "MUTUAL_FUND" or sym.isdigit()
             try:
                 if is_mf:
-                    pts = market_service.get_mf_chart(sym, tf)
+                    pts = market_service.get_mf_chart(sym, chart_tf)
                 else:
-                    pts = market_service.get_stock_chart(sym, tf)
+                    pts = market_service.get_stock_chart(sym, chart_tf)
                 return sym, float(h.get("quantity", 0)), pts
             except Exception:
                 return sym, float(h.get("quantity", 0)), []

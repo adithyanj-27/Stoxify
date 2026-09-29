@@ -10922,9 +10922,18 @@ const PORTFOLIO_DONUT_COLORS = [
 function formatCompactINR(val) {
   if (val === null || val === undefined || isNaN(val)) return '0';
   const num = Math.abs(Number(val));
-  if (num >= 10000000) return (val / 10000000).toFixed(2) + ' Cr';
-  if (num >= 100000) return (val / 100000).toFixed(2) + ' L';
-  if (num >= 1000) return (val / 1000).toFixed(1) + ' k';
+  if (num >= 10000000) {
+    const cr = val / 10000000;
+    return (cr % 1 === 0 ? cr.toFixed(0) : cr.toFixed(2)) + 'Cr';
+  }
+  if (num >= 100000) {
+    const l = val / 100000;
+    return (l % 1 === 0 ? l.toFixed(0) : l.toFixed(2)) + 'L';
+  }
+  if (num >= 1000) {
+    const k = val / 1000;
+    return (k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)) + 'k';
+  }
   return Number(val).toFixed(0);
 }
 
@@ -11083,7 +11092,7 @@ async function renderStockPerformanceChart() {
     const values = points.map(p => p.value);
     const firstVal = values[0] || 0;
     const lastVal = values[values.length - 1] || 0;
-    const isPos = lastVal >= (data.invested_val || firstVal);
+    const isPos = values.length >= 2 ? (lastVal >= firstVal) : (lastVal >= (data.invested_val || 0));
     const strokeColor = isPos ? '#00D09C' : '#EB5B3C';
 
     const grad = ctx.createLinearGradient(0, 0, 0, 260);
@@ -11338,7 +11347,7 @@ async function renderMfPerformanceChart() {
     const values = points.map(p => p.value);
     const firstVal = values[0] || 0;
     const lastVal = values[values.length - 1] || 0;
-    const isPos = lastVal >= (data.invested_val || firstVal);
+    const isPos = values.length >= 2 ? (lastVal >= firstVal) : (lastVal >= (data.invested_val || 0));
     const strokeColor = isPos ? '#00D09C' : '#EB5B3C';
 
     const grad = ctx.createLinearGradient(0, 0, 0, 260);
