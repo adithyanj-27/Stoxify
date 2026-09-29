@@ -7062,6 +7062,23 @@ html.user-guest #navProfileWrapper {
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
 }
 
+.ipo-carousel-card {
+  width: 185px;
+  min-width: 185px;
+  max-width: 185px;
+  flex: 0 0 185px;
+}
+
+.ipo-carousel-card .ipo-card-sub {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+  margin-bottom: 0.55rem;
+}
+
 .mb-top {
   display: flex;
   align-items: center;

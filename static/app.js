@@ -10145,56 +10145,26 @@ function renderIpos(filter) {
     const ipoLogo = getAssetLogoUrl(ipo.symbol, ipo);
 
     return `
-      <div class="ipo-card">
-        <div class="ipo-card-header">
-          <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0; flex: 1;">
-            <div class="card-avatar" style="width: 42px; height: 42px; border-radius: 10px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: ${colorPick.bg}; border: 1px solid rgba(255,255,255,0.08); flex-shrink: 0;">
-              ${ipoLogo ? `
-                <img src="${ipoLogo}" alt="${ipo.name}" data-symbol="${ipo.symbol || ''}" onerror="handleLogoError(this)" style="width: 30px; height: 30px; object-fit: contain; border-radius: 4px;">
-                <span style="display: none; align-items: center; justify-content: center; width: 100%; height: 100%; font-weight: 800; font-size: 1.05rem; color: ${colorPick.text};">${(ipo.name || ipo.symbol || 'I').trim().charAt(0).toUpperCase()}</span>
-              ` : `
-                <span style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-weight: 800; font-size: 1.05rem; color: ${colorPick.text};">${(ipo.name || ipo.symbol || 'I').trim().charAt(0).toUpperCase()}</span>
-              `}
-            </div>
-            <div style="min-width: 0; flex: 1;">
-              <h4 class="ipo-card-title" title="${ipo.name}">${ipo.name}</h4>
-              <div class="sub-text">
-                <span>${ipo.symbol || '—'}</span>
-                <span>•</span>
-                <span>${categoryDisplay}</span>
-                ${ipo.gmp ? `<span>•</span><span style="color: var(--accent-green); font-weight: 600;">GMP ${ipo.gmp}</span>` : ''}
-              </div>
-            </div>
+      <div class="most-bought-card ipo-carousel-card" onclick="openIpoBidModal(${ipo.id})">
+        <div class="mb-top">
+          <div class="card-avatar" style="width: 32px; height: 32px; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: ${colorPick.bg}; border: 1px solid rgba(255,255,255,0.08); flex-shrink: 0;">
+            ${ipoLogo ? `
+              <img src="${ipoLogo}" alt="${ipo.name}" data-symbol="${ipo.symbol || ''}" onerror="handleLogoError(this)" style="width: 22px; height: 22px; object-fit: contain; border-radius: 4px;">
+              <span style="display: none; align-items: center; justify-content: center; width: 100%; height: 100%; font-weight: 800; font-size: 0.85rem; color: ${colorPick.color};">${(ipo.name || ipo.symbol || 'I').trim().charAt(0).toUpperCase()}</span>
+            ` : `
+              <span style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-weight: 800; font-size: 0.85rem; color: ${colorPick.color};">${(ipo.name || ipo.symbol || 'I').trim().charAt(0).toUpperCase()}</span>
+            `}
           </div>
-          <div style="display: flex; gap: 0.35rem; align-items: center; flex-shrink: 0;">
-            ${ipo.is_new ? '<span class="badge-positive" style="font-size: 0.68rem; padding: 2px 6px;">NEW</span>' : ''}
-            <span class="${badgeClass}" style="font-size: 0.72rem; padding: 3px 8px; font-weight: 700; border-radius: 6px;">${statusLabel}</span>
+          <div style="display: flex; gap: 0.25rem; align-items: center;">
+            ${ipo.is_new ? '<span class="badge-positive" style="font-size: 0.62rem; padding: 1px 4px;">NEW</span>' : ''}
+            <span class="${badgeClass}" style="font-size: 0.65rem; padding: 2px 6px; font-weight: 700; border-radius: 4px;">${statusLabel}</span>
           </div>
         </div>
-
-        <div class="ipo-metrics-grid">
-          <div class="ipo-metric-item">
-            <span class="label">Price Band</span>
-            <strong>${ipo.price_band || 'To be announced'}</strong>
-          </div>
-          <div class="ipo-metric-item">
-            <span class="label">Issue Size</span>
-            <strong>${ipo.issue_size || '—'}</strong>
-          </div>
-          <div class="ipo-metric-item">
-            <span class="label">${metric3Label}</span>
-            <strong style="color: ${isOpen && sub ? 'var(--accent-green)' : 'var(--text-primary)'};">${metric3Val}</strong>
-          </div>
-          <div class="ipo-metric-item">
-            <span class="label">${metric4Label}</span>
-            <strong>${metric4Val}</strong>
-          </div>
-        </div>
-
-        <div class="ipo-footer">
-          <a class="btn-subtle" style="width: 100%; padding: 0.65rem 0.9rem; font-size: 0.85rem; font-weight: 600; border-radius: 8px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;" href="${ipo.source_url || 'https://www.nseindia.com/market-data/all-upcoming-issues-ipo'}" target="_blank" rel="noopener noreferrer" title="View Official NSE Document">
-            <span>View Official Details on NSE</span> ↗
-          </a>
+        <div class="mb-name" title="${ipo.name}">${ipo.name}</div>
+        <div class="ipo-card-sub">${categoryDisplay} • Lot: ${ipo.lot_size || '—'}</div>
+        <div class="mb-bottom">
+          <span class="mb-price" style="font-size: 0.82rem;">${ipo.price_band || 'TBA'}</span>
+          <span class="${isOpen && sub ? 'badge-positive' : 'badge-neutral'} mb-badge">${isOpen && sub ? `${formatNumber(sub)}x` : (ipo.close_date || metric4Val)}</span>
         </div>
       </div>
     `;
