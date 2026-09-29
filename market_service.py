@@ -1352,7 +1352,9 @@ def _fetch_groww_chart(symbol: str, timeframe: str) -> Optional[List[Dict[str, A
                 "open": open_val,
                 "high": round(float(c[2]), 2),
                 "low": round(float(c[3]), 2),
-                "volume": int(c[5]) if len(c) > 5 else 0
+                "volume": int(c[5]) if len(c) > 5 else 0,
+                "ts": int(c[0]),
+                "iso_date": dt.strftime("%Y-%m-%d")
             })
         return points
     except Exception:
@@ -1409,7 +1411,9 @@ def get_stock_chart(symbol: str, timeframe: str = "1D") -> List[Dict[str, Any]]:
                 "open": round(float(row["Open"]), 2),
                 "high": round(float(row["High"]), 2),
                 "low": round(float(row["Low"]), 2),
-                "volume": int(row["Volume"]) if "Volume" in row else 0
+                "volume": int(row["Volume"]) if "Volume" in row else 0,
+                "ts": int(idx.timestamp()),
+                "iso_date": idx.strftime("%Y-%m-%d")
             })
         if points:
             set_cached(cache_key, points, ttl=120)
@@ -1475,9 +1479,20 @@ def get_mf_chart(code: str, timeframe: str = "1M") -> List[Dict[str, Any]]:
             selected = data[:limit]
             selected.reverse()
             for item in selected:
+                d_str = str(item.get("date", "")).strip()
+                iso_d = d_str
+                ts_val = 0
+                try:
+                    d_parsed = datetime.strptime(d_str, "%d-%m-%Y")
+                    iso_d = d_parsed.strftime("%Y-%m-%d")
+                    ts_val = int(d_parsed.timestamp())
+                except Exception:
+                    pass
                 points.append({
                     "time": item["date"],
-                    "value": round(float(item["nav"]), 2)
+                    "value": round(float(item["nav"]), 2),
+                    "ts": ts_val,
+                    "iso_date": iso_d
                 })
             if points:
                 set_cached(cache_key, points, ttl=300)

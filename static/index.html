@@ -773,11 +773,13 @@
                 </div>
               </div>
 
-              <!-- Performance Controls: 1D, 1W, 1M, 1Y, ALL -->
+              <!-- Performance Controls: 1D, 1W, 1M, 3M, 6M, 1Y, ALL -->
               <div id="stockPerfControls" class="chart-timeframes">
                 <button type="button" class="tf-btn" onclick="loadStockPortfolioChartTf('1D', this)">1D</button>
                 <button type="button" class="tf-btn" onclick="loadStockPortfolioChartTf('1W', this)">1W</button>
                 <button type="button" class="tf-btn active" onclick="loadStockPortfolioChartTf('1M', this)">1M</button>
+                <button type="button" class="tf-btn" onclick="loadStockPortfolioChartTf('3M', this)">3M</button>
+                <button type="button" class="tf-btn" onclick="loadStockPortfolioChartTf('6M', this)">6M</button>
                 <button type="button" class="tf-btn" onclick="loadStockPortfolioChartTf('1Y', this)">1Y</button>
                 <button type="button" class="tf-btn" onclick="loadStockPortfolioChartTf('ALL', this)">ALL</button>
               </div>
@@ -786,6 +788,19 @@
               <div id="stockAllocControls" class="portfolio-alloc-controls" style="display: none;">
                 <button type="button" class="chart-type-btn active" id="btnStockAllocHolding" onclick="switchStockAllocMode('holding')">By Stock</button>
                 <button type="button" class="chart-type-btn" id="btnStockAllocSector" onclick="switchStockAllocMode('sector')">By Sector</button>
+              </div>
+            </div>
+
+            <!-- Groww-Style Performance Stat Summary Header -->
+            <div class="portfolio-perf-summary" id="stockPerfSummary">
+              <div class="portfolio-perf-val-row">
+                <span class="portfolio-perf-cur-val" id="stockPerfCurVal">₹0.00</span>
+                <span class="portfolio-perf-pnl-pill" id="stockPerfPnlPill">+₹0.00 (+0.00%)</span>
+              </div>
+              <div class="portfolio-perf-sub-row">
+                <span class="portfolio-perf-sub-label">Invested: <strong id="stockPerfInvVal">₹0.00</strong></span>
+                <span class="portfolio-perf-sub-sep">•</span>
+                <span class="portfolio-perf-sub-label" id="stockPerfTfLabel">1M Return: <strong id="stockPerfTfVal">+₹0.00</strong></span>
               </div>
             </div>
 
@@ -1011,11 +1026,13 @@
               </div>
             </div>
 
-            <!-- Performance Controls: 1D, 1W, 1M, 1Y, ALL -->
+            <!-- Performance Controls: 1D, 1W, 1M, 3M, 6M, 1Y, ALL -->
             <div id="mfPerfControls" class="chart-timeframes">
               <button type="button" class="tf-btn" onclick="loadMfPortfolioChartTf('1D', this)">1D</button>
               <button type="button" class="tf-btn" onclick="loadMfPortfolioChartTf('1W', this)">1W</button>
               <button type="button" class="tf-btn active" onclick="loadMfPortfolioChartTf('1M', this)">1M</button>
+              <button type="button" class="tf-btn" onclick="loadMfPortfolioChartTf('3M', this)">3M</button>
+              <button type="button" class="tf-btn" onclick="loadMfPortfolioChartTf('6M', this)">6M</button>
               <button type="button" class="tf-btn" onclick="loadMfPortfolioChartTf('1Y', this)">1Y</button>
               <button type="button" class="tf-btn" onclick="loadMfPortfolioChartTf('ALL', this)">ALL</button>
             </div>
@@ -1024,6 +1041,19 @@
             <div id="mfAllocControls" class="portfolio-alloc-controls" style="display: none;">
               <button type="button" class="chart-type-btn active" id="btnMfAllocHolding" onclick="switchMfAllocMode('holding')">By Scheme</button>
               <button type="button" class="chart-type-btn" id="btnMfAllocCategory" onclick="switchMfAllocMode('category')">By Category</button>
+            </div>
+          </div>
+
+          <!-- Groww-Style Performance Stat Summary Header -->
+          <div class="portfolio-perf-summary" id="mfPerfSummary">
+            <div class="portfolio-perf-val-row">
+              <span class="portfolio-perf-cur-val" id="mfPerfCurVal">₹0.00</span>
+              <span class="portfolio-perf-pnl-pill" id="mfPerfPnlPill">+₹0.00 (+0.00%)</span>
+            </div>
+            <div class="portfolio-perf-sub-row">
+              <span class="portfolio-perf-sub-label">Invested: <strong id="mfPerfInvVal">₹0.00</strong></span>
+              <span class="portfolio-perf-sub-sep">•</span>
+              <span class="portfolio-perf-sub-label" id="mfPerfTfLabel">1M Return: <strong id="mfPerfTfVal">+₹0.00</strong></span>
             </div>
           </div>
 

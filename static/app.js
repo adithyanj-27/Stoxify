@@ -10967,6 +10967,7 @@ function switchStockPortfolioView(view) {
   const btnAlloc = document.getElementById('btnStockChartAlloc');
   const perfControls = document.getElementById('stockPerfControls');
   const allocControls = document.getElementById('stockAllocControls');
+  const perfSummary = document.getElementById('stockPerfSummary');
   const perfContainer = document.getElementById('stockPerfChartContainer');
   const allocContainer = document.getElementById('stockAllocChartContainer');
 
@@ -10975,6 +10976,7 @@ function switchStockPortfolioView(view) {
     if (btnAlloc) btnAlloc.classList.remove('active');
     if (perfControls) perfControls.style.display = 'flex';
     if (allocControls) allocControls.style.display = 'none';
+    if (perfSummary) perfSummary.style.display = 'flex';
     if (perfContainer) perfContainer.style.display = 'block';
     if (allocContainer) allocContainer.style.display = 'none';
     renderStockPerformanceChart();
@@ -10983,6 +10985,7 @@ function switchStockPortfolioView(view) {
     if (btnAlloc) btnAlloc.classList.add('active');
     if (perfControls) perfControls.style.display = 'none';
     if (allocControls) allocControls.style.display = 'flex';
+    if (perfSummary) perfSummary.style.display = 'none';
     if (perfContainer) perfContainer.style.display = 'none';
     if (allocContainer) allocContainer.style.display = 'grid';
     renderStockAllocationChart();
@@ -10995,6 +10998,7 @@ function switchMfPortfolioView(view) {
   const btnAlloc = document.getElementById('btnMfChartAlloc');
   const perfControls = document.getElementById('mfPerfControls');
   const allocControls = document.getElementById('mfAllocControls');
+  const perfSummary = document.getElementById('mfPerfSummary');
   const perfContainer = document.getElementById('mfPerfChartContainer');
   const allocContainer = document.getElementById('mfAllocChartContainer');
 
@@ -11003,6 +11007,7 @@ function switchMfPortfolioView(view) {
     if (btnAlloc) btnAlloc.classList.remove('active');
     if (perfControls) perfControls.style.display = 'flex';
     if (allocControls) allocControls.style.display = 'none';
+    if (perfSummary) perfSummary.style.display = 'flex';
     if (perfContainer) perfContainer.style.display = 'block';
     if (allocContainer) allocContainer.style.display = 'none';
     renderMfPerformanceChart();
@@ -11011,6 +11016,7 @@ function switchMfPortfolioView(view) {
     if (btnAlloc) btnAlloc.classList.add('active');
     if (perfControls) perfControls.style.display = 'none';
     if (allocControls) allocControls.style.display = 'flex';
+    if (perfSummary) perfSummary.style.display = 'none';
     if (perfContainer) perfContainer.style.display = 'none';
     if (allocContainer) allocContainer.style.display = 'grid';
     renderMfAllocationChart();
@@ -11069,6 +11075,28 @@ async function renderStockPerformanceChart() {
   const tf = portfolioChartsState.stock.tf || '1M';
   const uid = localStorage.getItem('stoxify_user_id') || (currentUser ? currentUser.user_id : null);
 
+  const curValEl = document.getElementById('stockPerfCurVal');
+  const pnlPillEl = document.getElementById('stockPerfPnlPill');
+  const invValEl = document.getElementById('stockPerfInvVal');
+  const tfLabelEl = document.getElementById('stockPerfTfLabel');
+
+  function updateStockSummaryDisplay(val, inv, tfReturns) {
+    if (curValEl) curValEl.innerText = formatINR(val);
+    if (invValEl) invValEl.innerText = formatINR(inv);
+    const netPnl = val - inv;
+    const netPct = inv > 0 ? ((netPnl / inv) * 100) : 0;
+    const sign = netPnl >= 0 ? '+' : '';
+    if (pnlPillEl) {
+      pnlPillEl.innerText = `${sign}${formatINR(netPnl)} (${sign}${netPct.toFixed(2)}%)`;
+      pnlPillEl.className = 'portfolio-perf-pnl-pill' + (netPnl < 0 ? ' negative' : '');
+    }
+    if (tfLabelEl) {
+      const tfPnl = (tfReturns !== undefined) ? tfReturns : (val - (values ? values[0] : 0));
+      const tfSign = tfPnl >= 0 ? '+' : '';
+      tfLabelEl.innerHTML = `${tf} Return: <strong style="color: ${tfPnl >= 0 ? '#00D09C' : '#EB5B3C'};">${tfSign}${formatINR(tfPnl)}</strong>`;
+    }
+  }
+
   try {
     const res = await fetch(`/api/portfolio/chart?timeframe=${encodeURIComponent(tf)}&asset_type=STOCK&user_id=${encodeURIComponent(uid || '')}`, {
       headers: uid ? { 'X-User-Id': uid } : {}
@@ -11085,6 +11113,7 @@ async function renderStockPerformanceChart() {
       ctx.textBaseline = 'middle';
       ctx.fillText('Performance history tracking active holdings across ' + tf, canvas.width / 2, (canvas.height || 260) / 2);
       ctx.restore();
+      updateStockSummaryDisplay(data.current_val || 0, data.invested_val || 0, 0);
       return;
     }
 
@@ -11093,7 +11122,8 @@ async function renderStockPerformanceChart() {
     const investedValues = points.map(p => (p.invested !== undefined ? p.invested : (data.invested_val || portfolioChartsState.stock.invVal)));
     const firstVal = values[0] || 0;
     const lastVal = values[values.length - 1] || 0;
-    const isPos = values.length >= 2 ? (lastVal >= firstVal) : (lastVal >= (data.invested_val || 0));
+    const lastInvested = investedValues[investedValues.length - 1] || (data.invested_val || portfolioChartsState.stock.invVal);
+    const isPos = (tf === '1D') ? (lastVal >= firstVal) : (lastVal >= lastInvested);
     const strokeColor = isPos ? '#00D09C' : '#EB5B3C';
     const investedLineColor = isDark ? 'rgba(148, 163, 184, 0.85)' : 'rgba(100, 116, 139, 0.85)';
 
@@ -11101,8 +11131,35 @@ async function renderStockPerformanceChart() {
     grad.addColorStop(0, isPos ? 'rgba(0, 208, 156, 0.24)' : 'rgba(235, 91, 60, 0.24)');
     grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
 
+    const defaultTfReturns = (data.timeframe_pnl !== undefined) ? data.timeframe_pnl : (lastVal - firstVal);
+    updateStockSummaryDisplay(lastVal, lastInvested, defaultTfReturns);
+
+    canvas.onmouseleave = () => {
+      updateStockSummaryDisplay(lastVal, lastInvested, defaultTfReturns);
+    };
+
+    const verticalLinePlugin = {
+      id: 'verticalCrosshairStock',
+      afterDraw(chart) {
+        if (chart.tooltip && chart.tooltip.getActiveElements && chart.tooltip.getActiveElements().length) {
+          const activePoint = chart.tooltip.getActiveElements()[0];
+          const x = activePoint.element.x;
+          ctx.save();
+          ctx.beginPath();
+          ctx.setLineDash([4, 4]);
+          ctx.moveTo(x, chart.chartArea.top);
+          ctx.lineTo(x, chart.chartArea.bottom);
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = isDark ? 'rgba(148, 163, 184, 0.45)' : 'rgba(100, 116, 139, 0.45)';
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+    };
+
     portfolioChartsState.stock.perfInstance = new Chart(ctx, {
       type: 'line',
+      plugins: [verticalLinePlugin],
       data: {
         labels: labels,
         datasets: [
@@ -11144,6 +11201,15 @@ async function renderStockPerformanceChart() {
         maintainAspectRatio: false,
         animation: { duration: 400 },
         interaction: { mode: 'index', intersect: false },
+        onHover: (event, activeElements) => {
+          if (activeElements && activeElements.length) {
+            const idx = activeElements[0].index;
+            const hVal = values[idx] || 0;
+            const hInv = investedValues[idx] || 0;
+            const hTf = hVal - firstVal;
+            updateStockSummaryDisplay(hVal, hInv, hTf);
+          }
+        },
         plugins: {
           legend: {
             display: true,
@@ -11281,6 +11347,20 @@ async function renderStockAllocationChart() {
     }).sort((a, b) => b.val - a.val);
   }
 
+  if (slices.length > 7) {
+    const top = slices.slice(0, 6);
+    const rest = slices.slice(6);
+    const restVal = rest.reduce((s, x) => s + x.val, 0);
+    const restPct = rest.reduce((s, x) => s + x.pct, 0);
+    top.push({
+      name: 'Others',
+      symbol: `${rest.length} other holdings`,
+      val: restVal,
+      pct: restPct
+    });
+    slices = top;
+  }
+
   const totalVal = slices.reduce((s, x) => s + x.val, 0);
   if (centerValEl) centerValEl.innerText = formatINR(totalVal);
 
@@ -11362,6 +11442,28 @@ async function renderMfPerformanceChart() {
   const tf = portfolioChartsState.mf.tf || '1M';
   const uid = localStorage.getItem('stoxify_user_id') || (currentUser ? currentUser.user_id : null);
 
+  const curValEl = document.getElementById('mfPerfCurVal');
+  const pnlPillEl = document.getElementById('mfPerfPnlPill');
+  const invValEl = document.getElementById('mfPerfInvVal');
+  const tfLabelEl = document.getElementById('mfPerfTfLabel');
+
+  function updateMfSummaryDisplay(val, inv, tfReturns) {
+    if (curValEl) curValEl.innerText = formatINR(val);
+    if (invValEl) invValEl.innerText = formatINR(inv);
+    const netPnl = val - inv;
+    const netPct = inv > 0 ? ((netPnl / inv) * 100) : 0;
+    const sign = netPnl >= 0 ? '+' : '';
+    if (pnlPillEl) {
+      pnlPillEl.innerText = `${sign}${formatINR(netPnl)} (${sign}${netPct.toFixed(2)}%)`;
+      pnlPillEl.className = 'portfolio-perf-pnl-pill' + (netPnl < 0 ? ' negative' : '');
+    }
+    if (tfLabelEl) {
+      const tfPnl = (tfReturns !== undefined) ? tfReturns : (val - (values ? values[0] : 0));
+      const tfSign = tfPnl >= 0 ? '+' : '';
+      tfLabelEl.innerHTML = `${tf} Return: <strong style="color: ${tfPnl >= 0 ? '#00D09C' : '#EB5B3C'};">${tfSign}${formatINR(tfPnl)}</strong>`;
+    }
+  }
+
   try {
     const res = await fetch(`/api/portfolio/chart?timeframe=${encodeURIComponent(tf)}&asset_type=MUTUAL_FUND&user_id=${encodeURIComponent(uid || '')}`, {
       headers: uid ? { 'X-User-Id': uid } : {}
@@ -11378,6 +11480,7 @@ async function renderMfPerformanceChart() {
       ctx.textBaseline = 'middle';
       ctx.fillText('Mutual fund performance tracking active schemes across ' + tf, canvas.width / 2, (canvas.height || 260) / 2);
       ctx.restore();
+      updateMfSummaryDisplay(data.current_val || 0, data.invested_val || 0, 0);
       return;
     }
 
@@ -11386,7 +11489,8 @@ async function renderMfPerformanceChart() {
     const investedValues = points.map(p => (p.invested !== undefined ? p.invested : (data.invested_val || portfolioChartsState.mf.invVal)));
     const firstVal = values[0] || 0;
     const lastVal = values[values.length - 1] || 0;
-    const isPos = values.length >= 2 ? (lastVal >= firstVal) : (lastVal >= (data.invested_val || 0));
+    const lastInvested = investedValues[investedValues.length - 1] || (data.invested_val || portfolioChartsState.mf.invVal);
+    const isPos = (tf === '1D') ? (lastVal >= firstVal) : (lastVal >= lastInvested);
     const strokeColor = isPos ? '#00D09C' : '#EB5B3C';
     const investedLineColor = isDark ? 'rgba(148, 163, 184, 0.85)' : 'rgba(100, 116, 139, 0.85)';
 
@@ -11394,8 +11498,36 @@ async function renderMfPerformanceChart() {
     grad.addColorStop(0, isPos ? 'rgba(0, 208, 156, 0.24)' : 'rgba(235, 91, 60, 0.24)');
     grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
 
+    const defaultTfReturns = (data.timeframe_pnl !== undefined) ? data.timeframe_pnl : (lastVal - firstVal);
+    updateMfSummaryDisplay(lastVal, lastInvested, defaultTfReturns);
+
+    canvas.onmouseleave = () => {
+      updateMfSummaryDisplay(lastVal, lastInvested, defaultTfReturns);
+    };
+
+    const verticalLinePlugin = {
+      id: 'verticalCrosshairMf',
+      afterDraw(chart) {
+        if (chart.tooltip && chart.tooltip.getActiveElements && chart.tooltip.getActiveElements().length) {
+          const activePoint = chart.tooltip.getActiveElements()[0];
+          const ctx = chart.ctx;
+          const x = activePoint.element.x;
+          ctx.save();
+          ctx.beginPath();
+          ctx.setLineDash([4, 4]);
+          ctx.moveTo(x, chart.chartArea.top);
+          ctx.lineTo(x, chart.chartArea.bottom);
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = isDark ? 'rgba(148, 163, 184, 0.45)' : 'rgba(100, 116, 139, 0.45)';
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+    };
+
     portfolioChartsState.mf.perfInstance = new Chart(ctx, {
       type: 'line',
+      plugins: [verticalLinePlugin],
       data: {
         labels: labels,
         datasets: [
@@ -11437,6 +11569,15 @@ async function renderMfPerformanceChart() {
         maintainAspectRatio: false,
         animation: { duration: 400 },
         interaction: { mode: 'index', intersect: false },
+        onHover: (event, activeElements) => {
+          if (activeElements && activeElements.length) {
+            const idx = activeElements[0].index;
+            const hVal = values[idx] || 0;
+            const hInv = investedValues[idx] || 0;
+            const hTf = hVal - firstVal;
+            updateMfSummaryDisplay(hVal, hInv, hTf);
+          }
+        },
         plugins: {
           legend: {
             display: true,
@@ -11565,6 +11706,20 @@ function renderMfAllocationChart() {
         pct: total > 0 ? ((val / total) * 100) : 0
       };
     }).sort((a, b) => b.val - a.val);
+  }
+
+  if (slices.length > 7) {
+    const top = slices.slice(0, 6);
+    const rest = slices.slice(6);
+    const restVal = rest.reduce((s, x) => s + x.val, 0);
+    const restPct = rest.reduce((s, x) => s + x.pct, 0);
+    top.push({
+      name: 'Others',
+      symbol: `${rest.length} other schemes`,
+      val: restVal,
+      pct: restPct
+    });
+    slices = top;
   }
 
   const totalVal = slices.reduce((s, x) => s + x.val, 0);

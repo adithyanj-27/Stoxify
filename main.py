@@ -6,7 +6,8 @@ import logging
 import secrets
 import threading
 import time
-from collections import deque
+import collections
+from collections import deque, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, Query, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
@@ -28,7 +29,7 @@ from database import (
     apply_ipo, get_ipo_bids, cancel_ipo_bid,
     get_capital_gains_tax_report, get_sector_allocation,
     transfer_bank_to_wallet, withdraw_wallet_to_bank, get_bank_account_details,
-    get_wallet_transactions
+    get_wallet_transactions, get_connection
 )
 import market_service
 import market_hours
@@ -1072,10 +1073,26 @@ def read_portfolio(request: Request):
         "is_guest": False
     }
 
+def _parse_chart_order_dt(ts_val):
+    if not ts_val:
+        return datetime.now()
+    s = str(ts_val).strip()
+    if "T" in s:
+        s = s.split("+")[0].split("Z")[0].replace("T", " ")
+    s = s.split(".")[0]
+    try:
+        return datetime.strptime(s, "%Y-%m-%d %H:%M:%S")
+    except Exception:
+        try:
+            return datetime.strptime(s[:10], "%Y-%m-%d")
+        except Exception:
+            return datetime.now()
+
 @app.get("/api/portfolio/chart")
 @app.get("/api/portfolio/history")
 def read_portfolio_chart(request: Request, timeframe: str = "1M", asset_type: str = "STOCK", range: Optional[str] = None):
     tf = range or timeframe or "1M"
+    tf_upper = tf.strip().upper()
     uid = get_user_id(request)
     if not uid:
         return {
@@ -1084,151 +1101,275 @@ def read_portfolio_chart(request: Request, timeframe: str = "1M", asset_type: st
             "current_val": 0.0,
             "total_pnl": 0.0,
             "total_pnl_pct": 0.0,
-            "timeframe": tf
+            "timeframe_pnl": 0.0,
+            "timeframe_pnl_pct": 0.0,
+            "timeframe": tf_upper
         }
 
-    raw_holdings = get_holdings(uid)
-    if not raw_holdings:
-        return {
-            "points": [],
-            "invested_val": 0.0,
-            "current_val": 0.0,
-            "total_pnl": 0.0,
-            "total_pnl_pct": 0.0,
-            "timeframe": tf
-        }
-
+    raw_holdings = get_holdings(uid) or []
     target_type = (asset_type or "STOCK").upper()
-    if target_type == "STOCK":
-        holdings = [h for h in raw_holdings if (h.get("asset_type") or "").upper() != "MUTUAL_FUND"]
-    elif target_type in ("MUTUAL_FUND", "MF"):
+    is_mf = target_type in ("MUTUAL_FUND", "MF")
+
+    if is_mf:
         holdings = [h for h in raw_holdings if (h.get("asset_type") or "").upper() == "MUTUAL_FUND"]
     else:
-        holdings = raw_holdings
+        holdings = [h for h in raw_holdings if (h.get("asset_type") or "").upper() != "MUTUAL_FUND"]
 
-    if not holdings:
-        return {
-            "points": [],
-            "invested_val": 0.0,
-            "current_val": 0.0,
-            "total_pnl": 0.0,
-            "total_pnl_pct": 0.0,
-            "timeframe": tf
-        }
+    total_current_invested = sum(float(h.get("quantity", 0)) * float(h.get("avg_price", 0)) for h in holdings)
 
-    total_invested_val = sum(float(h.get("quantity", 0)) * float(h.get("avg_price", 0)) for h in holdings)
-
-    # Determine portfolio inception date to avoid plotting 20-year stock histories
-    # before the user even owned or started their portfolio.
-    chart_tf = tf
-    earliest_dt = None
+    # Fetch user's executed orders for this asset class
+    raw_orders = []
     try:
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT MIN(timestamp) FROM orders WHERE user_id = ? AND status LIKE 'EXECUTED%'", (uid,))
-        row = cursor.fetchone()
-        if row and row[0]:
-            earliest_dt = str(row[0])
-        if not earliest_dt:
-            cursor.execute("SELECT MIN(updated_at) FROM positions WHERE user_id = ? AND quantity > 0", (uid,))
-            row = cursor.fetchone()
-            if row and row[0]:
-                earliest_dt = str(row[0])
+        cursor.execute(
+            "SELECT symbol, asset_type, order_type, quantity, price, timestamp FROM orders WHERE user_id = ? AND status LIKE 'EXECUTED%' ORDER BY timestamp ASC",
+            (uid,)
+        )
+        raw_orders = [dict(r) for r in cursor.fetchall()]
         conn.close()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Could not load orders for portfolio chart: {e}")
 
-    days_since_start = 30
-    if earliest_dt:
-        try:
-            clean_dt = earliest_dt.replace("T", " ").split(".")[0].strip()
-            if len(clean_dt) >= 10:
-                parsed_dt = datetime.strptime(clean_dt[:10], "%Y-%m-%d")
-                days_since_start = max(1, (datetime.now() - parsed_dt).days)
-        except Exception:
-            pass
+    if is_mf:
+        orders = [o for o in raw_orders if (o.get("asset_type") or "").upper() == "MUTUAL_FUND"]
+    else:
+        orders = [o for o in raw_orders if (o.get("asset_type") or "").upper() != "MUTUAL_FUND"]
 
-    if tf.upper() == "ALL":
-        if days_since_start <= 7:
-            chart_tf = "1W"
-        elif days_since_start <= 40:
-            chart_tf = "1M"
-        elif days_since_start <= 365:
-            chart_tf = "1Y"
-        else:
-            chart_tf = "ALL"
+    if not holdings and not orders:
+        return {
+            "points": [],
+            "invested_val": 0.0,
+            "current_val": 0.0,
+            "total_pnl": 0.0,
+            "total_pnl_pct": 0.0,
+            "timeframe_pnl": 0.0,
+            "timeframe_pnl_pct": 0.0,
+            "timeframe": tf_upper
+        }
+
+    now = datetime.now()
+    if orders:
+        earliest_dt = _parse_chart_order_dt(orders[0]["timestamp"])
+    elif holdings:
+        earliest_dt = _parse_chart_order_dt(min((h.get("updated_at") or str(now)) for h in holdings))
+    else:
+        earliest_dt = now - timedelta(days=1)
+
+    # Determine timeframe window start strictly clamped to inception date
+    if tf_upper == "1D":
+        window_start = datetime(now.year, now.month, now.day, 9, 15)
+        if earliest_dt > window_start:
+            window_start = earliest_dt
+    elif tf_upper == "1W":
+        window_start = max(now - timedelta(days=7), earliest_dt)
+    elif tf_upper == "1M":
+        window_start = max(now - timedelta(days=30), earliest_dt)
+    elif tf_upper == "3M":
+        window_start = max(now - timedelta(days=90), earliest_dt)
+    elif tf_upper == "6M":
+        window_start = max(now - timedelta(days=180), earliest_dt)
+    elif tf_upper == "1Y":
+        window_start = max(now - timedelta(days=365), earliest_dt)
+    elif tf_upper == "ALL":
+        window_start = earliest_dt
+    else:
+        window_start = max(now - timedelta(days=30), earliest_dt)
+
+    window_days = max(1, (now - window_start).days)
+    if tf_upper == "1D":
+        fetch_tf = "1D"
+    elif window_days <= 7:
+        fetch_tf = "1W"
+    elif window_days <= 35:
+        fetch_tf = "1M"
+    elif window_days <= 95:
+        fetch_tf = "3M"
+    elif window_days <= 185:
+        fetch_tf = "6M"
+    elif window_days <= 370:
+        fetch_tf = "1Y"
+    else:
+        fetch_tf = "ALL"
 
     try:
-        def fetch_holding_history(h):
-            sym = h.get("symbol", "")
-            is_mf = (h.get("asset_type") or "").upper() == "MUTUAL_FUND" or sym.isdigit()
+        all_symbols = set(h.get("symbol") for h in holdings if h.get("symbol"))
+        for o in orders:
+            if o.get("symbol"):
+                all_symbols.add(o.get("symbol"))
+
+        def fetch_sym(s):
             try:
-                if is_mf:
-                    pts = market_service.get_mf_chart(sym, chart_tf)
+                if is_mf or s.isdigit():
+                    return s, market_service.get_mf_chart(s, fetch_tf)
                 else:
-                    pts = market_service.get_stock_chart(sym, chart_tf)
-                return sym, float(h.get("quantity", 0)), pts
+                    return s, market_service.get_stock_chart(s, fetch_tf)
             except Exception:
-                return sym, float(h.get("quantity", 0)), []
+                return s, []
 
-        with ThreadPoolExecutor(max_workers=min(8, len(holdings))) as pool:
-            histories = list(pool.map(fetch_holding_history, holdings))
+        with ThreadPoolExecutor(max_workers=min(8, max(1, len(all_symbols)))) as pool:
+            results = list(pool.map(fetch_sym, all_symbols))
 
-        best_pts = []
-        for sym, qty, pts in histories:
-            if len(pts) > len(best_pts):
-                best_pts = pts
+        sym_charts = {s: pts for s, pts in results if pts}
 
-        if not best_pts:
-            return {
-                "points": [],
-                "invested_val": round(total_invested_val, 2),
-                "current_val": round(total_invested_val, 2),
-                "total_pnl": 0.0,
-                "total_pnl_pct": 0.0,
-                "timeframe": tf
-            }
+        # Reference points series
+        ref_pts = []
+        for s, pts in sym_charts.items():
+            if len(pts) > len(ref_pts):
+                ref_pts = pts
+
+        window_start_ts = int(window_start.timestamp())
+        filtered_candles = [p for p in ref_pts if p.get("ts", 0) >= window_start_ts - 300]
+
+        parsed_orders = []
+        for o in orders:
+            odt = _parse_chart_order_dt(o.get("timestamp"))
+            parsed_orders.append({
+                "ts": int(odt.timestamp()),
+                "symbol": o.get("symbol"),
+                "type": (o.get("order_type") or "BUY").upper(),
+                "qty": float(o.get("quantity") or 0),
+                "price": float(o.get("price") or 0)
+            })
+        parsed_orders.sort(key=lambda x: x["ts"])
+
+        def get_ledger_at(ts):
+            qty_map = collections.defaultdict(float)
+            lots = collections.defaultdict(list)
+            invested = 0.0
+
+            if not parsed_orders and holdings:
+                for h in holdings:
+                    sym = h.get("symbol")
+                    q = float(h.get("quantity", 0))
+                    p = float(h.get("avg_price", 0))
+                    qty_map[sym] = q
+                    invested += (q * p)
+                return qty_map, invested
+
+            for o in parsed_orders:
+                if o["ts"] > ts:
+                    break
+                sym = o["symbol"]
+                q = o["qty"]
+                p = o["price"]
+                if o["type"] == "BUY":
+                    qty_map[sym] += q
+                    lots[sym].append([q, p])
+                    invested += (q * p)
+                elif o["type"] == "SELL":
+                    sell_rem = q
+                    while sell_rem > 1e-6 and lots[sym]:
+                        lot = lots[sym][0]
+                        if lot[0] <= sell_rem + 1e-6:
+                            deducted_qty = lot[0]
+                            lots[sym].pop(0)
+                        else:
+                            deducted_qty = sell_rem
+                            lot[0] -= sell_rem
+                        sell_rem -= deducted_qty
+                        invested = max(0.0, invested - (deducted_qty * lot[1]))
+                    qty_map[sym] = max(0.0, qty_map[sym] - q)
+                    if qty_map[sym] <= 1e-6:
+                        qty_map[sym] = 0.0
+                        lots[sym] = []
+            return qty_map, invested
+
+        sym_price_by_ts = {}
+        sym_price_by_date = {}
+        for s, pts in sym_charts.items():
+            sym_price_by_ts[s] = {p.get("ts"): p.get("value") for p in pts if p.get("ts")}
+            sym_price_by_date[s] = {p.get("iso_date"): p.get("value") for p in pts if p.get("iso_date")}
 
         points = []
-        for i, ref_point in enumerate(best_pts):
-            t_label = ref_point.get("time", "")
-            port_val = 0.0
-            for sym, qty, pts in histories:
-                if not pts:
-                    continue
-                idx = min(i, len(pts) - 1)
-                p_val = pts[idx].get("value") or pts[idx].get("price") or 0.0
-                port_val += (qty * float(p_val))
+        if not filtered_candles:
+            cur_ledger, cur_inv = get_ledger_at(int(now.timestamp()))
+            cur_val = 0.0
+            for s, q in cur_ledger.items():
+                if q > 0:
+                    p = sym_charts.get(s, [{}])[-1].get("value", 0.0) if sym_charts.get(s) else 0.0
+                    cur_val += (q * p)
+            if cur_val <= 0:
+                cur_val = cur_inv or total_current_invested
+            cur_inv = cur_inv or total_current_invested
+            points = [
+                {"time": earliest_dt.strftime("%d %b %H:%M"), "value": round(cur_inv, 2), "invested": round(cur_inv, 2)},
+                {"time": now.strftime("%d %b %H:%M"), "value": round(cur_val, 2), "invested": round(cur_inv, 2)}
+            ]
+        else:
+            last_known_price = {}
+            for c_pt in filtered_candles:
+                pts_ts = c_pt.get("ts", 0)
+                iso_d = c_pt.get("iso_date", "")
+                t_label = c_pt.get("time", "")
 
-            if port_val > 0:
-                points.append({
-                    "time": t_label,
-                    "value": round(port_val, 2),
-                    "invested": round(total_invested_val, 2)
-                })
+                ledger_qty, inv_val = get_ledger_at(pts_ts)
+                port_val = 0.0
 
-        first_val = points[0]["value"] if points else total_invested_val
-        last_val = points[-1]["value"] if points else total_invested_val
-        pnl = round(last_val - total_invested_val, 2)
-        pnl_pct = round((pnl / total_invested_val) * 100, 2) if total_invested_val > 0 else 0.0
+                for sym, q in ledger_qty.items():
+                    if q <= 0:
+                        continue
+                    price = None
+                    if tf_upper == "1D":
+                        price = sym_price_by_ts.get(sym, {}).get(pts_ts)
+                    if price is None:
+                        price = sym_price_by_date.get(sym, {}).get(iso_d)
+                    if price is None and sym in last_known_price:
+                        price = last_known_price[sym]
+                    if price is None and sym in sym_charts and sym_charts[sym]:
+                        price = sym_charts[sym][-1].get("value", 0.0)
+                    if price is not None:
+                        last_known_price[sym] = price
+                        port_val += (q * float(price))
+
+                if inv_val > 0 or port_val > 0:
+                    points.append({
+                        "time": t_label,
+                        "value": round(port_val, 2),
+                        "invested": round(inv_val, 2)
+                    })
+
+        if len(points) == 1:
+            points = [
+                {"time": earliest_dt.strftime("%d %b %H:%M"), "value": points[0]["invested"], "invested": points[0]["invested"]},
+                points[0]
+            ]
+
+        if not points:
+            first_val = total_current_invested
+            last_val = total_current_invested
+            last_invested = total_current_invested
+        else:
+            first_val = points[0]["value"]
+            last_val = points[-1]["value"]
+            last_invested = points[-1]["invested"]
+
+        total_pnl = round(last_val - last_invested, 2)
+        total_pnl_pct = round((total_pnl / last_invested) * 100, 2) if last_invested > 0 else 0.0
+        tf_pnl = round(last_val - first_val, 2)
+        tf_pnl_pct = round((tf_pnl / first_val) * 100, 2) if first_val > 0 else 0.0
 
         return {
             "points": points,
-            "invested_val": round(total_invested_val, 2),
+            "invested_val": round(last_invested, 2),
             "current_val": round(last_val, 2),
-            "total_pnl": pnl,
-            "total_pnl_pct": pnl_pct,
-            "timeframe": tf
+            "total_pnl": total_pnl,
+            "total_pnl_pct": total_pnl_pct,
+            "timeframe_pnl": tf_pnl,
+            "timeframe_pnl_pct": tf_pnl_pct,
+            "timeframe": tf_upper
         }
     except Exception as e:
         logger.error(f"Error computing portfolio chart: {e}", exc_info=True)
         return {
             "points": [],
-            "invested_val": round(total_invested_val, 2),
-            "current_val": round(total_invested_val, 2),
+            "invested_val": round(total_current_invested, 2),
+            "current_val": round(total_current_invested, 2),
             "total_pnl": 0.0,
             "total_pnl_pct": 0.0,
-            "timeframe": tf
+            "timeframe_pnl": 0.0,
+            "timeframe_pnl_pct": 0.0,
+            "timeframe": tf_upper
         }
 
 @app.get("/api/positions")

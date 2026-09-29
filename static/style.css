@@ -9225,4 +9225,65 @@ body.viewing-profile .indices-bar {
   box-shadow: 0 0 10px rgba(0, 208, 156, 0.2) !important;
 }
 
+/* Groww-Style Performance Stat Summary Header */
+.portfolio-perf-summary {
+  margin: 0.65rem 0 1rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.portfolio-perf-val-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.portfolio-perf-cur-val {
+  font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 1.65rem;
+  font-weight: 700;
+  color: var(--text-primary, #ffffff);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.portfolio-perf-pnl-pill {
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+  border-radius: 6px;
+  background: rgba(0, 208, 156, 0.12);
+  color: #00d09c;
+  display: inline-flex;
+  align-items: center;
+  transition: all 0.2s ease;
+}
+
+.portfolio-perf-pnl-pill.negative {
+  background: rgba(235, 91, 60, 0.12);
+  color: #eb5b3c;
+}
+
+.portfolio-perf-sub-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-muted, #94a3b8);
+  font-weight: 500;
+  flex-wrap: wrap;
+}
+
+.portfolio-perf-sub-label strong {
+  color: var(--text-secondary, #cbd5e1);
+  font-weight: 600;
+}
+
+.portfolio-perf-sub-sep {
+  opacity: 0.5;
+}
+
+
 
