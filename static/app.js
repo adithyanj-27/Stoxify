@@ -1521,40 +1521,7 @@ function renderExploreStocks() {
     }).join('');
   }
 
-  // Populate "Popular Mutual Funds" horizontal carousel
-  const pmfContainer = document.getElementById('popularMfCarousel');
-  if (pmfContainer) {
-    const mfList = (state.exploreData && state.exploreData.mutual_funds && state.exploreData.mutual_funds.length > 0)
-      ? state.exploreData.mutual_funds
-      : DEFAULT_EXPLORE_DATA.mutual_funds;
-    pmfContainer.innerHTML = mfList.slice(0, 6).map(mf => {
-      const fallbackMf = DEFAULT_EXPLORE_DATA.mutual_funds.find(d => d.symbol === mf.symbol);
-      const price = (mf.price && !isNaN(mf.price)) ? mf.price : (fallbackMf ? fallbackMf.price : 100.0);
-      const ret3y = (mf.return_3y !== undefined && mf.return_3y !== null && !isNaN(mf.return_3y))
-        ? mf.return_3y
-        : (fallbackMf ? fallbackMf.return_3y : 15.0);
-      const isRetPos = ret3y >= 0;
-      return `
-        <div class="most-bought-card" onclick="openAssetModal('${mf.symbol}', 'MUTUAL_FUND')">
-          <div class="mb-top">
-            ${renderAssetAvatar(mf, 'MUTUAL_FUND')}
-            <span class="mb-sym-pill">${mfShortCategory(mf)}</span>
-          </div>
-          <div class="mb-name" title="${mf.name}">${mf.name}</div>
-          <div style="margin-top: 0.65rem; display: flex; justify-content: space-between; align-items: flex-end;">
-            <div>
-              <div style="font-size: 0.68rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">NAV</div>
-              <div class="mb-price">${formatINR(price)}</div>
-            </div>
-            <div style="text-align: right;">
-              <div style="font-size: 0.68rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">3Y Return</div>
-              <span class="${isRetPos ? 'badge-positive' : 'badge-negative'} mb-badge">${isRetPos ? '+' : ''}${formatNumber(ret3y)}%</span>
-            </div>
-          </div>
-        </div>
-      `;
-    }).join('');
-  }
+
 
   let list = [];
   if (state.exploreStockFilter === 'all') {
@@ -1670,8 +1637,44 @@ function filterMfCategory(cat, btn) {
   renderExploreMutualFunds();
 }
 
+function renderPopularMutualFundsCarousel() {
+  const pmfContainer = document.getElementById('popularMfCarousel');
+  if (!pmfContainer) return;
+  const mfList = (state.exploreData && state.exploreData.mutual_funds && state.exploreData.mutual_funds.length > 0)
+    ? state.exploreData.mutual_funds
+    : DEFAULT_EXPLORE_DATA.mutual_funds;
+  pmfContainer.innerHTML = mfList.slice(0, 6).map(mf => {
+    const fallbackMf = DEFAULT_EXPLORE_DATA.mutual_funds.find(d => d.symbol === mf.symbol);
+    const price = (mf.price && !isNaN(mf.price)) ? mf.price : (fallbackMf ? fallbackMf.price : 100.0);
+    const ret3y = (mf.return_3y !== undefined && mf.return_3y !== null && !isNaN(mf.return_3y))
+      ? mf.return_3y
+      : (fallbackMf ? fallbackMf.return_3y : 15.0);
+    const isRetPos = ret3y >= 0;
+    return `
+      <div class="most-bought-card" onclick="openAssetModal('${mf.symbol}', 'MUTUAL_FUND')">
+        <div class="mb-top">
+          ${renderAssetAvatar(mf, 'MUTUAL_FUND')}
+          <span class="mb-sym-pill">${mfShortCategory(mf)}</span>
+        </div>
+        <div class="mb-name" title="${mf.name}">${mf.name}</div>
+        <div style="margin-top: 0.65rem; display: flex; justify-content: space-between; align-items: flex-end;">
+          <div>
+            <div style="font-size: 0.68rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">NAV</div>
+            <div class="mb-price">${formatINR(price)}</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 0.68rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">3Y Return</div>
+            <span class="${isRetPos ? 'badge-positive' : 'badge-negative'} mb-badge">${isRetPos ? '+' : ''}${formatNumber(ret3y)}%</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
 function renderExploreMutualFunds() {
   renderRecentlyViewedMutualFunds();
+  renderPopularMutualFundsCarousel();
   const grid = document.getElementById('mfGrid');
   const pills = document.getElementById('mfCategoryPills');
   const desc = document.getElementById('mfSectionDesc');
