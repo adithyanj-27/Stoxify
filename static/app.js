@@ -1094,9 +1094,9 @@ function generateVectorEmblem(symbol) {
 }
 
 function getAssetLogoUrl(sym, item) {
-  if (!sym) return '';
-  const cleanSym = String(sym).toUpperCase().replace('.NS', '').replace('.BO', '').trim();
-  if (LOCAL_LOGOS.has(cleanSym)) {
+  if (!sym && (!item || !item.name)) return '';
+  const cleanSym = String(sym || '').toUpperCase().replace('.NS', '').replace('.BO', '').trim();
+  if (cleanSym && LOCAL_LOGOS.has(cleanSym)) {
     return `/static/logos/${cleanSym}.png`;
   }
   // Check if mutual fund AMFI code or AMC name
@@ -1106,7 +1106,7 @@ function getAssetLogoUrl(sym, item) {
   if (item && item.logo_url && !item.logo_url.includes('financialmodelingprep.com')) {
     return item.logo_url;
   }
-  return `/static/logos/${cleanSym}.png`;
+  return '';
 }
 
 // Automated Logo Error Handler: Cascades through high-reliability CDN sources then falls back to crisp 256x256 vector emblem
@@ -1208,18 +1208,34 @@ function renderAssetAvatar(item, assetType, isHero = false) {
   }
 
   if (isHero) {
+    if (!logoUrl) {
+      return `
+        <span style="display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; font-weight: 800; font-size: 1.4rem; color: ${p.text}; background: ${p.bg}; border: 1px solid ${p.border}; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.06);">
+          ${fallbackHtml}
+        </span>
+      `;
+    }
     return `
       <img src="${logoUrl}" 
            alt="${item.name || cleanSym}" 
            loading="lazy"
            data-symbol="${cleanSym}"
            data-website="${item.website || ''}"
-           data-logo-step="0"
            onerror="handleLogoError(this)"
            style="width: 48px; height: 48px; object-fit: contain; border-radius: 12px;">
-      <span style="display: none; align-items: center; justify-content: center; width: 48px; height: 48px; font-weight: 800; font-size: 1.4rem; color: ${p.text}; background: ${p.bg}; border-radius: 12px;">
+      <span style="display: none; align-items: center; justify-content: center; width: 48px; height: 48px; font-weight: 800; font-size: 1.4rem; color: ${p.text}; background: ${p.bg}; border: 1px solid ${p.border}; border-radius: 12px;">
         ${fallbackHtml}
       </span>
+    `;
+  }
+
+  if (!logoUrl) {
+    return `
+      <div class="card-avatar ${isMF ? 'avatar-mf' : ''}" style="background: ${p.bg}; color: ${p.text}; border: 1px solid ${p.border}; border-radius: 10px;">
+        <span style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-weight: 800; font-size: 1.05rem;">
+          ${fallbackHtml}
+        </span>
+      </div>
     `;
   }
 
@@ -1230,7 +1246,6 @@ function renderAssetAvatar(item, assetType, isHero = false) {
            loading="lazy"
            data-symbol="${cleanSym}"
            data-website="${item.website || ''}"
-           data-logo-step="0"
            onerror="handleLogoError(this)"
            style="width: 100%; height: 100%; object-fit: contain; border-radius: 10px;">
       <span style="display: none; align-items: center; justify-content: center; width: 100%; height: 100%; font-weight: 800; background: ${p.bg}; color: ${p.text}; border: 1px solid ${p.border}; border-radius: 10px;">
@@ -3088,20 +3103,38 @@ async function legacyOpenAssetModal(symbol, assetType = 'STOCK', preselectAction
         ? `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>`
         : initial);
 
+    const palettes = [
+      { bg: 'rgba(14, 165, 233, 0.12)', text: '#38BDF8', border: 'rgba(14, 165, 233, 0.3)' },
+      { bg: 'rgba(16, 185, 129, 0.12)', text: '#34D399', border: 'rgba(16, 185, 129, 0.3)' },
+      { bg: 'rgba(99, 102, 241, 0.12)', text: '#818CF8', border: 'rgba(99, 102, 241, 0.3)' },
+      { bg: 'rgba(236, 72, 153, 0.12)', text: '#F472B6', border: 'rgba(236, 72, 153, 0.3)' },
+      { bg: 'rgba(245, 158, 11, 0.12)', text: '#FBBF24', border: 'rgba(245, 158, 11, 0.3)' },
+      { bg: 'rgba(168, 85, 247, 0.12)', text: '#C084FC', border: 'rgba(168, 85, 247, 0.3)' },
+    ];
+    const idx = (initial.charCodeAt(0) || 0) % palettes.length;
+    let p = palettes[idx];
     const modalAvatarEl = document.getElementById('modalAvatar');
-    modalAvatarEl.innerHTML = `
-      <img src="${logoUrl}" 
-           alt="${data.name || cleanSym}" 
-           loading="lazy"
-           data-symbol="${cleanSym}"
-           data-website="${data.website || ''}"
-           data-logo-step="0"
-           onerror="handleLogoError(this)"
-           style="width: 28px; height: 28px; object-fit: contain; border-radius: 4px;">
-      <span style="display: ${isIndex ? 'flex' : 'none'}; align-items: center; justify-content: center; width: 100%; height: 100%; font-weight: 800;">
-        ${fallbackHtml}
-      </span>
-    `;
+    if (!logoUrl || isIndex) {
+      modalAvatarEl.style.background = p.bg;
+      modalAvatarEl.style.color = p.text;
+      modalAvatarEl.style.border = `1px solid ${p.border}`;
+      modalAvatarEl.innerHTML = `<span style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-weight: 800;">${fallbackHtml}</span>`;
+    } else {
+      modalAvatarEl.style.background = 'transparent';
+      modalAvatarEl.style.border = 'none';
+      modalAvatarEl.innerHTML = `
+        <img src="${logoUrl}" 
+             alt="${data.name || cleanSym}" 
+             loading="lazy"
+             data-symbol="${cleanSym}"
+             data-website="${data.website || ''}"
+             onerror="handleLogoError(this)"
+             style="width: 28px; height: 28px; object-fit: contain; border-radius: 4px;">
+        <span style="display: none; align-items: center; justify-content: center; width: 100%; height: 100%; font-weight: 800; color: ${p.text}; background: ${p.bg}; border: 1px solid ${p.border}; border-radius: 4px;">
+          ${fallbackHtml}
+        </span>
+      `;
+    }
     document.getElementById('modalTitle').innerText = isIndex ? indexName : data.name;
     document.getElementById('modalSymbol').innerText = isIndex ? cleanSym : data.symbol;
     document.getElementById('modalBadge').innerText = isIndex ? 'INDEX' : (data.asset_type === 'MUTUAL_FUND' ? 'MUTUAL FUND' : (data.exchange || (data.symbol.endsWith('.BO') ? 'BSE' : 'NSE')));
@@ -9686,7 +9719,12 @@ function renderIpos(filter) {
         <div class="ipo-card-header">
           <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0; flex: 1;">
             <div class="card-avatar" style="width: 42px; height: 42px; border-radius: 10px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: ${colorPick.bg}; border: 1px solid rgba(255,255,255,0.08); flex-shrink: 0;">
-              <img src="${ipoLogo}" alt="${ipo.name}" data-symbol="${ipo.symbol || ''}" onerror="handleLogoError(this)" style="width: 30px; height: 30px; object-fit: contain; border-radius: 4px;">
+              ${ipoLogo ? `
+                <img src="${ipoLogo}" alt="${ipo.name}" data-symbol="${ipo.symbol || ''}" onerror="handleLogoError(this)" style="width: 30px; height: 30px; object-fit: contain; border-radius: 4px;">
+                <span style="display: none; align-items: center; justify-content: center; width: 100%; height: 100%; font-weight: 800; font-size: 1.05rem; color: ${colorPick.text};">${(ipo.name || ipo.symbol || 'I').trim().charAt(0).toUpperCase()}</span>
+              ` : `
+                <span style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-weight: 800; font-size: 1.05rem; color: ${colorPick.text};">${(ipo.name || ipo.symbol || 'I').trim().charAt(0).toUpperCase()}</span>
+              `}
             </div>
             <div style="min-width: 0; flex: 1;">
               <h4 class="ipo-card-title" title="${ipo.name}">${ipo.name}</h4>
@@ -9753,7 +9791,15 @@ function openIpoBidModal(ipoId) {
   const ipoAvatarEl = document.getElementById('ipoModalAvatar');
   if (ipoAvatarEl) {
     const ipoLogo = getAssetLogoUrl(ipo.symbol, ipo);
-    ipoAvatarEl.innerHTML = `<img src="${ipoLogo}" alt="${ipo.name}" data-symbol="${ipo.symbol || ''}" onerror="handleLogoError(this)" style="width: 28px; height: 28px; object-fit: contain; border-radius: 4px;">`;
+    const ipoInitial = (ipo.name || ipo.symbol || 'I').trim().charAt(0).toUpperCase();
+    if (ipoLogo) {
+      ipoAvatarEl.innerHTML = `
+        <img src="${ipoLogo}" alt="${ipo.name}" data-symbol="${ipo.symbol || ''}" onerror="handleLogoError(this)" style="width: 28px; height: 28px; object-fit: contain; border-radius: 4px;">
+        <span style="display: none; align-items: center; justify-content: center; width: 100%; height: 100%; font-weight: 800; color: #a855f7;">${ipoInitial}</span>
+      `;
+    } else {
+      ipoAvatarEl.innerHTML = `<span style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-weight: 800; color: #a855f7;">${ipoInitial}</span>`;
+    }
   }
 
   document.getElementById('ipoModalLots').value = 1;
