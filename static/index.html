@@ -328,17 +328,11 @@
       <div class="search-results-dropdown" id="searchResultsDropdown"></div>
     </div>
 
-    <!-- Nav Links (Desktop) -->
-    <nav class="nav-links desktop-only">
-      <button class="nav-btn active" id="nav-explore" onclick="navigateTo('/explore')">Explore</button>
-      <button class="nav-btn" id="nav-holdings" onclick="navigateTo('/holdings')">Holdings</button>
-      <button class="nav-btn" id="nav-positions" onclick="navigateTo('/positions')">
-        Positions <span class="badge-count" id="navPositionsBadge" style="display: none;">0</span>
-      </button>
-      <button class="nav-btn" id="nav-orders" onclick="navigateTo('/orders')">
-        Orders <span class="badge-count" id="navOrdersBadge" style="display: none;">0</span>
-      </button>
-      <button class="nav-btn" id="nav-watchlist" onclick="navigateTo('/watchlist')">Watchlist</button>
+    <!-- Primary Product Switcher (Desktop) -->
+    <nav class="nav-links desktop-only" id="mainProductNav">
+      <button class="nav-btn active" id="prod-stocks" onclick="switchProduct('stocks')">Stocks</button>
+      <button class="nav-btn" id="prod-fo" onclick="switchProduct('fo')">F&O</button>
+      <button class="nav-btn" id="prod-mf" onclick="switchProduct('mf')">Mutual Funds</button>
     </nav>
 
     <!-- Nav Right Controls -->
@@ -445,6 +439,12 @@
       </script>
     </div>
   </header>
+  <!-- Mobile Product Switcher Bar -->
+  <div class="mobile-product-bar mobile-only" id="mobileProductBar">
+    <button class="mob-prod-btn active" id="mob-prod-stocks" onclick="switchProduct('stocks')">Stocks</button>
+    <button class="mob-prod-btn" id="mob-prod-fo" onclick="switchProduct('fo')">F&O</button>
+    <button class="mob-prod-btn" id="mob-prod-mf" onclick="switchProduct('mf')">Mutual Funds</button>
+  </div>
 
   <!-- Sticky Indices Bar -->
   <div class="indices-bar" id="indicesBar">
@@ -493,14 +493,13 @@
   <!-- Main Container -->
   <main class="main-content">
 
+    <!-- Global Dynamic Sub-Navigation Bar (Explore, Holdings, Positions, Orders, Watchlist / Dashboard, SIPs) -->
+    <div class="sub-nav" id="productSubNavBar">
+      <!-- Injected reactively by switchProduct() -->
+    </div>
+
     <!-- 1. EXPLORE TAB -->
     <section id="pane-explore" class="tab-pane active">
-
-      <div class="sub-nav">
-        <button class="sub-nav-btn active" id="subnav-stocks" onclick="switchExploreSubnav('stocks')">Stocks</button>
-        <button class="sub-nav-btn" id="subnav-fo" onclick="switchExploreSubnav('fo')">F&O (Futures & Options)</button>
-        <button class="sub-nav-btn" id="subnav-mf" onclick="switchExploreSubnav('mf')">Mutual Funds</button>
-      </div>
 
       <!-- Stocks Sub-view -->
       <div id="explore-stocks-container">
@@ -906,6 +905,136 @@
       </div>
     </section>
 
+    <!-- MUTUAL FUNDS DASHBOARD TAB -->
+    <section id="pane-mf-dashboard" class="tab-pane">
+      <div id="mfDashboardGuestBanner" class="guest-locked-card" style="display: none;">
+        <div class="guest-locked-icon">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+        </div>
+        <h3 class="guest-locked-title">Mutual Funds Portfolio Locked</h3>
+        <p class="guest-locked-desc">Log in or create a virtual trading account to track your mutual fund investments, NAV returns, and active units.</p>
+        <button class="btn-get-started" onclick="navigateTo('/onboarding')">
+          <span>Start Investing to Unlock ₹10L →</span>
+        </button>
+      </div>
+
+      <div id="mfDashboardAuthContent">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Mutual Funds Dashboard</h2>
+            <p class="section-desc">Track your direct mutual fund portfolio, live NAVs, and total returns</p>
+          </div>
+          <button class="btn-primary" onclick="switchProduct('mf', 'explore')">
+            + Invest in More Funds
+          </button>
+        </div>
+
+        <!-- MF Portfolio Summary Banner -->
+        <div class="portfolio-banner">
+          <div>
+            <div class="banner-metric-label">Current Value</div>
+            <div class="banner-metric-val" id="mfSummaryCurrentVal">₹0.00</div>
+            <div class="banner-metric-sub" id="mfSummaryTotalReturnsSub" style="font-size: 0.84rem; font-weight: 700; margin-top: 3px;">
+              <span id="mfSummaryTotalReturnsText" class="text-muted">Total: ₹0.00 (0.00%)</span>
+            </div>
+          </div>
+          <div>
+            <div class="banner-metric-label">Total Investment</div>
+            <div class="banner-metric-val" id="mfSummaryInvestedVal">₹0.00</div>
+            <div class="banner-metric-sub" style="color: var(--text-muted);">Cost basis</div>
+          </div>
+          <div>
+            <div class="banner-metric-label">1D Returns</div>
+            <div class="banner-metric-val" id="mfSummaryTodayPnl">₹0.00</div>
+            <div class="banner-metric-sub" id="mfSummaryTodayPnlPct"><span>0.00%</span></div>
+          </div>
+          <div>
+            <div class="banner-metric-label">Available Balance</div>
+            <div class="banner-metric-val" id="mfSummaryAvailableBalance" style="color: var(--accent-green);">₹10,00,000.00</div>
+            <div class="banner-metric-sub" style="color: var(--text-muted);">Virtual cash</div>
+          </div>
+        </div>
+
+        <!-- Desktop MF Table -->
+        <div class="table-container desktop-table-container">
+          <table class="groww-table">
+            <thead>
+              <tr>
+                <th>Mutual Fund Scheme</th>
+                <th>Units Held</th>
+                <th>Avg NAV</th>
+                <th>Current NAV</th>
+                <th>Invested Amount</th>
+                <th>Current Value</th>
+                <th>Total Returns</th>
+                <th style="text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="mfHoldingsTableBody">
+              <tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 3rem;">Loading mutual funds portfolio...</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Mobile MF Cards List -->
+        <div class="mobile-cards-list" id="mfHoldingsMobileList"></div>
+      </div>
+    </section>
+
+    <!-- MUTUAL FUNDS SIPS TAB -->
+    <section id="pane-mf-sips" class="tab-pane">
+      <div id="mfSipsGuestBanner" class="guest-locked-card" style="display: none;">
+        <div class="guest-locked-icon">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+        </div>
+        <h3 class="guest-locked-title">SIP Scheduler Locked</h3>
+        <p class="guest-locked-desc">Log in or create an account to view and automate your monthly SIP mandates.</p>
+        <button class="btn-get-started" onclick="navigateTo('/onboarding')">
+          <span>Start Investing →</span>
+        </button>
+      </div>
+
+      <div id="mfSipsAuthContent">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">My Active SIPs</h2>
+            <p class="section-desc">Automated recurring monthly investments into mutual funds</p>
+          </div>
+          <button class="btn-primary" onclick="switchProduct('mf', 'explore')">
+            + Start New SIP
+          </button>
+        </div>
+
+        <!-- Desktop SIPs Table -->
+        <div class="table-container desktop-table-container">
+          <table class="groww-table">
+            <thead>
+              <tr>
+                <th>Mutual Fund Scheme</th>
+                <th>Monthly SIP Amount</th>
+                <th>Auto-Debit Day</th>
+                <th>Next Installment</th>
+                <th>Status</th>
+                <th style="text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="paneMfSipsTableBody">
+              <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 3rem;">Loading active SIPs...</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Mobile SIPs Cards List -->
+        <div class="mobile-cards-list" id="paneMfSipsMobileList"></div>
+      </div>
+    </section>
+
     <!-- 3. POSITIONS TAB (Intraday / MIS with 5x Leverage) -->
     <section id="pane-positions" class="tab-pane">
       <div id="positionsGuestBanner" class="guest-locked-card" style="display: none;">
@@ -924,8 +1053,8 @@
       <div id="positionsAuthContent">
         <div class="section-header">
           <div>
-            <h2 class="section-title">Intraday Positions</h2>
-            <p class="section-desc">Active day trades with 5x leverage (MIS • Auto Square-off at 03:20 PM IST)</p>
+            <h2 class="section-title" id="positionsSectionTitle">Intraday Positions</h2>
+            <p class="section-desc" id="positionsSectionDesc">Active day trades with 5x leverage (MIS • Auto Square-off at 03:20 PM IST)</p>
           </div>
           <button class="btn-danger" id="squareOffAllBtn" onclick="squareOffAllPositions()" style="display: none;">
             Square Off All
@@ -985,7 +1114,7 @@
     <section id="pane-orders" class="tab-pane">
       <div class="section-header">
         <div>
-          <h2 class="section-title">Order Book & Transactions</h2>
+          <h2 class="section-title" id="ordersSectionTitle">Order Book & Transactions</h2>
           <p class="section-desc">Real-time ledger of limit orders and executed market trades</p>
         </div>
       </div>
@@ -1084,8 +1213,8 @@
     <section id="pane-watchlist" class="tab-pane">
       <div class="section-header">
         <div>
-          <h2 class="section-title">My Watchlist</h2>
-          <p class="section-desc">Track real-time prices for your preferred assets</p>
+          <h2 class="section-title" id="watchlistSectionTitle">My Watchlist</h2>
+          <p class="section-desc" id="watchlistSectionDesc">Track real-time prices for your preferred assets</p>
         </div>
       </div>
 

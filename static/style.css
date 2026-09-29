@@ -822,29 +822,71 @@ body {
 .nav-links {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 1.5rem;
+  margin-left: 1rem;
 }
 
 .nav-btn {
   background: transparent;
   border: none;
-  padding: 0.5rem 0.9rem;
-  border-radius: var(--radius-sm);
-  font-size: 0.875rem;
+  padding: 0.5rem 0.25rem;
+  font-size: 1.05rem;
   font-weight: 600;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: var(--transition);
+  transition: color 0.15s ease;
+  position: relative;
 }
 
 .nav-btn:hover {
   color: var(--text-primary);
-  background: var(--bg-elevated);
+  background: transparent;
 }
 
 .nav-btn.active {
-  color: var(--brand-cyan);
-  background: var(--brand-cyan-bg);
+  color: var(--text-primary);
+  font-weight: 700;
+  background: transparent;
+}
+
+/* Mobile Product Switcher Bar */
+.mobile-product-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.85rem;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-subtle);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mobile-product-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.mob-prod-btn {
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: var(--transition);
+}
+
+.mob-prod-btn:hover {
+  color: var(--text-primary);
+}
+
+.mob-prod-btn.active {
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+  font-weight: 700;
 }
 
 .nav-actions {
@@ -1081,9 +1123,9 @@ body {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 2.5px;
-  background: var(--brand-cyan, #0ea5e9);
-  border-radius: 2px;
+  height: 3px;
+  background: #ffffff;
+  border-radius: 2px 2px 0 0;
 }
 
 [data-theme="light"] .sub-nav-btn.active::after {

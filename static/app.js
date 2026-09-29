@@ -284,7 +284,30 @@ function saveLocalWatchlistSet(set) {
   } catch (e) {}
 }
 
+const PRODUCT_SUB_TABS = {
+  stocks: [
+    { id: 'explore', label: 'Explore' },
+    { id: 'holdings', label: 'Holdings' },
+    { id: 'positions', label: 'Positions', badgeId: 'navPositionsBadge' },
+    { id: 'orders', label: 'Orders', badgeId: 'navOrdersBadge' },
+    { id: 'watchlist', label: 'Watchlist' }
+  ],
+  fo: [
+    { id: 'explore', label: 'Explore' },
+    { id: 'positions', label: 'Positions', badgeId: 'navPositionsBadge' },
+    { id: 'orders', label: 'Orders', badgeId: 'navOrdersBadge' }
+  ],
+  mf: [
+    { id: 'explore', label: 'Explore' },
+    { id: 'dashboard', label: 'Dashboard' },
+    { id: 'sips', label: 'SIPs' },
+    { id: 'watchlist', label: 'Watchlist' }
+  ]
+};
+
 const state = {
+  activeProduct: 'stocks', // 'stocks' | 'fo' | 'mf'
+  productSubTab: 'explore',
   currentTab: 'explore',
   exploreSubnav: 'stocks',
   ordersSubnav: 'executed',
@@ -600,8 +623,51 @@ function closeMarketHoursModal(options = {}) {
   dismissModalState('marketHoursModalOverlay', options);
 }
 
-// --- Navigation Tabs (Desktop & Mobile Synchronized) ---
-function switchTab(tabId, updateUrl = true) {
+// --- Dynamic Product & Sub-Navigation Architecture ---
+function switchProduct(product, targetSubTab = null, updateUrl = true) {
+  state.activeProduct = product;
+
+  // 1. Desktop Product Switcher Tabs
+  document.querySelectorAll('#mainProductNav .nav-btn').forEach(btn => btn.classList.remove('active'));
+  const activeDesktopBtn = document.getElementById(`prod-${product}`);
+  if (activeDesktopBtn) activeDesktopBtn.classList.add('active');
+
+  // 2. Mobile Product Switcher Tabs
+  document.querySelectorAll('#mobileProductBar .mob-prod-btn').forEach(btn => btn.classList.remove('active'));
+  const activeMobBtn = document.getElementById(`mob-prod-${product}`);
+  if (activeMobBtn) activeMobBtn.classList.add('active');
+
+  // 3. Determine target sub-tab
+  const allowedTabs = PRODUCT_SUB_TABS[product] || PRODUCT_SUB_TABS.stocks;
+  let nextSubTab = targetSubTab;
+  if (!nextSubTab) {
+    const exists = allowedTabs.some(t => t.id === state.productSubTab);
+    nextSubTab = exists ? state.productSubTab : 'explore';
+  } else {
+    const exists = allowedTabs.some(t => t.id === nextSubTab);
+    if (!exists) nextSubTab = 'explore';
+  }
+
+  // 4. Render Dynamic Sub-Navbar
+  renderProductSubNav(product, nextSubTab);
+
+  // 5. Activate the SubTab
+  switchProductSubTab(nextSubTab, updateUrl);
+}
+
+function renderProductSubNav(product, activeSubTab) {
+  const subNavEl = document.getElementById('productSubNavBar');
+  if (!subNavEl) return;
+  const tabs = PRODUCT_SUB_TABS[product] || PRODUCT_SUB_TABS.stocks;
+
+  subNavEl.innerHTML = tabs.map(tab => {
+    const isActive = tab.id === activeSubTab;
+    const badgeHtml = tab.badgeId ? `<span class="badge-count" id="${tab.badgeId}" style="display: none;">0</span>` : '';
+    return `<button class="sub-nav-btn ${isActive ? 'active' : ''}" id="subnav-tab-${tab.id}" onclick="switchProductSubTab('${tab.id}')">${tab.label}${badgeHtml}</button>`;
+  }).join('');
+}
+
+function switchProductSubTab(subTabId, updateUrl = true) {
   document.body.classList.remove('viewing-asset-detail');
   document.documentElement.classList.remove('viewing-asset-detail');
   document.body.classList.remove('viewing-profile');
@@ -610,42 +676,115 @@ function switchTab(tabId, updateUrl = true) {
   if (navAvatarBtn) navAvatarBtn.classList.remove('active');
   closeMobileTradeDrawer();
 
+  state.productSubTab = subTabId;
+  state.currentTab = subTabId;
+
+  // 1. Highlight Sub-Nav button
+  document.querySelectorAll('#productSubNavBar .sub-nav-btn').forEach(btn => btn.classList.remove('active'));
+  const activeSubBtn = document.getElementById(`subnav-tab-${subTabId}`);
+  if (activeSubBtn) activeSubBtn.classList.add('active');
+
+  // 2. Mobile bottom bar item highlight
+  document.querySelectorAll('.mobile-bottom-bar .mobile-nav-item').forEach(btn => btn.classList.remove('active'));
+  let mobTarget = subTabId;
+  if (subTabId === 'dashboard') mobTarget = 'holdings';
+  if (subTabId === 'sips') mobTarget = 'orders';
+  const mobBottomBtn = document.getElementById(`mob-nav-${mobTarget}`);
+  if (mobBottomBtn) mobBottomBtn.classList.add('active');
+
+  // 3. Update URL if requested
   if (updateUrl) {
-    const targetUrl = tabId === 'explore' ? '/explore' : `/${tabId}`;
+    let targetUrl = '/explore';
+    if (subTabId === 'explore') {
+      targetUrl = state.activeProduct === 'stocks' ? '/explore' : `/${state.activeProduct}`;
+    } else if (subTabId === 'dashboard') {
+      targetUrl = '/mf/dashboard';
+    } else if (subTabId === 'sips') {
+      targetUrl = '/mf/sips';
+    } else {
+      targetUrl = `/${subTabId}`;
+    }
     if (window.location.pathname !== targetUrl) {
       history.pushState(null, '', targetUrl);
     }
   }
-  state.currentTab = tabId;
 
-  // Desktop links
-  document.querySelectorAll('.nav-links .nav-btn').forEach(btn => btn.classList.remove('active'));
-  const desktopBtn = document.getElementById(`nav-${tabId}`);
-  if (desktopBtn) desktopBtn.classList.add('active');
+  // 4. Determine which pane to activate
+  let paneId = `pane-${subTabId}`;
+  if (subTabId === 'dashboard') paneId = 'pane-mf-dashboard';
+  if (subTabId === 'sips') paneId = 'pane-mf-sips';
 
-  // Mobile bottom bar items (Explore, Holdings, Positions, Orders, Watchlist)
-  document.querySelectorAll('.mobile-bottom-bar .mobile-nav-item').forEach(btn => btn.classList.remove('active'));
-  const mobBottomBtn = document.getElementById(`mob-nav-${tabId}`);
-  if (mobBottomBtn) mobBottomBtn.classList.add('active');
-
-  // Pane activation
   document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
-  const pane = document.getElementById(`pane-${tabId}`);
-  if (pane) pane.classList.add('active');
+  const activePane = document.getElementById(paneId);
+  if (activePane) activePane.classList.add('active');
+
+  // 5. Update section headers dynamically based on product
+  updateSectionHeadersForProduct(state.activeProduct, subTabId);
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
-  if (tabId === 'holdings') fetchPortfolio();
-  if (tabId === 'positions') fetchPositions();
-  if (tabId === 'orders') fetchOrders();
-  if (tabId === 'watchlist') fetchWatchlist();
-  if (tabId === 'explore') fetchExploreData();
+  // 6. Fetch/render data for the pane
+  if (subTabId === 'explore') {
+    activateExploreProductView(state.activeProduct);
+  } else if (subTabId === 'holdings') {
+    fetchPortfolio();
+  } else if (subTabId === 'dashboard') {
+    renderMutualFundDashboard();
+  } else if (subTabId === 'sips') {
+    renderMutualFundSips();
+  } else if (subTabId === 'positions') {
+    fetchPositions();
+  } else if (subTabId === 'orders') {
+    fetchOrders();
+  } else if (subTabId === 'watchlist') {
+    fetchWatchlist();
+  }
 }
 
-function navigateToExploreTab(subId) {
-  navigateTo('/explore');
-  switchExploreSubnav(subId);
-  updateMobileBottomNav(subId);
+function updateSectionHeadersForProduct(product, subTabId) {
+  if (subTabId === 'positions') {
+    const posTitle = document.getElementById('positionsSectionTitle');
+    const posDesc = document.getElementById('positionsSectionDesc');
+    if (posTitle) posTitle.innerText = product === 'fo' ? 'F&O Positions' : 'Intraday Positions';
+    if (posDesc) posDesc.innerText = product === 'fo' 
+      ? 'Active options & futures derivative contracts (Live Mark-to-Market P&L)' 
+      : 'Active day trades with 5x leverage (MIS • Auto Square-off at 03:20 PM IST)';
+  } else if (subTabId === 'orders') {
+    const ordTitle = document.getElementById('ordersSectionTitle');
+    if (ordTitle) ordTitle.innerText = product === 'fo' 
+      ? 'F&O Order Book & Transactions' 
+      : (product === 'mf' ? 'Mutual Fund Order Book' : 'Order Book & Transactions');
+  } else if (subTabId === 'watchlist') {
+    const wlTitle = document.getElementById('watchlistSectionTitle');
+    const wlDesc = document.getElementById('watchlistSectionDesc');
+    if (wlTitle) wlTitle.innerText = product === 'mf' ? 'Mutual Funds Watchlist' : 'Stock & ETF Watchlist';
+    if (wlDesc) wlDesc.innerText = product === 'mf' 
+      ? 'Track live NAV, returns, and category performance for your saved mutual funds' 
+      : 'Track real-time prices for your preferred assets';
+  }
+}
+
+function activateExploreProductView(product) {
+  state.exploreSubnav = product;
+  const containers = {
+    stocks: document.getElementById('explore-stocks-container'),
+    fo: document.getElementById('explore-fo-container'),
+    mf: document.getElementById('explore-mf-container')
+  };
+
+  Object.keys(containers).forEach(k => {
+    if (containers[k]) containers[k].style.display = (k === product) ? 'block' : 'none';
+  });
+
+  if (product === 'stocks') {
+    renderRecentlyViewedStocks();
+    if (!state.exploreData) fetchExploreData();
+    fetchIpos();
+  } else if (product === 'fo') {
+    fetchOptionChain();
+  } else if (product === 'mf') {
+    renderExploreMutualFunds();
+  }
 }
 
 function updateMobileBottomNav(activeId) {
@@ -668,39 +807,33 @@ function toggleMobileSearch() {
   }
 }
 
+// Backward-compatibility aliases
+function switchTab(tabId, updateUrl = true) {
+  if (tabId === 'holdings') {
+    switchProduct('stocks', 'holdings', updateUrl);
+  } else if (tabId === 'positions') {
+    switchProduct(state.activeProduct === 'fo' ? 'fo' : 'stocks', 'positions', updateUrl);
+  } else if (tabId === 'orders') {
+    switchProduct(state.activeProduct === 'fo' ? 'fo' : (state.activeProduct === 'mf' ? 'mf' : 'stocks'), 'orders', updateUrl);
+  } else if (tabId === 'watchlist') {
+    switchProduct(state.activeProduct === 'mf' ? 'mf' : 'stocks', 'watchlist', updateUrl);
+  } else {
+    switchProduct('stocks', 'explore', updateUrl);
+  }
+}
+
 function switchExploreSubnav(subId) {
   if (subId === 'ipo') {
-    switchExploreSubnav('stocks');
+    switchProduct('stocks', 'explore');
     const ipoSec = document.getElementById('explore-ipo-section');
     if (ipoSec) ipoSec.scrollIntoView({ behavior: 'smooth' });
     return;
   }
+  switchProduct(subId, 'explore');
+}
 
-  state.exploreSubnav = subId;
-  document.querySelectorAll('#pane-explore .sub-nav-btn').forEach(btn => btn.classList.remove('active'));
-  const btn = document.getElementById(`subnav-${subId}`);
-  if (btn) btn.classList.add('active');
-  updateMobileBottomNav(subId);
-
-  const containers = {
-    stocks: document.getElementById('explore-stocks-container'),
-    fo: document.getElementById('explore-fo-container'),
-    mf: document.getElementById('explore-mf-container')
-  };
-
-  Object.keys(containers).forEach(k => {
-    if (containers[k]) containers[k].style.display = (k === subId) ? 'block' : 'none';
-  });
-
-  if (subId === 'stocks') {
-    renderRecentlyViewedStocks();
-    if (!state.exploreData) fetchExploreData();
-    fetchIpos();
-  } else if (subId === 'fo') {
-    fetchOptionChain();
-  } else if (subId === 'mf') {
-    renderExploreMutualFunds();
-  }
+function navigateToExploreTab(subId) {
+  switchExploreSubnav(subId);
 }
 
 function switchOrdersSubnav(subId) {
@@ -1824,12 +1957,16 @@ async function fetchPortfolioInternal(requestVersion) {
     const summaryBal = document.getElementById('summaryAvailableBalance');
     if (summaryBal) summaryBal.innerText = formatINR(data.balance);
 
-    const curVal = data.current_value || 0;
-    const invVal = data.invested_value ?? data.invested_amount ?? 0;
-    const totalPnl = data.total_pnl ?? data.total_returns ?? (curVal - invVal);
-    const totalPnlPct = data.total_pnl_pct ?? data.total_returns_pct ?? (invVal > 0 ? ((totalPnl / invVal) * 100) : 0);
-    const todayPnl = data.today_pnl ?? data.day_returns ?? 0;
-    const todayPnlPct = data.today_pnl_pct ?? data.day_returns_pct ?? (curVal > 0 ? ((todayPnl / curVal) * 100) : 0);
+    // Strictly filter to Stock / Equity / ETF holdings only (Mutual Funds are housed in MF Dashboard)
+    const allHoldings = data.holdings || [];
+    const stockHoldings = allHoldings.filter(h => (h.asset_type || '').toUpperCase() !== 'MUTUAL_FUND');
+
+    const curVal = stockHoldings.reduce((sum, h) => sum + (Number(h.current_value !== undefined ? h.current_value : (h.quantity * (h.current_price || 0))) || 0), 0);
+    const invVal = stockHoldings.reduce((sum, h) => sum + (Number(h.invested_value !== undefined ? h.invested_value : (h.quantity * (h.avg_price || 0))) || 0), 0);
+    const totalPnl = curVal - invVal;
+    const totalPnlPct = invVal > 0 ? ((totalPnl / invVal) * 100) : 0;
+    const todayPnl = stockHoldings.reduce((sum, h) => sum + (Number(h.today_pnl) || 0), 0);
+    const todayPnlPct = curVal > 0 ? ((todayPnl / curVal) * 100) : 0;
 
     const summaryCur = document.getElementById('summaryCurrentVal');
     if (summaryCur) summaryCur.innerText = formatINR(curVal);
@@ -1883,17 +2020,17 @@ async function fetchPortfolioInternal(requestVersion) {
 
     const tableBody = document.getElementById('holdingsTableBody');
     const mobileList = document.getElementById('holdingsMobileList');
-    const holdings = data.holdings || [];
+    const holdings = stockHoldings;
 
     if (holdings.length === 0) {
       if (tableBody) {
         tableBody.innerHTML = `
-          <tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 3.5rem;">No active holdings yet. Head to Explore to invest!</td></tr>
+          <tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 3.5rem;">No active stock holdings yet. Head to Explore to invest!</td></tr>
         `;
       }
       if (mobileList) {
         mobileList.innerHTML = `
-          <div style="text-align: center; color: var(--text-muted); padding: 2.5rem;">No active holdings yet.</div>
+          <div style="text-align: center; color: var(--text-muted); padding: 2.5rem;">No active stock holdings yet.</div>
         `;
       }
       return;
@@ -1901,7 +2038,7 @@ async function fetchPortfolioInternal(requestVersion) {
 
     // Render Desktop Table
     if (tableBody) {
-      tableBody.innerHTML = (data.holdings || []).map(h => {
+      tableBody.innerHTML = holdings.map(h => {
         const isPosTotal = h.total_pnl > 0;
         const isNegTotal = h.total_pnl < 0;
         const totalClass = isPosTotal ? 'text-positive' : (isNegTotal ? 'text-negative' : 'text-muted');
@@ -1953,12 +2090,12 @@ async function fetchPortfolioInternal(requestVersion) {
 
     // Render Mobile Holdings List (Groww Style)
     if (mobileList) {
-      if (!data.holdings || data.holdings.length === 0) {
-        mobileList.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 3rem 1rem;">No active holdings yet. Explore stocks and mutual funds to start investing!</div>`;
+      if (holdings.length === 0) {
+        mobileList.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 3rem 1rem;">No active stock holdings yet. Head to Explore to start investing!</div>`;
       } else {
         mobileList.innerHTML = `
           <div class="groww-holdings-list-card">
-            ${data.holdings.map(h => {
+            ${holdings.map(h => {
               const isPosTotal = (h.total_pnl || 0) >= 0;
               const totalClass = isPosTotal ? 'text-positive' : 'text-negative';
               const totalSign = isPosTotal ? '+' : '';
@@ -1992,6 +2129,238 @@ async function fetchPortfolioInternal(requestVersion) {
   }
 }
 
+// --- Mutual Funds Dashboard (Holdings & Summary) ---
+async function renderMutualFundDashboard() {
+  const guestBanner = document.getElementById('mfDashboardGuestBanner');
+  const authContent = document.getElementById('mfDashboardAuthContent');
+
+  if (isGuest()) {
+    if (guestBanner) guestBanner.style.display = 'flex';
+    if (authContent) authContent.style.display = 'none';
+    return;
+  }
+  if (guestBanner) guestBanner.style.display = 'none';
+  if (authContent) authContent.style.display = 'block';
+
+  try {
+    const res = await fetch('/api/portfolio');
+    const data = await res.json();
+    state.portfolioData = data;
+    const allHoldings = data.holdings || [];
+    const mfHoldings = allHoldings.filter(h => (h.asset_type || '').toUpperCase() === 'MUTUAL_FUND');
+
+    const curVal = mfHoldings.reduce((sum, h) => sum + (Number(h.current_value !== undefined ? h.current_value : (h.quantity * (h.current_price || h.nav || 0))) || 0), 0);
+    const invVal = mfHoldings.reduce((sum, h) => sum + (Number(h.invested_value !== undefined ? h.invested_value : (h.quantity * (h.avg_price || h.nav || 0))) || 0), 0);
+    const totalPnl = curVal - invVal;
+    const totalPnlPct = invVal > 0 ? ((totalPnl / invVal) * 100) : 0;
+    const todayPnl = mfHoldings.reduce((sum, h) => sum + (Number(h.today_pnl) || 0), 0);
+    const todayPnlPct = curVal > 0 ? ((todayPnl / curVal) * 100) : 0;
+
+    const curEl = document.getElementById('mfSummaryCurrentVal');
+    if (curEl) curEl.innerText = formatINR(curVal);
+    const invEl = document.getElementById('mfSummaryInvestedVal');
+    if (invEl) invEl.innerText = formatINR(invVal);
+
+    const isTotalPos = totalPnl >= 0;
+    const totalSign = isTotalPos ? '+' : '';
+    const totalClass = isTotalPos ? 'text-positive' : 'text-negative';
+    const totalReturnsSub = document.getElementById('mfSummaryTotalReturnsSub');
+    if (totalReturnsSub) {
+      totalReturnsSub.innerHTML = `<span class="${totalClass}">Total: ${totalSign}${formatINR(totalPnl)} (${totalSign}${formatNumber(totalPnlPct)}%)</span>`;
+    }
+
+    const isDayPos = todayPnl >= 0;
+    const daySign = isDayPos ? '+' : '';
+    const dayClass = isDayPos ? 'text-positive' : 'text-negative';
+    const todayPnlEl = document.getElementById('mfSummaryTodayPnl');
+    if (todayPnlEl) {
+      todayPnlEl.innerText = `${daySign}${formatINR(todayPnl)}`;
+      todayPnlEl.className = `banner-metric-val ${dayClass}`;
+    }
+    const todayPctEl = document.getElementById('mfSummaryTodayPnlPct');
+    if (todayPctEl) {
+      todayPctEl.innerHTML = `<span class="${dayClass}">${daySign}${formatNumber(todayPnlPct)}%</span>`;
+    }
+
+    const balEl = document.getElementById('mfSummaryAvailableBalance');
+    if (balEl) balEl.innerText = formatINR(data.balance || 0);
+
+    const tbody = document.getElementById('mfHoldingsTableBody');
+    const mobList = document.getElementById('mfHoldingsMobileList');
+
+    if (mfHoldings.length === 0) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 3.5rem;">No active mutual fund investments yet. Head to Explore to discover top-rated funds!</td></tr>';
+      if (mobList) mobList.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 2.5rem;">No active mutual fund investments yet.</div>';
+      return;
+    }
+
+    if (tbody) {
+      tbody.innerHTML = mfHoldings.map(h => {
+        const itemCurVal = Number(h.current_value !== undefined ? h.current_value : (h.quantity * (h.current_price || h.nav || 0))) || 0;
+        const itemInvVal = Number(h.invested_value !== undefined ? h.invested_value : (h.quantity * (h.avg_price || h.nav || 0))) || 0;
+        const itemTotalPnl = Number(h.total_pnl !== undefined ? h.total_pnl : (itemCurVal - itemInvVal)) || 0;
+        const itemTotalPct = itemInvVal > 0 ? ((itemTotalPnl / itemInvVal) * 100) : 0;
+        const isPos = itemTotalPnl >= 0;
+        const sign = isPos ? '+' : '';
+        const pnlClass = isPos ? 'text-positive' : 'text-negative';
+
+        return `
+          <tr>
+            <td>
+              <button type="button" class="holding-name-link" onclick="openHoldingDetails('${h.symbol}', 'MUTUAL_FUND')" title="View details for ${h.name}">${h.name}</button>
+              <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">
+                <span>${h.symbol}</span>
+                <span class="badge-neutral" style="font-size: 0.65rem; margin-left: 0.35rem;">Direct Plan</span>
+              </div>
+            </td>
+            <td style="font-weight: 700;">${formatNumber(h.quantity, 3)}</td>
+            <td>₹${formatNumber(h.avg_price || h.nav || 0, 2)}</td>
+            <td style="font-weight: 700;">₹${formatNumber(h.current_price || h.nav || 0, 2)}</td>
+            <td>${formatINR(itemInvVal)}</td>
+            <td style="font-weight: 700;">${formatINR(itemCurVal)}</td>
+            <td class="${pnlClass}" style="font-weight: 700;">
+              ${sign}${formatINR(itemTotalPnl)}
+              <div style="font-size: 0.75rem;">(${sign}${formatNumber(itemTotalPct)}%)</div>
+            </td>
+            <td style="text-align: right;">
+              <button class="btn-primary" style="padding: 0.35rem 0.8rem; font-size: 0.8rem;" onclick="openTradeModal('${h.symbol}', 'MUTUAL_FUND')">Invest / Redeem</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    if (mobList) {
+      mobList.innerHTML = mfHoldings.map(h => {
+        const itemCurVal = Number(h.current_value !== undefined ? h.current_value : (h.quantity * (h.current_price || h.nav || 0))) || 0;
+        const itemInvVal = Number(h.invested_value !== undefined ? h.invested_value : (h.quantity * (h.avg_price || h.nav || 0))) || 0;
+        const itemTotalPnl = Number(h.total_pnl !== undefined ? h.total_pnl : (itemCurVal - itemInvVal)) || 0;
+        const itemTotalPct = itemInvVal > 0 ? ((itemTotalPnl / itemInvVal) * 100) : 0;
+        const isPos = itemTotalPnl >= 0;
+        const sign = isPos ? '+' : '';
+        const pnlClass = isPos ? 'text-positive' : 'text-negative';
+
+        return `
+          <div class="mobile-card-item">
+            <div class="mobile-card-top">
+              <div>
+                <button type="button" class="holding-name-link mobile-holding-title" onclick="openHoldingDetails('${h.symbol}', 'MUTUAL_FUND')">${h.name}</button>
+                <div class="mobile-card-symbol">${h.symbol} <span class="badge-neutral" style="font-size: 0.65rem;">Direct</span></div>
+              </div>
+              <div class="mobile-card-price">
+                <div class="mobile-card-ltp">${formatINR(itemCurVal)}</div>
+                <div class="${pnlClass}" style="font-size: 0.8rem; font-weight: 700;">${sign}${formatINR(itemTotalPnl)} (${sign}${formatNumber(itemTotalPct)}%)</div>
+              </div>
+            </div>
+            <div class="mobile-card-grid">
+              <div><span style="color:var(--text-muted);">Units:</span> <strong>${formatNumber(h.quantity, 3)}</strong></div>
+              <div><span style="color:var(--text-muted);">Avg NAV:</span> <strong>₹${formatNumber(h.avg_price || 0, 2)}</strong></div>
+              <div><span style="color:var(--text-muted);">Current NAV:</span> <strong>₹${formatNumber(h.current_price || 0, 2)}</strong></div>
+              <div><span style="color:var(--text-muted);">Invested:</span> <strong>${formatINR(itemInvVal)}</strong></div>
+            </div>
+            <div class="mobile-card-actions">
+              <button class="btn-primary" style="padding: 0.35rem 0.8rem; font-size: 0.8rem; flex: 1;" onclick="openTradeModal('${h.symbol}', 'MUTUAL_FUND')">Invest More / Redeem</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  } catch (err) {
+    console.error('Error fetching MF portfolio:', err);
+  }
+}
+
+// --- Mutual Funds Active SIP Mandates ---
+async function renderMutualFundSips() {
+  const guestBanner = document.getElementById('mfSipsGuestBanner');
+  const authContent = document.getElementById('mfSipsAuthContent');
+
+  if (isGuest()) {
+    if (guestBanner) guestBanner.style.display = 'flex';
+    if (authContent) authContent.style.display = 'none';
+    return;
+  }
+  if (guestBanner) guestBanner.style.display = 'none';
+  if (authContent) authContent.style.display = 'block';
+
+  try {
+    const uid = localStorage.getItem('stoxify_user_id') || (currentUser ? currentUser.user_id : null);
+    const res = await fetch(`/api/mf/sips?user_id=${encodeURIComponent(uid || '')}`, {
+      headers: uid ? { 'X-User-Id': uid } : {}
+    });
+    const sips = await res.json();
+
+    const tbody = document.getElementById('paneMfSipsTableBody');
+    const mobList = document.getElementById('paneMfSipsMobileList');
+
+    if (!sips || !Array.isArray(sips) || sips.length === 0) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 3rem;">No active SIP schedules. Head to Explore Mutual Funds to start a SIP!</td></tr>';
+      if (mobList) mobList.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 2rem;">No active SIP schedules.</div>';
+      return;
+    }
+
+    if (tbody) {
+      tbody.innerHTML = sips.map(s => {
+        const fundName = s.fund_name || s.symbol || s.fund_id || 'Mutual Fund';
+        const amount = s.monthly_amount ?? s.amount ?? 0;
+        const sipDay = s.sip_day ?? s.installment_day ?? 5;
+        const nextDate = s.next_installment_date || s.next_trigger_date || '--';
+        const sipId = s.id ?? s.sip_id;
+        const status = s.status || 'ACTIVE';
+        const isActive = status === 'ACTIVE';
+
+        return `
+          <tr>
+            <td><strong>${fundName}</strong></td>
+            <td><strong style="color: var(--accent-green);">${formatINR(amount)}</strong></td>
+            <td>${sipDay}th of month</td>
+            <td>${nextDate}</td>
+            <td><span class="${isActive ? 'badge-positive' : 'badge-neutral'}">${status}</span></td>
+            <td style="text-align: right;">
+              ${isActive ? `<button class="btn-cancel-small" onclick="cancelSip(${sipId})">Stop SIP</button>` : '<span style="font-size: 0.8rem; color: var(--text-muted);">Stopped</span>'}
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    if (mobList) {
+      mobList.innerHTML = sips.map(s => {
+        const fundName = s.fund_name || s.symbol || s.fund_id || 'Mutual Fund';
+        const amount = s.monthly_amount ?? s.amount ?? 0;
+        const sipDay = s.sip_day ?? s.installment_day ?? 5;
+        const nextDate = s.next_installment_date || s.next_trigger_date || '--';
+        const sipId = s.id ?? s.sip_id;
+        const status = s.status || 'ACTIVE';
+        const isActive = status === 'ACTIVE';
+
+        return `
+          <div class="mobile-order-card">
+            <div class="mob-order-header">
+              <strong>${fundName}</strong>
+              <span class="${isActive ? 'badge-positive' : 'badge-neutral'}">${status}</span>
+            </div>
+            <div class="mob-order-row">
+              <span>Monthly Amount</span><strong style="color: var(--accent-green);">${formatINR(amount)}</strong>
+            </div>
+            <div class="mob-order-row">
+              <span>Debit Date</span><span>${sipDay}th Monthly</span>
+            </div>
+            <div class="mob-order-row">
+              <span>Next Execution</span><span>${nextDate}</span>
+            </div>
+            <div class="mob-order-actions">
+              ${isActive ? `<button class="btn-cancel-small" onclick="cancelSip(${sipId})">Stop SIP</button>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  } catch (err) {
+    console.error('Error fetching SIPs:', err);
+  }
+}
+
 // --- Positions View (Intraday MIS with 5x Leverage) ---
 let positionsRequest = null;
 let positionsRequestVersion = 0;
@@ -2022,7 +2391,19 @@ async function fetchPositionsInternal(requestVersion) {
     const res = await fetch('/api/positions');
     const data = await res.json();
     if (requestVersion !== positionsRequestVersion) return data;
-    const positions = data.positions || [];
+    const allPositions = data.positions || [];
+    let positions = allPositions;
+    if (state.activeProduct === 'fo') {
+      positions = allPositions.filter(p => {
+        const sym = (p.symbol || '').toUpperCase();
+        return sym.endsWith('CE') || sym.endsWith('PE') || (p.asset_type || '').toUpperCase() === 'OPTION' || (p.asset_type || '').toUpperCase() === 'DERIVATIVE';
+      });
+    } else if (state.activeProduct === 'stocks') {
+      positions = allPositions.filter(p => {
+        const sym = (p.symbol || '').toUpperCase();
+        return !(sym.endsWith('CE') || sym.endsWith('PE') || (p.asset_type || '').toUpperCase() === 'OPTION' || (p.asset_type || '').toUpperCase() === 'DERIVATIVE');
+      });
+    }
     state.hasActiveIntradayPositions = positions.length > 0;
 
     if (data.auto_squared_off) {
@@ -2061,15 +2442,17 @@ async function fetchPositionsInternal(requestVersion) {
     }
 
     // Update summary metrics
-    const isPos = (data.total_unrealized_pnl || 0) >= 0;
+    const filteredUnrealizedPnl = positions.reduce((sum, p) => sum + (Number(p.unrealized_pnl) || 0), 0);
+    const filteredMarginUsed = positions.reduce((sum, p) => sum + (Number(p.margin_used) || 0), 0);
+    const isPos = filteredUnrealizedPnl >= 0;
     const pnlEl = document.getElementById('posTotalPnl');
     if (pnlEl) {
-      pnlEl.innerText = `${isPos ? '+' : ''}${formatINR(data.total_unrealized_pnl || 0)}`;
+      pnlEl.innerText = `${isPos ? '+' : ''}${formatINR(filteredUnrealizedPnl)}`;
       pnlEl.className = `banner-metric-val ${isPos ? 'text-positive' : 'text-negative'}`;
     }
 
     const marginEl = document.getElementById('posMarginDeployed');
-    if (marginEl) marginEl.innerText = formatINR(data.total_margin_used || 0);
+    if (marginEl) marginEl.innerText = formatINR(filteredMarginUsed);
     const countEl = document.getElementById('posActiveCount');
     if (countEl) countEl.innerText = positions.length;
 
@@ -2207,11 +2590,31 @@ async function fetchOrders() {
     const openJson = openRes && openRes.ok ? await openRes.json().catch(() => []) : [];
     const slJson = slRes && slRes.ok ? await slRes.json().catch(() => []) : [];
 
-    const executedOrders = Array.isArray(execJson) ? execJson : [];
+    let executedOrders = Array.isArray(execJson) ? execJson : [];
     // Pending stop-loss (TRIGGER_PENDING) orders are open orders too: they can
     // still be cancelled and must not appear in the executed history.
-    const openOrders = [...(Array.isArray(openJson) ? openJson : []), ...(Array.isArray(slJson) ? slJson : [])]
+    let openOrders = [...(Array.isArray(openJson) ? openJson : []), ...(Array.isArray(slJson) ? slJson : [])]
       .sort((a, b) => (b.id || 0) - (a.id || 0));
+
+    if (state.activeProduct === 'fo') {
+      const isDeriv = o => {
+        const s = (o.symbol || '').toUpperCase();
+        return s.endsWith('CE') || s.endsWith('PE') || (o.asset_type || '').toUpperCase() === 'OPTION' || (o.asset_type || '').toUpperCase() === 'DERIVATIVE';
+      };
+      executedOrders = executedOrders.filter(isDeriv);
+      openOrders = openOrders.filter(isDeriv);
+    } else if (state.activeProduct === 'mf') {
+      const isMf = o => (o.asset_type || '').toUpperCase() === 'MUTUAL_FUND';
+      executedOrders = executedOrders.filter(isMf);
+      openOrders = openOrders.filter(isMf);
+    } else if (state.activeProduct === 'stocks') {
+      const isStock = o => {
+        const s = (o.symbol || '').toUpperCase();
+        return (o.asset_type || '').toUpperCase() !== 'MUTUAL_FUND' && !(s.endsWith('CE') || s.endsWith('PE') || (o.asset_type || '').toUpperCase() === 'OPTION' || (o.asset_type || '').toUpperCase() === 'DERIVATIVE');
+      };
+      executedOrders = executedOrders.filter(isStock);
+      openOrders = openOrders.filter(isStock);
+    }
 
     // Update Open Orders count badges
     const openOrdersCount = document.getElementById('openOrdersCount');
@@ -2431,12 +2834,23 @@ async function fetchWatchlist() {
 
     const grid = document.getElementById('watchlistGrid');
     if (!grid) return;
-    if (!Array.isArray(items) || items.length === 0) {
-      grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); padding: 3rem;">Your watchlist is empty. Tap ★ on any stock or mutual fund to track it here!</div>`;
+
+    let displayItems = Array.isArray(items) ? items : [];
+    if (state.activeProduct === 'mf') {
+      displayItems = displayItems.filter(i => (i.asset_type || '').toUpperCase() === 'MUTUAL_FUND');
+    } else if (state.activeProduct === 'stocks') {
+      displayItems = displayItems.filter(i => (i.asset_type || '').toUpperCase() !== 'MUTUAL_FUND');
+    }
+
+    if (displayItems.length === 0) {
+      const emptyMsg = state.activeProduct === 'mf'
+        ? 'Your mutual fund watchlist is empty. Tap ★ on any mutual fund in Explore to track it here!'
+        : 'Your stock watchlist is empty. Tap ★ on any stock or ETF to track it here!';
+      grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); padding: 3rem;">${emptyMsg}</div>`;
       return;
     }
 
-    grid.innerHTML = items.map(item => {
+    grid.innerHTML = displayItems.map(item => {
       // null >= 0 is true in JS, so the old `(item.change || 0) >= 0` painted an
       // unavailable quote green, and formatINR(null) printed ₹0.00.
       const hasPrice = item.price !== null && item.price !== undefined && !isNaN(item.price);
@@ -4466,18 +4880,26 @@ function handleRoute() {
   } else if (path === '/profile') {
     showProfilePage();
   } else if (path === '/login') {
-    switchTab('explore', false);
+    switchProduct(state.activeProduct || 'stocks', 'explore', false);
     openLoginModal();
+  } else if (path === '/fo') {
+    switchProduct('fo', 'explore', false);
+  } else if (path === '/mf' || path === '/mutual-funds') {
+    switchProduct('mf', 'explore', false);
+  } else if (path === '/mf/dashboard' || path === '/mf-dashboard') {
+    switchProduct('mf', 'dashboard', false);
+  } else if (path === '/mf/sips' || path === '/sips') {
+    switchProduct('mf', 'sips', false);
   } else if (path === '/holdings') {
-    switchTab('holdings', false);
+    switchProduct('stocks', 'holdings', false);
   } else if (path === '/positions') {
-    switchTab('positions', false);
+    switchProduct(state.activeProduct === 'fo' ? 'fo' : 'stocks', 'positions', false);
   } else if (path === '/orders') {
-    switchTab('orders', false);
+    switchProduct(state.activeProduct === 'fo' ? 'fo' : (state.activeProduct === 'mf' ? 'mf' : 'stocks'), 'orders', false);
   } else if (path === '/watchlist') {
-    switchTab('watchlist', false);
+    switchProduct(state.activeProduct === 'mf' ? 'mf' : 'stocks', 'watchlist', false);
   } else {
-    switchTab('explore', false);
+    switchProduct('stocks', 'explore', false);
   }
 }
 
