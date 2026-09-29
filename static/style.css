@@ -8128,6 +8128,7 @@ body.viewing-profile .indices-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 0.75rem;
   padding: 0.85rem;
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--border-subtle);
@@ -8142,6 +8143,12 @@ body.viewing-profile .indices-bar {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.text-danger {
+  color: var(--danger-red) !important;
 }
 
 .tx-badge-icon {

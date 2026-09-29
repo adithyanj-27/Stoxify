@@ -5004,22 +5004,28 @@ async function loadBankAccountDetails() {
     if (res.ok) {
       const data = await res.json();
       if (data && data.bank_name) {
-        // Merge server transactions with local browser cached transactions
+        // Server transactions are the authoritative ledger (discarding any old synthetic UPI/STX phantom entries)
+        const serverTxs = (data.transactions || []).filter(tx => !tx.reference_id || !tx.reference_id.startsWith('UPI/STX/'));
         const localTxs = getLocalBankTxs(uid);
         const seenRefs = new Set();
         const merged = [];
-        (data.transactions || []).forEach(tx => {
+
+        serverTxs.forEach(tx => {
           const key = tx.reference_id || `${tx.type}-${tx.amount}-${tx.created_at}`;
           seenRefs.add(key);
           merged.push(tx);
         });
+
+        // Only merge local pending transactions that are not synthetic and not already recorded
         localTxs.forEach(tx => {
+          if (tx.reference_id && (tx.reference_id.startsWith('UPI/STX/') || tx.reference_id.startsWith('BANK-INIT-'))) return;
           const key = tx.reference_id || `${tx.type}-${tx.amount}-${tx.created_at}`;
           if (!seenRefs.has(key)) {
             seenRefs.add(key);
             merged.push(tx);
           }
         });
+
         if (merged.length > 0) {
           merged.sort((a, b) => {
             const da = a.created_at ? new Date(String(a.created_at).replace(' ', 'T')).getTime() : 0;
@@ -5704,31 +5710,33 @@ async function openBankPassbookModal() {
     listEl.innerHTML = data.transactions.map(tx => {
       const isCredit = tx.type === 'INITIAL_CREDIT' || tx.type === 'WITHDRAWAL' || tx.type === 'CREDIT';
       const sign = isCredit ? '+' : '-';
-      const colorClass = isCredit ? 'text-positive' : 'text-danger';
+      const colorClass = isCredit ? 'text-positive' : 'text-negative';
       const icon = isCredit ? '↓' : '↑';
       const badgeClass = isCredit ? 'credit' : 'debit';
-      const desc = tx.note || tx.description || (isCredit ? 'Credit to Bank Account' : 'UPI Transfer to Trading Wallet');
+      const desc = tx.note || tx.description || (isCredit ? 'Credit to Bank Account' : 'Transfer to Trading Wallet');
       const safeDate = tx.created_at ? new Date(String(tx.created_at).replace(' ', 'T')) : new Date();
       const dateStr = isNaN(safeDate.getTime()) ? (tx.created_at || 'Recent') : safeDate.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
         day: 'numeric',
         month: 'short',
         year: 'numeric',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
+        hour12: true
       });
 
       return `
-        <div class="passbook-tx-item">
-          <div class="tx-item-left">
+        <div class="passbook-tx-item" style="display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; padding: 0.85rem;">
+          <div class="tx-item-left" style="display: flex; align-items: center; gap: 0.75rem; min-width: 0; flex: 1;">
             <div class="tx-badge-icon ${badgeClass}">${icon}</div>
-            <div>
-              <div style="font-size: 0.88rem; font-weight: 700; color: var(--text-primary);">${desc}</div>
-              <div style="font-size: 0.72rem; color: var(--text-muted);">${dateStr} • Ref: ${tx.reference_id || 'N/A'}</div>
+            <div style="min-width: 0; flex: 1;">
+              <div style="font-size: 0.86rem; font-weight: 700; color: var(--text-primary); line-height: 1.35; word-break: break-word;">${desc}</div>
+              <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">${dateStr} • Ref: ${tx.reference_id || 'N/A'}</div>
             </div>
           </div>
-          <div style="text-align: right;">
-            <div class="${colorClass}" style="font-size: 0.95rem; font-weight: 800;">${sign}${formatINR(tx.amount)}</div>
-            <div style="font-size: 0.72rem; color: var(--text-muted);">${tx.status || 'SUCCESS'}</div>
+          <div style="text-align: right; flex-shrink: 0; min-width: 110px;">
+            <div class="${colorClass}" style="font-size: 0.95rem; font-weight: 800; white-space: nowrap;">${sign} ${formatINR(tx.amount)}</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">${tx.status || 'SUCCESS'}</div>
           </div>
         </div>
       `;

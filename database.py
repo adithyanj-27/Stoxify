@@ -1755,49 +1755,85 @@ def get_bank_account_details(user_id: str) -> Dict[str, Any]:
 
     conn = get_connection()
     cursor = conn.cursor()
+
+    # Clean up any obsolete synthetic lump-sum transactions (UPI/STX/...) that cause double-counting
+    cursor.execute("""
+        DELETE FROM bank_transactions 
+        WHERE user_id = ? AND reference_id LIKE 'UPI/STX/%'
+    """, (user_id,))
+    conn.commit()
+
+    # Ensure initial opening credit exists at the user's authentic account creation time
+    user_created = u.get("created_at") or "2026-09-01 09:15:00"
+    masked_acc = f"{bank_name} A/C •••• {str(bank_account)[-4:]}"
+    init_ref = f"BANK-INIT-{user_id}"
+    cursor.execute("""
+        INSERT OR IGNORE INTO bank_transactions (user_id, type, amount, from_account, to_account, reference_id, status, note, created_at)
+        VALUES (?, 'INITIAL_CREDIT', 1000000.0, 'RBI Simulated Banking Gateway', ?, ?, 'SUCCESS', 'Welcome virtual capital credited to linked bank account', ?)
+    """, (user_id, masked_acc, init_ref, user_created))
+    # Correct created_at of initial credit if it was set to a later timestamp
+    cursor.execute("""
+        UPDATE bank_transactions 
+        SET created_at = ? 
+        WHERE user_id = ? AND reference_id = ? AND created_at > ?
+    """, (user_created, user_id, init_ref, user_created))
+    conn.commit()
+
+    # Sync real deposits and withdrawals from wallet_transactions
+    cursor.execute("SELECT reference_id FROM bank_transactions WHERE user_id = ?", (user_id,))
+    existing_refs = {r[0] for r in cursor.fetchall() if r[0]}
+
+    cursor.execute("""
+        SELECT type, amount, reference_id, created_at, description 
+        FROM wallet_transactions 
+        WHERE user_id = ? AND type IN ('DEPOSIT', 'WITHDRAWAL')
+    """, (user_id,))
+    wallet_fund_txs = [dict(r) for r in cursor.fetchall()]
+
+    if is_supabase_enabled() and user_id != "guest":
+        try:
+            sb_res = supabase_api("GET", "wallet_transactions", params={
+                "user_id": f"eq.{user_id}",
+                "type": "in.(DEPOSIT,WITHDRAWAL)"
+            })
+            if sb_res and isinstance(sb_res, list):
+                for st in sb_res:
+                    if st.get("reference_id") not in {w.get("reference_id") for w in wallet_fund_txs}:
+                        wallet_fund_txs.append(st)
+        except Exception:
+            pass
+
+    for wt in wallet_fund_txs:
+        ref = wt.get("reference_id")
+        if not ref or ref in existing_refs:
+            continue
+        amt = float(wt.get("amount") or 0.0)
+        if amt <= 0:
+            continue
+        w_type = wt.get("type", "").upper()
+        w_time = wt.get("created_at") or user_created
+        if w_type == "DEPOSIT":
+            cursor.execute("""
+                INSERT INTO bank_transactions (user_id, type, amount, from_account, to_account, reference_id, status, note, created_at)
+                VALUES (?, 'BANK_DEPOSIT', ?, ?, 'Stoxify Trading Wallet', ?, 'SUCCESS', 'Transfer to Stoxify Trading Wallet', ?)
+            """, (user_id, amt, masked_acc, ref, w_time))
+            existing_refs.add(ref)
+        elif w_type == "WITHDRAWAL":
+            cursor.execute("""
+                INSERT INTO bank_transactions (user_id, type, amount, from_account, to_account, reference_id, status, note, created_at)
+                VALUES (?, 'WITHDRAWAL', ?, 'Stoxify Trading Wallet', ?, ?, 'SUCCESS', 'Withdrawal to linked bank account', ?)
+            """, (user_id, amt, masked_acc, ref, w_time))
+            existing_refs.add(ref)
+    conn.commit()
+
     cursor.execute("""
         SELECT * FROM bank_transactions 
         WHERE user_id = ? 
-        ORDER BY id DESC 
+        ORDER BY created_at DESC, id DESC 
         LIMIT 50
     """, (user_id,))
     rows = cursor.fetchall()
     txs = [dict(r) for r in rows]
-
-    # Auto-synthesize initial opening credit and transfers if local SQLite has no history
-    if not txs and user_id != "guest":
-        created_time = u.get("created_at") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        updated_time = u.get("updated_at") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        masked_acc = f"{bank_name} A/C •••• {str(bank_account)[-4:]}"
-        init_ref = f"BANK-INIT-{user_id}"
-        cursor.execute("""
-            INSERT OR IGNORE INTO bank_transactions (user_id, type, amount, from_account, to_account, reference_id, status, note, created_at)
-            VALUES (?, 'INITIAL_CREDIT', 1000000.0, 'RBI Simulated Banking Gateway', ?, ?, 'SUCCESS', 'Welcome virtual capital credited to linked bank account', ?)
-        """, (user_id, masked_acc, init_ref, created_time))
-
-        if bank_balance < 1000000.0:
-            diff = round(1000000.0 - bank_balance, 2)
-            cursor.execute("""
-                INSERT OR IGNORE INTO bank_transactions (user_id, type, amount, from_account, to_account, reference_id, status, note, created_at)
-                VALUES (?, 'BANK_DEPOSIT', ?, ?, 'Stoxify Trading Wallet', ?, 'SUCCESS', 'Simulated bank transfer to Stoxify trading wallet', ?)
-            """, (user_id, diff, masked_acc, f"UPI/STX/{user_id[-6:] if len(user_id) >= 6 else user_id}", updated_time))
-        elif bank_balance > 1000000.0:
-            diff = round(bank_balance - 1000000.0, 2)
-            cursor.execute("""
-                INSERT OR IGNORE INTO bank_transactions (user_id, type, amount, from_account, to_account, reference_id, status, note, created_at)
-                VALUES (?, 'WITHDRAWAL', ?, 'Stoxify Trading Wallet', ?, ?, 'SUCCESS', 'Simulated withdrawal to linked bank account', ?)
-            """, (user_id, diff, masked_acc, f"WDR/STX/{user_id[-6:] if len(user_id) >= 6 else user_id}", updated_time))
-        conn.commit()
-
-        cursor.execute("""
-            SELECT * FROM bank_transactions 
-            WHERE user_id = ? 
-            ORDER BY id DESC 
-            LIMIT 50
-        """, (user_id,))
-        rows = cursor.fetchall()
-        txs = [dict(r) for r in rows]
-
     conn.close()
 
     masked = f"•••• {bank_account[-4:]}" if len(bank_account) >= 4 else bank_account
