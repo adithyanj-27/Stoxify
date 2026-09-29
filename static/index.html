@@ -318,6 +318,7 @@
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         </svg>
         <input type="text" id="globalSearchInput" placeholder="Search stocks, mutual funds, ETFs, gold (e.g. Reliance, Gold BeES)..." autocomplete="off">
+        <span class="search-kbd-hint desktop-only" title="Press Ctrl+K or / to search">Ctrl K</span>
         <button type="button" class="search-clear-btn" id="searchClearBtn" aria-label="Close search" onclick="closeSearchBar(event)" title="Close search">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -542,6 +543,20 @@
           </div>
           <div class="most-bought-carousel" id="etfCarousel">
             <div style="color: var(--text-muted); font-size: 0.85rem; padding: 1rem;">Loading ETFs...</div>
+          </div>
+        </div>
+
+        <!-- Top Mutual Funds on Stoxify — Dedicated Carousel Section (Groww Style) -->
+        <div class="groww-section-block" id="popularMfCarouselSection" style="margin-top: 1.25rem;">
+          <div class="groww-section-header">
+            <div>
+              <h3 class="groww-section-title">Popular Mutual Funds</h3>
+              <span class="groww-section-sub">High-return flexi-cap, small-cap & index funds with live NAVs</span>
+            </div>
+            <button type="button" class="btn-link" onclick="switchExploreSubnav('mf')" style="background: none; border: none; color: var(--brand-cyan); font-weight: 700; font-size: 0.84rem; cursor: pointer;">See All Funds →</button>
+          </div>
+          <div class="most-bought-carousel" id="popularMfCarousel">
+            <div style="color: var(--text-muted); font-size: 0.85rem; padding: 1rem;">Loading mutual funds...</div>
           </div>
         </div>
 
@@ -1107,7 +1122,11 @@
                 </div>
                 <div class="asset-hero-sub">
                   <span class="asset-ticker" id="pageAssetSymbol">SYMBOL</span>
-                  <span class="pill-btn" id="pageAssetBadge">NSE</span>
+                  <div class="exchange-toggle-group" id="pageExchangeToggle">
+                    <button type="button" class="exchange-toggle-btn active" id="btnHeroNSE" onclick="switchStockExchange('NSE')">NSE</button>
+                    <button type="button" class="exchange-toggle-btn" id="btnHeroBSE" onclick="switchStockExchange('BSE')">BSE</button>
+                  </div>
+                  <span class="pill-btn" id="pageAssetBadge" style="display: none;">NSE</span>
                   <span class="sub-sep">•</span>
                   <span id="pageAssetSector" style="color: var(--text-muted); font-size: 0.85rem;">Equities</span>
                 </div>
@@ -1392,6 +1411,22 @@
             </div>
 
             <div class="trade-form-body">
+              <!-- Market Exchange (NSE vs BSE) Selector -->
+              <div class="trade-field-group" id="pageExchangeGroup">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                  <label class="field-label" style="margin-bottom: 0;">Market Exchange</label>
+                  <span style="font-size: 0.73rem; color: var(--text-muted);" id="pageExchangeFeeNotice">Turnover Fee: 0.00297%</span>
+                </div>
+                <div class="segmented-pills">
+                  <button type="button" class="seg-btn active" id="terminalExchNSE" onclick="switchStockExchange('NSE')">
+                    NSE <span class="exch-ltp-pill" id="terminalNseLtp"></span>
+                  </button>
+                  <button type="button" class="seg-btn" id="terminalExchBSE" onclick="switchStockExchange('BSE')">
+                    BSE <span class="exch-ltp-pill" id="terminalBseLtp"></span>
+                  </button>
+                </div>
+              </div>
+
               <!-- Order Type (Delivery vs Intraday) -->
               <div class="trade-field-group">
                 <label class="field-label">Product Type</label>
@@ -2093,6 +2128,22 @@
           <button class="trade-tab-btn sell" id="drawerBtnSell" onclick="setPageOrderAction('SELL')">SELL</button>
         </div>
 
+        <!-- Mobile Drawer Market Exchange Selector -->
+        <div class="trade-field-group" id="drawerExchangeGroup">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+            <label class="field-label" style="margin-bottom: 0;">Market Exchange</label>
+            <span style="font-size: 0.73rem; color: var(--text-muted);" id="drawerExchangeFeeNotice">Turnover Fee: 0.00297%</span>
+          </div>
+          <div class="segmented-pills">
+            <button type="button" class="seg-btn active" id="drawerExchNSE" onclick="switchStockExchange('NSE')">
+              NSE <span class="exch-ltp-pill" id="drawerNseLtp"></span>
+            </button>
+            <button type="button" class="seg-btn" id="drawerExchBSE" onclick="switchStockExchange('BSE')">
+              BSE <span class="exch-ltp-pill" id="drawerBseLtp"></span>
+            </button>
+          </div>
+        </div>
+
         <!-- Product: Delivery vs Intraday -->
         <div class="trade-field-group">
           <label class="field-label">Product Type</label>
@@ -2750,6 +2801,10 @@
         <!-- Primary Order Summary Box -->
         <div class="confirm-summary-box">
           <div class="confirm-summary-row">
+            <span class="confirm-label">Execution Exchange</span>
+            <strong class="confirm-val" id="confirmOrderExchangeVal"><span class="badge-exchange nse" style="margin-right: 4px;">NSE</span> National Stock Exchange</strong>
+          </div>
+          <div class="confirm-summary-row">
             <span class="confirm-label">Quantity & Variety</span>
             <strong class="confirm-val" id="confirmOrderQtyPrice">1 Share @ Market</strong>
           </div>
@@ -2790,7 +2845,7 @@
               <span id="confirmChargeStt">₹0.00</span>
             </div>
             <div class="confirm-charge-line">
-              <span>Exchange Turnover Charges</span>
+              <span id="confirmChargeExchangeLabel">Exchange Turnover Charges (NSE 0.00297%)</span>
               <span id="confirmChargeExchange">₹0.00</span>
             </div>
             <div class="confirm-charge-line">

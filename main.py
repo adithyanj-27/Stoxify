@@ -1035,6 +1035,7 @@ def read_portfolio(request: Request):
             "symbol": h["symbol"],
             "name": h["name"],
             "asset_type": h["asset_type"],
+            "exchange": h.get("exchange", "NSE"),
             "quantity": h["quantity"],
             "avg_price": h["avg_price"],
             "current_price": cur_price,
@@ -1108,6 +1109,7 @@ def read_positions(request: Request):
             "symbol": p["symbol"],
             "name": p["name"],
             "asset_type": p["asset_type"],
+            "exchange": p.get("exchange", "NSE"),
             "quantity": p["quantity"],
             "avg_price": p["avg_price"],
             "current_price": cur_price,
@@ -1183,6 +1185,7 @@ class OrderRequest(BaseModel):
     order_variety: str = "MARKET"
     limit_price: Optional[float] = None
     trigger_price: Optional[float] = None
+    exchange: Optional[str] = "NSE"
 
 @app.post("/api/order")
 @app.post("/order")
@@ -1208,11 +1211,19 @@ def place_order(order: OrderRequest, request: Request):
         raise HTTPException(status_code=400, detail=timing_msg)
 
     exec_price = order.price
+    order_exchange = (order.exchange or "NSE").upper()
     if order.asset_type.upper() == "STOCK":
         # Check memory cache first to eliminate yfinance network latency during order execution
         formatted_sym = order.symbol.strip().upper()
-        if not formatted_sym.endswith(".NS") and not formatted_sym.endswith(".BO") and not formatted_sym.startswith("^"):
-            formatted_sym += ".NS"
+        if order_exchange == "BSE":
+            if formatted_sym.endswith(".NS"):
+                formatted_sym = formatted_sym[:-3] + ".BO"
+            elif not formatted_sym.endswith(".BO") and not formatted_sym.startswith("^"):
+                formatted_sym += ".BO"
+        else:
+            if not formatted_sym.endswith(".NS") and not formatted_sym.endswith(".BO") and not formatted_sym.startswith("^"):
+                formatted_sym += ".NS"
+
         cached_q = market_service.get_cached(f"quote_{formatted_sym}") or market_service._CACHE.get(f"quote_{formatted_sym}")
         if cached_q and cached_q.get("price"):
             exec_price = cached_q["price"]
@@ -1220,7 +1231,7 @@ def place_order(order: OrderRequest, request: Request):
             exec_price = order.price
         else:
             try:
-                live_q = market_service.get_stock_quote(order.symbol)
+                live_q = market_service.get_stock_quote(formatted_sym)
                 if live_q.get("price"):
                     exec_price = live_q["price"]
             except Exception:
@@ -1238,7 +1249,8 @@ def place_order(order: OrderRequest, request: Request):
         limit_price=order.limit_price,
         order_tag=order_tag,
         user_id=uid,
-        trigger_price=order.trigger_price
+        trigger_price=order.trigger_price,
+        exchange=order_exchange
     )
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "Transaction failed"))
@@ -1273,9 +1285,10 @@ def get_charges_estimate(
     action: str = "SELL",
     product: str = "DELIVERY",
     asset_type: str = "STOCK",
-    amount: float = 0.0
+    amount: float = 0.0,
+    exchange: str = "NSE"
 ):
-    return calculate_trade_charges(action, product, asset_type, amount)
+    return calculate_trade_charges(action, product, asset_type, amount, exchange_market=exchange)
 
 def service_pending_orders(uid: str) -> int:
     """Evaluate resting LIMIT / STOP-LOSS orders against the latest quote.

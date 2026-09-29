@@ -631,6 +631,22 @@ body {
   }
 }
 
+.search-kbd-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  user-select: none;
+  pointer-events: none;
+  margin-right: 0.25rem;
+}
+
 .search-results-dropdown {
   position: absolute;
   top: calc(100% + 8px);
@@ -639,15 +655,131 @@ body {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-  max-height: 360px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  max-height: 440px;
   overflow-y: auto;
   display: none;
   z-index: 200;
 }
 
+.search-tabs-rail {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border-subtle);
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+.search-tabs-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.search-tab-pill {
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.65rem;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.search-tab-pill:hover {
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+.search-tab-pill.active {
+  background: var(--brand-cyan-bg);
+  border-color: rgba(14, 165, 233, 0.4);
+  color: var(--brand-cyan);
+}
+
+.search-zero-state {
+  padding: 0.85rem 0.95rem;
+}
+.search-zero-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.73rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+.search-clear-recent-btn {
+  background: none;
+  border: none;
+  color: var(--brand-cyan);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+.search-clear-recent-btn:hover {
+  text-decoration: underline;
+}
+
+.search-recent-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.6rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: var(--transition);
+  margin-bottom: 2px;
+}
+.search-recent-item:hover, .search-recent-item.selected {
+  background: var(--bg-elevated);
+}
+.search-recent-remove {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  padding: 2px 6px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.search-recent-remove:hover {
+  color: var(--danger-red);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.search-trending-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+.search-trending-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  padding: 0.3rem 0.7rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: var(--transition);
+}
+.search-trending-chip:hover {
+  border-color: var(--brand-cyan);
+  color: var(--brand-cyan);
+  background: var(--brand-cyan-bg);
+}
+
 .search-item {
-  padding: 0.75rem 1rem;
+  padding: 0.65rem 0.85rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -660,14 +792,31 @@ body {
   border-bottom: none;
 }
 
-.search-item:hover {
+.search-item:hover, .search-item.selected {
   background: var(--bg-elevated);
+}
+
+.search-item.selected {
+  background: var(--brand-cyan-bg) !important;
+  box-shadow: inset 3px 0 0 var(--brand-cyan);
 }
 
 .search-item:hover .search-item-title,
 .search-item:active .search-item-title {
   color: var(--brand-cyan) !important;
-  text-decoration: underline !important;
+}
+
+.search-price-col {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.search-item-price {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--text-primary);
 }
 
 .nav-links {
@@ -1116,13 +1265,48 @@ body {
   color: var(--text-primary);
 }
 
-/* --- Mutual Fund cards: NAV block + multi-period return chips --- */
+/* --- Mutual Fund cards: Groww-Style NAV block + CAGR + multi-period return chips --- */
 .mf-card-body {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding-top: 0.85rem;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 0.75rem;
+}
+
+.mf-groww-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  padding: 0.65rem 0;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.mf-stat-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.mf-stat-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.03em;
+  margin-bottom: 2px;
+}
+
+.mf-stat-val {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.mf-stat-sub {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-top: 2px;
 }
 
 .mf-nav-block {
@@ -1139,7 +1323,7 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
-  justify-content: flex-end;
+  align-items: center;
 }
 
 .mf-ret {
@@ -1169,6 +1353,83 @@ body {
   color: var(--text-muted);
   font-size: 0.9rem;
   font-weight: 600;
+}
+
+/* --- Exchange Badges & Switchers (Groww Style) --- */
+.badge-exchange {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.badge-exchange.nse {
+  background: rgba(14, 165, 233, 0.15);
+  color: #0EA5E9;
+  border: 1px solid rgba(14, 165, 233, 0.3);
+}
+
+.badge-exchange.bse {
+  background: rgba(245, 158, 11, 0.15);
+  color: #F59E0B;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.badge-exchange.amfi {
+  background: rgba(168, 85, 247, 0.15);
+  color: #A855F7;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.badge-exchange.index {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10B981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.exchange-toggle-group {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  padding: 2px;
+  gap: 2px;
+}
+
+.exchange-toggle-btn {
+  background: transparent;
+  border: none;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.exchange-toggle-btn:hover {
+  color: var(--text-primary);
+}
+
+.exchange-toggle-btn.active {
+  background: var(--brand-cyan);
+  color: #FFFFFF;
+  box-shadow: 0 1px 4px rgba(14, 165, 233, 0.35);
+}
+
+.exch-ltp-pill {
+  font-size: 0.68rem;
+  opacity: 0.85;
+  margin-left: 3px;
+  font-weight: 500;
 }
 
 /* Portfolio Banner */

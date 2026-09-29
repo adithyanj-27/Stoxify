@@ -90,6 +90,15 @@ def supabase_api(method: str, table_or_endpoint: str, payload: Optional[Any] = N
             return True
     except urllib.error.HTTPError as e:
         err_body = e.read().decode("utf-8", errors="ignore")
+        if "exchange" in err_body:
+            if payload and isinstance(payload, dict) and "exchange" in payload:
+                clean_payload = {k: v for k, v in payload.items() if k != "exchange"}
+                return supabase_api(method, table_or_endpoint, payload=clean_payload, params=params)
+            if params and isinstance(params, dict) and "select" in params and "exchange" in params["select"]:
+                clean_select = ",".join([c for c in params["select"].split(",") if c.strip() != "exchange"])
+                clean_params = dict(params)
+                clean_params["select"] = clean_select
+                return supabase_api(method, table_or_endpoint, payload=payload, params=clean_params)
         print(f"[Supabase API Error] {method} {table_or_endpoint} -> HTTP {e.code}: {err_body}")
         return None
     except Exception as e:
@@ -522,10 +531,17 @@ def init_db():
         ("trigger_price", "REAL DEFAULT 0.0"),
         ("charges", "REAL DEFAULT 0.0"),
         ("net_amount", "REAL DEFAULT 0.0"),
-        ("blocked_amount", "REAL DEFAULT 0.0")
+        ("blocked_amount", "REAL DEFAULT 0.0"),
+        ("exchange", "TEXT NOT NULL DEFAULT 'NSE'")
     ]:
         try:
             cursor.execute(f"ALTER TABLE orders ADD COLUMN {col} {definition}")
+        except Exception:
+            pass
+
+    for tbl in ["holdings", "positions"]:
+        try:
+            cursor.execute(f"ALTER TABLE {tbl} ADD COLUMN exchange TEXT NOT NULL DEFAULT 'NSE'")
         except Exception:
             pass
 
@@ -2449,8 +2465,8 @@ def sync_orders_from_supabase_into_cursor(cursor, user_id: str):
                     INSERT OR REPLACE INTO orders (
                         id, user_id, symbol, name, asset_type, order_type, product_type,
                         quantity, price, total_amount, order_variety, limit_price,
-                        order_tag, status, realized_pnl, timestamp, trigger_price
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        order_tag, status, realized_pnl, timestamp, trigger_price, exchange
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     o.get("id"),
                     user_id,
@@ -2468,7 +2484,8 @@ def sync_orders_from_supabase_into_cursor(cursor, user_id: str):
                     o.get("status") or "EXECUTED",
                     float(o.get("realized_pnl") or 0.0),
                     o.get("timestamp"),
-                    float(o.get("trigger_price") or 0.0)
+                    float(o.get("trigger_price") or 0.0),
+                    o.get("exchange") or "NSE"
                 ))
             return res
     except Exception as sync_e:
@@ -2479,9 +2496,9 @@ def sync_holdings_from_supabase_into_cursor(cursor, user_id: str):
     if not is_supabase_enabled() or not user_id or user_id in ["guest", "default"]:
         return None
     try:
-        res = supabase_api("GET", "holdings", params={"user_id": f"eq.{user_id}", "quantity": "gt.0", "select": "symbol,name,asset_type,quantity,avg_price,updated_at"})
+        res = supabase_api("GET", "holdings", params={"user_id": f"eq.{user_id}", "quantity": "gt.0", "select": "symbol,name,asset_type,quantity,avg_price,updated_at,exchange"})
         if res is not None and isinstance(res, list):
-            cursor.execute("SELECT symbol, name, asset_type, quantity, avg_price, updated_at FROM holdings WHERE user_id = ? AND quantity > 0", (user_id,))
+            cursor.execute("SELECT symbol, name, asset_type, quantity, avg_price, updated_at, COALESCE(exchange, 'NSE') as exchange FROM holdings WHERE user_id = ? AND quantity > 0", (user_id,))
             local_rows = cursor.fetchall()
             local_map = {(r["symbol"] or "").upper(): dict(r) for r in local_rows}
 
@@ -2539,8 +2556,8 @@ def sync_holdings_from_supabase_into_cursor(cursor, user_id: str):
                     cursor.execute("DELETE FROM holdings WHERE user_id = ? AND UPPER(symbol) = ? AND symbol != ?", (user_id, v, h_sym))
 
                 cursor.execute("""
-                    INSERT OR REPLACE INTO holdings (user_id, symbol, name, asset_type, quantity, avg_price, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT OR REPLACE INTO holdings (user_id, symbol, name, asset_type, quantity, avg_price, updated_at, exchange)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     user_id, 
                     h["symbol"], 
@@ -2548,7 +2565,8 @@ def sync_holdings_from_supabase_into_cursor(cursor, user_id: str):
                     h.get("asset_type", "STOCK"), 
                     h_qty, 
                     float(h["avg_price"]), 
-                    h.get("updated_at")
+                    h.get("updated_at"),
+                    h.get("exchange") or ("BSE" if (h.get("symbol") or "").endswith(".BO") else ("AMFI" if h.get("asset_type") == "MUTUAL_FUND" else "NSE"))
                 ))
 
             # Remove any local holdings that no longer exist in Supabase (sold or closed)
@@ -2570,9 +2588,9 @@ def sync_positions_from_supabase_into_cursor(cursor, user_id: str):
     if not is_supabase_enabled() or not user_id or user_id in ["guest", "default"]:
         return None
     try:
-        res = supabase_api("GET", "positions", params={"user_id": f"eq.{user_id}", "quantity": "gt.0", "select": "symbol,name,asset_type,quantity,avg_price,margin_used,product_type,updated_at"})
+        res = supabase_api("GET", "positions", params={"user_id": f"eq.{user_id}", "quantity": "gt.0", "select": "symbol,name,asset_type,quantity,avg_price,margin_used,product_type,updated_at,exchange"})
         if res is not None and isinstance(res, list):
-            cursor.execute("SELECT symbol, name, asset_type, quantity, avg_price, margin_used, product_type, updated_at FROM positions WHERE user_id = ? AND quantity > 0", (user_id,))
+            cursor.execute("SELECT symbol, name, asset_type, quantity, avg_price, margin_used, product_type, updated_at, COALESCE(exchange, 'NSE') as exchange FROM positions WHERE user_id = ? AND quantity > 0", (user_id,))
             local_rows = cursor.fetchall()
             local_map = {(r["symbol"] or "").upper(): dict(r) for r in local_rows}
 
@@ -2628,8 +2646,8 @@ def sync_positions_from_supabase_into_cursor(cursor, user_id: str):
                     cursor.execute("DELETE FROM positions WHERE user_id = ? AND UPPER(symbol) = ? AND symbol != ?", (user_id, v, p_sym))
 
                 cursor.execute("""
-                    INSERT OR REPLACE INTO positions (user_id, symbol, name, asset_type, quantity, avg_price, margin_used, product_type, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT OR REPLACE INTO positions (user_id, symbol, name, asset_type, quantity, avg_price, margin_used, product_type, updated_at, exchange)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     user_id, 
                     p["symbol"], 
@@ -2639,7 +2657,8 @@ def sync_positions_from_supabase_into_cursor(cursor, user_id: str):
                     float(p["avg_price"]), 
                     float(p.get("margin_used", 0.0)), 
                     p.get("product_type", "INTRADAY"), 
-                    p.get("updated_at")
+                    p.get("updated_at"),
+                    p.get("exchange") or ("BSE" if (p.get("symbol") or "").endswith(".BO") else ("AMFI" if p.get("asset_type") == "MUTUAL_FUND" else "NSE"))
                 ))
 
             # Remove any local positions that no longer exist in Supabase (squared off or closed)
@@ -2675,7 +2694,7 @@ def get_holdings(user_id: str = "default") -> List[Dict[str, Any]]:
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT symbol, name, asset_type, quantity, avg_price, updated_at 
+        SELECT symbol, name, asset_type, quantity, avg_price, updated_at, COALESCE(exchange, 'NSE') as exchange 
         FROM holdings WHERE user_id = ? AND quantity > 0.0001
     """, (user_id,))
     rows = cursor.fetchall()
@@ -2710,7 +2729,7 @@ def get_positions(user_id: str = "default") -> List[Dict[str, Any]]:
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT symbol, name, asset_type, quantity, avg_price, margin_used, product_type, updated_at 
+        SELECT symbol, name, asset_type, quantity, avg_price, margin_used, product_type, updated_at, COALESCE(exchange, 'NSE') as exchange 
         FROM positions WHERE user_id = ? AND quantity > 0.0001
     """, (user_id,))
     rows = cursor.fetchall()
@@ -2727,14 +2746,14 @@ def get_positions(user_id: str = "default") -> List[Dict[str, Any]]:
     conn.close()
     return valid_rows
 
-def calculate_trade_charges(order_type: str, product_type: str, asset_type: str = "STOCK", amount: float = 0.0) -> Dict[str, float]:
+def calculate_trade_charges(order_type: str, product_type: str, asset_type: str = "STOCK", amount: float = 0.0, exchange_market: str = "NSE") -> Dict[str, float]:
     """
     Calculate authentic Indian stock broker charges (Groww / CDSL / SEBI fee schedule).
     For Equity Delivery Sell:
       - Brokerage: ₹20 or 0.05% of turnover (whichever is lower)
       - DP Charges: Flat ₹13.50 (CDSL) + 18% GST (₹15.93 total)
       - STT: 0.1% of turnover
-      - Exchange Txn Fee: 0.00297% (NSE)
+      - Exchange Txn Fee: NSE 0.00297% / BSE 0.00375%
       - SEBI Turnover Fee: 0.0001% (₹10/crore)
       - Stamp Duty: ₹0 on Sell (0.015% on Buy only)
       - GST: 18% on (Brokerage + Exchange Txn + SEBI + DP Charges)
@@ -2742,7 +2761,7 @@ def calculate_trade_charges(order_type: str, product_type: str, asset_type: str 
       - Brokerage: ₹20 or 0.05% (whichever is lower)
       - DP Charges: ₹0 (not debited from demat)
       - STT: 0.025% on Sell side
-      - Exchange Txn Fee: 0.00297%
+      - Exchange Txn Fee: NSE 0.00297% / BSE 0.00375%
       - SEBI Turnover Fee: 0.0001%
       - Stamp Duty: ₹0 on Sell
       - GST: 18% on (Brokerage + Exchange Txn + SEBI)
@@ -2779,8 +2798,9 @@ def calculate_trade_charges(order_type: str, product_type: str, asset_type: str 
     else:
         stt = 0.0 if is_intra else round(amount * 0.001, 2)
 
-    # Exchange transaction fee: NSE 0.00297%
-    exchange = round(amount * 0.0000297, 2)
+    # Exchange transaction fee: NSE 0.00297%, BSE 0.00375%
+    exch_rate = 0.0000375 if str(exchange_market).upper() == "BSE" else 0.0000297
+    exchange = round(amount * exch_rate, 2)
 
     # SEBI turnover charge: ₹10 / crore (0.0001%)
     sebi = round((amount / 10000000.0) * 10.0, 2)
@@ -2819,7 +2839,8 @@ def execute_trade(
     limit_price: Optional[float] = None,
     order_tag: str = "NORMAL",
     user_id: str = "default",
-    trigger_price: Optional[float] = None
+    trigger_price: Optional[float] = None,
+    exchange: str = "NSE"
 ) -> Dict[str, Any]:
     symbol = (symbol or "").strip().upper()
     order_type = order_type.upper()
@@ -2828,6 +2849,15 @@ def execute_trade(
     asset_type = asset_type.upper()
     quantity = float(quantity)
     price = float(price)
+
+    if symbol.endswith(".BO") or (exchange and exchange.upper() == "BSE"):
+        actual_exchange = "BSE"
+    elif asset_type == "MUTUAL_FUND":
+        actual_exchange = "AMFI"
+    elif symbol.startswith("^") or asset_type == "INDEX":
+        actual_exchange = "INDEX"
+    else:
+        actual_exchange = (exchange or "NSE").upper()
 
     if quantity <= 0 or price <= 0:
         return {"success": False, "error": "Quantity and price must be greater than zero."}
@@ -2914,7 +2944,7 @@ def execute_trade(
             if order_type == "BUY":
                 # A resting BUY has to reserve the margin AND the charges that will
                 # be payable when it fills, otherwise the fill itself can fail.
-                pending_charges = calculate_trade_charges("BUY", product_type, asset_type, total_amount)
+                pending_charges = calculate_trade_charges("BUY", product_type, asset_type, total_amount, exchange_market=actual_exchange)
                 blocked_amount = round(required_margin + pending_charges["total"], 2)
                 if balance < blocked_amount:
                     conn.close()
@@ -2952,9 +2982,9 @@ def execute_trade(
                         return {"success": False, "error": f"Insufficient quantity to place Limit SELL. Available: {avail}, Requested: {quantity}"}
 
             cursor.execute("""
-                INSERT INTO orders (user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, trigger_price, order_tag, status, realized_pnl, blocked_amount)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', 0.0, ?)
-            """, (user_id, symbol, name, asset_type, order_type, product_type, quantity, effective_price, total_amount, order_variety, limit_price, trigger_price or 0.0, order_tag, blocked_amount))
+                INSERT INTO orders (user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, trigger_price, order_tag, status, realized_pnl, blocked_amount, exchange)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', 0.0, ?, ?)
+            """, (user_id, symbol, name, asset_type, order_type, product_type, quantity, effective_price, total_amount, order_variety, limit_price, trigger_price or 0.0, order_tag, blocked_amount, actual_exchange))
             order_id = cursor.lastrowid
             conn.commit()
             conn.close()
@@ -2995,7 +3025,7 @@ def execute_trade(
             new_balance = balance
             blocked_amount = 0.0
             if order_type == "BUY":
-                pending_charges = calculate_trade_charges("BUY", product_type, asset_type, total_amount)
+                pending_charges = calculate_trade_charges("BUY", product_type, asset_type, total_amount, exchange_market=actual_exchange)
                 blocked_amount = round(required_margin + pending_charges["total"], 2)
                 if balance < blocked_amount:
                     conn.close()
@@ -3032,9 +3062,9 @@ def execute_trade(
                         return {"success": False, "error": f"Insufficient quantity to place Stop-Loss SELL. Available: {avail}, Requested: {quantity}"}
 
             cursor.execute("""
-                INSERT INTO orders (user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, trigger_price, order_tag, status, realized_pnl, blocked_amount)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'TRIGGER_PENDING', 0.0, ?)
-            """, (user_id, symbol, name, asset_type, order_type, product_type, quantity, effective_price, total_amount, order_variety, limit_price or effective_price, trigger_price, order_tag, blocked_amount))
+                INSERT INTO orders (user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, trigger_price, order_tag, status, realized_pnl, blocked_amount, exchange)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'TRIGGER_PENDING', 0.0, ?, ?)
+            """, (user_id, symbol, name, asset_type, order_type, product_type, quantity, effective_price, total_amount, order_variety, limit_price or effective_price, trigger_price, order_tag, blocked_amount, actual_exchange))
             order_id = cursor.lastrowid
             conn.commit()
             conn.close()
@@ -3076,7 +3106,7 @@ def execute_trade(
             # duty, exchange/SEBI fees and GST leave the wallet together with the
             # margin. They used to be written onto the contract note but never
             # debited, so every BUY overstated the account's cash.
-            charges = calculate_trade_charges("BUY", product_type, asset_type, total_amount)
+            charges = calculate_trade_charges("BUY", product_type, asset_type, total_amount, exchange_market=actual_exchange)
             required_cash = round(required_margin + charges["total"], 2)
             if balance < required_cash:
                 conn.close()
@@ -3099,14 +3129,14 @@ def execute_trade(
                     new_avg = round(((curr_qty * curr_avg) + total_amount) / new_qty, 2)
                     new_margin_used = round(curr_margin + required_margin, 2)
                     cursor.execute("""
-                        UPDATE positions SET quantity = ?, avg_price = ?, margin_used = ?, updated_at = CURRENT_TIMESTAMP 
+                        UPDATE positions SET quantity = ?, avg_price = ?, margin_used = ?, updated_at = CURRENT_TIMESTAMP, exchange = ? 
                         WHERE user_id = ? AND UPPER(symbol) = ?
-                    """, (new_qty, new_avg, new_margin_used, user_id, matched_sym.upper()))
+                    """, (new_qty, new_avg, new_margin_used, actual_exchange, user_id, matched_sym.upper()))
                 else:
                     cursor.execute("""
-                        INSERT INTO positions (user_id, symbol, name, asset_type, quantity, avg_price, margin_used, product_type) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, 'INTRADAY')
-                    """, (user_id, symbol, name, asset_type, quantity, effective_price, required_margin))
+                        INSERT INTO positions (user_id, symbol, name, asset_type, quantity, avg_price, margin_used, product_type, exchange) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 'INTRADAY', ?)
+                    """, (user_id, symbol, name, asset_type, quantity, effective_price, required_margin, actual_exchange))
                 cursor.execute(f"DELETE FROM position_tombstones WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
             else:
                 cursor.execute(f"SELECT id, symbol, quantity, avg_price FROM holdings WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
@@ -3118,21 +3148,21 @@ def execute_trade(
                     new_qty = curr_qty + quantity
                     new_avg = round(((curr_qty * curr_avg) + total_amount) / new_qty, 2)
                     cursor.execute("""
-                        UPDATE holdings SET quantity = ?, avg_price = ?, updated_at = CURRENT_TIMESTAMP 
+                        UPDATE holdings SET quantity = ?, avg_price = ?, updated_at = CURRENT_TIMESTAMP, exchange = ? 
                         WHERE user_id = ? AND UPPER(symbol) = ?
-                    """, (new_qty, new_avg, user_id, matched_sym.upper()))
+                    """, (new_qty, new_avg, actual_exchange, user_id, matched_sym.upper()))
                 else:
                     cursor.execute("""
-                        INSERT INTO holdings (user_id, symbol, name, asset_type, quantity, avg_price) 
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    """, (user_id, symbol, name, asset_type, quantity, effective_price))
+                        INSERT INTO holdings (user_id, symbol, name, asset_type, quantity, avg_price, exchange) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """, (user_id, symbol, name, asset_type, quantity, effective_price, actual_exchange))
                 cursor.execute(f"DELETE FROM holding_tombstones WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
 
             order_status = "EXECUTED (AMO)" if order_tag == "AMO" else "EXECUTED"
             cursor.execute("""
-                INSERT INTO orders (user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, charges, net_amount)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.0, ?, ?)
-            """, (user_id, symbol, name, asset_type, order_type, product_type, quantity, effective_price, total_amount, order_variety, limit_price or 0.0, order_tag, order_status, charges["total"], total_amount))
+                INSERT INTO orders (user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, charges, net_amount, exchange)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.0, ?, ?, ?)
+            """, (user_id, symbol, name, asset_type, order_type, product_type, quantity, effective_price, total_amount, order_variety, limit_price or 0.0, order_tag, order_status, charges["total"], total_amount, actual_exchange))
             order_id = cursor.lastrowid
             conn.commit()
             conn.close()
@@ -3147,7 +3177,7 @@ def execute_trade(
                 direction="DEBIT",
                 status="SUCCESS",
                 reference_id=f"ORD-STX-{order_id}",
-                description=f"Bought {quantity} shares of {symbol} at ₹{effective_price:,.2f}",
+                description=f"Bought {quantity} shares of {symbol} on {actual_exchange} at ₹{effective_price:,.2f}",
                 symbol=symbol,
                 asset_type=asset_type
             )
@@ -3164,7 +3194,8 @@ def execute_trade(
                             sb_sym = matched_sym if pos else symbol
                             supabase_api("POST", "positions?on_conflict=user_id,symbol", payload={
                                 "user_id": user_id, "symbol": sb_sym, "name": name, "asset_type": asset_type,
-                                "quantity": sb_qty, "avg_price": sb_avg, "margin_used": sb_margin, "product_type": "INTRADAY"
+                                "quantity": sb_qty, "avg_price": sb_avg, "margin_used": sb_margin, "product_type": "INTRADAY",
+                                "exchange": actual_exchange
                             })
                         else:
                             sb_qty = new_qty if existing else quantity
@@ -3172,13 +3203,13 @@ def execute_trade(
                             sb_sym = matched_sym if existing else symbol
                             supabase_api("POST", "holdings?on_conflict=user_id,symbol", payload={
                                 "user_id": user_id, "symbol": sb_sym, "name": name, "asset_type": asset_type,
-                                "quantity": sb_qty, "avg_price": sb_avg
+                                "quantity": sb_qty, "avg_price": sb_avg, "exchange": actual_exchange
                             })
                         supabase_api("POST", "orders", payload={
                             "user_id": user_id, "symbol": symbol, "name": name, "asset_type": asset_type,
                             "order_type": order_type, "product_type": product_type, "quantity": quantity,
                             "price": effective_price, "total_amount": total_amount, "order_variety": order_variety,
-                            "status": order_status, "realized_pnl": 0.0
+                            "status": order_status, "realized_pnl": 0.0, "exchange": actual_exchange
                         })
                     except Exception as sb_e:
                         print(f"[Supabase Trade Sync Warning] {sb_e}")
@@ -3199,9 +3230,10 @@ def execute_trade(
                 "status": order_status, 
                 "balance": new_balance,
                 "new_balance": new_balance,
+                "exchange": actual_exchange,
                 "charges": charges,
                 "net_amount": total_amount,
-                "message": f"Successfully purchased {quantity} {symbol} at ₹{effective_price:,.2f}{tag_msg}"
+                "message": f"Successfully purchased {quantity} {symbol} on {actual_exchange} at ₹{effective_price:,.2f}{tag_msg}"
             }
 
         elif order_type == "SELL":
@@ -3257,7 +3289,7 @@ def execute_trade(
                 avg_price = pos["avg_price"]
                 curr_margin = pos["margin_used"]
 
-                charges = calculate_trade_charges("SELL", "INTRADAY", asset_type, round(effective_price * quantity, 2))
+                charges = calculate_trade_charges("SELL", "INTRADAY", asset_type, round(effective_price * quantity, 2), exchange_market=actual_exchange)
                 realized_pnl = round((effective_price - avg_price) * quantity, 2)
                 margin_released = round((quantity / curr_qty) * curr_margin, 2)
                 net_proceeds = round(margin_released + realized_pnl - charges["total"], 2)
@@ -3297,7 +3329,7 @@ def execute_trade(
                 matched_symbol = deliv_hold["symbol"]
                 curr_qty = deliv_hold["quantity"]
                 avg_price = deliv_hold["avg_price"]
-                charges = calculate_trade_charges("SELL", "DELIVERY", asset_type, total_amount)
+                charges = calculate_trade_charges("SELL", "DELIVERY", asset_type, total_amount, exchange_market=actual_exchange)
                 realized_pnl = round((effective_price - avg_price) * quantity, 2)
                 net_proceeds = max(0.0, round(total_amount - charges["total"], 2))
                 new_balance = round(balance + net_proceeds, 2)
@@ -3330,16 +3362,16 @@ def execute_trade(
             product_type = actual_product
             order_status = "EXECUTED (AMO)" if order_tag == "AMO" else "EXECUTED"
             cursor.execute("""
-                INSERT INTO orders (user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, charges, net_amount)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (user_id, symbol, name, asset_type, order_type, product_type, quantity, effective_price, total_amount, order_variety, limit_price or 0.0, order_tag, order_status, realized_pnl, charges["total"], net_proceeds))
+                INSERT INTO orders (user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, charges, net_amount, exchange)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (user_id, symbol, name, asset_type, order_type, product_type, quantity, effective_price, total_amount, order_variety, limit_price or 0.0, order_tag, order_status, realized_pnl, charges["total"], net_proceeds, actual_exchange))
             order_id = cursor.lastrowid
             conn.commit()
             conn.close()
 
             cat_label = "Stocks" if asset_type == "STOCK" else (asset_type.capitalize() + "s" if not asset_type.endswith("s") else asset_type.capitalize())
             tx_title = f"Received from {cat_label} (Auto Square-off)" if order_tag == "AUTO_SQUARE_OFF" else f"Received from {cat_label}"
-            tx_desc = f"Auto squared off {quantity} shares of {symbol} at ₹{effective_price:,.2f} (Market Close / Cutoff)" if order_tag == "AUTO_SQUARE_OFF" else f"Sold {quantity} shares of {symbol} at ₹{effective_price:,.2f}"
+            tx_desc = f"Auto squared off {quantity} shares of {symbol} at ₹{effective_price:,.2f} (Market Close / Cutoff)" if order_tag == "AUTO_SQUARE_OFF" else f"Sold {quantity} shares of {symbol} on {actual_exchange} at ₹{effective_price:,.2f}"
             record_wallet_transaction(
                 user_id=user_id,
                 tx_type="SELL",
@@ -3369,7 +3401,8 @@ def execute_trade(
                             else:
                                 supabase_api("POST", "positions?on_conflict=user_id,symbol", payload={
                                     "user_id": user_id, "symbol": matched_symbol, "name": name, "asset_type": asset_type,
-                                    "quantity": rem_qty, "avg_price": avg_price, "margin_used": new_margin, "product_type": "INTRADAY"
+                                    "quantity": rem_qty, "avg_price": avg_price, "margin_used": new_margin, "product_type": "INTRADAY",
+                                    "exchange": actual_exchange
                                 })
                         else:
                             if rem_qty <= 0.0001:
@@ -3384,13 +3417,13 @@ def execute_trade(
                             else:
                                 supabase_api("POST", "holdings?on_conflict=user_id,symbol", payload={
                                     "user_id": user_id, "symbol": matched_symbol, "name": name, "asset_type": asset_type,
-                                    "quantity": rem_qty, "avg_price": avg_price
+                                    "quantity": rem_qty, "avg_price": avg_price, "exchange": actual_exchange
                                 })
                         supabase_api("POST", "orders", payload={
                             "user_id": user_id, "symbol": symbol, "name": name, "asset_type": asset_type,
                             "order_type": order_type, "product_type": product_type, "quantity": quantity,
                             "price": effective_price, "total_amount": total_amount, "order_variety": order_variety,
-                            "status": order_status, "realized_pnl": realized_pnl
+                            "status": order_status, "realized_pnl": realized_pnl, "exchange": actual_exchange
                         })
                     except Exception as sb_e:
                         print(f"[Supabase Trade Sync Warning] {sb_e}")
@@ -3415,7 +3448,8 @@ def execute_trade(
                 "net_amount": net_proceeds,
                 "balance": new_balance,
                 "new_balance": new_balance,
-                "message": f"Successfully sold {quantity} {symbol} at ₹{effective_price:,.2f} (Net: ₹{net_proceeds:,.2f}){tag_msg}"
+                "exchange": actual_exchange,
+                "message": f"Successfully sold {quantity} {symbol} on {actual_exchange} at ₹{effective_price:,.2f} (Net: ₹{net_proceeds:,.2f}){tag_msg}"
             }
 
         else:
@@ -3434,13 +3468,13 @@ def exit_position(symbol: str, exit_price: float, user_id: str = "default", orde
 
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute(f"SELECT symbol, name, asset_type, quantity, avg_price, margin_used FROM positions WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
+    cursor.execute(f"SELECT symbol, name, asset_type, quantity, avg_price, margin_used, COALESCE(exchange, 'NSE') as exchange FROM positions WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
     pos = cursor.fetchone()
 
     if not pos and is_supabase_enabled() and user_id != "guest":
         sync_positions_from_supabase_into_cursor(cursor, user_id)
         conn.commit()
-        cursor.execute(f"SELECT symbol, name, asset_type, quantity, avg_price, margin_used FROM positions WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
+        cursor.execute(f"SELECT symbol, name, asset_type, quantity, avg_price, margin_used, COALESCE(exchange, 'NSE') as exchange FROM positions WHERE user_id = ? AND ({sym_clause})", [user_id] + sym_params)
         pos = cursor.fetchone()
     conn.close()
 
@@ -3457,7 +3491,8 @@ def exit_position(symbol: str, exit_price: float, user_id: str = "default", orde
         price=exit_price,
         order_variety="MARKET",
         order_tag=order_tag,
-        user_id=user_id
+        user_id=user_id,
+        exchange=pos["exchange"] if "exchange" in pos.keys() and pos["exchange"] else "NSE"
     )
 
 def cancel_order(order_id: int, user_id: str = "default") -> Dict[str, Any]:
@@ -3568,12 +3603,12 @@ def check_open_limit_orders(symbol: str, current_price: float, user_id: Optional
     clause = " OR ".join(["UPPER(symbol) = ?"] * len(variants))
     if user_id:
         cursor.execute(f"""
-            SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, limit_price, trigger_price, total_amount, status 
+            SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, limit_price, trigger_price, total_amount, status, COALESCE(exchange, 'NSE') as exchange 
             FROM orders WHERE status IN ('OPEN', 'TRIGGER_PENDING') AND ({clause}) AND user_id = ?
         """, variants + [user_id])
     else:
         cursor.execute(f"""
-            SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, limit_price, trigger_price, total_amount, status 
+            SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, limit_price, trigger_price, total_amount, status, COALESCE(exchange, 'NSE') as exchange 
             FROM orders WHERE status IN ('OPEN', 'TRIGGER_PENDING') AND ({clause})
         """, variants)
     pending_orders = [dict(r) for r in cursor.fetchall()]
@@ -3606,7 +3641,8 @@ def check_open_limit_orders(symbol: str, current_price: float, user_id: Optional
                     quantity=o["quantity"],
                     price=current_price,
                     order_variety="MARKET",
-                    user_id=o["user_id"]
+                    user_id=o["user_id"],
+                    exchange=o.get("exchange", "NSE")
                 )
 
     check_gtt_orders(symbol, current_price, user_id)
@@ -3692,6 +3728,10 @@ def get_orders(limit: int = 100, status_filter: Optional[str] = None, user_id: s
                 params["status"] = f"eq.{status_filter}"
         res = supabase_api("GET", "orders", params=params)
         if res is not None and isinstance(res, list) and len(res) > 0:
+            for r in res:
+                if "exchange" not in r or not r.get("exchange"):
+                    sym = r.get("symbol", "")
+                    r["exchange"] = "BSE" if sym.endswith(".BO") else ("AMFI" if r.get("asset_type") == "MUTUAL_FUND" else "NSE")
             return res
 
     # 2. SQLite fallback
@@ -3700,17 +3740,17 @@ def get_orders(limit: int = 100, status_filter: Optional[str] = None, user_id: s
     if status_filter:
         if status_filter.upper() == "EXECUTED":
             cursor.execute("""
-                SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, charges, net_amount, blocked_amount, timestamp
+                SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, charges, net_amount, blocked_amount, timestamp, COALESCE(exchange, 'NSE') as exchange
                 FROM orders WHERE user_id = ? AND status LIKE 'EXECUTED%' ORDER BY id DESC LIMIT ?
             """, (user_id, limit))
         else:
             cursor.execute("""
-                SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, charges, net_amount, blocked_amount, timestamp
+                SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, charges, net_amount, blocked_amount, timestamp, COALESCE(exchange, 'NSE') as exchange
                 FROM orders WHERE user_id = ? AND status = ? ORDER BY id DESC LIMIT ?
             """, (user_id, status_filter, limit))
     else:
         cursor.execute("""
-            SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, charges, net_amount, blocked_amount, timestamp
+            SELECT id, user_id, symbol, name, asset_type, order_type, product_type, quantity, price, total_amount, order_variety, limit_price, order_tag, status, realized_pnl, charges, net_amount, blocked_amount, timestamp, COALESCE(exchange, 'NSE') as exchange
             FROM orders WHERE user_id = ? ORDER BY id DESC LIMIT ?
         """, (user_id, limit))
     rows = cursor.fetchall()
@@ -4445,7 +4485,7 @@ def auto_square_off_intraday(user_id: Optional[str] = None) -> Dict[str, Any]:
             except Exception:
                 pass
             if exit_price <= 0:
-                exit_price = float(pos.get("avg_price") or 0.0)
+                exit_price = float(pos["avg_price"] if "avg_price" in pos.keys() and pos["avg_price"] else 0.0)
 
             try:
                 res = exit_position(symbol=sym, exit_price=exit_price, user_id=u_id, order_tag="AUTO_SQUARE_OFF")
