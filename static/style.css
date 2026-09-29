@@ -2750,10 +2750,10 @@ body.pwa-installed #mobileInstallBanner {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  font-size: 0.68rem;
+  gap: 4px;
+  font-size: 0.72rem;
   font-weight: 600;
-  padding: 0.3rem 0.5rem;
+  padding: 0.35rem 0.5rem;
   cursor: pointer;
   transition: var(--transition);
   position: relative;
@@ -2762,6 +2762,7 @@ body.pwa-installed #mobileInstallBanner {
 
 .mobile-nav-item.active {
   color: var(--brand-cyan);
+  font-weight: 700;
 }
 
 .mobile-nav-item.active svg {
@@ -2820,19 +2821,20 @@ body.pwa-installed #mobileInstallBanner {
   }
 
   .brand-logo {
-    width: 28px;
-    height: 28px;
-    border-radius: 8px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    overflow: hidden;
   }
 
   .brand-name {
     font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif !important;
-    font-size: 1.15rem !important;
-    font-weight: 700 !important;
+    font-size: 1.3rem !important;
+    font-weight: 800 !important;
     letter-spacing: -0.02em !important;
     color: var(--text-primary);
   }
