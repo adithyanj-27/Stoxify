@@ -737,9 +737,9 @@ function switchProductSubTab(subTabId, updateUrl = true) {
   if (subTabId === 'explore') {
     activateExploreProductView(state.activeProduct);
   } else if (subTabId === 'holdings') {
-    fetchPortfolio();
+    fetchPortfolio(true);
   } else if (subTabId === 'dashboard') {
-    renderMutualFundDashboard();
+    renderMutualFundDashboard(true);
   } else if (subTabId === 'sips') {
     renderMutualFundSips();
   } else if (subTabId === 'positions') {
@@ -881,7 +881,7 @@ function switchHoldingsSubnav(subId) {
   if (sips) sips.style.display = (subId === 'sips') ? 'block' : 'none';
 
   if (subId === 'list') {
-    fetchPortfolio();
+    fetchPortfolio(true);
   } else if (subId === 'analytics') {
     loadPortfolioAnalytics();
   } else if (subId === 'sips') {
@@ -1919,6 +1919,51 @@ function renderExploreETFs() {
   renderExploreStocks();
 }
 
+// --- Universal Loading Indicator Helpers ---
+function renderLoadingCircle(message = 'Loading...', size = 'md') {
+  const sizeClass = size === 'sm' ? 'sm' : (size === 'lg' ? 'lg' : '');
+  return `
+    <div class="stoxify-loader-wrapper">
+      <div class="stoxify-spinner-circle ${sizeClass}"></div>
+      ${message ? `<p class="stoxify-loader-text">${message}</p>` : ''}
+    </div>
+  `;
+}
+
+function renderTableLoadingRow(colSpan = 9, message = 'Loading holdings...') {
+  return `
+    <tr class="loading-placeholder-row">
+      <td colspan="${colSpan}" style="padding: 3.5rem 1rem; text-align: center;">
+        ${renderLoadingCircle(message)}
+      </td>
+    </tr>
+  `;
+}
+
+function showChartLoadingOverlay(containerEl, message = 'Loading chart...') {
+  if (!containerEl) return null;
+  let overlay = containerEl.querySelector('.portfolio-chart-loading-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'portfolio-chart-loading-overlay';
+    overlay.innerHTML = renderLoadingCircle(message, 'md');
+    containerEl.appendChild(overlay);
+  } else {
+    overlay.style.display = 'flex';
+    const textEl = overlay.querySelector('.stoxify-loader-text');
+    if (textEl && message) textEl.innerText = message;
+  }
+  return overlay;
+}
+
+function hideChartLoadingOverlay(containerEl) {
+  if (!containerEl) return;
+  const overlay = containerEl.querySelector('.portfolio-chart-loading-overlay');
+  if (overlay) {
+    overlay.remove();
+  }
+}
+
 // --- Holdings View (Delivery CNC) ---
 // Navigation, polling, and trade completion can request the same portfolio at
 // once. Coalesce those reads to avoid duplicate backend/cloud work.
@@ -1947,6 +1992,15 @@ async function fetchPortfolioInternal(requestVersion) {
   if (guestBanner) guestBanner.style.display = 'none';
   if (authContent) authContent.style.display = 'block';
 
+  const tableBody = document.getElementById('holdingsTableBody');
+  const mobileList = document.getElementById('holdingsMobileList');
+  if (tableBody && (!tableBody.children.length || tableBody.querySelector('.loading-placeholder-row') || !state.portfolioData)) {
+    tableBody.innerHTML = renderTableLoadingRow(9, 'Loading your holdings...');
+  }
+  if (mobileList && (!mobileList.children.length || mobileList.querySelector('.stoxify-loader-wrapper') || !state.portfolioData)) {
+    mobileList.innerHTML = renderLoadingCircle('Loading your holdings...');
+  }
+
   try {
     const res = await fetch('/api/portfolio');
     const data = await res.json();
@@ -1959,6 +2013,11 @@ async function fetchPortfolioInternal(requestVersion) {
       const clean = (h.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase();
       state.holdingsMap[clean] = h;
     });
+
+    // Also sync Mutual Funds dashboard holdings if container exists
+    if (typeof renderMutualFundHoldingsFromData === 'function') {
+      renderMutualFundHoldingsFromData(data);
+    }
 
     const navBal = document.getElementById('navBalanceDisplay');
     if (navBal) navBal.innerText = formatINR(data.balance);
@@ -2152,7 +2211,7 @@ async function fetchPortfolioInternal(requestVersion) {
 }
 
 // --- Mutual Funds Dashboard (Holdings & Summary) ---
-async function renderMutualFundDashboard() {
+async function renderMutualFundDashboard(force = true) {
   const guestBanner = document.getElementById('mfDashboardGuestBanner');
   const authContent = document.getElementById('mfDashboardAuthContent');
 
@@ -2164,12 +2223,30 @@ async function renderMutualFundDashboard() {
   if (guestBanner) guestBanner.style.display = 'none';
   if (authContent) authContent.style.display = 'block';
 
+  const tbody = document.getElementById('mfHoldingsTableBody');
+  const mobList = document.getElementById('mfHoldingsMobileList');
+  if (tbody && (!tbody.children.length || tbody.querySelector('.loading-placeholder-row') || !state.portfolioData)) {
+    tbody.innerHTML = renderTableLoadingRow(8, 'Loading mutual fund investments...');
+  }
+  if (mobList && (!mobList.children.length || mobList.querySelector('.stoxify-loader-wrapper') || !state.portfolioData)) {
+    mobList.innerHTML = renderLoadingCircle('Loading mutual fund investments...');
+  }
+
   try {
-    const res = await fetch('/api/portfolio');
-    const data = await res.json();
-    state.portfolioData = data;
+    const data = await fetchPortfolio(force);
+    if (data) {
+      renderMutualFundHoldingsFromData(data);
+    }
+  } catch (err) {
+    console.error('Error fetching MF portfolio:', err);
+  }
+}
+
+function renderMutualFundHoldingsFromData(data) {
+  if (!data) return;
+  try {
     const allHoldings = data.holdings || [];
-    const mfHoldings = allHoldings.filter(h => (h.asset_type || '').toUpperCase() === 'MUTUAL_FUND');
+  const mfHoldings = allHoldings.filter(h => (h.asset_type || '').toUpperCase() === 'MUTUAL_FUND');
 
     const curVal = mfHoldings.reduce((sum, h) => sum + (Number(h.current_value !== undefined ? h.current_value : (h.quantity * (h.current_price || h.nav || 0))) || 0), 0);
     const invVal = mfHoldings.reduce((sum, h) => sum + (Number(h.invested_value !== undefined ? h.invested_value : (h.quantity * (h.avg_price || h.nav || 0))) || 0), 0);
@@ -2300,7 +2377,7 @@ async function renderMutualFundDashboard() {
       }).join('');
     }
   } catch (err) {
-    console.error('Error fetching MF portfolio:', err);
+    console.error('Error rendering MF holdings:', err);
   }
 }
 
@@ -2317,15 +2394,21 @@ async function renderMutualFundSips() {
   if (guestBanner) guestBanner.style.display = 'none';
   if (authContent) authContent.style.display = 'block';
 
+  const tbody = document.getElementById('paneMfSipsTableBody');
+  const mobList = document.getElementById('paneMfSipsMobileList');
+  if (tbody && (!tbody.children.length || tbody.querySelector('.loading-placeholder-row'))) {
+    tbody.innerHTML = renderTableLoadingRow(6, 'Loading active SIP schedules...');
+  }
+  if (mobList && (!mobList.children.length || mobList.querySelector('.stoxify-loader-wrapper'))) {
+    mobList.innerHTML = renderLoadingCircle('Loading active SIP schedules...');
+  }
+
   try {
     const uid = localStorage.getItem('stoxify_user_id') || (currentUser ? currentUser.user_id : null);
     const res = await fetch(`/api/mf/sips?user_id=${encodeURIComponent(uid || '')}`, {
       headers: uid ? { 'X-User-Id': uid } : {}
     });
     const sips = await res.json();
-
-    const tbody = document.getElementById('paneMfSipsTableBody');
-    const mobList = document.getElementById('paneMfSipsMobileList');
 
     if (!sips || !Array.isArray(sips) || sips.length === 0) {
       if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 3rem;">No active SIP schedules. Head to Explore Mutual Funds to start a SIP!</td></tr>';
@@ -2421,10 +2504,20 @@ async function fetchPositionsInternal(requestVersion) {
   if (guestBanner) guestBanner.style.display = 'none';
   if (authContent) authContent.style.display = 'block';
 
+  const posTableBody = document.getElementById('positionsTableBody');
+  const posMobList = document.getElementById('positionsMobileList');
+  if (posTableBody && (!posTableBody.children.length || posTableBody.querySelector('.loading-placeholder-row') || !state.positionsData)) {
+    posTableBody.innerHTML = renderTableLoadingRow(8, 'Loading positions...');
+  }
+  if (posMobList && (!posMobList.children.length || posMobList.querySelector('.stoxify-loader-wrapper') || !state.positionsData)) {
+    posMobList.innerHTML = renderLoadingCircle('Loading positions...');
+  }
+
   try {
     const res = await fetch('/api/positions');
     const data = await res.json();
     if (requestVersion !== positionsRequestVersion) return data;
+    state.positionsData = data;
     const allPositions = data.positions || [];
     let positions = allPositions;
     if (state.activeProduct === 'fo') {
@@ -2614,6 +2707,24 @@ async function squareOffAllPositions() {
 
 // --- Orders View (Executed & Open Orders) ---
 async function fetchOrders() {
+  const ordersTableBody = document.getElementById('ordersTableBody');
+  const openOrdersTableBody = document.getElementById('openOrdersTableBody');
+  const ordersMobList = document.getElementById('ordersMobileList');
+  const openOrdersMobList = document.getElementById('openOrdersMobileList');
+
+  if (ordersTableBody && (!ordersTableBody.children.length || ordersTableBody.querySelector('.loading-placeholder-row'))) {
+    ordersTableBody.innerHTML = renderTableLoadingRow(10, 'Loading executed orders...');
+  }
+  if (openOrdersTableBody && (!openOrdersTableBody.children.length || openOrdersTableBody.querySelector('.loading-placeholder-row'))) {
+    openOrdersTableBody.innerHTML = renderTableLoadingRow(10, 'Loading open orders...');
+  }
+  if (ordersMobList && (!ordersMobList.children.length || ordersMobList.querySelector('.stoxify-loader-wrapper'))) {
+    ordersMobList.innerHTML = renderLoadingCircle('Loading executed orders...');
+  }
+  if (openOrdersMobList && (!openOrdersMobList.children.length || openOrdersMobList.querySelector('.stoxify-loader-wrapper'))) {
+    openOrdersMobList.innerHTML = renderLoadingCircle('Loading open orders...');
+  }
+
   try {
     const [execRes, openRes, slRes] = await Promise.all([
       fetch('/api/orders?status=EXECUTED').catch(() => null),
@@ -2854,6 +2965,11 @@ async function cancelOrder(orderId) {
 
 // --- Watchlist View ---
 async function fetchWatchlist() {
+  const grid = document.getElementById('watchlistGrid');
+  if (grid && (!grid.children.length || grid.querySelector('.stoxify-loader-wrapper'))) {
+    grid.innerHTML = renderLoadingCircle('Loading your watchlist...');
+  }
+
   try {
     const res = await fetch('/api/watchlist');
     if (!res.ok) {
@@ -3709,6 +3825,12 @@ async function loadChartTimeframe(tf) {
   const symbol = state.currentModalAsset.symbol;
   const assetType = state.currentModalAsset.asset_type;
 
+  const modalCanvas = document.getElementById('tradeChartCanvas');
+  const modalChartWrapper = modalCanvas ? modalCanvas.parentElement : null;
+  if (modalChartWrapper) {
+    showChartLoadingOverlay(modalChartWrapper, 'Loading chart...');
+  }
+
   try {
     const res = await fetch(`/api/history?symbol=${encodeURIComponent(symbol)}&asset_type=${encodeURIComponent(assetType)}&timeframe=${tf}`);
     const points = await res.json();
@@ -3732,6 +3854,10 @@ async function loadChartTimeframe(tf) {
     }
   } catch (err) {
     console.error('Failed to load chart data:', err);
+  } finally {
+    if (modalChartWrapper) {
+      hideChartLoadingOverlay(modalChartWrapper);
+    }
   }
 }
 
@@ -4411,7 +4537,7 @@ async function restoreFullBalance() {
       showToast('Trading capital fully restored to ₹10,00,000.00!');
       await fetchAccount();
       closeFundsModal();
-      if (state.currentTab === 'holdings') fetchPortfolio();
+      if (state.currentTab === 'holdings') fetchPortfolio(true);
       if (state.currentTab === 'positions') fetchPositions();
     } else {
       showToast(data.detail || 'Failed to restore capital', true);
@@ -4433,7 +4559,7 @@ async function resetEntirePortfolio() {
       showToast('Portfolio & trading balance completely reset to ₹10,00,000.00!');
       await fetchAccount();
       closeFundsModal();
-      if (state.currentTab === 'holdings') fetchPortfolio();
+      if (state.currentTab === 'holdings') fetchPortfolio(true);
       if (state.currentTab === 'positions') fetchPositions();
       if (state.currentTab === 'orders') fetchOrders();
     } else {
@@ -4746,16 +4872,18 @@ function bootApp() {
     fetchIndices().catch(e => console.warn(e)),
     fetchExploreData().catch(e => console.warn(e)),
     fetchWatchlist().catch(e => console.warn(e)),
-    fetchPositions().catch(e => console.warn(e))
+    fetchPositions().catch(e => console.warn(e)),
+    fetchPortfolio(true).catch(e => console.warn(e))
   ]);
 
   // Polling intervals
   setInterval(() => fetchMarketStatus(), 10000);
   setInterval(() => {
     fetchIndices();
-    if (state.currentTab === 'holdings') fetchPortfolio();
+    if (state.currentTab === 'holdings') fetchPortfolio(true);
+    if (state.currentTab === 'dashboard') renderMutualFundDashboard(true);
     if (state.currentTab === 'positions') fetchPositions();
-  }, 20000);
+  }, 15000);
 }
 
 if (document.readyState === 'loading') {
@@ -5046,6 +5174,7 @@ async function fetchCurrentUser() {
         localStorage.removeItem('stoxify_guest_mode');
         document.documentElement.classList.add('user-logged-in');
         document.documentElement.classList.remove('user-guest');
+        fetchPortfolio(true).catch(() => {});
       } else if (u && (u.is_guest || u.id === 'default' || !u.id)) {
         // If the server returns guest, but the client had an active stored user ID,
         // do NOT destroy the local session immediately. The server might have reloaded or
@@ -5983,7 +6112,7 @@ async function executeUpiPayment() {
 function finishUpiSuccess() {
   closeAddMoneyModal();
   showToast(`${formatINR(currentUpiAddAmount)} credited to trading wallet successfully!`);
-  if (state.currentTab === 'holdings') fetchPortfolio();
+  if (state.currentTab === 'holdings') fetchPortfolio(true);
 }
 
 // =======================================================
@@ -6526,7 +6655,7 @@ async function submitLogin() {
 
     await fetchAccount();
     await fetchWatchlist();
-    if (state.currentTab === 'holdings') fetchPortfolio();
+    await fetchPortfolio(true);
     if (state.currentTab === 'positions') fetchPositions();
     if (state.currentTab === 'orders') fetchOrders();
 
@@ -7619,6 +7748,12 @@ async function loadPageChartTimeframe(range, btnEl = null) {
   currentChartRange = range;
   if (!currentPageAsset) return;
 
+  const chartCard = document.querySelector('.asset-chart-card');
+  const chartWrapper = chartCard ? chartCard.querySelector('.chart-wrapper') : null;
+  if (chartWrapper) {
+    showChartLoadingOverlay(chartWrapper, 'Loading chart data...');
+  }
+
   try {
     const assetType = currentPageAsset.asset_type || 'STOCK';
     const res = await fetch(`/api/history?symbol=${encodeURIComponent(currentPageAsset.symbol)}&asset_type=${encodeURIComponent(assetType)}&range=${range}&timeframe=${range}`);
@@ -7630,6 +7765,10 @@ async function loadPageChartTimeframe(range, btnEl = null) {
     resetHeroPrice();
   } catch (err) {
     console.error('Failed to load chart:', err);
+  } finally {
+    if (chartWrapper) {
+      hideChartLoadingOverlay(chartWrapper);
+    }
   }
 }
 
@@ -9576,6 +9715,15 @@ async function executeConfirmedOrder() {
 async function loadGttOrders() {
   if (isGuest()) return;
   try {
+    const tbody = document.getElementById('gttOrdersTableBody');
+    const mobList = document.getElementById('gttOrdersMobileList');
+    if (tbody && (!tbody.children.length || tbody.querySelector('.loading-placeholder-row'))) {
+      tbody.innerHTML = renderTableLoadingRow(9, 'Loading GTT triggers...');
+    }
+    if (mobList && (!mobList.children.length || mobList.querySelector('.stoxify-loader-wrapper'))) {
+      mobList.innerHTML = renderLoadingCircle('Loading GTT triggers...');
+    }
+
     const uid = localStorage.getItem('stoxify_user_id') || (currentUser ? currentUser.user_id : null);
     const res = await fetch(`/api/orders/gtt?user_id=${encodeURIComponent(uid || '')}`, {
       headers: uid ? { 'X-User-Id': uid } : {}
@@ -9583,9 +9731,6 @@ async function loadGttOrders() {
     const orders = await res.json();
     const countEl = document.getElementById('gttOrdersCount');
     if (countEl) countEl.innerText = Array.isArray(orders) ? orders.length : 0;
-
-    const tbody = document.getElementById('gttOrdersTableBody');
-    const mobList = document.getElementById('gttOrdersMobileList');
 
     if (!orders || !Array.isArray(orders) || orders.length === 0) {
       if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 3rem;">No active GTT or Stop-Loss triggers.</td></tr>';
@@ -9695,7 +9840,7 @@ function switchFoUnderlying(sym) {
 
 async function fetchOptionChain() {
   const tbody = document.getElementById('optionChainTableBody');
-  if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 3rem;">Calculating Black-Scholes Greeks & Option Matrix...</td></tr>';
+  if (tbody) tbody.innerHTML = renderTableLoadingRow(7, 'Calculating Black-Scholes Greeks & Option Matrix...');
 
   try {
     const res = await fetch(`/api/fo/option-chain?symbol=${encodeURIComponent(currentFoUnderlying)}`);
@@ -10418,15 +10563,21 @@ async function submitSipSchedule() {
 
 async function loadActiveSips() {
   if (isGuest()) return;
+  const tbody = document.getElementById('sipsTableBody');
+  const mobList = document.getElementById('sipsMobileList');
+  if (tbody && (!tbody.children.length || tbody.querySelector('.loading-placeholder-row'))) {
+    tbody.innerHTML = renderTableLoadingRow(6, 'Loading active SIP schedules...');
+  }
+  if (mobList && (!mobList.children.length || mobList.querySelector('.stoxify-loader-wrapper'))) {
+    mobList.innerHTML = renderLoadingCircle('Loading active SIP schedules...');
+  }
+
   try {
     const uid = localStorage.getItem('stoxify_user_id') || (currentUser ? currentUser.user_id : null);
     const res = await fetch(`/api/mf/sips?user_id=${encodeURIComponent(uid || '')}`, {
       headers: uid ? { 'X-User-Id': uid } : {}
     });
     const sips = await res.json();
-
-    const tbody = document.getElementById('sipsTableBody');
-    const mobList = document.getElementById('sipsMobileList');
 
     if (!sips || !Array.isArray(sips) || sips.length === 0) {
       if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 3rem;">No active SIP schedules.</td></tr>';
@@ -10521,6 +10672,15 @@ async function cancelSip(sipId) {
    ======================================================= */
 async function loadPortfolioAnalytics() {
   if (isGuest()) return;
+  const secContainer = document.getElementById('sectorAllocationContainer');
+  const taxTradesTbody = document.getElementById('taxTradesTableBody');
+  if (secContainer && (!secContainer.children.length || secContainer.querySelector('.stoxify-loader-wrapper'))) {
+    secContainer.innerHTML = renderLoadingCircle('Analyzing sector distribution...');
+  }
+  if (taxTradesTbody && (!taxTradesTbody.children.length || taxTradesTbody.querySelector('.loading-placeholder-row'))) {
+    taxTradesTbody.innerHTML = renderTableLoadingRow(7, 'Calculating realized capital gains trades...');
+  }
+
   try {
     const uid = localStorage.getItem('stoxify_user_id') || (currentUser ? currentUser.user_id : null);
     const authHeaders = uid ? { 'X-User-Id': uid } : {};
@@ -10657,6 +10817,13 @@ function switchFinPeriod(period) {
 
 async function fetchStockFinancials(symbol) {
   const container = document.getElementById('pageFinancialsBarsContainer');
+  const tbody = document.getElementById('pageFinancialsTableBody');
+  if (container) {
+    container.innerHTML = renderLoadingCircle('Loading financial statements...');
+  }
+  if (tbody) {
+    tbody.innerHTML = renderTableLoadingRow(5, 'Loading financials data...');
+  }
   try {
     const res = await fetch(`/api/stock/financials?symbol=${encodeURIComponent(symbol)}`);
     if (!res.ok) throw new Error('API error: ' + res.status);
@@ -10734,6 +10901,9 @@ function renderFinancialsBars(data, period) {
 
 async function fetchStockShareholding(symbol) {
   const container = document.getElementById('pageShareholdingContainer');
+  if (container) {
+    container.innerHTML = renderLoadingCircle('Loading ownership distribution...');
+  }
   try {
     const res = await fetch(`/api/stock/shareholding?symbol=${encodeURIComponent(symbol)}`);
     if (!res.ok) throw new Error('API error: ' + res.status);
@@ -10784,6 +10954,9 @@ async function fetchStockShareholding(symbol) {
 
 async function fetchStockPeers(symbol) {
   const tbody = document.getElementById('pagePeersTableBody');
+  if (tbody) {
+    tbody.innerHTML = renderTableLoadingRow(7, 'Loading competitor peers...');
+  }
   try {
     const res = await fetch(`/api/stock/peers?symbol=${encodeURIComponent(symbol)}`);
     if (!res.ok) throw new Error('API error: ' + res.status);
@@ -10828,6 +11001,9 @@ async function fetchStockPeers(symbol) {
 
 async function fetchStockNews(symbol) {
   const container = document.getElementById('pageNewsContainer');
+  if (container) {
+    container.innerHTML = renderLoadingCircle('Loading market news & press releases...');
+  }
   try {
     const res = await fetch(`/api/stock/news?symbol=${encodeURIComponent(symbol)}`);
     if (!res.ok) throw new Error('API error: ' + res.status);
@@ -11078,6 +11254,7 @@ function switchMfAllocMode(mode) {
 }
 
 async function renderStockPerformanceChart() {
+  const container = document.getElementById('stockPerfChartContainer');
   const canvas = document.getElementById('stockPortfolioPerformanceCanvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
@@ -11085,6 +11262,10 @@ async function renderStockPerformanceChart() {
   if (portfolioChartsState.stock.perfInstance) {
     portfolioChartsState.stock.perfInstance.destroy();
     portfolioChartsState.stock.perfInstance = null;
+  }
+
+  if (container) {
+    showChartLoadingOverlay(container, 'Loading performance data...');
   }
 
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -11297,6 +11478,10 @@ async function renderStockPerformanceChart() {
     });
   } catch (err) {
     console.warn('Could not render stock performance chart:', err);
+  } finally {
+    if (container) {
+      hideChartLoadingOverlay(container);
+    }
   }
 }
 
@@ -11445,6 +11630,7 @@ async function renderStockAllocationChart() {
 }
 
 async function renderMfPerformanceChart() {
+  const container = document.getElementById('mfPerfChartContainer');
   const canvas = document.getElementById('mfPortfolioPerformanceCanvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
@@ -11452,6 +11638,10 @@ async function renderMfPerformanceChart() {
   if (portfolioChartsState.mf.perfInstance) {
     portfolioChartsState.mf.perfInstance.destroy();
     portfolioChartsState.mf.perfInstance = null;
+  }
+
+  if (container) {
+    showChartLoadingOverlay(container, 'Loading mutual fund performance...');
   }
 
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -11665,6 +11855,10 @@ async function renderMfPerformanceChart() {
     });
   } catch (err) {
     console.warn('Could not render MF performance chart:', err);
+  } finally {
+    if (container) {
+      hideChartLoadingOverlay(container);
+    }
   }
 }
 

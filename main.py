@@ -988,9 +988,10 @@ def read_portfolio(request: Request):
 
     for h, quote in zip(raw_holdings, quotes):
 
-        cur_price = quote.get("price", h["avg_price"])
-        chg = quote.get("change", 0.0)
-        chg_pct = quote.get("change_pct", 0.0)
+        raw_price = quote.get("price") if quote else None
+        cur_price = float(raw_price) if (raw_price is not None and float(raw_price) > 0) else float(h.get("avg_price", 0.0))
+        chg = quote.get("change", 0.0) if quote else 0.0
+        chg_pct = quote.get("change_pct", 0.0) if quote else 0.0
 
         inv_val = round(h["quantity"] * h["avg_price"], 2)
         cur_val = round(h["quantity"] * cur_price, 2)

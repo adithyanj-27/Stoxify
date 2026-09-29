@@ -653,7 +653,14 @@
               </tr>
             </thead>
             <tbody id="optionChainTableBody">
-              <tr><td colspan="7" style="text-align: center; padding: 3rem; color: var(--text-muted);">Loading option chain...</td></tr>
+              <tr class="loading-placeholder-row">
+                <td colspan="7" style="padding: 3.5rem 1rem; text-align: center;">
+                  <div class="stoxify-loader-wrapper">
+                    <div class="stoxify-spinner-circle"></div>
+                    <p class="stoxify-loader-text">Calculating option chain & Greeks...</p>
+                  </div>
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -847,9 +854,12 @@
                 </tr>
               </thead>
               <tbody id="holdingsTableBody">
-                <tr>
-                  <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 3rem;">
-                    No active holdings. Explore stocks and mutual funds to start investing!
+                <tr class="loading-placeholder-row">
+                  <td colspan="9" style="text-align: center; padding: 3.5rem 1rem;">
+                    <div class="stoxify-loader-wrapper">
+                      <div class="stoxify-spinner-circle"></div>
+                      <p class="stoxify-loader-text">Loading holdings...</p>
+                    </div>
                   </td>
                 </tr>
               </tbody>
@@ -857,7 +867,12 @@
           </div>
 
           <!-- Mobile Holdings Cards List -->
-          <div class="mobile-cards-list" id="holdingsMobileList"></div>
+          <div class="mobile-cards-list" id="holdingsMobileList">
+            <div class="stoxify-loader-wrapper">
+              <div class="stoxify-spinner-circle"></div>
+              <p class="stoxify-loader-text">Loading holdings...</p>
+            </div>
+          </div>
         </div>
 
         <!-- 2. Portfolio Analytics & Capital Gains Tax Report View -->
@@ -961,11 +976,23 @@
                 </tr>
               </thead>
               <tbody id="sipsTableBody">
-                <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 3rem;">No active SIPs scheduled. Select any mutual fund to start your SIP!</td></tr>
+                <tr class="loading-placeholder-row">
+                  <td colspan="6" style="padding: 3.5rem 1rem; text-align: center;">
+                    <div class="stoxify-loader-wrapper">
+                      <div class="stoxify-spinner-circle"></div>
+                      <p class="stoxify-loader-text">Loading active SIP schedules...</p>
+                    </div>
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
-          <div class="mobile-cards-list" id="sipsMobileList"></div>
+          <div class="mobile-cards-list" id="sipsMobileList">
+            <div class="stoxify-loader-wrapper">
+              <div class="stoxify-spinner-circle"></div>
+              <p class="stoxify-loader-text">Loading active SIP schedules...</p>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -1109,13 +1136,25 @@
               </tr>
             </thead>
             <tbody id="mfHoldingsTableBody">
-              <tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 3rem;">Loading mutual funds portfolio...</td></tr>
+              <tr class="loading-placeholder-row">
+                <td colspan="8" style="text-align: center; padding: 3.5rem 1rem;">
+                  <div class="stoxify-loader-wrapper">
+                    <div class="stoxify-spinner-circle"></div>
+                    <p class="stoxify-loader-text">Loading mutual funds...</p>
+                  </div>
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
 
         <!-- Mobile MF Cards List -->
-        <div class="mobile-cards-list" id="mfHoldingsMobileList"></div>
+        <div class="mobile-cards-list" id="mfHoldingsMobileList">
+          <div class="stoxify-loader-wrapper">
+            <div class="stoxify-spinner-circle"></div>
+            <p class="stoxify-loader-text">Loading mutual funds...</p>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -1160,13 +1199,25 @@
               </tr>
             </thead>
             <tbody id="paneMfSipsTableBody">
-              <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 3rem;">Loading active SIPs...</td></tr>
+              <tr class="loading-placeholder-row">
+                <td colspan="6" style="padding: 3.5rem 1rem; text-align: center;">
+                  <div class="stoxify-loader-wrapper">
+                    <div class="stoxify-spinner-circle"></div>
+                    <p class="stoxify-loader-text">Loading active SIP schedules...</p>
+                  </div>
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
 
         <!-- Mobile SIPs Cards List -->
-        <div class="mobile-cards-list" id="paneMfSipsMobileList"></div>
+        <div class="mobile-cards-list" id="paneMfSipsMobileList">
+          <div class="stoxify-loader-wrapper">
+            <div class="stoxify-spinner-circle"></div>
+            <p class="stoxify-loader-text">Loading active SIP schedules...</p>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -1231,9 +1282,12 @@
               </tr>
             </thead>
             <tbody id="positionsTableBody">
-              <tr>
-                <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 3rem;">
-                  No open intraday positions. Intraday trades will appear here with live P&L and 1-click square-off.
+              <tr class="loading-placeholder-row">
+                <td colspan="8" style="text-align: center; padding: 3.5rem 1rem;">
+                  <div class="stoxify-loader-wrapper">
+                    <div class="stoxify-spinner-circle"></div>
+                    <p class="stoxify-loader-text">Loading positions...</p>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -1241,7 +1295,12 @@
         </div>
 
         <!-- Mobile Positions Cards List -->
-        <div class="mobile-cards-list" id="positionsMobileList"></div>
+        <div class="mobile-cards-list" id="positionsMobileList">
+          <div class="stoxify-loader-wrapper">
+            <div class="stoxify-spinner-circle"></div>
+            <p class="stoxify-loader-text">Loading positions...</p>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -1285,11 +1344,11 @@
               </tr>
             </thead>
             <tbody id="ordersTableBody">
-              <tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 3rem;">No orders placed yet.</td></tr>
+              <tr class="loading-placeholder-row"><td colspan="10" style="text-align: center; padding: 3.5rem 1rem;"><div class="stoxify-loader-wrapper"><div class="stoxify-spinner-circle"></div><p class="stoxify-loader-text">Loading executed orders...</p></div></td></tr>
             </tbody>
           </table>
         </div>
-        <div class="mobile-cards-list" id="ordersMobileList"></div>
+        <div class="mobile-cards-list" id="ordersMobileList"><div class="stoxify-loader-wrapper"><div class="stoxify-spinner-circle"></div><p class="stoxify-loader-text">Loading executed orders...</p></div></div>
       </div>
 
       <!-- Open Orders View (Pending Limits) -->
@@ -1311,11 +1370,11 @@
               </tr>
             </thead>
             <tbody id="openOrdersTableBody">
-              <tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 3rem;">No pending limit orders.</td></tr>
+              <tr class="loading-placeholder-row"><td colspan="10" style="text-align: center; padding: 3.5rem 1rem;"><div class="stoxify-loader-wrapper"><div class="stoxify-spinner-circle"></div><p class="stoxify-loader-text">Loading open orders...</p></div></td></tr>
             </tbody>
           </table>
         </div>
-        <div class="mobile-cards-list" id="openOrdersMobileList"></div>
+        <div class="mobile-cards-list" id="openOrdersMobileList"><div class="stoxify-loader-wrapper"><div class="stoxify-spinner-circle"></div><p class="stoxify-loader-text">Loading open orders...</p></div></div>
       </div>
 
       <!-- GTT & Stop-Loss Triggers View -->
@@ -1336,11 +1395,11 @@
               </tr>
             </thead>
             <tbody id="gttOrdersTableBody">
-              <tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 3rem;">No active GTT or Stop-Loss triggers.</td></tr>
+              <tr class="loading-placeholder-row"><td colspan="9" style="text-align: center; padding: 3.5rem 1rem;"><div class="stoxify-loader-wrapper"><div class="stoxify-spinner-circle"></div><p class="stoxify-loader-text">Loading GTT triggers...</p></div></td></tr>
             </tbody>
           </table>
         </div>
-        <div class="mobile-cards-list" id="gttOrdersMobileList"></div>
+        <div class="mobile-cards-list" id="gttOrdersMobileList"><div class="stoxify-loader-wrapper"><div class="stoxify-spinner-circle"></div><p class="stoxify-loader-text">Loading GTT triggers...</p></div></div>
       </div>
     </section>
 
@@ -1620,7 +1679,10 @@
                 <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">Institutional, Promoter & Retail Ownership Breakdown</p>
               </div>
               <div id="pageShareholdingContainer">
-                <div style="color: var(--text-muted); padding: 2rem; text-align: center;">Loading ownership distribution...</div>
+                <div class="stoxify-loader-wrapper">
+                  <div class="stoxify-spinner-circle"></div>
+                  <p class="stoxify-loader-text">Loading ownership distribution...</p>
+                </div>
               </div>
             </div>
           </div>
@@ -1646,7 +1708,14 @@
                     </tr>
                   </thead>
                   <tbody id="pagePeersTableBody">
-                    <tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading competitor peers...</td></tr>
+                    <tr class="loading-placeholder-row">
+                      <td colspan="7" style="padding: 3rem 1rem; text-align: center;">
+                        <div class="stoxify-loader-wrapper">
+                          <div class="stoxify-spinner-circle"></div>
+                          <p class="stoxify-loader-text">Loading competitor peers...</p>
+                        </div>
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -1661,7 +1730,10 @@
                 <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">Real-time filings, exchange announcements, and market sentiment</p>
               </div>
               <div id="pageNewsContainer" class="asset-news-list">
-                <div style="color: var(--text-muted); padding: 2rem; text-align: center;">Loading news feed...</div>
+                <div class="stoxify-loader-wrapper">
+                  <div class="stoxify-spinner-circle"></div>
+                  <p class="stoxify-loader-text">Loading market news & press releases...</p>
+                </div>
               </div>
             </div>
           </div>
