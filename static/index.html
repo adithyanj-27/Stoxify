@@ -501,7 +501,6 @@
         <button class="sub-nav-btn active" id="subnav-stocks" onclick="switchExploreSubnav('stocks')">Stocks</button>
         <button class="sub-nav-btn" id="subnav-fo" onclick="switchExploreSubnav('fo')">F&O (Futures & Options)</button>
         <button class="sub-nav-btn" id="subnav-mf" onclick="switchExploreSubnav('mf')">Mutual Funds</button>
-        <button class="sub-nav-btn" id="subnav-ipo" onclick="switchExploreSubnav('ipo')">IPOs</button>
       </div>
 
       <!-- Stocks Sub-view -->
@@ -532,6 +531,27 @@
         </div>
 
 
+
+        <!-- Real Indian IPOs Hub Section (Groww Style Inside Explore Stocks) -->
+        <div class="groww-section-block" id="explore-ipo-section" style="margin-top: 1.5rem;">
+          <div class="groww-section-header" style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 0.85rem; flex-wrap: wrap; gap: 0.5rem;">
+            <div>
+              <h3 class="groww-section-title">Initial Public Offerings (IPOs)</h3>
+              <span class="groww-section-sub">Track live mainboard & SME IPOs, subscription rates, price bands, and upcoming listings</span>
+            </div>
+          </div>
+
+          <div class="filter-pills" id="ipoFilterPills" style="margin-bottom: 1.25rem; overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; padding-bottom: 4px;">
+            <button class="pill-btn active" onclick="filterIpos('OPEN', this)" id="pillIpoOpen">Open Now <span class="tab-count-pill" id="ipoCountOpen">—</span></button>
+            <button class="pill-btn" onclick="filterIpos('UPCOMING', this)" id="pillIpoUpcoming">Upcoming <span class="tab-count-pill" id="ipoCountUpcoming">—</span></button>
+            <button class="pill-btn" onclick="filterIpos('RECENTLY_LISTED', this)" id="pillIpoListed">Closed / Listed <span class="tab-count-pill" id="ipoCountListed">—</span></button>
+            <button class="pill-btn" onclick="filterIpos('ALL', this)" id="pillIpoAll">All Issues</button>
+          </div>
+
+          <div class="cards-grid ipo-cards-grid" id="ipoGrid">
+            <div style="color: var(--text-muted); font-size: 0.9rem; padding: 2rem;">Loading live IPOs...</div>
+          </div>
+        </div>
 
         <!-- Top ETFs on NSE — Dedicated Carousel Section -->
         <div class="groww-section-block" id="etfCarouselSection" style="margin-top: 1.25rem;">
@@ -685,24 +705,7 @@
         </div>
       </div>
 
-      <!-- Real Indian IPOs Hub Sub-view -->
-      <div id="explore-ipo-container" style="display: none;">
-        <div class="section-header" style="margin-bottom: 0.75rem; flex-direction: column; align-items: flex-start; gap: 0.25rem;">
-          <h2 class="section-title">Initial Public Offerings (IPOs)</h2>
-          <p class="section-desc" style="margin: 0; max-width: 650px;">Track live mainboard & SME IPOs, subscription rates, price bands, and upcoming listings.</p>
-        </div>
 
-        <div class="filter-pills" id="ipoFilterPills" style="margin-bottom: 1.25rem; overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; padding-bottom: 4px;">
-          <button class="pill-btn active" onclick="filterIpos('OPEN', this)" id="pillIpoOpen">Open Now <span class="tab-count-pill" id="ipoCountOpen">—</span></button>
-          <button class="pill-btn" onclick="filterIpos('UPCOMING', this)" id="pillIpoUpcoming">Upcoming <span class="tab-count-pill" id="ipoCountUpcoming">—</span></button>
-          <button class="pill-btn" onclick="filterIpos('RECENTLY_LISTED', this)" id="pillIpoListed">Closed / Listed <span class="tab-count-pill" id="ipoCountListed">—</span></button>
-          <button class="pill-btn" onclick="filterIpos('ALL', this)" id="pillIpoAll">All Issues</button>
-        </div>
-
-        <div class="cards-grid ipo-cards-grid" id="ipoGrid">
-          <div style="color: var(--text-muted); font-size: 0.9rem; padding: 2rem;">Loading live IPOs...</div>
-        </div>
-      </div>
     </section>
 
     <!-- 2. HOLDINGS TAB (Delivery / CNC) -->

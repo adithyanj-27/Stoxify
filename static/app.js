@@ -669,6 +669,13 @@ function toggleMobileSearch() {
 }
 
 function switchExploreSubnav(subId) {
+  if (subId === 'ipo') {
+    switchExploreSubnav('stocks');
+    const ipoSec = document.getElementById('explore-ipo-section');
+    if (ipoSec) ipoSec.scrollIntoView({ behavior: 'smooth' });
+    return;
+  }
+
   state.exploreSubnav = subId;
   document.querySelectorAll('#pane-explore .sub-nav-btn').forEach(btn => btn.classList.remove('active'));
   const btn = document.getElementById(`subnav-${subId}`);
@@ -678,8 +685,7 @@ function switchExploreSubnav(subId) {
   const containers = {
     stocks: document.getElementById('explore-stocks-container'),
     fo: document.getElementById('explore-fo-container'),
-    mf: document.getElementById('explore-mf-container'),
-    ipo: document.getElementById('explore-ipo-container')
+    mf: document.getElementById('explore-mf-container')
   };
 
   Object.keys(containers).forEach(k => {
@@ -689,12 +695,11 @@ function switchExploreSubnav(subId) {
   if (subId === 'stocks') {
     renderRecentlyViewedStocks();
     if (!state.exploreData) fetchExploreData();
+    fetchIpos();
   } else if (subId === 'fo') {
     fetchOptionChain();
   } else if (subId === 'mf') {
     renderExploreMutualFunds();
-  } else if (subId === 'ipo') {
-    fetchIpos();
   }
 }
 
@@ -9520,7 +9525,7 @@ async function fetchIpos() {
 async function filterIpos(filter, btn) {
   activeIpoFilter = filter;
   if (btn) {
-    document.querySelectorAll('#explore-ipo-container .pill-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('#ipoFilterPills .pill-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
   }
   renderIpos(filter);
@@ -9550,7 +9555,7 @@ async function renderIpoApplications() {
           <div style="font-size: 2rem; margin-bottom: 0.5rem;">📋</div>
           <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 0.4rem;">No IPO Applications Found</h3>
           <p style="color: var(--text-muted); font-size: 0.85rem; max-width: 420px; margin: 0 auto 1.25rem;">You have not applied for any mainline or SME IPOs yet. Check the Open and Upcoming tabs to place your first bid using virtual ASBA funds.</p>
-          <button class="btn-primary" onclick="filterIpos('ALL', document.querySelector('#explore-ipo-container .pill-btn'))">Explore Live IPOs</button>
+          <button class="btn-primary" onclick="filterIpos('ALL', document.querySelector('#ipoFilterPills .pill-btn'))">Explore Live IPOs</button>
         </div>
       `;
       return;
