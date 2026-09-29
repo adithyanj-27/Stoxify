@@ -11090,32 +11090,54 @@ async function renderStockPerformanceChart() {
 
     const labels = points.map(p => p.time);
     const values = points.map(p => p.value);
+    const investedValues = points.map(p => (p.invested !== undefined ? p.invested : (data.invested_val || portfolioChartsState.stock.invVal)));
     const firstVal = values[0] || 0;
     const lastVal = values[values.length - 1] || 0;
     const isPos = values.length >= 2 ? (lastVal >= firstVal) : (lastVal >= (data.invested_val || 0));
     const strokeColor = isPos ? '#00D09C' : '#EB5B3C';
+    const investedLineColor = isDark ? 'rgba(148, 163, 184, 0.85)' : 'rgba(100, 116, 139, 0.85)';
 
     const grad = ctx.createLinearGradient(0, 0, 0, 260);
-    grad.addColorStop(0, isPos ? 'rgba(0, 208, 156, 0.28)' : 'rgba(235, 91, 60, 0.28)');
+    grad.addColorStop(0, isPos ? 'rgba(0, 208, 156, 0.24)' : 'rgba(235, 91, 60, 0.24)');
     grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
 
     portfolioChartsState.stock.perfInstance = new Chart(ctx, {
       type: 'line',
       data: {
         labels: labels,
-        datasets: [{
-          data: values,
-          borderColor: strokeColor,
-          borderWidth: 2.2,
-          backgroundColor: grad,
-          fill: true,
-          tension: 0.3,
-          pointRadius: 0,
-          pointHoverRadius: 5,
-          pointHoverBackgroundColor: strokeColor,
-          pointHoverBorderColor: '#ffffff',
-          pointHoverBorderWidth: 2
-        }]
+        datasets: [
+          {
+            label: 'Current Value',
+            data: values,
+            borderColor: strokeColor,
+            borderWidth: 2.4,
+            backgroundColor: grad,
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0,
+            pointHoverRadius: 6,
+            pointHoverBackgroundColor: strokeColor,
+            pointHoverBorderColor: '#ffffff',
+            pointHoverBorderWidth: 2,
+            order: 1
+          },
+          {
+            label: 'Invested Value',
+            data: investedValues,
+            borderColor: investedLineColor,
+            borderWidth: 2,
+            borderDash: [5, 4],
+            backgroundColor: 'transparent',
+            fill: false,
+            tension: 0.1,
+            pointRadius: 0,
+            pointHoverRadius: 5,
+            pointHoverBackgroundColor: investedLineColor,
+            pointHoverBorderColor: '#ffffff',
+            pointHoverBorderWidth: 2,
+            order: 2
+          }
+        ]
       },
       options: {
         responsive: true,
@@ -11123,31 +11145,47 @@ async function renderStockPerformanceChart() {
         animation: { duration: 400 },
         interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: { display: false },
+          legend: {
+            display: true,
+            position: 'top',
+            align: 'end',
+            labels: {
+              boxWidth: 20,
+              boxHeight: 2,
+              usePointStyle: false,
+              color: isDark ? '#94A3B8' : '#64748B',
+              font: { size: 11, weight: '600', family: 'Sora, sans-serif' },
+              padding: 10
+            }
+          },
           tooltip: {
-            backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)',
+            backgroundColor: isDark ? 'rgba(15, 23, 42, 0.96)' : 'rgba(255, 255, 255, 0.98)',
             titleColor: isDark ? '#94A3B8' : '#64748B',
             bodyColor: isDark ? '#F8FAFC' : '#0F172A',
             borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
             borderWidth: 1,
-            padding: 10,
-            displayColors: false,
+            padding: 12,
+            displayColors: true,
+            boxWidth: 8,
+            boxHeight: 8,
             callbacks: {
               title: function(items) {
                 return items && items.length ? items[0].label : '';
               },
               label: function(context) {
+                const label = context.dataset.label || '';
                 const val = context.raw || 0;
-                const pt = points[context.dataIndex];
-                const inv = pt ? pt.invested : portfolioChartsState.stock.invVal;
-                const gain = val - inv;
-                const gainPct = inv > 0 ? ((gain / inv) * 100) : 0;
-                const sign = gain >= 0 ? '+' : '';
-                return [
-                  `Portfolio Value: ₹${val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                  `Invested Cost: ₹${inv.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                  `Returns: ${sign}₹${gain.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${sign}${gainPct.toFixed(2)}%)`
-                ];
+                return ` ${label}: ₹${val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+              },
+              afterBody: function(items) {
+                if (!items || !items.length) return '';
+                const idx = items[0].dataIndex;
+                const cur = values[idx] || 0;
+                const inv = investedValues[idx] || 0;
+                const pnl = cur - inv;
+                const pnlPct = inv > 0 ? ((pnl / inv) * 100) : 0;
+                const sign = pnl >= 0 ? '+' : '';
+                return `Returns: ${sign}₹${pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${sign}${pnlPct.toFixed(2)}%)`;
               }
             }
           }
@@ -11345,32 +11383,54 @@ async function renderMfPerformanceChart() {
 
     const labels = points.map(p => p.time);
     const values = points.map(p => p.value);
+    const investedValues = points.map(p => (p.invested !== undefined ? p.invested : (data.invested_val || portfolioChartsState.mf.invVal)));
     const firstVal = values[0] || 0;
     const lastVal = values[values.length - 1] || 0;
     const isPos = values.length >= 2 ? (lastVal >= firstVal) : (lastVal >= (data.invested_val || 0));
     const strokeColor = isPos ? '#00D09C' : '#EB5B3C';
+    const investedLineColor = isDark ? 'rgba(148, 163, 184, 0.85)' : 'rgba(100, 116, 139, 0.85)';
 
     const grad = ctx.createLinearGradient(0, 0, 0, 260);
-    grad.addColorStop(0, isPos ? 'rgba(0, 208, 156, 0.28)' : 'rgba(235, 91, 60, 0.28)');
+    grad.addColorStop(0, isPos ? 'rgba(0, 208, 156, 0.24)' : 'rgba(235, 91, 60, 0.24)');
     grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
 
     portfolioChartsState.mf.perfInstance = new Chart(ctx, {
       type: 'line',
       data: {
         labels: labels,
-        datasets: [{
-          data: values,
-          borderColor: strokeColor,
-          borderWidth: 2.2,
-          backgroundColor: grad,
-          fill: true,
-          tension: 0.3,
-          pointRadius: 0,
-          pointHoverRadius: 5,
-          pointHoverBackgroundColor: strokeColor,
-          pointHoverBorderColor: '#ffffff',
-          pointHoverBorderWidth: 2
-        }]
+        datasets: [
+          {
+            label: 'Current Value',
+            data: values,
+            borderColor: strokeColor,
+            borderWidth: 2.4,
+            backgroundColor: grad,
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0,
+            pointHoverRadius: 6,
+            pointHoverBackgroundColor: strokeColor,
+            pointHoverBorderColor: '#ffffff',
+            pointHoverBorderWidth: 2,
+            order: 1
+          },
+          {
+            label: 'Invested Value',
+            data: investedValues,
+            borderColor: investedLineColor,
+            borderWidth: 2,
+            borderDash: [5, 4],
+            backgroundColor: 'transparent',
+            fill: false,
+            tension: 0.1,
+            pointRadius: 0,
+            pointHoverRadius: 5,
+            pointHoverBackgroundColor: investedLineColor,
+            pointHoverBorderColor: '#ffffff',
+            pointHoverBorderWidth: 2,
+            order: 2
+          }
+        ]
       },
       options: {
         responsive: true,
@@ -11378,31 +11438,47 @@ async function renderMfPerformanceChart() {
         animation: { duration: 400 },
         interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: { display: false },
+          legend: {
+            display: true,
+            position: 'top',
+            align: 'end',
+            labels: {
+              boxWidth: 20,
+              boxHeight: 2,
+              usePointStyle: false,
+              color: isDark ? '#94A3B8' : '#64748B',
+              font: { size: 11, weight: '600', family: 'Sora, sans-serif' },
+              padding: 10
+            }
+          },
           tooltip: {
-            backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)',
+            backgroundColor: isDark ? 'rgba(15, 23, 42, 0.96)' : 'rgba(255, 255, 255, 0.98)',
             titleColor: isDark ? '#94A3B8' : '#64748B',
             bodyColor: isDark ? '#F8FAFC' : '#0F172A',
             borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
             borderWidth: 1,
-            padding: 10,
-            displayColors: false,
+            padding: 12,
+            displayColors: true,
+            boxWidth: 8,
+            boxHeight: 8,
             callbacks: {
               title: function(items) {
                 return items && items.length ? items[0].label : '';
               },
               label: function(context) {
+                const label = context.dataset.label || '';
                 const val = context.raw || 0;
-                const pt = points[context.dataIndex];
-                const inv = pt ? pt.invested : portfolioChartsState.mf.invVal;
-                const gain = val - inv;
-                const gainPct = inv > 0 ? ((gain / inv) * 100) : 0;
-                const sign = gain >= 0 ? '+' : '';
-                return [
-                  `MF Value: ₹${val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                  `Invested Cost: ₹${inv.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                  `Returns: ${sign}₹${gain.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${sign}${gainPct.toFixed(2)}%)`
-                ];
+                return ` ${label}: ₹${val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+              },
+              afterBody: function(items) {
+                if (!items || !items.length) return '';
+                const idx = items[0].dataIndex;
+                const cur = values[idx] || 0;
+                const inv = investedValues[idx] || 0;
+                const pnl = cur - inv;
+                const pnlPct = inv > 0 ? ((pnl / inv) * 100) : 0;
+                const sign = pnl >= 0 ? '+' : '';
+                return `Returns: ${sign}₹${pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${sign}${pnlPct.toFixed(2)}%)`;
               }
             }
           }
