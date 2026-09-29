@@ -762,6 +762,51 @@
             </div>
           </div>
 
+          <!-- Groww-Style Stock Portfolio Chart Card -->
+          <div id="stockPortfolioChartCard" class="asset-section-card portfolio-chart-card" style="display: none; margin-bottom: 1.5rem;">
+            <div class="portfolio-chart-header">
+              <div class="portfolio-chart-title-group">
+                <span class="portfolio-chart-badge">PORTFOLIO INSIGHTS</span>
+                <div class="portfolio-chart-view-toggle">
+                  <button type="button" class="portfolio-toggle-pill active" id="btnStockChartPerf" onclick="switchStockPortfolioView('performance')">Performance</button>
+                  <button type="button" class="portfolio-toggle-pill" id="btnStockChartAlloc" onclick="switchStockPortfolioView('allocation')">Allocation</button>
+                </div>
+              </div>
+
+              <!-- Performance Controls: 1D, 1W, 1M, 1Y, ALL -->
+              <div id="stockPerfControls" class="chart-timeframes">
+                <button type="button" class="tf-btn" onclick="loadStockPortfolioChartTf('1D', this)">1D</button>
+                <button type="button" class="tf-btn" onclick="loadStockPortfolioChartTf('1W', this)">1W</button>
+                <button type="button" class="tf-btn active" onclick="loadStockPortfolioChartTf('1M', this)">1M</button>
+                <button type="button" class="tf-btn" onclick="loadStockPortfolioChartTf('1Y', this)">1Y</button>
+                <button type="button" class="tf-btn" onclick="loadStockPortfolioChartTf('ALL', this)">ALL</button>
+              </div>
+
+              <!-- Allocation Controls: By Stock vs By Sector -->
+              <div id="stockAllocControls" class="portfolio-alloc-controls" style="display: none;">
+                <button type="button" class="chart-type-btn active" id="btnStockAllocHolding" onclick="switchStockAllocMode('holding')">By Stock</button>
+                <button type="button" class="chart-type-btn" id="btnStockAllocSector" onclick="switchStockAllocMode('sector')">By Sector</button>
+              </div>
+            </div>
+
+            <!-- Performance View (Historical Area/Line) -->
+            <div id="stockPerfChartContainer" class="portfolio-chart-wrapper">
+              <canvas id="stockPortfolioPerformanceCanvas"></canvas>
+            </div>
+
+            <!-- Allocation View (Donut + Clean Breakdown List) -->
+            <div id="stockAllocChartContainer" class="portfolio-alloc-grid" style="display: none;">
+              <div class="portfolio-donut-box">
+                <canvas id="stockPortfolioAllocationCanvas"></canvas>
+                <div class="portfolio-donut-center">
+                  <div class="portfolio-donut-center-lbl">TOTAL VALUE</div>
+                  <div class="portfolio-donut-center-val" id="stockAllocCenterVal">₹0.00</div>
+                </div>
+              </div>
+              <div class="portfolio-alloc-legend-list" id="stockAllocLegendList"></div>
+            </div>
+          </div>
+
           <!-- Desktop Holdings Table -->
           <div class="table-container desktop-table-container">
             <table class="groww-table">
@@ -952,6 +997,51 @@
             <div class="banner-metric-label">Available Balance</div>
             <div class="banner-metric-val" id="mfSummaryAvailableBalance" style="color: var(--accent-green);">₹10,00,000.00</div>
             <div class="banner-metric-sub" style="color: var(--text-muted);">Virtual cash</div>
+          </div>
+        </div>
+
+        <!-- Groww-Style MF Portfolio Chart Card -->
+        <div id="mfPortfolioChartCard" class="asset-section-card portfolio-chart-card" style="display: none; margin-bottom: 1.5rem;">
+          <div class="portfolio-chart-header">
+            <div class="portfolio-chart-title-group">
+              <span class="portfolio-chart-badge">MF INSIGHTS</span>
+              <div class="portfolio-chart-view-toggle">
+                <button type="button" class="portfolio-toggle-pill active" id="btnMfChartPerf" onclick="switchMfPortfolioView('performance')">Performance</button>
+                <button type="button" class="portfolio-toggle-pill" id="btnMfChartAlloc" onclick="switchMfPortfolioView('allocation')">Allocation</button>
+              </div>
+            </div>
+
+            <!-- Performance Controls: 1D, 1W, 1M, 1Y, ALL -->
+            <div id="mfPerfControls" class="chart-timeframes">
+              <button type="button" class="tf-btn" onclick="loadMfPortfolioChartTf('1D', this)">1D</button>
+              <button type="button" class="tf-btn" onclick="loadMfPortfolioChartTf('1W', this)">1W</button>
+              <button type="button" class="tf-btn active" onclick="loadMfPortfolioChartTf('1M', this)">1M</button>
+              <button type="button" class="tf-btn" onclick="loadMfPortfolioChartTf('1Y', this)">1Y</button>
+              <button type="button" class="tf-btn" onclick="loadMfPortfolioChartTf('ALL', this)">ALL</button>
+            </div>
+
+            <!-- Allocation Controls: By Scheme vs By Category -->
+            <div id="mfAllocControls" class="portfolio-alloc-controls" style="display: none;">
+              <button type="button" class="chart-type-btn active" id="btnMfAllocHolding" onclick="switchMfAllocMode('holding')">By Scheme</button>
+              <button type="button" class="chart-type-btn" id="btnMfAllocCategory" onclick="switchMfAllocMode('category')">By Category</button>
+            </div>
+          </div>
+
+          <!-- Performance View (Historical Area/Line) -->
+          <div id="mfPerfChartContainer" class="portfolio-chart-wrapper">
+            <canvas id="mfPortfolioPerformanceCanvas"></canvas>
+          </div>
+
+          <!-- Allocation View (Donut + Clean Breakdown List) -->
+          <div id="mfAllocChartContainer" class="portfolio-alloc-grid" style="display: none;">
+            <div class="portfolio-donut-box">
+              <canvas id="mfPortfolioAllocationCanvas"></canvas>
+              <div class="portfolio-donut-center">
+                <div class="portfolio-donut-center-lbl">TOTAL VALUE</div>
+                <div class="portfolio-donut-center-val" id="mfAllocCenterVal">₹0.00</div>
+              </div>
+            </div>
+            <div class="portfolio-alloc-legend-list" id="mfAllocLegendList"></div>
           </div>
         </div>
 

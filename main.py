@@ -1072,6 +1072,125 @@ def read_portfolio(request: Request):
         "is_guest": False
     }
 
+@app.get("/api/portfolio/chart")
+@app.get("/api/portfolio/history")
+def read_portfolio_chart(request: Request, timeframe: str = "1M", asset_type: str = "STOCK", range: Optional[str] = None):
+    tf = range or timeframe or "1M"
+    uid = get_user_id(request)
+    if not uid:
+        return {
+            "points": [],
+            "invested_val": 0.0,
+            "current_val": 0.0,
+            "total_pnl": 0.0,
+            "total_pnl_pct": 0.0,
+            "timeframe": tf
+        }
+
+    raw_holdings = get_holdings(uid)
+    if not raw_holdings:
+        return {
+            "points": [],
+            "invested_val": 0.0,
+            "current_val": 0.0,
+            "total_pnl": 0.0,
+            "total_pnl_pct": 0.0,
+            "timeframe": tf
+        }
+
+    target_type = (asset_type or "STOCK").upper()
+    if target_type == "STOCK":
+        holdings = [h for h in raw_holdings if (h.get("asset_type") or "").upper() != "MUTUAL_FUND"]
+    elif target_type in ("MUTUAL_FUND", "MF"):
+        holdings = [h for h in raw_holdings if (h.get("asset_type") or "").upper() == "MUTUAL_FUND"]
+    else:
+        holdings = raw_holdings
+
+    if not holdings:
+        return {
+            "points": [],
+            "invested_val": 0.0,
+            "current_val": 0.0,
+            "total_pnl": 0.0,
+            "total_pnl_pct": 0.0,
+            "timeframe": tf
+        }
+
+    total_invested_val = sum(float(h.get("quantity", 0)) * float(h.get("avg_price", 0)) for h in holdings)
+
+    try:
+        def fetch_holding_history(h):
+            sym = h.get("symbol", "")
+            is_mf = (h.get("asset_type") or "").upper() == "MUTUAL_FUND" or sym.isdigit()
+            try:
+                if is_mf:
+                    pts = market_service.get_mf_chart(sym, tf)
+                else:
+                    pts = market_service.get_stock_chart(sym, tf)
+                return sym, float(h.get("quantity", 0)), pts
+            except Exception:
+                return sym, float(h.get("quantity", 0)), []
+
+        with ThreadPoolExecutor(max_workers=min(8, len(holdings))) as pool:
+            histories = list(pool.map(fetch_holding_history, holdings))
+
+        best_pts = []
+        for sym, qty, pts in histories:
+            if len(pts) > len(best_pts):
+                best_pts = pts
+
+        if not best_pts:
+            return {
+                "points": [],
+                "invested_val": round(total_invested_val, 2),
+                "current_val": round(total_invested_val, 2),
+                "total_pnl": 0.0,
+                "total_pnl_pct": 0.0,
+                "timeframe": tf
+            }
+
+        points = []
+        for i, ref_point in enumerate(best_pts):
+            t_label = ref_point.get("time", "")
+            port_val = 0.0
+            for sym, qty, pts in histories:
+                if not pts:
+                    continue
+                idx = min(i, len(pts) - 1)
+                p_val = pts[idx].get("value") or pts[idx].get("price") or 0.0
+                port_val += (qty * float(p_val))
+
+            if port_val > 0:
+                points.append({
+                    "time": t_label,
+                    "value": round(port_val, 2),
+                    "invested": round(total_invested_val, 2)
+                })
+
+        first_val = points[0]["value"] if points else total_invested_val
+        last_val = points[-1]["value"] if points else total_invested_val
+        pnl = round(last_val - total_invested_val, 2)
+        pnl_pct = round((pnl / total_invested_val) * 100, 2) if total_invested_val > 0 else 0.0
+
+        return {
+            "points": points,
+            "invested_val": round(total_invested_val, 2),
+            "current_val": round(last_val, 2),
+            "total_pnl": pnl,
+            "total_pnl_pct": pnl_pct,
+            "timeframe": tf
+        }
+    except Exception as e:
+        logger.error(f"Error computing portfolio chart: {e}", exc_info=True)
+        return {
+            "points": [],
+            "invested_val": round(total_invested_val, 2),
+            "current_val": round(total_invested_val, 2),
+            "total_pnl": 0.0,
+            "total_pnl_pct": 0.0,
+            "timeframe": tf
+        }
+
 @app.get("/api/positions")
 def read_positions(request: Request):
     uid = get_user_id(request)

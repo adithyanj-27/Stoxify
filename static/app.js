@@ -2031,8 +2031,10 @@ async function fetchPortfolioInternal(requestVersion) {
     const tableBody = document.getElementById('holdingsTableBody');
     const mobileList = document.getElementById('holdingsMobileList');
     const holdings = stockHoldings;
+    const stockChartCard = document.getElementById('stockPortfolioChartCard');
 
     if (holdings.length === 0) {
+      if (stockChartCard) stockChartCard.style.display = 'none';
       if (tableBody) {
         tableBody.innerHTML = `
           <tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 3.5rem;">No active stock holdings yet. Head to Explore to invest!</td></tr>
@@ -2044,6 +2046,13 @@ async function fetchPortfolioInternal(requestVersion) {
         `;
       }
       return;
+    }
+
+    if (stockChartCard) {
+      stockChartCard.style.display = 'block';
+      if (typeof updateStockPortfolioCharts === 'function') {
+        updateStockPortfolioCharts(stockHoldings, curVal, invVal);
+      }
     }
 
     // Render Desktop Table
@@ -2197,11 +2206,20 @@ async function renderMutualFundDashboard() {
 
     const tbody = document.getElementById('mfHoldingsTableBody');
     const mobList = document.getElementById('mfHoldingsMobileList');
+    const mfChartCard = document.getElementById('mfPortfolioChartCard');
 
     if (mfHoldings.length === 0) {
+      if (mfChartCard) mfChartCard.style.display = 'none';
       if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 3.5rem;">No active mutual fund investments yet. Head to Explore to discover top-rated funds!</td></tr>';
       if (mobList) mobList.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 2.5rem;">No active mutual fund investments yet.</div>';
       return;
+    }
+
+    if (mfChartCard) {
+      mfChartCard.style.display = 'block';
+      if (typeof updateMfPortfolioCharts === 'function') {
+        updateMfPortfolioCharts(mfHoldings, curVal, invVal);
+      }
     }
 
     if (tbody) {
@@ -10868,3 +10886,676 @@ window.openProfileChargesModal = openProfileChargesModal;
 window.openHoldingBottomSheet = openHoldingBottomSheet;
 window.closeHoldingBottomSheet = closeHoldingBottomSheet;
 window.switchStockExchange = switchStockExchange;
+
+/* ============================================================
+   GROWW-STYLE PORTFOLIO CHARTS (PERFORMANCE & ALLOCATION)
+   ============================================================ */
+const portfolioChartsState = {
+  stock: {
+    view: 'performance',
+    tf: '1M',
+    allocMode: 'holding',
+    perfInstance: null,
+    allocInstance: null,
+    holdings: [],
+    curVal: 0,
+    invVal: 0
+  },
+  mf: {
+    view: 'performance',
+    tf: '1M',
+    allocMode: 'holding',
+    perfInstance: null,
+    allocInstance: null,
+    holdings: [],
+    curVal: 0,
+    invVal: 0
+  }
+};
+
+const PORTFOLIO_DONUT_COLORS = [
+  '#00D09C', '#3B82F6', '#8B5CF6', '#F59E0B', '#EC4899', 
+  '#06B6D4', '#14B8A6', '#F43F5E', '#84CC16', '#6366F1',
+  '#D946EF', '#10B981', '#EAB308', '#64748B'
+];
+
+function formatCompactINR(val) {
+  if (val === null || val === undefined || isNaN(val)) return '0';
+  const num = Math.abs(Number(val));
+  if (num >= 10000000) return (val / 10000000).toFixed(2) + ' Cr';
+  if (num >= 100000) return (val / 100000).toFixed(2) + ' L';
+  if (num >= 1000) return (val / 1000).toFixed(1) + ' k';
+  return Number(val).toFixed(0);
+}
+
+function updateStockPortfolioCharts(holdings, curVal, invVal) {
+  portfolioChartsState.stock.holdings = holdings || [];
+  portfolioChartsState.stock.curVal = curVal || 0;
+  portfolioChartsState.stock.invVal = invVal || 0;
+
+  if (portfolioChartsState.stock.view === 'performance') {
+    renderStockPerformanceChart();
+  } else {
+    renderStockAllocationChart();
+  }
+}
+
+function updateMfPortfolioCharts(holdings, curVal, invVal) {
+  portfolioChartsState.mf.holdings = holdings || [];
+  portfolioChartsState.mf.curVal = curVal || 0;
+  portfolioChartsState.mf.invVal = invVal || 0;
+
+  if (portfolioChartsState.mf.view === 'performance') {
+    renderMfPerformanceChart();
+  } else {
+    renderMfAllocationChart();
+  }
+}
+
+function switchStockPortfolioView(view) {
+  portfolioChartsState.stock.view = view;
+  const btnPerf = document.getElementById('btnStockChartPerf');
+  const btnAlloc = document.getElementById('btnStockChartAlloc');
+  const perfControls = document.getElementById('stockPerfControls');
+  const allocControls = document.getElementById('stockAllocControls');
+  const perfContainer = document.getElementById('stockPerfChartContainer');
+  const allocContainer = document.getElementById('stockAllocChartContainer');
+
+  if (view === 'performance') {
+    if (btnPerf) btnPerf.classList.add('active');
+    if (btnAlloc) btnAlloc.classList.remove('active');
+    if (perfControls) perfControls.style.display = 'flex';
+    if (allocControls) allocControls.style.display = 'none';
+    if (perfContainer) perfContainer.style.display = 'block';
+    if (allocContainer) allocContainer.style.display = 'none';
+    renderStockPerformanceChart();
+  } else {
+    if (btnPerf) btnPerf.classList.remove('active');
+    if (btnAlloc) btnAlloc.classList.add('active');
+    if (perfControls) perfControls.style.display = 'none';
+    if (allocControls) allocControls.style.display = 'flex';
+    if (perfContainer) perfContainer.style.display = 'none';
+    if (allocContainer) allocContainer.style.display = 'grid';
+    renderStockAllocationChart();
+  }
+}
+
+function switchMfPortfolioView(view) {
+  portfolioChartsState.mf.view = view;
+  const btnPerf = document.getElementById('btnMfChartPerf');
+  const btnAlloc = document.getElementById('btnMfChartAlloc');
+  const perfControls = document.getElementById('mfPerfControls');
+  const allocControls = document.getElementById('mfAllocControls');
+  const perfContainer = document.getElementById('mfPerfChartContainer');
+  const allocContainer = document.getElementById('mfAllocChartContainer');
+
+  if (view === 'performance') {
+    if (btnPerf) btnPerf.classList.add('active');
+    if (btnAlloc) btnAlloc.classList.remove('active');
+    if (perfControls) perfControls.style.display = 'flex';
+    if (allocControls) allocControls.style.display = 'none';
+    if (perfContainer) perfContainer.style.display = 'block';
+    if (allocContainer) allocContainer.style.display = 'none';
+    renderMfPerformanceChart();
+  } else {
+    if (btnPerf) btnPerf.classList.remove('active');
+    if (btnAlloc) btnAlloc.classList.add('active');
+    if (perfControls) perfControls.style.display = 'none';
+    if (allocControls) allocControls.style.display = 'flex';
+    if (perfContainer) perfContainer.style.display = 'none';
+    if (allocContainer) allocContainer.style.display = 'grid';
+    renderMfAllocationChart();
+  }
+}
+
+function loadStockPortfolioChartTf(tf, btn) {
+  portfolioChartsState.stock.tf = tf;
+  const parent = document.getElementById('stockPerfControls');
+  if (parent && btn) {
+    parent.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  renderStockPerformanceChart();
+}
+
+function loadMfPortfolioChartTf(tf, btn) {
+  portfolioChartsState.mf.tf = tf;
+  const parent = document.getElementById('mfPerfControls');
+  if (parent && btn) {
+    parent.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  renderMfPerformanceChart();
+}
+
+function switchStockAllocMode(mode) {
+  portfolioChartsState.stock.allocMode = mode;
+  const btnHolding = document.getElementById('btnStockAllocHolding');
+  const btnSector = document.getElementById('btnStockAllocSector');
+  if (btnHolding) btnHolding.classList.toggle('active', mode === 'holding');
+  if (btnSector) btnSector.classList.toggle('active', mode === 'sector');
+  renderStockAllocationChart();
+}
+
+function switchMfAllocMode(mode) {
+  portfolioChartsState.mf.allocMode = mode;
+  const btnHolding = document.getElementById('btnMfAllocHolding');
+  const btnCategory = document.getElementById('btnMfAllocCategory');
+  if (btnHolding) btnHolding.classList.toggle('active', mode === 'holding');
+  if (btnCategory) btnCategory.classList.toggle('active', mode === 'category');
+  renderMfAllocationChart();
+}
+
+async function renderStockPerformanceChart() {
+  const canvas = document.getElementById('stockPortfolioPerformanceCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  
+  if (portfolioChartsState.stock.perfInstance) {
+    portfolioChartsState.stock.perfInstance.destroy();
+    portfolioChartsState.stock.perfInstance = null;
+  }
+
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const tf = portfolioChartsState.stock.tf || '1M';
+  const uid = localStorage.getItem('stoxify_user_id') || (currentUser ? currentUser.user_id : null);
+
+  try {
+    const res = await fetch(`/api/portfolio/chart?timeframe=${encodeURIComponent(tf)}&asset_type=STOCK&user_id=${encodeURIComponent(uid || '')}`, {
+      headers: uid ? { 'X-User-Id': uid } : {}
+    });
+    const data = await res.json();
+    const points = data.points || [];
+
+    if (!points.length) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.save();
+      ctx.font = '600 13px Sora, sans-serif';
+      ctx.fillStyle = isDark ? '#64748B' : '#94A3B8';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Performance history tracking active holdings across ' + tf, canvas.width / 2, (canvas.height || 260) / 2);
+      ctx.restore();
+      return;
+    }
+
+    const labels = points.map(p => p.time);
+    const values = points.map(p => p.value);
+    const firstVal = values[0] || 0;
+    const lastVal = values[values.length - 1] || 0;
+    const isPos = lastVal >= (data.invested_val || firstVal);
+    const strokeColor = isPos ? '#00D09C' : '#EB5B3C';
+
+    const grad = ctx.createLinearGradient(0, 0, 0, 260);
+    grad.addColorStop(0, isPos ? 'rgba(0, 208, 156, 0.28)' : 'rgba(235, 91, 60, 0.28)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+    portfolioChartsState.stock.perfInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: values,
+          borderColor: strokeColor,
+          borderWidth: 2.2,
+          backgroundColor: grad,
+          fill: true,
+          tension: 0.3,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: strokeColor,
+          pointHoverBorderColor: '#ffffff',
+          pointHoverBorderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 400 },
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)',
+            titleColor: isDark ? '#94A3B8' : '#64748B',
+            bodyColor: isDark ? '#F8FAFC' : '#0F172A',
+            borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+            borderWidth: 1,
+            padding: 10,
+            displayColors: false,
+            callbacks: {
+              title: function(items) {
+                return items && items.length ? items[0].label : '';
+              },
+              label: function(context) {
+                const val = context.raw || 0;
+                const pt = points[context.dataIndex];
+                const inv = pt ? pt.invested : portfolioChartsState.stock.invVal;
+                const gain = val - inv;
+                const gainPct = inv > 0 ? ((gain / inv) * 100) : 0;
+                const sign = gain >= 0 ? '+' : '';
+                return [
+                  `Portfolio Value: ₹${val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                  `Invested Cost: ₹${inv.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                  `Returns: ${sign}₹${gain.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${sign}${gainPct.toFixed(2)}%)`
+                ];
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: {
+              maxTicksLimit: 7,
+              color: isDark ? '#64748B' : '#94A3B8',
+              font: { size: 10.5, family: 'Sora, sans-serif' }
+            }
+          },
+          y: {
+            position: 'right',
+            grid: {
+              color: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)'
+            },
+            ticks: {
+              color: isDark ? '#64748B' : '#94A3B8',
+              font: { size: 10.5, family: 'Sora, sans-serif' },
+              callback: function(v) { return '₹' + formatCompactINR(v); }
+            }
+          }
+        }
+      }
+    });
+  } catch (err) {
+    console.warn('Could not render stock performance chart:', err);
+  }
+}
+
+async function renderStockAllocationChart() {
+  const canvas = document.getElementById('stockPortfolioAllocationCanvas');
+  const legendList = document.getElementById('stockAllocLegendList');
+  const centerValEl = document.getElementById('stockAllocCenterVal');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  if (portfolioChartsState.stock.allocInstance) {
+    portfolioChartsState.stock.allocInstance.destroy();
+    portfolioChartsState.stock.allocInstance = null;
+  }
+
+  const holdings = portfolioChartsState.stock.holdings || [];
+  if (!holdings.length) return;
+
+  const mode = portfolioChartsState.stock.allocMode || 'holding';
+  let slices = [];
+
+  if (mode === 'sector') {
+    try {
+      const uid = localStorage.getItem('stoxify_user_id') || (currentUser ? currentUser.user_id : null);
+      const res = await fetch(`/api/analytics/sector-allocation?user_id=${encodeURIComponent(uid || '')}`, {
+        headers: uid ? { 'X-User-Id': uid } : {}
+      });
+      const secData = await res.json();
+      if (Array.isArray(secData) && secData.length > 0) {
+        slices = secData.map(s => ({
+          name: s.sector,
+          val: Number(s.value || 0),
+          pct: Number(s.weight_pct || 0)
+        })).sort((a, b) => b.val - a.val);
+      }
+    } catch (e) {
+      console.warn('Sector API failed, fallback to holdings', e);
+    }
+    if (!slices.length) {
+      const secMap = {};
+      let total = 0;
+      holdings.forEach(h => {
+        const val = Number(h.current_value !== undefined ? h.current_value : (h.quantity * (h.current_price || 0))) || 0;
+        const sec = h.sector || 'Diversified';
+        secMap[sec] = (secMap[sec] || 0) + val;
+        total += val;
+      });
+      slices = Object.keys(secMap).map(k => ({
+        name: k,
+        val: secMap[k],
+        pct: total > 0 ? ((secMap[k] / total) * 100) : 0
+      })).sort((a, b) => b.val - a.val);
+    }
+  } else {
+    const total = holdings.reduce((sum, h) => sum + (Number(h.current_value !== undefined ? h.current_value : (h.quantity * (h.current_price || 0))) || 0), 0);
+    slices = holdings.map(h => {
+      const val = Number(h.current_value !== undefined ? h.current_value : (h.quantity * (h.current_price || 0))) || 0;
+      return {
+        name: h.name || h.symbol,
+        symbol: h.symbol,
+        val: val,
+        pct: total > 0 ? ((val / total) * 100) : 0
+      };
+    }).sort((a, b) => b.val - a.val);
+  }
+
+  const totalVal = slices.reduce((s, x) => s + x.val, 0);
+  if (centerValEl) centerValEl.innerText = formatINR(totalVal);
+
+  const labels = slices.map(s => s.name);
+  const dataVals = slices.map(s => s.val);
+  const colors = slices.map((_, i) => PORTFOLIO_DONUT_COLORS[i % PORTFOLIO_DONUT_COLORS.length]);
+
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+
+  portfolioChartsState.stock.allocInstance = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: dataVals,
+        backgroundColor: colors,
+        borderWidth: 2,
+        borderColor: isDark ? '#1a1f2c' : '#ffffff',
+        hoverOffset: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '72%',
+      animation: { duration: 450 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)',
+          titleColor: isDark ? '#94A3B8' : '#64748B',
+          bodyColor: isDark ? '#F8FAFC' : '#0F172A',
+          borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+          borderWidth: 1,
+          padding: 10,
+          displayColors: true,
+          callbacks: {
+            label: function(context) {
+              const val = context.raw || 0;
+              const pct = totalVal > 0 ? ((val / totalVal) * 100) : 0;
+              return ` ${formatINR(val)} (${pct.toFixed(1)}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+
+  if (legendList) {
+    legendList.innerHTML = slices.map((s, idx) => {
+      const color = colors[idx];
+      return `
+        <div class="portfolio-alloc-legend-item">
+          <div class="portfolio-alloc-legend-left">
+            <span class="portfolio-alloc-legend-dot" style="background: ${color};"></span>
+            <span class="portfolio-alloc-legend-name" title="${s.name}">${s.name}</span>
+          </div>
+          <div class="portfolio-alloc-legend-right">
+            <span class="portfolio-alloc-legend-pct">${s.pct.toFixed(1)}%</span>
+            <span class="portfolio-alloc-legend-val">${formatINR(s.val)}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+}
+
+async function renderMfPerformanceChart() {
+  const canvas = document.getElementById('mfPortfolioPerformanceCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  
+  if (portfolioChartsState.mf.perfInstance) {
+    portfolioChartsState.mf.perfInstance.destroy();
+    portfolioChartsState.mf.perfInstance = null;
+  }
+
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const tf = portfolioChartsState.mf.tf || '1M';
+  const uid = localStorage.getItem('stoxify_user_id') || (currentUser ? currentUser.user_id : null);
+
+  try {
+    const res = await fetch(`/api/portfolio/chart?timeframe=${encodeURIComponent(tf)}&asset_type=MUTUAL_FUND&user_id=${encodeURIComponent(uid || '')}`, {
+      headers: uid ? { 'X-User-Id': uid } : {}
+    });
+    const data = await res.json();
+    const points = data.points || [];
+
+    if (!points.length) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.save();
+      ctx.font = '600 13px Sora, sans-serif';
+      ctx.fillStyle = isDark ? '#64748B' : '#94A3B8';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Mutual fund performance tracking active schemes across ' + tf, canvas.width / 2, (canvas.height || 260) / 2);
+      ctx.restore();
+      return;
+    }
+
+    const labels = points.map(p => p.time);
+    const values = points.map(p => p.value);
+    const firstVal = values[0] || 0;
+    const lastVal = values[values.length - 1] || 0;
+    const isPos = lastVal >= (data.invested_val || firstVal);
+    const strokeColor = isPos ? '#00D09C' : '#EB5B3C';
+
+    const grad = ctx.createLinearGradient(0, 0, 0, 260);
+    grad.addColorStop(0, isPos ? 'rgba(0, 208, 156, 0.28)' : 'rgba(235, 91, 60, 0.28)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+    portfolioChartsState.mf.perfInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: values,
+          borderColor: strokeColor,
+          borderWidth: 2.2,
+          backgroundColor: grad,
+          fill: true,
+          tension: 0.3,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: strokeColor,
+          pointHoverBorderColor: '#ffffff',
+          pointHoverBorderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 400 },
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)',
+            titleColor: isDark ? '#94A3B8' : '#64748B',
+            bodyColor: isDark ? '#F8FAFC' : '#0F172A',
+            borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+            borderWidth: 1,
+            padding: 10,
+            displayColors: false,
+            callbacks: {
+              title: function(items) {
+                return items && items.length ? items[0].label : '';
+              },
+              label: function(context) {
+                const val = context.raw || 0;
+                const pt = points[context.dataIndex];
+                const inv = pt ? pt.invested : portfolioChartsState.mf.invVal;
+                const gain = val - inv;
+                const gainPct = inv > 0 ? ((gain / inv) * 100) : 0;
+                const sign = gain >= 0 ? '+' : '';
+                return [
+                  `MF Value: ₹${val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                  `Invested Cost: ₹${inv.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                  `Returns: ${sign}₹${gain.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${sign}${gainPct.toFixed(2)}%)`
+                ];
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: {
+              maxTicksLimit: 7,
+              color: isDark ? '#64748B' : '#94A3B8',
+              font: { size: 10.5, family: 'Sora, sans-serif' }
+            }
+          },
+          y: {
+            position: 'right',
+            grid: {
+              color: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)'
+            },
+            ticks: {
+              color: isDark ? '#64748B' : '#94A3B8',
+              font: { size: 10.5, family: 'Sora, sans-serif' },
+              callback: function(v) { return '₹' + formatCompactINR(v); }
+            }
+          }
+        }
+      }
+    });
+  } catch (err) {
+    console.warn('Could not render MF performance chart:', err);
+  }
+}
+
+function renderMfAllocationChart() {
+  const canvas = document.getElementById('mfPortfolioAllocationCanvas');
+  const legendList = document.getElementById('mfAllocLegendList');
+  const centerValEl = document.getElementById('mfAllocCenterVal');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  if (portfolioChartsState.mf.allocInstance) {
+    portfolioChartsState.mf.allocInstance.destroy();
+    portfolioChartsState.mf.allocInstance = null;
+  }
+
+  const holdings = portfolioChartsState.mf.holdings || [];
+  if (!holdings.length) return;
+
+  const mode = portfolioChartsState.mf.allocMode || 'holding';
+  let slices = [];
+
+  if (mode === 'category') {
+    const catMap = {};
+    let total = 0;
+    holdings.forEach(h => {
+      const val = Number(h.current_value !== undefined ? h.current_value : (h.quantity * (h.current_price || h.nav || 0))) || 0;
+      let cat = h.category || '';
+      if (!cat) {
+        const name = (h.name || '').toLowerCase();
+        if (name.includes('flexi')) cat = 'Flexi Cap';
+        else if (name.includes('large')) cat = 'Large Cap';
+        else if (name.includes('mid')) cat = 'Mid Cap';
+        else if (name.includes('small')) cat = 'Small Cap';
+        else if (name.includes('debt') || name.includes('liquid') || name.includes('bond')) cat = 'Debt / Liquid';
+        else if (name.includes('index') || name.includes('nifty')) cat = 'Index Fund';
+        else if (name.includes('tax') || name.includes('elss')) cat = 'ELSS Tax Saver';
+        else cat = 'Equity';
+      }
+      catMap[cat] = (catMap[cat] || 0) + val;
+      total += val;
+    });
+    slices = Object.keys(catMap).map(k => ({
+      name: k,
+      val: catMap[k],
+      pct: total > 0 ? ((catMap[k] / total) * 100) : 0
+    })).sort((a, b) => b.val - a.val);
+  } else {
+    const total = holdings.reduce((sum, h) => sum + (Number(h.current_value !== undefined ? h.current_value : (h.quantity * (h.current_price || h.nav || 0))) || 0), 0);
+    slices = holdings.map(h => {
+      const val = Number(h.current_value !== undefined ? h.current_value : (h.quantity * (h.current_price || h.nav || 0))) || 0;
+      return {
+        name: h.name || h.symbol,
+        symbol: h.symbol,
+        val: val,
+        pct: total > 0 ? ((val / total) * 100) : 0
+      };
+    }).sort((a, b) => b.val - a.val);
+  }
+
+  const totalVal = slices.reduce((s, x) => s + x.val, 0);
+  if (centerValEl) centerValEl.innerText = formatINR(totalVal);
+
+  const labels = slices.map(s => s.name);
+  const dataVals = slices.map(s => s.val);
+  const colors = slices.map((_, i) => PORTFOLIO_DONUT_COLORS[i % PORTFOLIO_DONUT_COLORS.length]);
+
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+
+  portfolioChartsState.mf.allocInstance = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: dataVals,
+        backgroundColor: colors,
+        borderWidth: 2,
+        borderColor: isDark ? '#1a1f2c' : '#ffffff',
+        hoverOffset: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '72%',
+      animation: { duration: 450 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)',
+          titleColor: isDark ? '#94A3B8' : '#64748B',
+          bodyColor: isDark ? '#F8FAFC' : '#0F172A',
+          borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+          borderWidth: 1,
+          padding: 10,
+          displayColors: true,
+          callbacks: {
+            label: function(context) {
+              const val = context.raw || 0;
+              const pct = totalVal > 0 ? ((val / totalVal) * 100) : 0;
+              return ` ${formatINR(val)} (${pct.toFixed(1)}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+
+  if (legendList) {
+    legendList.innerHTML = slices.map((s, idx) => {
+      const color = colors[idx];
+      return `
+        <div class="portfolio-alloc-legend-item">
+          <div class="portfolio-alloc-legend-left">
+            <span class="portfolio-alloc-legend-dot" style="background: ${color};"></span>
+            <span class="portfolio-alloc-legend-name" title="${s.name}">${s.name}</span>
+          </div>
+          <div class="portfolio-alloc-legend-right">
+            <span class="portfolio-alloc-legend-pct">${s.pct.toFixed(1)}%</span>
+            <span class="portfolio-alloc-legend-val">${formatINR(s.val)}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+}
+
+// Window Bindings for Inline Click Handlers
+window.switchStockPortfolioView = switchStockPortfolioView;
+window.switchMfPortfolioView = switchMfPortfolioView;
+window.loadStockPortfolioChartTf = loadStockPortfolioChartTf;
+window.loadMfPortfolioChartTf = loadMfPortfolioChartTf;
+window.switchStockAllocMode = switchStockAllocMode;
+window.switchMfAllocMode = switchMfAllocMode;
+window.updateStockPortfolioCharts = updateStockPortfolioCharts;
+window.updateMfPortfolioCharts = updateMfPortfolioCharts;
+
