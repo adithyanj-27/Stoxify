@@ -1112,38 +1112,30 @@ function getAssetLogoUrl(sym, item) {
 // Automated Logo Error Handler: Cascades through high-reliability CDN sources then falls back to crisp 256x256 vector emblem
 function handleLogoError(img) {
   if (!img) return;
+  img.onerror = null;
+
   const rawSym = img.getAttribute('data-symbol') || '';
   const sym = rawSym.toUpperCase().replace('.NS', '').replace('.BO', '').trim();
 
   // If numeric (e.g. mutual fund AMFI code)
   if (/^\d+$/.test(sym)) {
-    if (LOCAL_LOGOS.has(sym)) {
+    if (LOCAL_LOGOS.has(sym) && !img.src.includes(`/static/logos/${sym}.png`)) {
       img.src = `/static/logos/${sym}.png`;
       return;
     }
   }
 
-  const step = parseInt(img.getAttribute('data-logo-step') || '0', 10);
-  const cleanTicker = sym.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  const rawDomain = img.getAttribute('data-website') || (window.SYMBOL_DOMAINS && window.SYMBOL_DOMAINS[sym]) || '';
-  const domain = rawDomain.replace(/^https?:\/\//i, '').replace(/\/.*$/, '').replace(/^www\./i, '');
-
-  const sources = [
-    // 1. Google Favicon CDN 128px via official domain
-    ...(domain ? [`https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.${domain}&size=128`] : []),
-    // 2. Inferred domains via Google Favicon CDN
-    `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.${cleanTicker.toLowerCase()}.com&size=128`,
-    `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.${cleanTicker.toLowerCase()}.in&size=128`
-  ];
-
-  if (step < sources.length) {
-    img.setAttribute('data-logo-step', (step + 1).toString());
-    img.src = sources[step];
-  } else {
-    // All CDN sources exhausted -> serve crisp 256x256 vector corporate brand emblem
-    img.onerror = null;
-    img.src = generateVectorEmblem(cleanTicker || 'STK');
+  // 1. If sibling fallback span (clean initial/emblem) exists, switch to it immediately
+  const fallbackSpan = img.nextElementSibling;
+  if (fallbackSpan && fallbackSpan.tagName === 'SPAN') {
+    img.style.display = 'none';
+    fallbackSpan.style.display = 'flex';
+    return;
   }
+
+  // 2. Otherwise serve crisp SVG vector corporate brand emblem (avoids Google CDN 16x16 blurry globe)
+  const cleanTicker = sym.toUpperCase().replace(/[^A-Z0-9]/g, '') || 'STK';
+  img.src = generateVectorEmblem(cleanTicker);
 }
 window.handleLogoError = handleLogoError;
 
@@ -6160,11 +6152,21 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
     document.getElementById('pageAssetPrice').innerText = formatINR(data.price);
 
     const isStockOrEtf = !isIndex && !isMF;
+    let availExch = ['NSE', 'BSE'];
     if (isStockOrEtf) {
+      if (Array.isArray(data.available_exchanges) && data.available_exchanges.length > 0) {
+        availExch = data.available_exchanges.map(e => String(e).toUpperCase());
+      } else if (isETF) {
+        availExch = ['NSE'];
+      }
+
       if (data.symbol && data.symbol.endsWith('.BO')) {
         initialExchange = 'BSE';
       } else if (data.exchange && data.exchange.toUpperCase() === 'BSE') {
         initialExchange = 'BSE';
+      }
+      if (!availExch.includes(initialExchange) && availExch.length > 0) {
+        initialExchange = availExch[0];
       }
     }
     pageOrderState.exchange = initialExchange;
@@ -6181,7 +6183,10 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
     if (drawerExchGroup) drawerExchGroup.style.display = isStockOrEtf ? 'block' : 'none';
 
     if (isStockOrEtf) {
+      const isNseAvailable = availExch.includes('NSE');
+      const isBseAvailable = availExch.includes('BSE');
       const isBseActive = initialExchange === 'BSE';
+
       const btnHeroNSE = document.getElementById('btnHeroNSE');
       const btnHeroBSE = document.getElementById('btnHeroBSE');
       const termNSE = document.getElementById('terminalExchNSE');
@@ -6189,12 +6194,20 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
       const drwNSE = document.getElementById('drawerExchNSE');
       const drwBSE = document.getElementById('drawerExchBSE');
 
-      if (btnHeroNSE) btnHeroNSE.classList.toggle('active', !isBseActive);
-      if (btnHeroBSE) btnHeroBSE.classList.toggle('active', isBseActive);
-      if (termNSE) termNSE.classList.toggle('active', !isBseActive);
-      if (termBSE) termBSE.classList.toggle('active', isBseActive);
-      if (drwNSE) drwNSE.classList.toggle('active', !isBseActive);
-      if (drwBSE) drwBSE.classList.toggle('active', isBseActive);
+      const nseButtons = [btnHeroNSE, termNSE, drwNSE].filter(Boolean);
+      const bseButtons = [btnHeroBSE, termBSE, drwBSE].filter(Boolean);
+
+      nseButtons.forEach(btn => {
+        btn.classList.toggle('disabled', !isNseAvailable);
+        btn.setAttribute('title', isNseAvailable ? 'Trade on NSE' : 'Not listed on NSE');
+        btn.classList.toggle('active', isNseAvailable && !isBseActive);
+      });
+
+      bseButtons.forEach(btn => {
+        btn.classList.toggle('disabled', !isBseAvailable);
+        btn.setAttribute('title', isBseAvailable ? 'Trade on BSE' : 'Not listed on BSE');
+        btn.classList.toggle('active', isBseAvailable && isBseActive);
+      });
 
       const feeText = `Turnover Fee: ${isBseActive ? '0.00375%' : '0.00297%'}`;
       const pFeeNotice = document.getElementById('pageExchangeFeeNotice');
@@ -6203,39 +6216,51 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
       if (dFeeNotice) dFeeNotice.innerText = feeText;
 
       const curPriceStr = formatINR(data.price);
+      const tBse = document.getElementById('terminalBseLtp');
+      const dBse = document.getElementById('drawerBseLtp');
+      const tNse = document.getElementById('terminalNseLtp');
+      const dNse = document.getElementById('drawerNseLtp');
+
       if (isBseActive) {
-        const tBse = document.getElementById('terminalBseLtp');
-        const dBse = document.getElementById('drawerBseLtp');
         if (tBse) tBse.innerText = curPriceStr;
         if (dBse) dBse.innerText = curPriceStr;
+        if (!isNseAvailable) {
+          if (tNse) tNse.innerText = 'Not Listed';
+          if (dNse) dNse.innerText = 'Not Listed';
+        }
       } else {
-        const tNse = document.getElementById('terminalNseLtp');
-        const dNse = document.getElementById('drawerNseLtp');
         if (tNse) tNse.innerText = curPriceStr;
         if (dNse) dNse.innerText = curPriceStr;
+        if (!isBseAvailable) {
+          if (tBse) tBse.innerText = 'Not Listed';
+          if (dBse) dBse.innerText = 'Not Listed';
+        }
       }
 
-      // Fetch opposite exchange quote in the background to show both LTPs
-      const altSymbol = isBseActive ? `${cleanSym}.NS` : `${cleanSym}.BO`;
-      fetch(`/api/quote?symbol=${encodeURIComponent(altSymbol)}&asset_type=STOCK`)
-        .then(r => r.ok ? r.json() : null)
-        .then(altData => {
-          if (altData && altData.price) {
-            const altPrice = formatINR(altData.price);
-            if (isBseActive) {
-              const tNse = document.getElementById('terminalNseLtp');
-              const dNse = document.getElementById('drawerNseLtp');
+      // Fetch opposite exchange quote in the background to show both LTPs ONLY if listed
+      if (isBseActive && isNseAvailable) {
+        fetch(`/api/quote?symbol=${encodeURIComponent(cleanSym + '.NS')}&asset_type=STOCK`)
+          .then(r => r.ok ? r.json() : null)
+          .then(altData => {
+            if (altData && altData.price) {
+              const altPrice = formatINR(altData.price);
               if (tNse) tNse.innerText = altPrice;
               if (dNse) dNse.innerText = altPrice;
-            } else {
-              const tBse = document.getElementById('terminalBseLtp');
-              const dBse = document.getElementById('drawerBseLtp');
+            }
+          })
+          .catch(() => {});
+      } else if (!isBseActive && isBseAvailable) {
+        fetch(`/api/quote?symbol=${encodeURIComponent(cleanSym + '.BO')}&asset_type=STOCK`)
+          .then(r => r.ok ? r.json() : null)
+          .then(altData => {
+            if (altData && altData.price) {
+              const altPrice = formatINR(altData.price);
               if (tBse) tBse.innerText = altPrice;
               if (dBse) dBse.innerText = altPrice;
             }
-          }
-        })
-        .catch(() => {});
+          })
+          .catch(() => {});
+      }
     }
 
     const isPos = data.change >= 0;
@@ -7275,8 +7300,18 @@ async function switchStockExchange(targetExch) {
   const isMF = currentPageAsset.asset_type === 'MUTUAL_FUND';
   const isIndex = (currentPageAsset.symbol || '').startsWith('^') || currentPageAsset.asset_type === 'INDEX';
   if (isMF || isIndex) return;
-
   targetExch = (targetExch || 'NSE').toUpperCase();
+  const cleanSym = (currentPageAsset.symbol || '').replace('.NS', '').replace('.BO', '');
+  const isETF = currentPageAsset.asset_type === 'ETF';
+  const availExch = Array.isArray(currentPageAsset.available_exchanges) && currentPageAsset.available_exchanges.length > 0
+    ? currentPageAsset.available_exchanges.map(e => String(e).toUpperCase())
+    : (isETF ? ['NSE'] : ['NSE', 'BSE']);
+
+  if (!availExch.includes(targetExch)) {
+    showToast(`${cleanSym} is not listed on ${targetExch}. Available on ${availExch.join(', ')}.`, 'warning');
+    return;
+  }
+
   pageOrderState.exchange = targetExch;
 
   const isBseActive = targetExch === 'BSE';
@@ -7300,7 +7335,6 @@ async function switchStockExchange(targetExch) {
   if (pFeeNotice) pFeeNotice.innerText = feeText;
   if (dFeeNotice) dFeeNotice.innerText = feeText;
 
-  const cleanSym = (currentPageAsset.symbol || '').replace('.NS', '').replace('.BO', '');
   const newSymbol = isBseActive ? `${cleanSym}.BO` : `${cleanSym}.NS`;
 
   // Update button text immediately
@@ -7310,6 +7344,9 @@ async function switchStockExchange(targetExch) {
     const res = await fetch(`/api/quote?symbol=${encodeURIComponent(newSymbol)}&asset_type=${encodeURIComponent(currentPageAsset.asset_type || 'STOCK')}`);
     if (res.ok) {
       const data = await res.json();
+      if (!data.available_exchanges && currentPageAsset && currentPageAsset.available_exchanges) {
+        data.available_exchanges = currentPageAsset.available_exchanges;
+      }
       currentPageAsset = data;
       state.currentModalAsset = data;
 

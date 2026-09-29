@@ -404,6 +404,50 @@ def _refresh_indices_sync():
         return results
     return _CACHE.get("indices", [])
 
+_EXCHANGE_LISTINGS_CACHE: Dict[str, List[str]] = {}
+
+def get_stock_available_exchanges(symbol_or_clean: str, known_symbol: str = "") -> List[str]:
+    """
+    Returns the list of valid exchanges (e.g. ['NSE', 'BSE'], ['NSE'], or ['BSE'])
+    where the security is officially listed and tradable.
+    """
+    clean_sym = symbol_or_clean.upper().replace(".NS", "").replace(".BO", "").strip()
+    if clean_sym in _EXCHANGE_LISTINGS_CACHE:
+        return _EXCHANGE_LISTINGS_CACHE[clean_sym]
+
+    # Check combined stock master
+    for s in get_combined_stock_master():
+        s_clean = s["symbol"].upper().replace(".NS", "").replace(".BO", "").strip()
+        if s_clean == clean_sym:
+            if s.get("exchanges"):
+                _EXCHANGE_LISTINGS_CACHE[clean_sym] = list(s["exchanges"])
+                return _EXCHANGE_LISTINGS_CACHE[clean_sym]
+            if s["symbol"].upper().endswith(".BO"):
+                _EXCHANGE_LISTINGS_CACHE[clean_sym] = ["BSE"]
+                return ["BSE"]
+            # Default for Indian top equities in master catalog is dual-listed
+            _EXCHANGE_LISTINGS_CACHE[clean_sym] = ["NSE", "BSE"]
+            return ["NSE", "BSE"]
+
+    # Check ETF catalog
+    for e in ETF_MASTER:
+        e_clean = e["symbol"].upper().replace(".NS", "").replace(".BO", "").strip()
+        if e_clean == clean_sym:
+            _EXCHANGE_LISTINGS_CACHE[clean_sym] = ["NSE"]
+            return ["NSE"]
+
+    # For external stocks: determine based on symbol or availability
+    available = []
+    if (known_symbol and known_symbol.upper().endswith(".BO")) or symbol_or_clean.upper().endswith(".BO"):
+        available.append("BSE")
+    else:
+        available.append("NSE")
+        # Dual-listed for standard equities
+        available.append("BSE")
+
+    _EXCHANGE_LISTINGS_CACHE[clean_sym] = available
+    return available
+
 def get_stock_quote(symbol: str) -> Dict[str, Any]:
     raw_sym = symbol.strip().upper()
     if raw_sym in ("NSE", "NSE.BO"):
@@ -574,11 +618,14 @@ def _refresh_stock_quote_sync(formatted_symbol: str) -> Dict[str, Any]:
             logo_url = f"https://images.financialmodelingprep.com/symbol/{clean_sym}.NS.png"
 
         exch = "INDEX" if asset_type == "INDEX" else ("BSE" if formatted_symbol.endswith(".BO") else ("AMFI" if asset_type == "MUTUAL_FUND" else "NSE"))
+        avail_exchanges = get_stock_available_exchanges(clean_sym, formatted_symbol) if asset_type == "STOCK" else [exch]
         data = {
             "symbol": formatted_symbol,
             "name": name,
             "asset_type": asset_type,
             "exchange": exch,
+            "available_exchanges": avail_exchanges,
+            "primary_exchange": avail_exchanges[0] if avail_exchanges else exch,
             "category": matched_etf.get("category") if matched_etf else None,
             "price": price,
             "change": change,
@@ -964,11 +1011,14 @@ def _get_default_stock_quote(symbol: str, name: str = "", sector: str = "NSE Equ
     ind_pe = bm.get("industry_pe") or _SECTOR_INDUSTRY_PES.get(sec, 24.5)
 
     exch = "BSE" if symbol.endswith(".BO") else ("INDEX" if symbol.startswith("^") else "NSE")
+    avail_exch = get_stock_available_exchanges(symbol)
     return {
         "symbol": symbol,
         "name": n,
         "asset_type": "STOCK",
         "exchange": exch,
+        "available_exchanges": avail_exch,
+        "primary_exchange": avail_exch[0] if avail_exch else exch,
         "price": price,
         "change": change,
         "change_pct": change_pct,

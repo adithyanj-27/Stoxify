@@ -8151,6 +8151,13 @@ body.viewing-profile .indices-bar {
   color: var(--danger-red) !important;
 }
 
+.exchange-toggle-btn.disabled,
+.seg-btn.disabled {
+  opacity: 0.42 !important;
+  cursor: not-allowed !important;
+  filter: grayscale(0.7);
+}
+
 .tx-badge-icon {
   width: 36px;
   height: 36px;

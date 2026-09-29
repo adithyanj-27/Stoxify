@@ -71,7 +71,7 @@ STOCK_MASTER = [
     {"symbol": "YESBANK.NS", "name": "Yes Bank Ltd", "sector": "Banking", "aliases": ["yes bank"]},
     {"symbol": "CDSL.NS", "name": "Central Depository Services Ltd", "sector": "Finance", "aliases": ["cdsl", "demat"]},
     {"symbol": "BSE.NS", "name": "BSE Ltd", "sector": "Finance", "aliases": ["bse", "bombay stock exchange"]},
-    {"symbol": "NSE.BO", "name": "National Stock Exchange of India Ltd", "sector": "Finance", "aliases": ["nse", "national stock exchange", "nse india", "nse.bo"]},
+    {"symbol": "NSE.BO", "name": "National Stock Exchange of India Ltd", "sector": "Finance", "aliases": ["nse", "national stock exchange", "nse india", "nse.bo"], "exchanges": ["BSE"]},
 
     # --- Auto & EV ---
     {"symbol": "EICHERMOT.NS", "name": "Eicher Motors Ltd (Royal Enfield)", "sector": "Auto", "aliases": ["eicher", "royal enfield", "bullet"]},

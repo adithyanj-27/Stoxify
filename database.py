@@ -2895,6 +2895,18 @@ def execute_trade(
     else:
         actual_exchange = (exchange or "NSE").upper()
 
+    if asset_type == "STOCK":
+        try:
+            import market_service
+            avail = market_service.get_stock_available_exchanges(symbol)
+            if avail and actual_exchange not in avail:
+                return {
+                    "success": False,
+                    "error": f"Order Rejected: {symbol} is not listed on {actual_exchange}. Available on: {', '.join(avail)}."
+                }
+        except Exception:
+            pass
+
     if quantity <= 0 or price <= 0:
         return {"success": False, "error": "Quantity and price must be greater than zero."}
     if order_variety == "LIMIT" and (limit_price is None or float(limit_price) <= 0):
