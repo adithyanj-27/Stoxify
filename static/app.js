@@ -11449,6 +11449,11 @@ async function renderStockPerformanceChart() {
   const tf = portfolioChartsState.stock.tf || '1M';
   const uid = localStorage.getItem('stoxify_user_id') || (currentUser ? currentUser.user_id : null);
 
+  let labels = [];
+  let values = [];
+  let investedValues = [];
+  let firstVal = 0;
+
   const curValEl = document.getElementById('stockPerfCurVal');
   const pnlPillEl = document.getElementById('stockPerfPnlPill');
   const invValEl = document.getElementById('stockPerfInvVal');
@@ -11465,7 +11470,7 @@ async function renderStockPerformanceChart() {
       pnlPillEl.className = 'portfolio-perf-pnl-pill' + (netPnl < 0 ? ' negative' : '');
     }
     if (tfLabelEl) {
-      const tfPnl = (tfReturns !== undefined) ? tfReturns : (val - (values ? values[0] : 0));
+      const tfPnl = (tfReturns !== undefined) ? tfReturns : (val - (values && values.length ? values[0] : 0));
       const tfSign = tfPnl >= 0 ? '+' : '';
       tfLabelEl.innerHTML = `${tf} Return: <strong style="color: ${tfPnl >= 0 ? '#00D09C' : '#EB5B3C'};">${tfSign}${formatINR(tfPnl)}</strong>`;
     }
@@ -11491,10 +11496,10 @@ async function renderStockPerformanceChart() {
       return;
     }
 
-    const labels = points.map(p => p.time);
-    const values = points.map(p => p.value);
-    const investedValues = points.map(p => (p.invested !== undefined ? p.invested : (data.invested_val || portfolioChartsState.stock.invVal)));
-    const firstVal = values[0] || 0;
+    labels = points.map(p => p.time);
+    values = points.map(p => p.value);
+    investedValues = points.map(p => (p.invested !== undefined ? p.invested : (data.invested_val || portfolioChartsState.stock.invVal)));
+    firstVal = values[0] || 0;
     const lastVal = values[values.length - 1] || 0;
     const lastInvested = investedValues[investedValues.length - 1] || (data.invested_val || portfolioChartsState.stock.invVal);
     const isPos = (tf === '1D') ? (lastVal >= firstVal) : (lastVal >= lastInvested);
@@ -12108,6 +12113,11 @@ async function renderMfPerformanceChart() {
   const tf = portfolioChartsState.mf.tf || '1M';
   const uid = localStorage.getItem('stoxify_user_id') || (currentUser ? currentUser.user_id : null);
 
+  let labels = [];
+  let values = [];
+  let investedValues = [];
+  let firstVal = 0;
+
   const curValEl = document.getElementById('mfPerfCurVal');
   const pnlPillEl = document.getElementById('mfPerfPnlPill');
   const invValEl = document.getElementById('mfPerfInvVal');
@@ -12124,7 +12134,7 @@ async function renderMfPerformanceChart() {
       pnlPillEl.className = 'portfolio-perf-pnl-pill' + (netPnl < 0 ? ' negative' : '');
     }
     if (tfLabelEl) {
-      const tfPnl = (tfReturns !== undefined) ? tfReturns : (val - (values ? values[0] : 0));
+      const tfPnl = (tfReturns !== undefined) ? tfReturns : (val - (values && values.length ? values[0] : 0));
       const tfSign = tfPnl >= 0 ? '+' : '';
       tfLabelEl.innerHTML = `${tf} Return: <strong style="color: ${tfPnl >= 0 ? '#00D09C' : '#EB5B3C'};">${tfSign}${formatINR(tfPnl)}</strong>`;
     }
@@ -12150,10 +12160,10 @@ async function renderMfPerformanceChart() {
       return;
     }
 
-    const labels = points.map(p => p.time);
-    const values = points.map(p => p.value);
-    const investedValues = points.map(p => (p.invested !== undefined ? p.invested : (data.invested_val || portfolioChartsState.mf.invVal)));
-    const firstVal = values[0] || 0;
+    labels = points.map(p => p.time);
+    values = points.map(p => p.value);
+    investedValues = points.map(p => (p.invested !== undefined ? p.invested : (data.invested_val || portfolioChartsState.mf.invVal)));
+    firstVal = values[0] || 0;
     const lastVal = values[values.length - 1] || 0;
     const lastInvested = investedValues[investedValues.length - 1] || (data.invested_val || portfolioChartsState.mf.invVal);
     const isPos = (tf === '1D') ? (lastVal >= firstVal) : (lastVal >= lastInvested);
