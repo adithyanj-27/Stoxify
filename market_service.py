@@ -126,8 +126,10 @@ def get_combined_stock_master() -> List[Dict[str, Any]]:
     return combined
 
 def clear_explore_cache():
-    _CACHE.pop("explore_data_v5", None)
-    _CACHE_EXPIRY.pop("explore_data_v5", None)
+    for k in list(_CACHE.keys()):
+        if k.startswith("explore_data_"):
+            _CACHE.pop(k, None)
+            _CACHE_EXPIRY.pop(k, None)
 
 _INVALID_TICKERS_CACHE: Dict[str, float] = {}
 
@@ -1045,7 +1047,7 @@ def _get_default_stock_quote(symbol: str, name: str = "", sector: str = "NSE Equ
     }
 
 def get_explore_data() -> Dict[str, Any]:
-    cached = get_cached("explore_data_v6")
+    cached = get_cached("explore_data_v7")
     if cached and cached.get("all_stocks") and cached.get("etfs"):
         return cached
 
@@ -1243,28 +1245,29 @@ def get_explore_data() -> Dict[str, Any]:
         if sym not in etf_dict or not etf_dict[sym].get("price"):
             etf_dict[sym] = _get_default_etf_quote(sym, e["name"], e.get("sector", "Exchange Traded Fund"), e.get("category", "Index"))
 
-    # 5. Preserve catalog order and separate recent listings
-    all_stocks = [stock_dict[s["symbol"]] for s in combined_master if s["symbol"] in stock_dict]
+    # 5. Core top stocks are strictly from STOCK_MASTER (established Indian leaders)
+    core_stocks = [stock_dict[s["symbol"]] for s in STOCK_MASTER if s["symbol"] in stock_dict and not stock_dict[s["symbol"]].get("is_new_listing")]
     recent_listings = [stock_dict[s["symbol"]] for s in dynamic_items if s["symbol"] in stock_dict]
     all_mfs = list(mf_dict.values())
     all_etfs = [etf_dict[e["symbol"]] for e in ETF_MASTER if e["symbol"] in etf_dict]
 
-    # Rank gainers and losers
-    gainers = sorted([s for s in all_stocks if s.get("change", 0) >= 0], key=lambda x: x.get("change_pct", 0), reverse=True)[:8]
-    losers = sorted([s for s in all_stocks if s.get("change", 0) < 0], key=lambda x: x.get("change_pct", 0))[:8]
-    most_bought = sorted(all_stocks, key=lambda x: x.get("volume") or 0, reverse=True)[:8]
+    # Rank gainers and losers ONLY from high-liquidity core stocks (excluding illiquid/newly listed SMEs)
+    liquid_core = [s for s in core_stocks if not s.get("is_new_listing")]
+    gainers = sorted([s for s in liquid_core if s.get("change_pct", 0) >= 0], key=lambda x: x.get("change_pct", 0), reverse=True)[:8]
+    losers = sorted([s for s in liquid_core if s.get("change_pct", 0) <= 0], key=lambda x: x.get("change_pct", 0))[:8]
+    most_bought = sorted(liquid_core, key=lambda x: x.get("volume") or 0, reverse=True)[:8]
 
     result = {
         "most_bought": most_bought,
         "gainers": gainers,
         "losers": losers,
-        "all_stocks": all_stocks,
+        "all_stocks": core_stocks,
         "recent_listings": recent_listings,
         "mutual_funds": all_mfs,
         "etfs": all_etfs
     }
     explore_ttl = 30 if get_quote_ttl() <= 15 else 120
-    set_cached("explore_data_v6", result, ttl=explore_ttl)
+    set_cached("explore_data_v7", result, ttl=explore_ttl)
     return result
 
 

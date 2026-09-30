@@ -933,10 +933,10 @@ async function fetchIndices() {
   }
 }
 
-const EXPLORE_CACHE_VERSION = '2026.09.30.v6';
+const EXPLORE_CACHE_VERSION = '2026.09.30.v7';
 
 const DEFAULT_EXPLORE_DATA = {
-  "version": "2026.09.30.v6",
+  "version": "2026.09.30.v7",
   "all_stocks": [
     {
       "symbol": "RELIANCE.NS",
@@ -4188,21 +4188,23 @@ function renderExploreStocks() {
 
 
   let list = [];
+  const baseStocks = (state.exploreData.all_stocks || []).filter(s => !s.is_new_listing);
+
   if (state.exploreStockFilter === 'all') {
-    list = state.exploreData.all_stocks;
+    list = baseStocks;
     title.innerText = `Explore Top Stocks (${list.length} available)`;
     if (desc) desc.innerText = 'Live market quotes directly from National Stock Exchange (NSE)';
   } else if (state.exploreStockFilter === 'gainers') {
-    list = state.exploreData.gainers;
+    list = (state.exploreData.gainers || []).filter(s => !s.is_new_listing);
     title.innerText = `Top Gainers Today (${list.length})`;
-    if (desc) desc.innerText = 'Stocks with the highest daily percentage gain on NSE';
+    if (desc) desc.innerText = 'High-liquidity top stocks with the highest daily percentage gain on NSE';
   } else if (state.exploreStockFilter === 'losers') {
-    list = state.exploreData.losers;
+    list = (state.exploreData.losers || []).filter(s => !s.is_new_listing);
     title.innerText = `Top Losers Today (${list.length})`;
-    if (desc) desc.innerText = 'Stocks with the highest daily percentage loss on NSE';
+    if (desc) desc.innerText = 'High-liquidity top stocks with the highest daily percentage loss on NSE';
   } else {
     const filterKey = state.exploreStockFilter.toLowerCase();
-    list = state.exploreData.all_stocks.filter(s => {
+    list = baseStocks.filter(s => {
       const sec = (s.sector || '').toLowerCase();
       const sym = (s.symbol || '').toLowerCase();
       const nm = (s.name || '').toLowerCase();
@@ -4222,19 +4224,16 @@ function renderExploreStocks() {
     const cleanSym = (s.symbol || '').replace('.NS', '').replace('.BO', '');
     const isPos = (s.change || 0) >= 0;
     const badgeClass = isPos ? 'badge-positive' : 'badge-negative';
-    const newBadge = s.is_new_listing ? `<span class="badge-new-stock">NEW</span>` : '';
     const subText = aType === 'ETF'
       ? `${cleanSym} • ${s.category || 'ETF'} • NSE`
-      : (s.is_new_listing && s.listing_date && s.listing_date !== '—')
-        ? `${cleanSym} • Listed ${s.listing_date}`
-        : `${cleanSym} • ${s.sector || 'NSE'}`;
+      : `${cleanSym} • ${s.sector || 'NSE'}`;
     return `
       <div class="stock-card" onclick="openAssetModal('${s.symbol}', '${aType}')">
         <div class="card-top">
           <div class="card-header-left">
             ${renderAssetAvatar(s, aType)}
             <div class="card-info">
-              <div class="card-title" title="${s.name}">${s.name} ${newBadge}</div>
+              <div class="card-title" title="${s.name}">${s.name}</div>
               <div class="card-subtitle">${subText}</div>
             </div>
           </div>
