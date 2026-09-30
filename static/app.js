@@ -781,7 +781,6 @@ function activateExploreProductView(product) {
   if (product === 'stocks') {
     renderRecentlyViewedStocks();
     if (!state.exploreData) fetchExploreData();
-    fetchIpos();
   } else if (product === 'fo') {
     fetchOptionChain();
   } else if (product === 'mf') {
@@ -827,7 +826,10 @@ function switchTab(tabId, updateUrl = true) {
 function switchExploreSubnav(subId) {
   if (subId === 'ipo') {
     switchProduct('stocks', 'explore');
-    const ipoSec = document.getElementById('explore-ipo-section');
+    if (typeof toggleExploreIpos === 'function') {
+      toggleExploreIpos(true);
+    }
+    const ipoSec = document.getElementById('exploreIpoHubCard') || document.getElementById('explore-ipo-section');
     if (ipoSec) ipoSec.scrollIntoView({ behavior: 'smooth' });
     return;
   }
@@ -12927,6 +12929,32 @@ async function submitOptionTrade() {
 let allIpos = [];
 let activeIpoFilter = 'OPEN';
 let currentIpoModalData = null;
+let isExploreIposExpanded = false;
+
+function toggleExploreIpos(forceOpen = null) {
+  const content = document.getElementById('ipoExpandableContent');
+  const btnText = document.getElementById('ipoToggleBtnText');
+  const hubCard = document.getElementById('exploreIpoHubCard');
+  if (!content) return;
+
+  const willOpen = forceOpen !== null ? forceOpen : !isExploreIposExpanded;
+  isExploreIposExpanded = willOpen;
+
+  if (willOpen) {
+    content.style.display = 'block';
+    if (hubCard) hubCard.classList.add('expanded');
+    if (btnText) btnText.innerText = 'Hide IPOs';
+    if (!allIpos || allIpos.length === 0) {
+      fetchIpos();
+    } else {
+      renderIpos(activeIpoFilter || 'OPEN');
+    }
+  } else {
+    content.style.display = 'none';
+    if (hubCard) hubCard.classList.remove('expanded');
+    if (btnText) btnText.innerText = 'Explore IPOs';
+  }
+}
 
 async function fetchIpos() {
   const grid = document.getElementById('ipoGrid');
@@ -13887,6 +13915,8 @@ window.executeConfirmedOrder = executeConfirmedOrder;
 window.loadGttOrders = loadGttOrders;
 window.cancelGttOrder = cancelGttOrder;
 window.filterIpos = filterIpos;
+window.fetchIpos = fetchIpos;
+window.toggleExploreIpos = toggleExploreIpos;
 window.renderIpoApplications = renderIpoApplications;
 window.withdrawIpoBid = withdrawIpoBid;
 window.loadActiveSips = loadActiveSips;

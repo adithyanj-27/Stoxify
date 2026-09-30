@@ -524,24 +524,48 @@
 
 
 
-        <!-- Real Indian IPOs Hub Section (Groww Style Inside Explore Stocks) -->
-        <div class="groww-section-block" id="explore-ipo-section" style="margin-top: 1.5rem;">
-          <div class="groww-section-header" style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 0.85rem; flex-wrap: wrap; gap: 0.5rem;">
-            <div>
-              <h3 class="groww-section-title">Initial Public Offerings (IPOs)</h3>
-              <span class="groww-section-sub">Track live mainboard & SME IPOs, subscription rates, price bands, and upcoming listings</span>
+        <!-- Check out Popular IPOs Card (Compact Hub with On-Demand Expansion) -->
+        <div class="explore-ipo-hub-card" id="exploreIpoHubCard" style="margin-top: 1.5rem;">
+          <div class="ipo-hub-banner" onclick="toggleExploreIpos()">
+            <div class="ipo-hub-left">
+              <div class="ipo-hub-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/>
+                  <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/>
+                  <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/>
+                  <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>
+                </svg>
+              </div>
+              <div class="ipo-hub-text">
+                <div class="ipo-hub-title-row">
+                  <h3 class="ipo-hub-title">Check out Popular IPOs</h3>
+                  <span class="ipo-live-pill"><span class="live-dot"></span> Live &amp; Upcoming</span>
+                </div>
+                <p class="ipo-hub-sub">Track active mainboard &amp; SME IPOs, subscription rates, price bands, and apply online</p>
+              </div>
+            </div>
+            <div class="ipo-hub-right">
+              <button type="button" class="ipo-hub-toggle-btn" id="btnToggleIpos" onclick="event.stopPropagation(); toggleExploreIpos();">
+                <span id="ipoToggleBtnText">Explore IPOs</span>
+                <svg class="ipo-chevron-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </button>
             </div>
           </div>
 
-          <div class="filter-pills" id="ipoFilterPills" style="margin-bottom: 1.25rem; overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; padding-bottom: 4px;">
-            <button class="pill-btn active" onclick="filterIpos('OPEN', this)" id="pillIpoOpen">Open Now <span class="tab-count-pill" id="ipoCountOpen">—</span></button>
-            <button class="pill-btn" onclick="filterIpos('UPCOMING', this)" id="pillIpoUpcoming">Upcoming <span class="tab-count-pill" id="ipoCountUpcoming">—</span></button>
-            <button class="pill-btn" onclick="filterIpos('RECENTLY_LISTED', this)" id="pillIpoListed">Closed / Listed <span class="tab-count-pill" id="ipoCountListed">—</span></button>
-            <button class="pill-btn" onclick="filterIpos('ALL', this)" id="pillIpoAll">All Issues</button>
-          </div>
+          <!-- Expandable IPO Container (Collapsed by Default) -->
+          <div class="ipo-expandable-content" id="ipoExpandableContent" style="display: none;">
+            <div class="filter-pills" id="ipoFilterPills" style="margin: 1rem 0 1rem 0; overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; padding-bottom: 4px;">
+              <button class="pill-btn active" onclick="filterIpos('OPEN', this)" id="pillIpoOpen">Open Now <span class="tab-count-pill" id="ipoCountOpen">—</span></button>
+              <button class="pill-btn" onclick="filterIpos('UPCOMING', this)" id="pillIpoUpcoming">Upcoming <span class="tab-count-pill" id="ipoCountUpcoming">—</span></button>
+              <button class="pill-btn" onclick="filterIpos('RECENTLY_LISTED', this)" id="pillIpoListed">Closed / Listed <span class="tab-count-pill" id="ipoCountListed">—</span></button>
+              <button class="pill-btn" onclick="filterIpos('ALL', this)" id="pillIpoAll">All Issues</button>
+            </div>
 
-          <div class="most-bought-carousel" id="ipoGrid">
-            <div style="color: var(--text-muted); font-size: 0.9rem; padding: 2rem;">Loading live IPOs...</div>
+            <div class="most-bought-carousel" id="ipoGrid">
+              <div style="color: var(--text-muted); font-size: 0.9rem; padding: 2rem;">Loading live IPOs...</div>
+            </div>
           </div>
         </div>
 
