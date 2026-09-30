@@ -4349,6 +4349,8 @@ body.pwa-installed #mobileInstallBanner {
 
   /* Hide bottom nav bar & sticky action bar when any modal/drawer is open or in onboarding */
   body:has(#pane-onboarding.active) .mobile-bottom-bar,
+  html.viewing-onboarding .mobile-bottom-bar,
+  body.viewing-onboarding .mobile-bottom-bar,
   body:has(.modal-overlay.active) .mobile-bottom-bar,
   body:has(.mobile-drawer-overlay.active) .mobile-bottom-bar,
   body:has(.modal-overlay.active) .asset-mobile-action-bar,
@@ -7367,14 +7369,22 @@ html.user-guest #navProfileWrapper {
 }
 
 /* ==========================================================================
-   GROWW-STYLE DEDICATED PROFILE PAGE
-   ========================================================================== */
+/* Hide sub-nav and indices-bar on Profile and Account Onboarding (Desktop & Mobile) */
 html.viewing-profile .indices-bar,
 body.viewing-profile .indices-bar,
 html.viewing-profile #productSubNavBar,
 body.viewing-profile #productSubNavBar,
 html.viewing-profile .sub-nav,
-body.viewing-profile .sub-nav {
+body.viewing-profile .sub-nav,
+html.viewing-onboarding .indices-bar,
+body.viewing-onboarding .indices-bar,
+html.viewing-onboarding #productSubNavBar,
+body.viewing-onboarding #productSubNavBar,
+html.viewing-onboarding .sub-nav,
+body.viewing-onboarding .sub-nav,
+body:has(#pane-onboarding.active) .indices-bar,
+body:has(#pane-onboarding.active) #productSubNavBar,
+body:has(#pane-onboarding.active) .sub-nav {
   display: none !important;
 }
 .profile-page-header {

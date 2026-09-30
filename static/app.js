@@ -674,6 +674,8 @@ function switchProductSubTab(subTabId, updateUrl = true) {
   document.documentElement.classList.remove('viewing-asset-detail');
   document.body.classList.remove('viewing-profile');
   document.documentElement.classList.remove('viewing-profile');
+  document.body.classList.remove('viewing-onboarding');
+  document.documentElement.classList.remove('viewing-onboarding');
   const navAvatarBtn = document.getElementById('navUserAvatarBtn');
   if (navAvatarBtn) navAvatarBtn.classList.remove('active');
   closeMobileTradeDrawer();
@@ -7631,6 +7633,8 @@ function goBackFromProfilePage() {
 function showProfilePage() {
   document.body.classList.remove('viewing-asset-detail');
   document.documentElement.classList.remove('viewing-asset-detail');
+  document.body.classList.remove('viewing-onboarding');
+  document.documentElement.classList.remove('viewing-onboarding');
   document.body.classList.add('viewing-profile');
   document.documentElement.classList.add('viewing-profile');
   closeMobileTradeDrawer();
@@ -7720,6 +7724,11 @@ function handleRoute() {
     document.documentElement.classList.remove('viewing-profile');
     const navAvatarBtn = document.getElementById('navUserAvatarBtn');
     if (navAvatarBtn) navAvatarBtn.classList.remove('active');
+  }
+
+  if (path !== '/onboarding') {
+    document.body.classList.remove('viewing-onboarding');
+    document.documentElement.classList.remove('viewing-onboarding');
   }
 
   if (path.startsWith('/stock/')) {
@@ -9481,6 +9490,8 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
   if (pagePane) pagePane.classList.add('active');
   document.body.classList.remove('viewing-profile');
   document.documentElement.classList.remove('viewing-profile');
+  document.body.classList.remove('viewing-onboarding');
+  document.documentElement.classList.remove('viewing-onboarding');
   document.body.classList.add('viewing-asset-detail');
   document.documentElement.classList.add('viewing-asset-detail');
   window.scrollTo(0, 0);
@@ -11415,6 +11426,16 @@ function generateNewRandomBank() {
 function showOnboardingPage() {
   if (currentUser && currentUser.id && !isGuest()) {
     if (!currentUser.has_pin) {
+      document.body.classList.remove('viewing-profile');
+      document.documentElement.classList.remove('viewing-profile');
+      document.body.classList.remove('viewing-asset-detail');
+      document.documentElement.classList.remove('viewing-asset-detail');
+      document.body.classList.add('viewing-onboarding');
+      document.documentElement.classList.add('viewing-onboarding');
+      closeMobileTradeDrawer();
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      const obPane = document.getElementById('pane-onboarding');
+      if (obPane) obPane.classList.add('active');
       goToObStep(6);
       showObPinView();
       return;
@@ -11427,6 +11448,8 @@ function showOnboardingPage() {
   document.documentElement.classList.remove('viewing-profile');
   document.body.classList.remove('viewing-asset-detail');
   document.documentElement.classList.remove('viewing-asset-detail');
+  document.body.classList.add('viewing-onboarding');
+  document.documentElement.classList.add('viewing-onboarding');
   closeMobileTradeDrawer();
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-links .nav-btn').forEach(btn => btn.classList.remove('active'));
@@ -11476,6 +11499,8 @@ function showOnboardingPage() {
 }
 
 function closeOnboardingWizard() {
+  document.body.classList.remove('viewing-onboarding');
+  document.documentElement.classList.remove('viewing-onboarding');
   const obPane = document.getElementById('pane-onboarding');
   if (obPane) obPane.classList.remove('active');
   navigateTo('/explore', false);
@@ -12140,6 +12165,8 @@ function finishOnboarding() {
     showToast('Please create your 4-digit PIN to finish registration and secure your login.', true);
     return;
   }
+  document.body.classList.remove('viewing-onboarding');
+  document.documentElement.classList.remove('viewing-onboarding');
   updateNavbarProfile();
   state.watchlist = getLocalWatchlistSet();
   renderRecentlyViewedStocks();
