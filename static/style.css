@@ -4201,6 +4201,22 @@ body.pwa-installed #mobileInstallBanner {
     margin-bottom: 0.25rem !important;
   }
 
+  .ob-label-row {
+    margin-bottom: 0.35rem !important;
+    gap: 0.4rem !important;
+  }
+
+  .ob-label-row .ob-label {
+    font-size: 0.76rem !important;
+    white-space: nowrap !important;
+  }
+
+  .ob-action-link {
+    font-size: 0.74rem !important;
+    margin: 0 !important;
+    white-space: nowrap !important;
+  }
+
   .ob-input {
     height: 42px !important;
     padding: 0.45rem 0.75rem !important;
@@ -5464,6 +5480,46 @@ body.pwa-installed #mobileInstallBanner {
   font-weight: 700;
   color: var(--text-secondary);
   margin-bottom: 0.4rem;
+}
+
+.ob-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+  width: 100%;
+}
+
+.ob-label-row .ob-label {
+  margin-bottom: 0 !important;
+  white-space: nowrap !important;
+  flex-shrink: 0;
+}
+
+.ob-action-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0 !important;
+  width: auto !important;
+  color: var(--brand-cyan);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+  white-space: nowrap !important;
+  flex-shrink: 0;
+  line-height: 1.2;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.ob-action-link:hover {
+  opacity: 0.85;
+  color: var(--brand-cyan-hover, #38bdf8);
 }
 
 .ob-phone-input {

@@ -2052,9 +2052,9 @@
             <p class="ob-sub">Your PAN is mandatory for a Demat account. We've prefilled a random combination for simulation, or you can enter your own.</p>
 
             <div class="ob-form-group">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-                <label class="ob-label" style="margin-bottom: 0;">PAN Number</label>
-                <button type="button" class="ob-btn-link" style="font-size: 0.78rem; text-decoration: underline; padding: 0; color: var(--brand-cyan);" onclick="generateNewRandomPan()">↻ Generate New PAN</button>
+              <div class="ob-label-row">
+                <label class="ob-label">PAN Number</label>
+                <button type="button" class="ob-action-link" onclick="generateNewRandomPan()">↻ Generate New PAN</button>
               </div>
               <input type="text" class="ob-input" id="obInputPan" placeholder="ABCDE1234F" maxlength="10" style="text-transform: uppercase; font-family: monospace; font-size: 1.1rem; letter-spacing: 0.1em;" oninput="onPanInput(this)">
             </div>
@@ -2160,9 +2160,9 @@
             <h2 class="ob-title">Link Bank Account</h2>
             <p class="ob-sub">We've prefilled a simulated bank account for paper trading. You can keep it, pick another bank, or re-generate anytime.</p>
 
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;">
-              <label class="ob-label" style="margin-bottom: 0;">Select Bank</label>
-              <button type="button" class="ob-btn-link" style="font-size: 0.78rem; text-decoration: underline; padding: 0; color: var(--brand-cyan);" onclick="generateNewRandomBank()">↻ Generate New Bank Details</button>
+            <div class="ob-label-row" style="margin-bottom: 0.6rem;">
+              <label class="ob-label">Select Bank</label>
+              <button type="button" class="ob-action-link" onclick="generateNewRandomBank()">↻ Generate New Bank Details</button>
             </div>
             <div class="bank-chips-grid">
               <button class="bank-chip" onclick="selectBank('HDFC Bank', 'HDFC0001234', this)">HDFC Bank</button>
