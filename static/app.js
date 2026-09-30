@@ -7596,6 +7596,8 @@ function navigateTo(path, pushState = true) {
 }
 
 function goBackFromAssetPage() {
+  currentPageAsset = null;
+  state.currentModalAsset = null;
   if (window.history.length > 1) {
     window.history.back();
   } else {
@@ -9363,6 +9365,7 @@ async function submitLogin() {
    ======================================================= */
 let pageChartInstance = null;
 let currentPageAsset = null;
+let currentAssetPageLoadId = 0;
 let pageOrderState = {
   action: 'BUY',
   product: 'DELIVERY',
@@ -9372,10 +9375,84 @@ let pageOrderState = {
   exchange: 'NSE'
 };
 
+function findKnownAsset(symbol, assetType) {
+  if (!symbol) return null;
+  let clean = String(symbol).replace('.NS', '').replace('.BO', '').replace('^', '').trim().toUpperCase();
+  if (clean === 'ZOMATO') clean = 'ETERNAL';
+  if (clean === 'TATAMOTORS') clean = 'TMPV';
+  const rawUpper = String(symbol).trim().toUpperCase();
+
+  const pools = [
+    state.exploreData?.all_stocks,
+    DEFAULT_EXPLORE_DATA?.all_stocks,
+    state.exploreData?.etfs,
+    DEFAULT_EXPLORE_DATA?.etfs,
+    state.exploreData?.mutual_funds,
+    DEFAULT_EXPLORE_DATA?.mutual_funds
+  ];
+
+  for (const pool of pools) {
+    if (!Array.isArray(pool)) continue;
+    const found = pool.find(item => {
+      const itemSym = String(item.symbol || item.code || '').replace('.NS', '').replace('.BO', '').replace('^', '').toUpperCase();
+      return itemSym === clean || String(item.symbol || item.code || '').toUpperCase() === rawUpper;
+    });
+    if (found) return found;
+  }
+
+  if (state.portfolioData && Array.isArray(state.portfolioData.holdings)) {
+    const h = state.portfolioData.holdings.find(item => {
+      const itemSym = (item.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase();
+      return itemSym === clean || (item.symbol || '').toUpperCase() === rawUpper;
+    });
+    if (h) return {
+      symbol: h.symbol,
+      name: h.name,
+      price: h.current_price || h.price || h.avg_price,
+      change: h.change || 0,
+      change_pct: h.change_pct || 0,
+      asset_type: h.asset_type || assetType
+    };
+  }
+
+  if (Array.isArray(state.watchlist)) {
+    const w = state.watchlist.find(item => {
+      const itemSym = (item.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase();
+      return itemSym === clean || (item.symbol || '').toUpperCase() === rawUpper;
+    });
+    if (w) return w;
+  }
+
+  return null;
+}
+
 async function showAssetPage(symbol, assetType = 'STOCK') {
   // Always fetch fresh account balance to keep trade card available cash accurate
   fetchAccount().catch(() => {});
 
+  const loadId = ++currentAssetPageLoadId;
+
+  const cleanSymInit = (symbol || '').replace('.NS', '').replace('.BO', '').trim();
+  const isMFInit = assetType === 'MUTUAL_FUND' || symbol.match(/^\d+$/);
+  const isETFInit = assetType === 'ETF';
+  const isIndexInit = (symbol || '').startsWith('^') || assetType === 'INDEX';
+  const indexNameInit = isIndexInit ? (INDEX_NAMES[symbol] || symbol.replace('^', '')) : null;
+
+  // Immediately resolve target asset from bundled or memory cache
+  const initialAsset = findKnownAsset(symbol, assetType);
+
+  // EVICT OLD ASSET STATE IMMEDIATELY - never let the old stock linger in memory!
+  currentPageAsset = initialAsset ? { ...initialAsset } : null;
+  state.currentModalAsset = currentPageAsset;
+
+  // Reset chart so previous stock graph never flashes
+  if (pageChartInstance) {
+    try { pageChartInstance.destroy(); } catch (_) {}
+    pageChartInstance = null;
+  }
+  currentChartPoints = [];
+
+  // Activate pane and scroll to top
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-links .nav-btn').forEach(btn => btn.classList.remove('active'));
   document.querySelectorAll('.mobile-nav-item').forEach(btn => btn.classList.remove('active'));
@@ -9388,11 +9465,12 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
   document.documentElement.classList.add('viewing-asset-detail');
   window.scrollTo(0, 0);
 
-  const cleanSymInit = (symbol || '').replace('.NS', '').replace('.BO', '');
-  const isMFInit = assetType === 'MUTUAL_FUND' || symbol.match(/^\d+$/);
-  const isETFInit = assetType === 'ETF';
-  const isIndexInit = (symbol || '').startsWith('^') || assetType === 'INDEX';
-  const indexNameInit = isIndexInit ? (INDEX_NAMES[symbol] || symbol.replace('^', '')) : null;
+  // Show chart loading overlay
+  const chartCard = document.querySelector('.asset-chart-card');
+  const chartWrapper = chartCard ? chartCard.querySelector('.chart-wrapper') : null;
+  if (chartWrapper) {
+    showChartLoadingOverlay(chartWrapper, 'Loading chart data...');
+  }
 
   let holdingSale = null;
   try {
@@ -9417,27 +9495,96 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
   }
   pageOrderState.exchange = initialExchange;
 
-  document.getElementById('assetBreadcrumbCategory').innerText = isIndexInit ? 'Indices' : (isMFInit ? 'Mutual Funds' : (isETFInit ? 'ETFs & Gold' : 'Stocks'));
-  document.getElementById('pageAssetSymbol').innerText = isIndexInit ? (INDEX_NAMES[symbol] || cleanSymInit) : cleanSymInit;
-  const dSymInit = document.getElementById('drawerAssetSymbol');
-  if (dSymInit) dSymInit.innerText = isIndexInit ? (INDEX_NAMES[symbol] || cleanSymInit) : cleanSymInit;
+  // Synchronously update hero and drawer elements with target stock
+  const assetName = isIndexInit ? indexNameInit : (initialAsset ? initialAsset.name : cleanSymInit);
+  const formattedCategory = isIndexInit ? 'Indices' : (isMFInit ? 'Mutual Funds' : (isETFInit ? 'ETFs & Gold' : 'Stocks'));
 
-  const knownInit = (state.exploreData && state.exploreData.all_stocks)
-    ? (state.exploreData.all_stocks.find(s => (s.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase() === cleanSymInit.toUpperCase()) ||
-       (state.exploreData.etfs && state.exploreData.etfs.find(e => (e.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase() === cleanSymInit.toUpperCase())))
-    : null;
-  if (knownInit) {
-    document.getElementById('assetBreadcrumbName').innerText = knownInit.name;
-    document.getElementById('pageAssetTitle').innerText = knownInit.name;
-    document.getElementById('pageAssetPrice').innerText = formatINR(knownInit.price);
-    const dTitle = document.getElementById('drawerAssetTitle');
-    if (dTitle) dTitle.innerText = knownInit.name;
-    const dPrice = document.getElementById('drawerAssetPrice');
-    if (dPrice) dPrice.innerText = formatINR(knownInit.price);
+  const catEl = document.getElementById('assetBreadcrumbCategory');
+  if (catEl) catEl.innerText = formattedCategory;
+  const crumbEl = document.getElementById('assetBreadcrumbName');
+  if (crumbEl) crumbEl.innerText = assetName;
+  const symEl = document.getElementById('pageAssetSymbol');
+  if (symEl) symEl.innerText = isIndexInit ? indexNameInit : cleanSymInit;
+  const titleEl = document.getElementById('pageAssetTitle');
+  if (titleEl) titleEl.innerText = assetName;
+
+  const priceEl = document.getElementById('pageAssetPrice');
+  const badgeEl = document.getElementById('pageAssetChangeBadge');
+  const avatarEl = document.getElementById('pageAssetAvatar');
+
+  const dTitle = document.getElementById('drawerAssetTitle');
+  const dSym = document.getElementById('drawerAssetSymbol');
+  const dPrice = document.getElementById('drawerAssetPrice');
+  const dChg = document.getElementById('drawerAssetChange');
+  const dAvatar = document.getElementById('drawerAssetAvatar');
+
+  if (dSym) dSym.innerText = isIndexInit ? indexNameInit : cleanSymInit;
+  if (dTitle) dTitle.innerText = assetName;
+
+  if (initialAsset && initialAsset.price) {
+    const isPos = (initialAsset.change || 0) >= 0;
+    const formattedChg = formatChange(initialAsset.change || 0, initialAsset.change_pct || 0);
+    const formattedPrice = formatINR(initialAsset.price);
+
+    if (priceEl) priceEl.innerText = formattedPrice;
+    if (badgeEl) {
+      badgeEl.className = isPos ? 'badge-positive' : 'badge-negative';
+      badgeEl.innerText = formattedChg;
+    }
+    if (avatarEl) {
+      avatarEl.innerHTML = renderAssetAvatar(initialAsset, isIndexInit ? 'INDEX' : (isETFInit ? 'ETF' : (isMFInit ? 'MUTUAL_FUND' : 'STOCK')), true);
+    }
+
+    if (dPrice) dPrice.innerText = formattedPrice;
+    if (dChg) {
+      dChg.className = isPos ? 'badge-positive' : 'badge-negative';
+      dChg.innerText = formattedChg;
+    }
+    if (dAvatar) {
+      dAvatar.innerHTML = renderAssetAvatar(initialAsset, isIndexInit ? 'INDEX' : (isETFInit ? 'ETF' : (isMFInit ? 'MUTUAL_FUND' : 'STOCK')));
+    }
+  } else {
+    if (priceEl) priceEl.innerText = 'Loading...';
+    if (badgeEl) {
+      badgeEl.className = 'badge-neutral';
+      badgeEl.innerText = '—';
+    }
+    if (avatarEl) {
+      avatarEl.innerHTML = renderAssetAvatar({ symbol, name: assetName }, isIndexInit ? 'INDEX' : (isETFInit ? 'ETF' : (isMFInit ? 'MUTUAL_FUND' : 'STOCK')), true);
+    }
+    if (dPrice) dPrice.innerText = 'Loading...';
+    if (dChg) {
+      dChg.className = 'badge-neutral';
+      dChg.innerText = '—';
+    }
+    if (dAvatar) {
+      dAvatar.innerHTML = renderAssetAvatar({ symbol, name: assetName }, isIndexInit ? 'INDEX' : (isETFInit ? 'ETF' : (isMFInit ? 'MUTUAL_FUND' : 'STOCK')));
+    }
   }
+
+  // Pre-populate or clear stats so old numbers never linger
+  const initPrice = initialAsset ? initialAsset.price : 0;
+  const pLow = document.getElementById('perfTodayLow');
+  const pHigh = document.getElementById('perfTodayHigh');
+  const p52L = document.getElementById('perf52wLow');
+  const p52H = document.getElementById('perf52wHigh');
+  const pOpen = document.getElementById('perfOpen');
+  const pPrev = document.getElementById('perfPrevClose');
+  const pVol = document.getElementById('perfVolume');
+
+  if (pLow) pLow.innerText = initialAsset && initialAsset.day_low ? formatINR(initialAsset.day_low) : (initPrice ? formatINR(initPrice * 0.985) : '—');
+  if (pHigh) pHigh.innerText = initialAsset && initialAsset.day_high ? formatINR(initialAsset.day_high) : (initPrice ? formatINR(initPrice * 1.015) : '—');
+  if (p52L) p52L.innerText = initialAsset && initialAsset.fifty_two_week_low ? formatINR(initialAsset.fifty_two_week_low) : '—';
+  if (p52H) p52H.innerText = initialAsset && initialAsset.fifty_two_week_high ? formatINR(initialAsset.fifty_two_week_high) : '—';
+  if (pOpen) pOpen.innerText = initialAsset && initialAsset.open ? formatINR(initialAsset.open) : '—';
+  if (pPrev) pPrev.innerText = initialAsset && initialAsset.prev_close ? formatINR(initialAsset.prev_close) : '—';
+  if (pVol) pVol.innerText = initialAsset && initialAsset.volume ? Number(initialAsset.volume).toLocaleString('en-IN') : '—';
 
   try {
     const res = await fetch(`/api/quote?symbol=${encodeURIComponent(querySymbol)}&asset_type=${encodeURIComponent(assetType)}`);
+    // RACE CONDITION CHECK: if user clicked another stock while this fetch was in-flight, discard stale response
+    if (loadId !== currentAssetPageLoadId) return;
+
     const data = await res.json();
     currentPageAsset = data;
     state.currentModalAsset = data;
