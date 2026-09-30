@@ -11253,6 +11253,16 @@ function switchMfAllocMode(mode) {
   renderMfAllocationChart();
 }
 
+function formatPortfolioTickLabel(labelStr, tf) {
+  if (!labelStr) return '';
+  if (tf === '1D') {
+    const timeMatch = labelStr.match(/\b\d{1,2}:\d{2}\b/);
+    if (timeMatch) return timeMatch[0];
+    return labelStr;
+  }
+  return labelStr.replace(/\s+\d{1,2}:\d{2}(:\d{2})?$/, '').trim();
+}
+
 async function renderStockPerformanceChart() {
   const container = document.getElementById('stockPerfChartContainer');
   const canvas = document.getElementById('stockPortfolioPerformanceCanvas');
@@ -11269,6 +11279,7 @@ async function renderStockPerformanceChart() {
   }
 
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const isMobile = window.innerWidth <= 768;
   const tf = portfolioChartsState.stock.tf || '1M';
   const uid = localStorage.getItem('stoxify_user_id') || (currentUser ? currentUser.user_id : null);
 
@@ -11322,11 +11333,13 @@ async function renderStockPerformanceChart() {
     const lastInvested = investedValues[investedValues.length - 1] || (data.invested_val || portfolioChartsState.stock.invVal);
     const isPos = (tf === '1D') ? (lastVal >= firstVal) : (lastVal >= lastInvested);
     const strokeColor = isPos ? '#00D09C' : '#EB5B3C';
-    const investedLineColor = isDark ? 'rgba(148, 163, 184, 0.85)' : 'rgba(100, 116, 139, 0.85)';
+    const investedLineColor = isDark ? 'rgba(148, 163, 184, 0.75)' : 'rgba(100, 116, 139, 0.75)';
 
-    const grad = ctx.createLinearGradient(0, 0, 0, 260);
-    grad.addColorStop(0, isPos ? 'rgba(0, 208, 156, 0.24)' : 'rgba(235, 91, 60, 0.24)');
-    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    const chartHeight = canvas.clientHeight || (isMobile ? 340 : 330);
+    const grad = ctx.createLinearGradient(0, 0, 0, chartHeight);
+    grad.addColorStop(0, isPos ? 'rgba(0, 208, 156, 0.22)' : 'rgba(235, 91, 60, 0.22)');
+    grad.addColorStop(0.5, isPos ? 'rgba(0, 208, 156, 0.06)' : 'rgba(235, 91, 60, 0.06)');
+    grad.addColorStop(1, isPos ? 'rgba(0, 208, 156, 0.0)' : 'rgba(235, 91, 60, 0.0)');
 
     const defaultTfReturns = (data.timeframe_pnl !== undefined) ? data.timeframe_pnl : (lastVal - firstVal);
     updateStockSummaryDisplay(lastVal, lastInvested, defaultTfReturns);
@@ -11335,21 +11348,131 @@ async function renderStockPerformanceChart() {
       updateStockSummaryDisplay(lastVal, lastInvested, defaultTfReturns);
     };
 
+    portfolioChartsState.stock.currentData = {
+      values,
+      investedValues,
+      firstVal,
+      lastVal,
+      lastInvested,
+      defaultTfReturns
+    };
+
+    function initStockTouchScrubbing() {
+      if (canvas.dataset.stockScrubAttached) return;
+      canvas.dataset.stockScrubAttached = 'true';
+
+      function handleTouch(clientX) {
+        const chart = portfolioChartsState.stock.perfInstance;
+        const curr = portfolioChartsState.stock.currentData;
+        if (!chart || !chart.chartArea || !curr || !curr.values || !curr.values.length) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = clientX - rect.left;
+        const area = chart.chartArea;
+        const clampedX = Math.max(area.left, Math.min(area.right, x));
+        const ratio = (clampedX - area.left) / Math.max(1, area.right - area.left);
+        const idx = Math.max(0, Math.min(curr.values.length - 1, Math.round(ratio * (curr.values.length - 1))));
+
+        chart.setActiveElements([
+          { datasetIndex: 0, index: idx },
+          { datasetIndex: 1, index: idx }
+        ]);
+        if (chart.tooltip) {
+          chart.tooltip.setActiveElements([
+            { datasetIndex: 0, index: idx },
+            { datasetIndex: 1, index: idx }
+          ], { x: clampedX, y: chart.scales.y.getPixelForValue(curr.values[idx] || 0) });
+        }
+        chart.update('none');
+
+        const hVal = curr.values[idx] || 0;
+        const hInv = curr.investedValues[idx] || 0;
+        const hTf = hVal - curr.firstVal;
+        updateStockSummaryDisplay(hVal, hInv, hTf);
+      }
+
+      function handleEnd() {
+        const chart = portfolioChartsState.stock.perfInstance;
+        if (chart) {
+          chart.setActiveElements([]);
+          if (chart.tooltip) chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+          chart.update('none');
+        }
+        const curr = portfolioChartsState.stock.currentData;
+        if (curr) {
+          updateStockSummaryDisplay(curr.lastVal, curr.lastInvested, curr.defaultTfReturns);
+        }
+      }
+
+      canvas.addEventListener('touchstart', (e) => {
+        if (e.touches && e.touches.length > 0) handleTouch(e.touches[0].clientX);
+      }, { passive: true });
+      canvas.addEventListener('touchmove', (e) => {
+        if (e.touches && e.touches.length > 0) handleTouch(e.touches[0].clientX);
+      }, { passive: true });
+      canvas.addEventListener('touchend', handleEnd, { passive: true });
+      canvas.addEventListener('touchcancel', handleEnd, { passive: true });
+    }
+    initStockTouchScrubbing();
+
     const verticalLinePlugin = {
       id: 'verticalCrosshairStock',
       afterDraw(chart) {
-        if (chart.tooltip && chart.tooltip.getActiveElements && chart.tooltip.getActiveElements().length) {
-          const activePoint = chart.tooltip.getActiveElements()[0];
+        const activeElements = (chart.getActiveElements && chart.getActiveElements().length > 0)
+          ? chart.getActiveElements()
+          : (chart.tooltip?._active || []);
+
+        if (activeElements && activeElements.length > 0) {
+          const activePoint = activeElements[0];
           const x = activePoint.element.x;
-          ctx.save();
-          ctx.beginPath();
-          ctx.setLineDash([4, 4]);
-          ctx.moveTo(x, chart.chartArea.top);
-          ctx.lineTo(x, chart.chartArea.bottom);
-          ctx.lineWidth = 1;
-          ctx.strokeStyle = isDark ? 'rgba(148, 163, 184, 0.45)' : 'rgba(100, 116, 139, 0.45)';
-          ctx.stroke();
-          ctx.restore();
+          const { chartArea } = chart;
+          if (!chartArea) return;
+
+          const pCtx = chart.ctx;
+          pCtx.save();
+
+          // Thin vertical dashed guide line from top to bottom
+          pCtx.beginPath();
+          pCtx.setLineDash([3, 3]);
+          pCtx.moveTo(x, chartArea.top);
+          pCtx.lineTo(x, chartArea.bottom);
+          pCtx.lineWidth = isMobile ? 0.9 : 1.1;
+          pCtx.strokeStyle = isDark ? 'rgba(148, 163, 184, 0.40)' : 'rgba(100, 116, 139, 0.40)';
+          pCtx.stroke();
+          pCtx.setLineDash([]);
+
+          // Radar pulse glow dot on Current Value (dataset 0)
+          const curValPoint = activeElements.find(el => el.datasetIndex === 0) || activePoint;
+          const dotX = curValPoint.element.x;
+          const dotY = curValPoint.element.y;
+
+          const auraRadius = isMobile ? 7 : 9;
+          const dotRadius = isMobile ? 3.5 : 4.8;
+          const ringWidth = isMobile ? 2 : 2.5;
+
+          // Outer glowing aura
+          pCtx.beginPath();
+          pCtx.arc(dotX, dotY, auraRadius, 0, 2 * Math.PI);
+          pCtx.fillStyle = isPos ? 'rgba(0, 208, 156, 0.22)' : 'rgba(235, 91, 60, 0.22)';
+          pCtx.fill();
+
+          // Solid trend color circle
+          pCtx.beginPath();
+          pCtx.arc(dotX, dotY, dotRadius, 0, 2 * Math.PI);
+          pCtx.fillStyle = strokeColor;
+          pCtx.fill();
+
+          // Crisp ring border
+          pCtx.lineWidth = ringWidth;
+          pCtx.strokeStyle = isDark ? '#0F172A' : '#FFFFFF';
+          pCtx.stroke();
+
+          // Inner core
+          pCtx.beginPath();
+          pCtx.arc(dotX, dotY, isMobile ? 1.4 : 1.8, 0, 2 * Math.PI);
+          pCtx.fillStyle = isDark ? '#0F172A' : '#FFFFFF';
+          pCtx.fill();
+
+          pCtx.restore();
         }
       }
     };
@@ -11364,14 +11487,16 @@ async function renderStockPerformanceChart() {
             label: 'Current Value',
             data: values,
             borderColor: strokeColor,
-            borderWidth: 2.4,
+            borderWidth: isMobile ? 2.2 : 2.6,
             backgroundColor: grad,
             fill: true,
-            tension: 0.3,
+            tension: 0.32,
+            borderCapStyle: 'round',
+            borderJoinStyle: 'round',
             pointRadius: 0,
-            pointHoverRadius: 6,
+            pointHoverRadius: isMobile ? 4 : 5.5,
             pointHoverBackgroundColor: strokeColor,
-            pointHoverBorderColor: '#ffffff',
+            pointHoverBorderColor: isDark ? '#0F172A' : '#ffffff',
             pointHoverBorderWidth: 2,
             order: 1
           },
@@ -11379,15 +11504,17 @@ async function renderStockPerformanceChart() {
             label: 'Invested Value',
             data: investedValues,
             borderColor: investedLineColor,
-            borderWidth: 2,
+            borderWidth: isMobile ? 1.6 : 2.0,
             borderDash: [5, 4],
             backgroundColor: 'transparent',
             fill: false,
-            tension: 0.1,
+            tension: 0.15,
+            borderCapStyle: 'round',
+            borderJoinStyle: 'round',
             pointRadius: 0,
-            pointHoverRadius: 5,
+            pointHoverRadius: isMobile ? 3.5 : 4.5,
             pointHoverBackgroundColor: investedLineColor,
-            pointHoverBorderColor: '#ffffff',
+            pointHoverBorderColor: isDark ? '#0F172A' : '#ffffff',
             pointHoverBorderWidth: 2,
             order: 2
           }
@@ -11396,7 +11523,15 @@ async function renderStockPerformanceChart() {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        animation: { duration: 400 },
+        animation: { duration: 350 },
+        layout: {
+          padding: {
+            left: isMobile ? 0 : 4,
+            right: isMobile ? 0 : 4,
+            top: 6,
+            bottom: isMobile ? 2 : 0
+          }
+        },
         interaction: { mode: 'index', intersect: false },
         onHover: (event, activeElements) => {
           if (activeElements && activeElements.length) {
@@ -11413,12 +11548,12 @@ async function renderStockPerformanceChart() {
             position: 'top',
             align: 'end',
             labels: {
-              boxWidth: 20,
+              boxWidth: isMobile ? 12 : 18,
               boxHeight: 2,
               usePointStyle: false,
               color: isDark ? '#94A3B8' : '#64748B',
-              font: { size: 11, weight: '600', family: 'Sora, sans-serif' },
-              padding: 10
+              font: { size: isMobile ? 10 : 11, weight: '600', family: 'Sora, sans-serif' },
+              padding: isMobile ? 6 : 10
             }
           },
           tooltip: {
@@ -11427,7 +11562,8 @@ async function renderStockPerformanceChart() {
             bodyColor: isDark ? '#F8FAFC' : '#0F172A',
             borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
             borderWidth: 1,
-            padding: 12,
+            padding: isMobile ? 8 : 12,
+            cornerRadius: 6,
             displayColors: true,
             boxWidth: 8,
             boxHeight: 8,
@@ -11456,20 +11592,33 @@ async function renderStockPerformanceChart() {
         scales: {
           x: {
             grid: { display: false },
+            border: { display: false },
             ticks: {
-              maxTicksLimit: 7,
+              autoSkip: true,
+              maxRotation: 0,
+              minRotation: 0,
+              maxTicksLimit: isMobile ? 4 : 7,
               color: isDark ? '#64748B' : '#94A3B8',
-              font: { size: 10.5, family: 'Sora, sans-serif' }
+              font: { size: isMobile ? 9.5 : 10.5, family: 'Sora, sans-serif' },
+              callback: function(val, index) {
+                const raw = this.getLabelForValue ? this.getLabelForValue(val) : labels[index];
+                return formatPortfolioTickLabel(raw, tf);
+              }
             }
           },
           y: {
             position: 'right',
+            grace: '8%',
+            border: { display: false },
             grid: {
+              drawTicks: false,
               color: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)'
             },
             ticks: {
               color: isDark ? '#64748B' : '#94A3B8',
-              font: { size: 10.5, family: 'Sora, sans-serif' },
+              padding: isMobile ? 2 : 8,
+              font: { size: isMobile ? 9.5 : 10.5, family: 'Sora, sans-serif' },
+              maxTicksLimit: isMobile ? 5 : 7,
               callback: function(v) { return '₹' + formatCompactINR(v); }
             }
           }
@@ -11645,6 +11794,7 @@ async function renderMfPerformanceChart() {
   }
 
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const isMobile = window.innerWidth <= 768;
   const tf = portfolioChartsState.mf.tf || '1M';
   const uid = localStorage.getItem('stoxify_user_id') || (currentUser ? currentUser.user_id : null);
 
@@ -11698,11 +11848,13 @@ async function renderMfPerformanceChart() {
     const lastInvested = investedValues[investedValues.length - 1] || (data.invested_val || portfolioChartsState.mf.invVal);
     const isPos = (tf === '1D') ? (lastVal >= firstVal) : (lastVal >= lastInvested);
     const strokeColor = isPos ? '#00D09C' : '#EB5B3C';
-    const investedLineColor = isDark ? 'rgba(148, 163, 184, 0.85)' : 'rgba(100, 116, 139, 0.85)';
+    const investedLineColor = isDark ? 'rgba(148, 163, 184, 0.75)' : 'rgba(100, 116, 139, 0.75)';
 
-    const grad = ctx.createLinearGradient(0, 0, 0, 260);
-    grad.addColorStop(0, isPos ? 'rgba(0, 208, 156, 0.24)' : 'rgba(235, 91, 60, 0.24)');
-    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    const chartHeight = canvas.clientHeight || (isMobile ? 340 : 330);
+    const grad = ctx.createLinearGradient(0, 0, 0, chartHeight);
+    grad.addColorStop(0, isPos ? 'rgba(0, 208, 156, 0.22)' : 'rgba(235, 91, 60, 0.22)');
+    grad.addColorStop(0.5, isPos ? 'rgba(0, 208, 156, 0.06)' : 'rgba(235, 91, 60, 0.06)');
+    grad.addColorStop(1, isPos ? 'rgba(0, 208, 156, 0.0)' : 'rgba(235, 91, 60, 0.0)');
 
     const defaultTfReturns = (data.timeframe_pnl !== undefined) ? data.timeframe_pnl : (lastVal - firstVal);
     updateMfSummaryDisplay(lastVal, lastInvested, defaultTfReturns);
@@ -11711,22 +11863,131 @@ async function renderMfPerformanceChart() {
       updateMfSummaryDisplay(lastVal, lastInvested, defaultTfReturns);
     };
 
+    portfolioChartsState.mf.currentData = {
+      values,
+      investedValues,
+      firstVal,
+      lastVal,
+      lastInvested,
+      defaultTfReturns
+    };
+
+    function initMfTouchScrubbing() {
+      if (canvas.dataset.mfScrubAttached) return;
+      canvas.dataset.mfScrubAttached = 'true';
+
+      function handleTouch(clientX) {
+        const chart = portfolioChartsState.mf.perfInstance;
+        const curr = portfolioChartsState.mf.currentData;
+        if (!chart || !chart.chartArea || !curr || !curr.values || !curr.values.length) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = clientX - rect.left;
+        const area = chart.chartArea;
+        const clampedX = Math.max(area.left, Math.min(area.right, x));
+        const ratio = (clampedX - area.left) / Math.max(1, area.right - area.left);
+        const idx = Math.max(0, Math.min(curr.values.length - 1, Math.round(ratio * (curr.values.length - 1))));
+
+        chart.setActiveElements([
+          { datasetIndex: 0, index: idx },
+          { datasetIndex: 1, index: idx }
+        ]);
+        if (chart.tooltip) {
+          chart.tooltip.setActiveElements([
+            { datasetIndex: 0, index: idx },
+            { datasetIndex: 1, index: idx }
+          ], { x: clampedX, y: chart.scales.y.getPixelForValue(curr.values[idx] || 0) });
+        }
+        chart.update('none');
+
+        const hVal = curr.values[idx] || 0;
+        const hInv = curr.investedValues[idx] || 0;
+        const hTf = hVal - curr.firstVal;
+        updateMfSummaryDisplay(hVal, hInv, hTf);
+      }
+
+      function handleEnd() {
+        const chart = portfolioChartsState.mf.perfInstance;
+        if (chart) {
+          chart.setActiveElements([]);
+          if (chart.tooltip) chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+          chart.update('none');
+        }
+        const curr = portfolioChartsState.mf.currentData;
+        if (curr) {
+          updateMfSummaryDisplay(curr.lastVal, curr.lastInvested, curr.defaultTfReturns);
+        }
+      }
+
+      canvas.addEventListener('touchstart', (e) => {
+        if (e.touches && e.touches.length > 0) handleTouch(e.touches[0].clientX);
+      }, { passive: true });
+      canvas.addEventListener('touchmove', (e) => {
+        if (e.touches && e.touches.length > 0) handleTouch(e.touches[0].clientX);
+      }, { passive: true });
+      canvas.addEventListener('touchend', handleEnd, { passive: true });
+      canvas.addEventListener('touchcancel', handleEnd, { passive: true });
+    }
+    initMfTouchScrubbing();
+
     const verticalLinePlugin = {
       id: 'verticalCrosshairMf',
       afterDraw(chart) {
-        if (chart.tooltip && chart.tooltip.getActiveElements && chart.tooltip.getActiveElements().length) {
-          const activePoint = chart.tooltip.getActiveElements()[0];
-          const ctx = chart.ctx;
+        const activeElements = (chart.getActiveElements && chart.getActiveElements().length > 0)
+          ? chart.getActiveElements()
+          : (chart.tooltip?._active || []);
+
+        if (activeElements && activeElements.length > 0) {
+          const activePoint = activeElements[0];
           const x = activePoint.element.x;
-          ctx.save();
-          ctx.beginPath();
-          ctx.setLineDash([4, 4]);
-          ctx.moveTo(x, chart.chartArea.top);
-          ctx.lineTo(x, chart.chartArea.bottom);
-          ctx.lineWidth = 1;
-          ctx.strokeStyle = isDark ? 'rgba(148, 163, 184, 0.45)' : 'rgba(100, 116, 139, 0.45)';
-          ctx.stroke();
-          ctx.restore();
+          const { chartArea } = chart;
+          if (!chartArea) return;
+
+          const pCtx = chart.ctx;
+          pCtx.save();
+
+          // Thin vertical dashed guide line from top to bottom
+          pCtx.beginPath();
+          pCtx.setLineDash([3, 3]);
+          pCtx.moveTo(x, chartArea.top);
+          pCtx.lineTo(x, chartArea.bottom);
+          pCtx.lineWidth = isMobile ? 0.9 : 1.1;
+          pCtx.strokeStyle = isDark ? 'rgba(148, 163, 184, 0.40)' : 'rgba(100, 116, 139, 0.40)';
+          pCtx.stroke();
+          pCtx.setLineDash([]);
+
+          // Radar pulse glow dot on Current Value (dataset 0)
+          const curValPoint = activeElements.find(el => el.datasetIndex === 0) || activePoint;
+          const dotX = curValPoint.element.x;
+          const dotY = curValPoint.element.y;
+
+          const auraRadius = isMobile ? 7 : 9;
+          const dotRadius = isMobile ? 3.5 : 4.8;
+          const ringWidth = isMobile ? 2 : 2.5;
+
+          // Outer glowing aura
+          pCtx.beginPath();
+          pCtx.arc(dotX, dotY, auraRadius, 0, 2 * Math.PI);
+          pCtx.fillStyle = isPos ? 'rgba(0, 208, 156, 0.22)' : 'rgba(235, 91, 60, 0.22)';
+          pCtx.fill();
+
+          // Solid trend color circle
+          pCtx.beginPath();
+          pCtx.arc(dotX, dotY, dotRadius, 0, 2 * Math.PI);
+          pCtx.fillStyle = strokeColor;
+          pCtx.fill();
+
+          // Crisp ring border
+          pCtx.lineWidth = ringWidth;
+          pCtx.strokeStyle = isDark ? '#0F172A' : '#FFFFFF';
+          pCtx.stroke();
+
+          // Inner core
+          pCtx.beginPath();
+          pCtx.arc(dotX, dotY, isMobile ? 1.4 : 1.8, 0, 2 * Math.PI);
+          pCtx.fillStyle = isDark ? '#0F172A' : '#FFFFFF';
+          pCtx.fill();
+
+          pCtx.restore();
         }
       }
     };
@@ -11741,14 +12002,16 @@ async function renderMfPerformanceChart() {
             label: 'Current Value',
             data: values,
             borderColor: strokeColor,
-            borderWidth: 2.4,
+            borderWidth: isMobile ? 2.2 : 2.6,
             backgroundColor: grad,
             fill: true,
-            tension: 0.3,
+            tension: 0.32,
+            borderCapStyle: 'round',
+            borderJoinStyle: 'round',
             pointRadius: 0,
-            pointHoverRadius: 6,
+            pointHoverRadius: isMobile ? 4 : 5.5,
             pointHoverBackgroundColor: strokeColor,
-            pointHoverBorderColor: '#ffffff',
+            pointHoverBorderColor: isDark ? '#0F172A' : '#ffffff',
             pointHoverBorderWidth: 2,
             order: 1
           },
@@ -11756,15 +12019,17 @@ async function renderMfPerformanceChart() {
             label: 'Invested Value',
             data: investedValues,
             borderColor: investedLineColor,
-            borderWidth: 2,
+            borderWidth: isMobile ? 1.6 : 2.0,
             borderDash: [5, 4],
             backgroundColor: 'transparent',
             fill: false,
-            tension: 0.1,
+            tension: 0.15,
+            borderCapStyle: 'round',
+            borderJoinStyle: 'round',
             pointRadius: 0,
-            pointHoverRadius: 5,
+            pointHoverRadius: isMobile ? 3.5 : 4.5,
             pointHoverBackgroundColor: investedLineColor,
-            pointHoverBorderColor: '#ffffff',
+            pointHoverBorderColor: isDark ? '#0F172A' : '#ffffff',
             pointHoverBorderWidth: 2,
             order: 2
           }
@@ -11773,7 +12038,15 @@ async function renderMfPerformanceChart() {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        animation: { duration: 400 },
+        animation: { duration: 350 },
+        layout: {
+          padding: {
+            left: isMobile ? 0 : 4,
+            right: isMobile ? 0 : 4,
+            top: 6,
+            bottom: isMobile ? 2 : 0
+          }
+        },
         interaction: { mode: 'index', intersect: false },
         onHover: (event, activeElements) => {
           if (activeElements && activeElements.length) {
@@ -11790,12 +12063,12 @@ async function renderMfPerformanceChart() {
             position: 'top',
             align: 'end',
             labels: {
-              boxWidth: 20,
+              boxWidth: isMobile ? 12 : 18,
               boxHeight: 2,
               usePointStyle: false,
               color: isDark ? '#94A3B8' : '#64748B',
-              font: { size: 11, weight: '600', family: 'Sora, sans-serif' },
-              padding: 10
+              font: { size: isMobile ? 10 : 11, weight: '600', family: 'Sora, sans-serif' },
+              padding: isMobile ? 6 : 10
             }
           },
           tooltip: {
@@ -11804,7 +12077,8 @@ async function renderMfPerformanceChart() {
             bodyColor: isDark ? '#F8FAFC' : '#0F172A',
             borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
             borderWidth: 1,
-            padding: 12,
+            padding: isMobile ? 8 : 12,
+            cornerRadius: 6,
             displayColors: true,
             boxWidth: 8,
             boxHeight: 8,
@@ -11833,20 +12107,33 @@ async function renderMfPerformanceChart() {
         scales: {
           x: {
             grid: { display: false },
+            border: { display: false },
             ticks: {
-              maxTicksLimit: 7,
+              autoSkip: true,
+              maxRotation: 0,
+              minRotation: 0,
+              maxTicksLimit: isMobile ? 4 : 7,
               color: isDark ? '#64748B' : '#94A3B8',
-              font: { size: 10.5, family: 'Sora, sans-serif' }
+              font: { size: isMobile ? 9.5 : 10.5, family: 'Sora, sans-serif' },
+              callback: function(val, index) {
+                const raw = this.getLabelForValue ? this.getLabelForValue(val) : labels[index];
+                return formatPortfolioTickLabel(raw, tf);
+              }
             }
           },
           y: {
             position: 'right',
+            grace: '8%',
+            border: { display: false },
             grid: {
+              drawTicks: false,
               color: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)'
             },
             ticks: {
               color: isDark ? '#64748B' : '#94A3B8',
-              font: { size: 10.5, family: 'Sora, sans-serif' },
+              padding: isMobile ? 2 : 8,
+              font: { size: isMobile ? 9.5 : 10.5, family: 'Sora, sans-serif' },
+              maxTicksLimit: isMobile ? 5 : 7,
               callback: function(v) { return '₹' + formatCompactINR(v); }
             }
           }

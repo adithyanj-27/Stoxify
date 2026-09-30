@@ -777,16 +777,18 @@
           <!-- Groww-Style Stock Portfolio Chart Card -->
           <div id="stockPortfolioChartCard" class="asset-section-card portfolio-chart-card" style="display: none; margin-bottom: 1.5rem;">
             <div class="portfolio-chart-header">
-              <div class="portfolio-chart-title-group">
-                <span class="portfolio-chart-badge">PORTFOLIO INSIGHTS</span>
-                <div class="portfolio-chart-view-toggle">
-                  <button type="button" class="portfolio-toggle-pill active" id="btnStockChartPerf" onclick="switchStockPortfolioView('performance')">Performance</button>
-                  <button type="button" class="portfolio-toggle-pill" id="btnStockChartAlloc" onclick="switchStockPortfolioView('allocation')">Allocation</button>
+              <div class="portfolio-chart-top-bar">
+                <div class="portfolio-chart-title-group">
+                  <span class="portfolio-chart-badge">PORTFOLIO INSIGHTS</span>
+                  <div class="portfolio-chart-view-toggle">
+                    <button type="button" class="portfolio-toggle-pill active" id="btnStockChartPerf" onclick="switchStockPortfolioView('performance')">Performance</button>
+                    <button type="button" class="portfolio-toggle-pill" id="btnStockChartAlloc" onclick="switchStockPortfolioView('allocation')">Allocation</button>
+                  </div>
                 </div>
-              </div>
 
-              <!-- Close Button -->
-              <button type="button" class="portfolio-chart-close-btn" onclick="toggleStockPortfolioAnalysis(false)" title="Hide Analysis">✕</button>
+                <!-- Close Button -->
+                <button type="button" class="portfolio-chart-close-btn" onclick="toggleStockPortfolioAnalysis(false)" title="Hide Analysis">✕</button>
+              </div>
 
               <!-- Performance Controls: 1D, 1W, 1M, 3M, 6M, 1Y, ALL -->
               <div id="stockPerfControls" class="chart-timeframes">
@@ -1060,16 +1062,18 @@
         <!-- Groww-Style MF Portfolio Chart Card -->
         <div id="mfPortfolioChartCard" class="asset-section-card portfolio-chart-card" style="display: none; margin-bottom: 1.5rem;">
           <div class="portfolio-chart-header">
-            <div class="portfolio-chart-title-group">
-              <span class="portfolio-chart-badge">MF INSIGHTS</span>
-              <div class="portfolio-chart-view-toggle">
-                <button type="button" class="portfolio-toggle-pill active" id="btnMfChartPerf" onclick="switchMfPortfolioView('performance')">Performance</button>
-                <button type="button" class="portfolio-toggle-pill" id="btnMfChartAlloc" onclick="switchMfPortfolioView('allocation')">Allocation</button>
+            <div class="portfolio-chart-top-bar">
+              <div class="portfolio-chart-title-group">
+                <span class="portfolio-chart-badge">MF INSIGHTS</span>
+                <div class="portfolio-chart-view-toggle">
+                  <button type="button" class="portfolio-toggle-pill active" id="btnMfChartPerf" onclick="switchMfPortfolioView('performance')">Performance</button>
+                  <button type="button" class="portfolio-toggle-pill" id="btnMfChartAlloc" onclick="switchMfPortfolioView('allocation')">Allocation</button>
+                </div>
               </div>
-            </div>
 
-            <!-- Close Button -->
-            <button type="button" class="portfolio-chart-close-btn" onclick="toggleMfPortfolioAnalysis(false)" title="Hide Analysis">✕</button>
+              <!-- Close Button -->
+              <button type="button" class="portfolio-chart-close-btn" onclick="toggleMfPortfolioAnalysis(false)" title="Hide Analysis">✕</button>
+            </div>
 
             <!-- Performance Controls: 1D, 1W, 1M, 3M, 6M, 1Y, ALL -->
             <div id="mfPerfControls" class="chart-timeframes">
