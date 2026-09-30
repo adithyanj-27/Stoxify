@@ -938,34 +938,34 @@ async function fetchIndices() {
 
 const DEFAULT_EXPLORE_DATA = {
   all_stocks: [
-    { symbol: 'RELIANCE.NS', name: 'Reliance Industries Ltd', price: 1322.00, change: 19.50, change_pct: 1.50, sector: 'Energy', asset_type: 'STOCK' },
-    { symbol: 'TCS.NS', name: 'Tata Consultancy Services Ltd', price: 2304.00, change: -16.10, change_pct: -0.69, sector: 'IT', asset_type: 'STOCK' },
-    { symbol: 'HDFCBANK.NS', name: 'HDFC Bank Ltd', price: 1684.50, change: 12.30, change_pct: 0.74, sector: 'Banking', asset_type: 'STOCK' },
-    { symbol: 'INFY.NS', name: 'Infosys Ltd', price: 1820.00, change: -8.50, change_pct: -0.46, sector: 'IT', asset_type: 'STOCK' },
-    { symbol: 'ICICIBANK.NS', name: 'ICICI Bank Ltd', price: 1248.00, change: 14.20, change_pct: 1.15, sector: 'Banking', asset_type: 'STOCK' },
-    { symbol: 'SBIN.NS', name: 'State Bank of India', price: 1016.10, change: -7.25, change_pct: -0.71, sector: 'Banking', asset_type: 'STOCK' },
-    { symbol: 'BHARTIARTL.NS', name: 'Bharti Airtel Ltd', price: 1635.00, change: 22.40, change_pct: 1.39, sector: 'Telecom', asset_type: 'STOCK' },
-    { symbol: 'ITC.NS', name: 'ITC Ltd', price: 482.00, change: -2.10, change_pct: -0.43, sector: 'Consumer', asset_type: 'STOCK' },
-    { symbol: 'HAL.NS', name: 'Hindustan Aeronautics Ltd', price: 4856.00, change: 90.50, change_pct: 1.90, sector: 'Defense', asset_type: 'STOCK' },
-    { symbol: 'BEL.NS', name: 'Bharat Electronics Ltd', price: 304.00, change: 4.50, change_pct: 1.50, sector: 'Defense', asset_type: 'STOCK' },
-    { symbol: 'IRFC.NS', name: 'Indian Railway Finance Corp', price: 156.00, change: 2.40, change_pct: 1.56, sector: 'Railways', asset_type: 'STOCK' },
-    { symbol: 'RVNL.NS', name: 'Rail Vikas Nigam Ltd', price: 525.00, change: 14.00, change_pct: 2.74, sector: 'Railways', asset_type: 'STOCK' },
-    { symbol: 'TATAPOWER.NS', name: 'Tata Power Company Ltd', price: 418.00, change: 5.80, change_pct: 1.41, sector: 'Energy', asset_type: 'STOCK' },
-    { symbol: 'SUZLON.NS', name: 'Suzlon Energy Ltd', price: 66.50, change: 1.20, change_pct: 1.84, sector: 'Energy', asset_type: 'STOCK' },
-    { symbol: 'ETERNAL.NS', name: 'Zomato Ltd (Eternal Ltd)', price: 262.00, change: 5.40, change_pct: 2.10, sector: 'Consumer', asset_type: 'STOCK' },
-    { symbol: 'JIOFIN.NS', name: 'Jio Financial Services Ltd', price: 324.50, change: 3.80, change_pct: 1.18, sector: 'Finance', asset_type: 'STOCK' }
+    { symbol: 'RELIANCE.NS', name: 'Reliance Industries Ltd', price: 1185.90, change: 3.90, change_pct: 0.33, sector: 'Energy', asset_type: 'STOCK' },
+    { symbol: 'TCS.NS', name: 'Tata Consultancy Services Ltd', price: 2054.80, change: 22.40, change_pct: 1.10, sector: 'IT', asset_type: 'STOCK' },
+    { symbol: 'HDFCBANK.NS', name: 'HDFC Bank Ltd', price: 713.40, change: -9.30, change_pct: -1.29, sector: 'Banking', asset_type: 'STOCK' },
+    { symbol: 'INFY.NS', name: 'Infosys Ltd', price: 993.60, change: -21.80, change_pct: -2.15, sector: 'IT', asset_type: 'STOCK' },
+    { symbol: 'ICICIBANK.NS', name: 'ICICI Bank Ltd', price: 1324.00, change: 31.80, change_pct: 2.46, sector: 'Banking', asset_type: 'STOCK' },
+    { symbol: 'SBIN.NS', name: 'State Bank of India', price: 963.50, change: -1.20, change_pct: -0.12, sector: 'Banking', asset_type: 'STOCK' },
+    { symbol: 'BHARTIARTL.NS', name: 'Bharti Airtel Ltd', price: 1756.90, change: -14.30, change_pct: -0.81, sector: 'Telecom', asset_type: 'STOCK' },
+    { symbol: 'ITC.NS', name: 'ITC Ltd', price: 262.70, change: -2.40, change_pct: -0.91, sector: 'Consumer', asset_type: 'STOCK' },
+    { symbol: 'HAL.NS', name: 'Hindustan Aeronautics Ltd', price: 4664.00, change: 114.70, change_pct: 2.52, sector: 'Defense', asset_type: 'STOCK' },
+    { symbol: 'BEL.NS', name: 'Bharat Electronics Ltd', price: 387.30, change: -0.45, change_pct: -0.12, sector: 'Defense', asset_type: 'STOCK' },
+    { symbol: 'IRFC.NS', name: 'Indian Railway Finance Corp', price: 79.76, change: -0.50, change_pct: -0.62, sector: 'Railways', asset_type: 'STOCK' },
+    { symbol: 'RVNL.NS', name: 'Rail Vikas Nigam Ltd', price: 203.19, change: 5.29, change_pct: 2.67, sector: 'Railways', asset_type: 'STOCK' },
+    { symbol: 'TATAPOWER.NS', name: 'Tata Power Company Ltd', price: 358.10, change: -0.90, change_pct: -0.25, sector: 'Energy', asset_type: 'STOCK' },
+    { symbol: 'SUZLON.NS', name: 'Suzlon Energy Ltd', price: 39.30, change: -0.20, change_pct: -0.51, sector: 'Energy', asset_type: 'STOCK' },
+    { symbol: 'ETERNAL.NS', name: 'Zomato Ltd (Eternal Ltd)', price: 317.70, change: -10.15, change_pct: -3.10, sector: 'Consumer', asset_type: 'STOCK' },
+    { symbol: 'JIOFIN.NS', name: 'Jio Financial Services Ltd', price: 216.03, change: -1.53, change_pct: -0.70, sector: 'Finance', asset_type: 'STOCK' }
   ],
   gainers: [
-    { symbol: 'RVNL.NS', name: 'Rail Vikas Nigam Ltd', price: 525.00, change: 14.00, change_pct: 2.74, sector: 'Railways', asset_type: 'STOCK' },
-    { symbol: 'ETERNAL.NS', name: 'Zomato Ltd (Eternal Ltd)', price: 262.00, change: 5.40, change_pct: 2.10, sector: 'Consumer', asset_type: 'STOCK' },
-    { symbol: 'HAL.NS', name: 'Hindustan Aeronautics Ltd', price: 4856.00, change: 90.50, change_pct: 1.90, sector: 'Defense', asset_type: 'STOCK' },
-    { symbol: 'SUZLON.NS', name: 'Suzlon Energy Ltd', price: 66.50, change: 1.20, change_pct: 1.84, sector: 'Energy', asset_type: 'STOCK' }
+    { symbol: 'RVNL.NS', name: 'Rail Vikas Nigam Ltd', price: 203.19, change: 5.29, change_pct: 2.67, sector: 'Railways', asset_type: 'STOCK' },
+    { symbol: 'HAL.NS', name: 'Hindustan Aeronautics Ltd', price: 4664.00, change: 114.70, change_pct: 2.52, sector: 'Defense', asset_type: 'STOCK' },
+    { symbol: 'ICICIBANK.NS', name: 'ICICI Bank Ltd', price: 1324.00, change: 31.80, change_pct: 2.46, sector: 'Banking', asset_type: 'STOCK' },
+    { symbol: 'TCS.NS', name: 'Tata Consultancy Services Ltd', price: 2054.80, change: 22.40, change_pct: 1.10, sector: 'IT', asset_type: 'STOCK' }
   ],
   losers: [
-    { symbol: 'TCS.NS', name: 'Tata Consultancy Services Ltd', price: 2304.00, change: -16.10, change_pct: -0.69, sector: 'IT', asset_type: 'STOCK' },
-    { symbol: 'SBIN.NS', name: 'State Bank of India', price: 1016.10, change: -7.25, change_pct: -0.71, sector: 'Banking', asset_type: 'STOCK' },
-    { symbol: 'ITC.NS', name: 'ITC Ltd', price: 482.00, change: -2.10, change_pct: -0.43, sector: 'Consumer', asset_type: 'STOCK' },
-    { symbol: 'INFY.NS', name: 'Infosys Ltd', price: 1820.00, change: -8.50, change_pct: -0.46, sector: 'IT', asset_type: 'STOCK' }
+    { symbol: 'ETERNAL.NS', name: 'Zomato Ltd (Eternal Ltd)', price: 317.70, change: -10.15, change_pct: -3.10, sector: 'Consumer', asset_type: 'STOCK' },
+    { symbol: 'INFY.NS', name: 'Infosys Ltd', price: 993.60, change: -21.80, change_pct: -2.15, sector: 'IT', asset_type: 'STOCK' },
+    { symbol: 'BAJFINANCE.NS', name: 'Bajaj Finance Ltd', price: 957.70, change: -16.10, change_pct: -1.65, sector: 'Finance', asset_type: 'STOCK' },
+    { symbol: 'HDFCBANK.NS', name: 'HDFC Bank Ltd', price: 713.40, change: -9.30, change_pct: -1.29, sector: 'Banking', asset_type: 'STOCK' }
   ],
   mutual_funds: [
     { symbol: '122639', name: 'Parag Parikh Flexi Cap Fund Direct-Growth', price: 89.96, change: 0.24, change_pct: 0.27, return_1y: 28.4, return_3y: 21.2, return_5y: 24.6, rating: 5, category: 'Equity - Flexi Cap', fund_house: 'PPFAS Mutual Fund', asset_type: 'MUTUAL_FUND', exchange: 'AMFI', nav_date: 'Latest' },
@@ -989,6 +989,12 @@ function loadStoredExploreData() {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.all_stocks && parsed.all_stocks.length > 0) {
+        // Detect stale pre-fix cache where prices were hardcoded/outdated (e.g. HDFCBANK > 1000) and invalidate it
+        const hdfc = parsed.all_stocks.find(s => (s.symbol || '').includes('HDFCBANK'));
+        if (hdfc && hdfc.price > 1000) {
+          localStorage.removeItem('stoxify_explore_cache');
+          return DEFAULT_EXPLORE_DATA;
+        }
         if (!Array.isArray(parsed.mutual_funds) || parsed.mutual_funds.length === 0) {
           parsed.mutual_funds = DEFAULT_EXPLORE_DATA.mutual_funds;
         } else {
@@ -1023,9 +1029,11 @@ async function fetchExploreData(forceRefresh = false) {
   // 2. Fetch fresh live quotes in background with timeout
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 9000);
+    const timer = setTimeout(() => controller.abort(), 12000);
     const url = forceRefresh ? '/api/explore?refresh=1' : '/api/explore';
     const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     clearTimeout(timer);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
@@ -6908,6 +6916,17 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
     const isETF = data.asset_type === 'ETF' || assetType === 'ETF';
     if (!isIndex) {
       recordRecentlyViewed(data, isMF ? 'MUTUAL_FUND' : (isETF ? 'ETF' : 'STOCK'));
+      // Synchronize live quote into Explore cache so explore page always matches
+      if (state.exploreData && state.exploreData.all_stocks && data && data.symbol && data.price) {
+        const cleanD = (data.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase();
+        const found = state.exploreData.all_stocks.find(s => (s.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase() === cleanD);
+        if (found) {
+          found.price = data.price;
+          found.change = data.change;
+          found.change_pct = data.change_pct;
+          saveStoredExploreData(state.exploreData);
+        }
+      }
     }
     
     document.getElementById('assetBreadcrumbCategory').innerText = isIndex ? 'Indices' : (isMF ? 'Mutual Funds' : (isETF ? 'ETFs & Gold' : 'Stocks'));

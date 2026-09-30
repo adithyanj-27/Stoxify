@@ -827,101 +827,100 @@ def get_mutual_fund_quote(code: str) -> Dict[str, Any]:
     return fallback
 
 _BASE_STOCK_PRICES = {
-    "RELIANCE.NS": (1247.8, 12.5, 1.01),
-    "TCS.NS": (2183.8, -67.2, -2.99),
-    "HDFCBANK.NS": (722.65, 6.1, 0.85),
-    "INFY.NS": (1056.1, -20.9, -1.94),
-    "ICICIBANK.NS": (1350.8, 0.4, 0.03),
-    "SBIN.NS": (988.0, 20.0, 2.07),
-    "BHARTIARTL.NS": (1832.7, 2.3, 0.13),
-    "ITC.NS": (263.95, 5.95, 2.31),
-    "LT.NS": (3810.6, -40.1, -1.04),
-    "BAJFINANCE.NS": (1011.5, 2.3, 0.23),
-    "HINDUNILVR.NS": (1966.6, 28.5, 1.47),
-    "MARUTI.NS": (12190.0, -41.0, -0.34),
-    "SUNPHARMA.NS": (1852.1, 17.1, 0.93),
-    "TITAN.NS": (4892.0, 36.0, 0.74),
-    "TATASTEEL.NS": (182.85, -0.8, -0.44),
-    "ADANIENT.NS": (2926.4, -2.2, -0.08),
-    "ADANIPORTS.NS": (1729.3, 15.5, 0.9),
-    "WIPRO.NS": (166.15, -3.85, -2.26),
-    "POWERGRID.NS": (263.3, 0.5, 0.19),
-    "NTPC.NS": (328.15, -1.35, -0.41),
-    "ONGC.NS": (234.72, -1.23, -0.52),
-    "COALINDIA.NS": (422.65, 3.4, 0.81),
-    "M&M.NS": (3085.1, 55.6, 1.84),
-    "TMCV.NS": (423.6, -2.8, -0.66),
-    "TMPV.NS": (300.7, -2.9, -0.96),
-    "AXISBANK.NS": (1244.4, 21.5, 1.76),
-    "KOTAKBANK.NS": (416.15, 6.35, 1.55),
-    "ULTRACEMCO.NS": (10708.0, 11.0, 0.1),
-    "ASIANPAINT.NS": (2429.9, 27.1, 1.13),
-    "BAJAJ-AUTO.NS": (11575.0, 151.0, 1.32),
-    "TRENT.NS": (2771.6, 41.6, 1.52),
-    "JIOFIN.NS": (225.24, -0.36, -0.16),
-    "ETERNAL.NS": (317.65, 2.4, 0.76),
-    "HAL.NS": (4686.0, -9.0, -0.19),
-    "BEL.NS": (388.5, 5.6, 1.46),
-    "MAZDOCK.NS": (2209.6, -26.4, -1.18),
-    "COCHINSHIP.NS": (1311.5, -13.5, -1.02),
-    "GRSE.NS": (2308.7, -50.1, -2.12),
-    "BDL.NS": (1132.2, -2.8, -0.25),
-    "IRFC.NS": (78.87, -0.28, -0.35),
-    "IRCTC.NS": (452.75, -4.45, -0.97),
-    "RVNL.NS": (196.85, -2.15, -1.08),
-    "RAILTEL.NS": (252.6, 0.6, 0.24),
-    "BHEL.NS": (413.0, 0.15, 0.04),
-    "TATAPOWER.NS": (361.8, -1.2, -0.33),
-    "SUZLON.NS": (42.09, -0.81, -1.89),
-    "IREDA.NS": (108.26, -0.74, -0.68),
-    "ADANIGREEN.NS": (1267.4, 12.4, 0.99),
-    "ADANIPOWER.NS": (203.11, 1.11, 0.55),
-    "NHPC.NS": (75.39, -0.65, -0.85),
-    "RECLTD.NS": (314.45, 5.95, 1.93),
-    "PFC.NS": (348.2, 4.2, 1.22),
-    "FEDERALBNK.NS": (340.8, -2.2, -0.64),
-    "BANKBARODA.NS": (233.58, 0.88, 0.38),
-    "PNB.NS": (116.52, 1.82, 1.59),
-    "CANBK.NS": (122.71, 0.34, 0.28),
-    "IDFCFIRSTB.NS": (85.6, 0.8, 0.94),
-    "YESBANK.NS": (23.41, 0.34, 1.47),
-    "CDSL.NS": (1296.7, -14.3, -1.09),
-    "BSE.NS": (3230.1, -79.9, -2.41),
-    "NSE.BO": (1762.7, 18.5, 1.06),
-    "NSE.NS": (1762.7, 18.5, 1.06),
-    "NSE": (1762.7, 18.5, 1.06),
-    "ZOMATO.NS": (268.4, 3.2, 1.21),
-    "SWIGGY.NS": (462.1, -4.3, -0.92),
-    "EICHERMOT.NS": (7510.0, 57.5, 0.77),
-    "TVSMOTOR.NS": (4043.3, -6.7, -0.17),
-    "ASHOKLEY.NS": (157.25, 0.6, 0.38),
-    "TATATECH.NS": (750.95, -7.55, -1.0),
-    "TATAELXSI.NS": (3367.3, -72.7, -2.11),
-    "PAYTM.NS": (1789.8, 59.8, 3.46),
-    "VEDL.NS": (255.85, -1.15, -0.45),
-    "JSWSTEEL.NS": (1247.7, 18.5, 1.51),
-    "HINDALCO.NS": (972.5, 13.8, 1.44),
-    "CIPLA.NS": (1360.1, 9.1, 0.67),
-    "DRREDDY.NS": (1146.8, 1.8, 0.16),
-    "APOLLOHOSP.NS": (8677.5, -36.5, -0.42),
+    "RELIANCE.NS": (1185.9, 3.9, 0.33),
+    "TCS.NS": (2054.8, 22.4, 1.1),
+    "HDFCBANK.NS": (713.4, -9.3, -1.29),
+    "INFY.NS": (993.6, -21.8, -2.15),
+    "ICICIBANK.NS": (1324.0, 31.8, 2.46),
+    "SBIN.NS": (963.5, -1.2, -0.12),
+    "BHARTIARTL.NS": (1756.9, -14.3, -0.81),
+    "ITC.NS": (262.7, -2.4, -0.91),
+    "LT.NS": (3752.6, 3.5, 0.09),
+    "BAJFINANCE.NS": (957.7, -16.1, -1.65),
+    "HINDUNILVR.NS": (1866.5, 2.7, 0.14),
+    "MARUTI.NS": (11892.0, 15.0, 0.13),
+    "SUNPHARMA.NS": (1834.4, -30.6, -1.64),
+    "TITAN.NS": (4615.0, -60.0, -1.28),
+    "TATASTEEL.NS": (187.01, -0.99, -0.53),
+    "ADANIENT.NS": (2883.5, -89.4, -3.01),
+    "ADANIPORTS.NS": (1790.2, -31.8, -1.75),
+    "WIPRO.NS": (158.55, 1.76, 1.12),
+    "POWERGRID.NS": (258.7, -2.8, -1.07),
+    "NTPC.NS": (319.85, -3.65, -1.13),
+    "ONGC.NS": (224.71, -5.29, -2.3),
+    "COALINDIA.NS": (425.1, 0.1, 0.02),
+    "M&M.NS": (2947.7, -0.1, -0.0),
+    "TMCV.NS": (423.15, -7.0, -1.63),
+    "TMPV.NS": (283.4, 2.45, 0.87),
+    "AXISBANK.NS": (1226.5, 14.4, 1.19),
+    "KOTAKBANK.NS": (415.5, 9.5, 2.34),
+    "ULTRACEMCO.NS": (10887.0, 58.0, 0.54),
+    "ASIANPAINT.NS": (2393.5, -21.5, -0.89),
+    "BAJAJ-AUTO.NS": (10899.0, 88.0, 0.81),
+    "TRENT.NS": (2626.0, -9.0, -0.34),
+    "JIOFIN.NS": (216.03, -1.53, -0.7),
+    "ETERNAL.NS": (317.7, -10.15, -3.1),
+    "HAL.NS": (4664.0, 114.7, 2.52),
+    "BEL.NS": (387.3, -0.45, -0.12),
+    "MAZDOCK.NS": (2112.4, 25.3, 1.21),
+    "COCHINSHIP.NS": (1321.9, -37.4, -2.75),
+    "GRSE.NS": (2193.0, -9.0, -0.41),
+    "BDL.NS": (1111.7, 26.6, 2.45),
+    "IRFC.NS": (79.76, -0.5, -0.62),
+    "IRCTC.NS": (458.5, 5.5, 1.21),
+    "RVNL.NS": (203.19, 5.29, 2.67),
+    "RAILTEL.NS": (269.35, 10.1, 3.9),
+    "BHEL.NS": (412.4, -0.95, -0.23),
+    "TATAPOWER.NS": (358.1, -0.9, -0.25),
+    "SUZLON.NS": (39.3, -0.2, -0.51),
+    "IREDA.NS": (111.87, 0.87, 0.78),
+    "ADANIGREEN.NS": (1270.3, 10.3, 0.82),
+    "ADANIPOWER.NS": (201.79, 5.49, 2.8),
+    "NHPC.NS": (73.09, -0.23, -0.31),
+    "RECLTD.NS": (300.0, 7.55, 2.58),
+    "PFC.NS": (327.65, 3.55, 1.1),
+    "FEDERALBNK.NS": (318.45, -1.75, -0.55),
+    "BANKBARODA.NS": (231.75, 4.07, 1.79),
+    "PNB.NS": (113.83, 2.08, 1.86),
+    "CANBK.NS": (120.25, 0.74, 0.62),
+    "IDFCFIRSTB.NS": (81.31, 1.85, 2.33),
+    "YESBANK.NS": (20.95, 0.24, 1.16),
+    "CDSL.NS": (1268.9, 7.0, 0.55),
+    "BSE.NS": (3101.8, -98.2, -3.07),
+    "NSE.BO": (1768.65, -1.25, -0.07),
+    "NSE.NS": (1768.65, -1.25, -0.07),
+    "NSE": (1768.65, -1.25, -0.07),
+    "EICHERMOT.NS": (7172.0, -7.0, -0.1),
+    "TVSMOTOR.NS": (4131.9, 40.8, 1.0),
+    "ASHOKLEY.NS": (154.91, 1.47, 0.96),
+    "TATATECH.NS": (707.95, 22.2, 3.24),
+    "TATAELXSI.NS": (3106.0, -105.7, -3.29),
+    "PAYTM.NS": (1672.5, -10.5, -0.62),
+    "SWIGGY.NS": (250.65, -3.05, -1.2),
+    "VEDL.NS": (257.3, -2.7, -1.04),
+    "JSWSTEEL.NS": (1263.7, -8.7, -0.68),
+    "HINDALCO.NS": (950.4, -4.8, -0.5),
+    "CIPLA.NS": (1353.3, -26.0, -1.89),
+    "DRREDDY.NS": (1235.1, -16.8, -1.34),
+    "APOLLOHOSP.NS": (8099.5, -559.5, -6.46),
 }
 
 _BASE_ETF_PRICES = {
-    "GOLDBEES.NS": (126.48, 0.82, 0.65),
-    "SILVERBEES.NS": (224.07, 1.45, 0.65),
-    "HDFCGOLD.NS": (125.80, 0.75, 0.60),
-    "SETFGOLD.NS": (130.52, 0.85, 0.66),
-    "HDFCSILVER.NS": (223.50, 1.30, 0.59),
-    "NIFTYBEES.NS": (266.53, 1.20, 0.45),
-    "BANKBEES.NS": (583.58, -2.10, -0.36),
-    "JUNIORBEES.NS": (748.20, 4.30, 0.58),
-    "MID150BEES.NS": (23.45, 0.15, 0.64),
-    "ITBEES.NS": (31.94, 0.22, 0.69),
-    "PHARMABEES.NS": (24.10, 0.12, 0.50),
-    "AUTOBEES.NS": (26.85, 0.18, 0.67),
-    "CPSEETF.NS": (98.40, 0.95, 0.98),
-    "MON100.NS": (330.33, 2.45, 0.75),
-    "MAFANG.NS": (112.50, 0.90, 0.81),
+    "GOLDBEES.NS": (121.68, 0.87, 0.72),
+    "SILVERBEES.NS": (210.02, 0.87, 0.42),
+    "HDFCGOLD.NS": (125.73, 0.83, 0.66),
+    "SETFGOLD.NS": (125.54, 0.95, 0.76),
+    "HDFCSILVER.NS": (210.03, 1.01, 0.48),
+    "NIFTYBEES.NS": (258.4, -1.64, -0.63),
+    "BANKBEES.NS": (567.0, 2.58, 0.46),
+    "JUNIORBEES.NS": (755.4, -6.26, -0.82),
+    "MID150BEES.NS": (227.0, -0.5, -0.22),
+    "ITBEES.NS": (30.84, 0.0, 0.0),
+    "PHARMABEES.NS": (27.37, -0.42, -1.51),
+    "AUTOBEES.NS": (272.38, -0.34, -0.12),
+    "CPSEETF.NS": (90.55, -0.81, -0.89),
+    "MON100.NS": (321.6, 1.96, 0.61),
+    "MAFANG.NS": (240.55, 2.41, 1.01),
 }
 
 def _get_default_etf_quote(symbol: str, name: str = "", sector: str = "Commodity / Index", category: str = "Index") -> Dict[str, Any]:
@@ -1062,89 +1061,86 @@ def get_explore_data() -> Dict[str, Any]:
         if c_quote and c_quote.get("price"):
             stock_dict[sym] = c_quote
 
-    # 2. Concurrently fetch any missing stock quotes using fast_info batching
+    # 2. Concurrently fetch any missing stock quotes using ThreadPool with streaming completion
     missing_syms = [s for s in all_symbols if s not in stock_dict]
     if missing_syms:
         try:
-            def _fetch_missing_fast(sym_list):
-                res = {}
+            def _fetch_single_sym_fast(sym: str) -> Optional[Dict[str, Any]]:
                 try:
-                    tickers = yf.Tickers(" ".join(sym_list))
-                    for sym in sym_list:
-                        try:
-                            t = tickers.tickers.get(sym)
-                            if not t:
-                                continue
-                            fast = t.fast_info
-                            price = getattr(fast, "last_price", None)
-                            prev_close = getattr(fast, "previous_close", None)
-                            if price and price > 0:
-                                price = round(float(price), 2)
-                                prev_close = round(float(prev_close or price), 2)
-                                change = round(price - prev_close, 2)
-                                change_pct = round((change / prev_close) * 100, 2) if prev_close else 0.0
-                                matched = next((s for s in combined_master if s["symbol"] == sym), None)
-                                n = matched["name"] if matched else sym.replace(".NS", "")
-                                sec = matched.get("sector", "NSE Equities") if matched else "NSE Equities"
-                                clean_sym = sym.replace(".NS", "").replace(".BO", "").upper()
-                                local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_sym}.png")
-                                logo_url = f"/static/logos/{clean_sym}.png" if os.path.exists(local_logo) else f"https://images.financialmodelingprep.com/symbol/{clean_sym}.NS.png"
-                                bm = _BENCHMARK_FUNDAMENTALS.get(sym) or {}
-                                is_new = bool(matched and matched.get("is_new_listing"))
-                                list_date = matched.get("listing_date") if matched else None
-                                q_data = {
-                                    "symbol": sym,
-                                    "name": n,
-                                    "asset_type": "STOCK",
-                                    "price": price,
-                                    "change": change,
-                                    "change_pct": change_pct,
-                                    "previous_close": prev_close,
-                                    "prev_close": prev_close,
-                                    "open": round(float(getattr(fast, "open", None) or prev_close), 2),
-                                    "day_high": round(float(getattr(fast, "day_high", None) or (price * 1.015)), 2),
-                                    "day_low": round(float(getattr(fast, "day_low", None) or (price * 0.985)), 2),
-                                    "fifty_two_week_high": round(float(getattr(fast, "year_high", None) or (price * 1.25)), 2),
-                                    "fifty_two_week_low": round(float(getattr(fast, "year_low", None) or (price * 0.80)), 2),
-                                    "market_cap": int(getattr(fast, "market_cap", None) or bm.get("market_cap") or 500000000000),
-                                    "pe_ratio": bm.get("pe_ratio", 22.5),
-                                    "pb_ratio": bm.get("pb_ratio", 3.0),
-                                    "dividend_yield": bm.get("dividend_yield", 1.2),
-                                    "div_yield": bm.get("dividend_yield", 1.2),
-                                    "eps": bm.get("eps"),
-                                    "roe": bm.get("roe"),
-                                    "debt_to_equity": bm.get("debt_to_equity"),
-                                    "industry_pe": bm.get("industry_pe") or _SECTOR_INDUSTRY_PES.get(sec, 24.5),
-                                    "volume": int(getattr(fast, "last_volume", None) or 1000000),
-                                    "sector": sec,
-                                    "logo_url": logo_url,
-                                    "is_new_listing": is_new,
-                                    "listing_date": list_date
-                                }
-                                res[sym] = q_data
-                                existing = get_cached(f"quote_{sym}")
-                                if not existing or not existing.get("eps"):
-                                    set_cached(f"quote_{sym}", q_data, ttl=get_quote_ttl())
-                                else:
-                                    existing["price"] = price
-                                    existing["change"] = change
-                                    existing["change_pct"] = change_pct
-                                    existing["open"] = q_data["open"]
-                                    existing["day_high"] = q_data["day_high"]
-                                    existing["day_low"] = q_data["day_low"]
-                                    existing["is_new_listing"] = is_new
-                                    existing["listing_date"] = list_date
-                                    set_cached(f"quote_{sym}", existing, ttl=get_quote_ttl())
-                        except Exception:
-                            pass
+                    t = yf.Ticker(sym)
+                    fast = t.fast_info
+                    price = getattr(fast, "last_price", None)
+                    prev_close = getattr(fast, "previous_close", None)
+                    if price and price > 0:
+                        price = round(float(price), 2)
+                        prev_close = round(float(prev_close or price), 2)
+                        change = round(price - prev_close, 2)
+                        change_pct = round((change / prev_close) * 100, 2) if prev_close else 0.0
+                        matched = next((s for s in combined_master if s["symbol"] == sym), None)
+                        n = matched["name"] if matched else sym.replace(".NS", "")
+                        sec = matched.get("sector", "NSE Equities") if matched else "NSE Equities"
+                        clean_sym = sym.replace(".NS", "").replace(".BO", "").upper()
+                        local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_sym}.png")
+                        logo_url = f"/static/logos/{clean_sym}.png" if os.path.exists(local_logo) else f"https://images.financialmodelingprep.com/symbol/{clean_sym}.NS.png"
+                        bm = _BENCHMARK_FUNDAMENTALS.get(sym) or {}
+                        is_new = bool(matched and matched.get("is_new_listing"))
+                        list_date = matched.get("listing_date") if matched else None
+                        return {
+                            "symbol": sym,
+                            "name": n,
+                            "asset_type": "STOCK",
+                            "price": price,
+                            "change": change,
+                            "change_pct": change_pct,
+                            "previous_close": prev_close,
+                            "prev_close": prev_close,
+                            "open": round(float(getattr(fast, "open", None) or prev_close), 2),
+                            "day_high": round(float(getattr(fast, "day_high", None) or (price * 1.015)), 2),
+                            "day_low": round(float(getattr(fast, "day_low", None) or (price * 0.985)), 2),
+                            "fifty_two_week_high": round(float(getattr(fast, "year_high", None) or (price * 1.25)), 2),
+                            "fifty_two_week_low": round(float(getattr(fast, "year_low", None) or (price * 0.80)), 2),
+                            "market_cap": int(getattr(fast, "market_cap", None) or bm.get("market_cap") or 500000000000),
+                            "pe_ratio": bm.get("pe_ratio", 22.5),
+                            "pb_ratio": bm.get("pb_ratio", 3.0),
+                            "dividend_yield": bm.get("dividend_yield", 1.2),
+                            "div_yield": bm.get("dividend_yield", 1.2),
+                            "eps": bm.get("eps"),
+                            "roe": bm.get("roe"),
+                            "debt_to_equity": bm.get("debt_to_equity"),
+                            "industry_pe": bm.get("industry_pe") or _SECTOR_INDUSTRY_PES.get(sec, 24.5),
+                            "volume": int(getattr(fast, "last_volume", None) or 1000000),
+                            "sector": sec,
+                            "logo_url": logo_url,
+                            "is_new_listing": is_new,
+                            "listing_date": list_date
+                        }
                 except Exception:
                     pass
-                return res
+                return None
 
-            fut = _POOL.submit(_fetch_missing_fast, missing_syms)
-            fresh_quotes = fut.result(timeout=6.0)
-            if fresh_quotes:
-                stock_dict.update(fresh_quotes)
+            future_map = {_POOL.submit(_fetch_single_sym_fast, sym): sym for sym in missing_syms}
+            done, _ = concurrent.futures.wait(future_map.keys(), timeout=9.0)
+            for fut in done:
+                try:
+                    q_data = fut.result()
+                    if q_data and q_data.get("price"):
+                        sym = q_data["symbol"]
+                        stock_dict[sym] = q_data
+                        existing = get_cached(f"quote_{sym}")
+                        if not existing or not existing.get("eps"):
+                            set_cached(f"quote_{sym}", q_data, ttl=get_quote_ttl())
+                        else:
+                            existing["price"] = q_data["price"]
+                            existing["change"] = q_data["change"]
+                            existing["change_pct"] = q_data["change_pct"]
+                            existing["open"] = q_data["open"]
+                            existing["day_high"] = q_data["day_high"]
+                            existing["day_low"] = q_data["day_low"]
+                            existing["is_new_listing"] = q_data["is_new_listing"]
+                            existing["listing_date"] = q_data["listing_date"]
+                            set_cached(f"quote_{sym}", existing, ttl=get_quote_ttl())
+                except Exception:
+                    pass
         except Exception:
             pass
 
@@ -1202,65 +1198,62 @@ def get_explore_data() -> Dict[str, Any]:
         if c_quote and c_quote.get("price"):
             etf_dict[sym] = c_quote
 
-    # 2. Concurrently fetch any missing ETF quotes
+    # 2. Concurrently fetch any missing ETF quotes using ThreadPool with streaming completion
     missing_etf_syms = [s for s in all_etf_symbols if s not in etf_dict]
     if missing_etf_syms:
         try:
-            def _fetch_missing_etfs(sym_list):
-                res = {}
+            def _fetch_single_etf_fast(sym: str) -> Optional[Dict[str, Any]]:
                 try:
-                    tickers = yf.Tickers(" ".join(sym_list))
-                    for sym in sym_list:
-                        try:
-                            t = tickers.tickers.get(sym)
-                            if not t:
-                                continue
-                            fast = t.fast_info
-                            price = getattr(fast, "last_price", None)
-                            prev_close = getattr(fast, "previous_close", None)
-                            if price and price > 0:
-                                price = round(float(price), 2)
-                                prev_close = round(float(prev_close or price), 2)
-                                change = round(price - prev_close, 2)
-                                change_pct = round((change / prev_close) * 100, 2) if prev_close else 0.0
-                                matched = next((m for m in ETF_MASTER if m["symbol"] == sym), None)
-                                n = matched["name"] if matched else sym.replace(".NS", "")
-                                sec = matched.get("sector", "Exchange Traded Fund") if matched else "Exchange Traded Fund"
-                                cat = matched.get("category", "Index") if matched else "Index"
-                                clean_sym = sym.replace(".NS", "").replace(".BO", "").upper()
-                                local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_sym}.png")
-                                logo_url = f"/static/logos/{clean_sym}.png" if os.path.exists(local_logo) else f"https://images.financialmodelingprep.com/symbol/{clean_sym}.NS.png"
-                                q_data = {
-                                    "symbol": sym,
-                                    "name": n,
-                                    "asset_type": "ETF",
-                                    "category": cat,
-                                    "price": price,
-                                    "change": change,
-                                    "change_pct": change_pct,
-                                    "previous_close": prev_close,
-                                    "prev_close": prev_close,
-                                    "open": round(float(getattr(fast, "open", None) or prev_close), 2),
-                                    "day_high": round(float(getattr(fast, "day_high", None) or (price * 1.015)), 2),
-                                    "day_low": round(float(getattr(fast, "day_low", None) or (price * 0.985)), 2),
-                                    "fifty_two_week_high": round(float(getattr(fast, "year_high", None) or (price * 1.25)), 2),
-                                    "fifty_two_week_low": round(float(getattr(fast, "year_low", None) or (price * 0.80)), 2),
-                                    "volume": int(getattr(fast, "last_volume", None) or 500000),
-                                    "sector": sec,
-                                    "logo_url": logo_url
-                                }
-                                res[sym] = q_data
-                                set_cached(f"quote_{sym}", q_data, ttl=get_quote_ttl())
-                        except Exception:
-                            pass
+                    t = yf.Ticker(sym)
+                    fast = t.fast_info
+                    price = getattr(fast, "last_price", None)
+                    prev_close = getattr(fast, "previous_close", None)
+                    if price and price > 0:
+                        price = round(float(price), 2)
+                        prev_close = round(float(prev_close or price), 2)
+                        change = round(price - prev_close, 2)
+                        change_pct = round((change / prev_close) * 100, 2) if prev_close else 0.0
+                        matched = next((m for m in ETF_MASTER if m["symbol"] == sym), None)
+                        n = matched["name"] if matched else sym.replace(".NS", "")
+                        sec = matched.get("sector", "Exchange Traded Fund") if matched else "Exchange Traded Fund"
+                        cat = matched.get("category", "Index") if matched else "Index"
+                        clean_sym = sym.replace(".NS", "").replace(".BO", "").upper()
+                        local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_sym}.png")
+                        logo_url = f"/static/logos/{clean_sym}.png" if os.path.exists(local_logo) else f"https://images.financialmodelingprep.com/symbol/{clean_sym}.NS.png"
+                        return {
+                            "symbol": sym,
+                            "name": n,
+                            "asset_type": "ETF",
+                            "category": cat,
+                            "price": price,
+                            "change": change,
+                            "change_pct": change_pct,
+                            "previous_close": prev_close,
+                            "prev_close": prev_close,
+                            "open": round(float(getattr(fast, "open", None) or prev_close), 2),
+                            "day_high": round(float(getattr(fast, "day_high", None) or (price * 1.015)), 2),
+                            "day_low": round(float(getattr(fast, "day_low", None) or (price * 0.985)), 2),
+                            "fifty_two_week_high": round(float(getattr(fast, "year_high", None) or (price * 1.25)), 2),
+                            "fifty_two_week_low": round(float(getattr(fast, "year_low", None) or (price * 0.80)), 2),
+                            "volume": int(getattr(fast, "last_volume", None) or 500000),
+                            "sector": sec,
+                            "logo_url": logo_url
+                        }
                 except Exception:
                     pass
-                return res
+                return None
 
-            fut = _POOL.submit(_fetch_missing_etfs, missing_etf_syms)
-            fresh_etfs = fut.result(timeout=2.0)
-            if fresh_etfs:
-                etf_dict.update(fresh_etfs)
+            future_etf_map = {_POOL.submit(_fetch_single_etf_fast, sym): sym for sym in missing_etf_syms}
+            done_etfs, _ = concurrent.futures.wait(future_etf_map.keys(), timeout=6.0)
+            for fut in done_etfs:
+                try:
+                    q_data = fut.result()
+                    if q_data and q_data.get("price"):
+                        sym = q_data["symbol"]
+                        etf_dict[sym] = q_data
+                        set_cached(f"quote_{sym}", q_data, ttl=get_quote_ttl())
+                except Exception:
+                    pass
         except Exception:
             pass
 

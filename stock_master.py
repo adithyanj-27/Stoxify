@@ -82,7 +82,6 @@ STOCK_MASTER = [
     {"symbol": "TATATECH.NS", "name": "Tata Technologies Ltd", "sector": "IT", "aliases": ["tata tech", "tata technologies"]},
     {"symbol": "TATAELXSI.NS", "name": "Tata Elxsi Ltd", "sector": "IT", "aliases": ["tata elxsi", "design"]},
     {"symbol": "PAYTM.NS", "name": "One97 Communications (Paytm)", "sector": "IT", "aliases": ["paytm", "one97", "upi"]},
-    {"symbol": "ZOMATO.NS", "name": "Zomato Ltd", "sector": "Consumer", "aliases": ["zomato", "blinkit"]},
     {"symbol": "SWIGGY.NS", "name": "Swiggy Ltd", "sector": "Consumer", "aliases": ["swiggy", "instamart"]},
 
     # --- Metals & Commodities ---

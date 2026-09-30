@@ -120,6 +120,8 @@ def startup():
         t.start()
         t_sync = threading.Thread(target=market_service.run_daily_market_sync_worker, daemon=True, name="stoxify-daily-market-sync")
         t_sync.start()
+        t_explore = threading.Thread(target=market_service.get_explore_data, daemon=True, name="stoxify-warm-explore")
+        t_explore.start()
     except Exception:
         pass
 
