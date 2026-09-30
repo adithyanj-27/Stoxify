@@ -66,7 +66,7 @@ def get_quote_ttl() -> int:
     except Exception:
         return 60
 
-_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=16)
+_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=32)
 
 # --- Dynamic Newly Listed Stocks & Catalog Synchronization ---
 _NEW_LISTINGS_FILE = os.path.join(BASE_DIR, "data", "newly_listed_stocks.json")
@@ -1045,236 +1045,214 @@ def _get_default_stock_quote(symbol: str, name: str = "", sector: str = "NSE Equ
     }
 
 def get_explore_data() -> Dict[str, Any]:
-    cached = get_cached("explore_data_v5")
+    cached = get_cached("explore_data_v6")
     if cached and cached.get("all_stocks") and cached.get("etfs"):
         return cached
 
     combined_master = get_combined_stock_master()
     dynamic_items = load_new_listings()
     all_symbols = [s["symbol"] for s in combined_master]
-    stock_dict = {}
+    all_etf_symbols = [e["symbol"] for e in ETF_MASTER]
+    mf_master = MUTUAL_FUND_MASTER
 
-    # 1. Check which symbols are already warm in single-quote cache
+    stock_dict = {}
+    mf_dict = {}
+    etf_dict = {}
+
+    # 1. Warm cache checks
     for s in combined_master:
         sym = s["symbol"]
         c_quote = get_cached(f"quote_{sym}")
         if c_quote and c_quote.get("price"):
             stock_dict[sym] = c_quote
 
-    # 2. Concurrently fetch any missing stock quotes using ThreadPool with streaming completion
-    missing_syms = [s for s in all_symbols if s not in stock_dict]
-    if missing_syms:
-        try:
-            def _fetch_single_sym_fast(sym: str) -> Optional[Dict[str, Any]]:
-                try:
-                    t = yf.Ticker(sym)
-                    fast = t.fast_info
-                    price = getattr(fast, "last_price", None)
-                    prev_close = getattr(fast, "previous_close", None)
-                    if price and price > 0:
-                        price = round(float(price), 2)
-                        prev_close = round(float(prev_close or price), 2)
-                        change = round(price - prev_close, 2)
-                        change_pct = round((change / prev_close) * 100, 2) if prev_close else 0.0
-                        matched = next((s for s in combined_master if s["symbol"] == sym), None)
-                        n = matched["name"] if matched else sym.replace(".NS", "")
-                        sec = matched.get("sector", "NSE Equities") if matched else "NSE Equities"
-                        clean_sym = sym.replace(".NS", "").replace(".BO", "").upper()
-                        local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_sym}.png")
-                        logo_url = f"/static/logos/{clean_sym}.png" if os.path.exists(local_logo) else f"https://images.financialmodelingprep.com/symbol/{clean_sym}.NS.png"
-                        bm = _BENCHMARK_FUNDAMENTALS.get(sym) or {}
-                        is_new = bool(matched and matched.get("is_new_listing"))
-                        list_date = matched.get("listing_date") if matched else None
-                        return {
-                            "symbol": sym,
-                            "name": n,
-                            "asset_type": "STOCK",
-                            "price": price,
-                            "change": change,
-                            "change_pct": change_pct,
-                            "previous_close": prev_close,
-                            "prev_close": prev_close,
-                            "open": round(float(getattr(fast, "open", None) or prev_close), 2),
-                            "day_high": round(float(getattr(fast, "day_high", None) or (price * 1.015)), 2),
-                            "day_low": round(float(getattr(fast, "day_low", None) or (price * 0.985)), 2),
-                            "fifty_two_week_high": round(float(getattr(fast, "year_high", None) or (price * 1.25)), 2),
-                            "fifty_two_week_low": round(float(getattr(fast, "year_low", None) or (price * 0.80)), 2),
-                            "market_cap": int(getattr(fast, "market_cap", None) or bm.get("market_cap") or 500000000000),
-                            "pe_ratio": bm.get("pe_ratio", 22.5),
-                            "pb_ratio": bm.get("pb_ratio", 3.0),
-                            "dividend_yield": bm.get("dividend_yield", 1.2),
-                            "div_yield": bm.get("dividend_yield", 1.2),
-                            "eps": bm.get("eps"),
-                            "roe": bm.get("roe"),
-                            "debt_to_equity": bm.get("debt_to_equity"),
-                            "industry_pe": bm.get("industry_pe") or _SECTOR_INDUSTRY_PES.get(sec, 24.5),
-                            "volume": int(getattr(fast, "last_volume", None) or 1000000),
-                            "sector": sec,
-                            "logo_url": logo_url,
-                            "is_new_listing": is_new,
-                            "listing_date": list_date
-                        }
-                except Exception:
-                    pass
-                return None
-
-            future_map = {_POOL.submit(_fetch_single_sym_fast, sym): sym for sym in missing_syms}
-            done, _ = concurrent.futures.wait(future_map.keys(), timeout=9.0)
-            for fut in done:
-                try:
-                    q_data = fut.result()
-                    if q_data and q_data.get("price"):
-                        sym = q_data["symbol"]
-                        stock_dict[sym] = q_data
-                        existing = get_cached(f"quote_{sym}")
-                        if not existing or not existing.get("eps"):
-                            set_cached(f"quote_{sym}", q_data, ttl=get_quote_ttl())
-                        else:
-                            existing["price"] = q_data["price"]
-                            existing["change"] = q_data["change"]
-                            existing["change_pct"] = q_data["change_pct"]
-                            existing["open"] = q_data["open"]
-                            existing["day_high"] = q_data["day_high"]
-                            existing["day_low"] = q_data["day_low"]
-                            existing["is_new_listing"] = q_data["is_new_listing"]
-                            existing["listing_date"] = q_data["listing_date"]
-                            set_cached(f"quote_{sym}", existing, ttl=get_quote_ttl())
-                except Exception:
-                    pass
-        except Exception:
-            pass
-
-    # 3. Fill any remaining with instant, realistic baseline quotes
-    for s in combined_master:
-        sym = s["symbol"]
-        if sym not in stock_dict or not stock_dict[sym].get("price"):
-            stock_dict[sym] = _get_default_stock_quote(sym, s["name"], s["sector"])
-
-    # 4. Preserve catalog order and separate recent listings
-    all_stocks = [stock_dict[s["symbol"]] for s in combined_master if s["symbol"] in stock_dict]
-    recent_listings = [stock_dict[s["symbol"]] for s in dynamic_items if s["symbol"] in stock_dict]
-
-    # Mutual funds — real AMFI NAVs via mfapi.in. No synthetic prices: a fund we
-    # cannot fetch is reported as unavailable rather than shown with invented figures.
-    mf_dict = {}
-    mf_master = MUTUAL_FUND_MASTER
     for mf in mf_master:
-        # 'mf_{code}' is the key get_mutual_fund_quote() writes; the old 'mf_quote_'
-        # key never matched, so this warm-up never actually hit.
         cached_mf = get_cached(f"mf_{mf['code']}")
-        if cached_mf:
-            mf_dict[str(mf['code'])] = cached_mf
+        if cached_mf and cached_mf.get("price"):
+            mf_dict[str(mf["code"])] = cached_mf
 
-    missing_mfs = [mf["code"] for mf in mf_master if str(mf["code"]) not in mf_dict]
-    if missing_mfs:
-        try:
-            mf_futures = {_MF_POOL.submit(get_mutual_fund_quote, code): code for code in missing_mfs}
-            done_mf, _ = concurrent.futures.wait(mf_futures.keys(), timeout=8.0)
-            for f in done_mf:
-                try:
-                    mq = f.result()
-                    if mq and mq.get("price"):
-                        mf_dict[str(mq["symbol"])] = mq
-                except Exception:
-                    pass
-        except Exception:
-            pass
-
-    for mf in mf_master:
-        code_str = str(mf["code"])
-        if code_str not in mf_dict or not mf_dict[code_str].get("price"):
-            mf_dict[code_str] = _get_default_mf_quote(code_str)
-
-    all_mfs = list(mf_dict.values())
-
-    # ETFs & Commodities (Gold, Silver, Index, Sectoral, Global)
-    etf_dict = {}
-    all_etf_symbols = [e["symbol"] for e in ETF_MASTER]
-
-    # 1. Warm check
     for e in ETF_MASTER:
         sym = e["symbol"]
         c_quote = get_cached(f"quote_{sym}")
         if c_quote and c_quote.get("price"):
             etf_dict[sym] = c_quote
 
-    # 2. Concurrently fetch any missing ETF quotes using ThreadPool with streaming completion
+    # 2. Identify missing symbols
+    missing_syms = [s for s in all_symbols if s not in stock_dict]
+    missing_mfs = [mf["code"] for mf in mf_master if str(mf["code"]) not in mf_dict]
     missing_etf_syms = [s for s in all_etf_symbols if s not in etf_dict]
-    if missing_etf_syms:
-        try:
-            def _fetch_single_etf_fast(sym: str) -> Optional[Dict[str, Any]]:
-                try:
-                    t = yf.Ticker(sym)
-                    fast = t.fast_info
-                    price = getattr(fast, "last_price", None)
-                    prev_close = getattr(fast, "previous_close", None)
-                    if price and price > 0:
-                        price = round(float(price), 2)
-                        prev_close = round(float(prev_close or price), 2)
-                        change = round(price - prev_close, 2)
-                        change_pct = round((change / prev_close) * 100, 2) if prev_close else 0.0
-                        matched = next((m for m in ETF_MASTER if m["symbol"] == sym), None)
-                        n = matched["name"] if matched else sym.replace(".NS", "")
-                        sec = matched.get("sector", "Exchange Traded Fund") if matched else "Exchange Traded Fund"
-                        cat = matched.get("category", "Index") if matched else "Index"
-                        clean_sym = sym.replace(".NS", "").replace(".BO", "").upper()
-                        local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_sym}.png")
-                        logo_url = f"/static/logos/{clean_sym}.png" if os.path.exists(local_logo) else f"https://images.financialmodelingprep.com/symbol/{clean_sym}.NS.png"
-                        return {
-                            "symbol": sym,
-                            "name": n,
-                            "asset_type": "ETF",
-                            "category": cat,
-                            "price": price,
-                            "change": change,
-                            "change_pct": change_pct,
-                            "previous_close": prev_close,
-                            "prev_close": prev_close,
-                            "open": round(float(getattr(fast, "open", None) or prev_close), 2),
-                            "day_high": round(float(getattr(fast, "day_high", None) or (price * 1.015)), 2),
-                            "day_low": round(float(getattr(fast, "day_low", None) or (price * 0.985)), 2),
-                            "fifty_two_week_high": round(float(getattr(fast, "year_high", None) or (price * 1.25)), 2),
-                            "fifty_two_week_low": round(float(getattr(fast, "year_low", None) or (price * 0.80)), 2),
-                            "volume": int(getattr(fast, "last_volume", None) or 500000),
-                            "sector": sec,
-                            "logo_url": logo_url
-                        }
-                except Exception:
-                    pass
-                return None
 
-            future_etf_map = {_POOL.submit(_fetch_single_etf_fast, sym): sym for sym in missing_etf_syms}
-            done_etfs, _ = concurrent.futures.wait(future_etf_map.keys(), timeout=6.0)
-            for fut in done_etfs:
+    def _fetch_single_sym_fast(sym: str) -> Optional[Dict[str, Any]]:
+        try:
+            t = yf.Ticker(sym)
+            fast = t.fast_info
+            price = getattr(fast, "last_price", None)
+            prev_close = getattr(fast, "previous_close", None)
+            if price and price > 0:
+                price = round(float(price), 2)
+                prev_close = round(float(prev_close or price), 2)
+                change = round(price - prev_close, 2)
+                change_pct = round((change / prev_close) * 100, 2) if prev_close else 0.0
+                matched = next((s for s in combined_master if s["symbol"] == sym), None)
+                n = matched["name"] if matched else sym.replace(".NS", "")
+                sec = matched.get("sector", "NSE Equities") if matched else "NSE Equities"
+                clean_sym = sym.replace(".NS", "").replace(".BO", "").upper()
+                local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_sym}.png")
+                logo_url = f"/static/logos/{clean_sym}.png" if os.path.exists(local_logo) else f"https://images.financialmodelingprep.com/symbol/{clean_sym}.NS.png"
+                bm = _BENCHMARK_FUNDAMENTALS.get(sym) or {}
+                is_new = bool(matched and matched.get("is_new_listing"))
+                list_date = matched.get("listing_date") if matched else None
+                return {
+                    "symbol": sym,
+                    "name": n,
+                    "asset_type": "STOCK",
+                    "price": price,
+                    "change": change,
+                    "change_pct": change_pct,
+                    "previous_close": prev_close,
+                    "prev_close": prev_close,
+                    "open": round(float(getattr(fast, "open", None) or prev_close), 2),
+                    "day_high": round(float(getattr(fast, "day_high", None) or (price * 1.015)), 2),
+                    "day_low": round(float(getattr(fast, "day_low", None) or (price * 0.985)), 2),
+                    "fifty_two_week_high": round(float(getattr(fast, "year_high", None) or (price * 1.25)), 2),
+                    "fifty_two_week_low": round(float(getattr(fast, "year_low", None) or (price * 0.80)), 2),
+                    "market_cap": int(getattr(fast, "market_cap", None) or bm.get("market_cap") or 500000000000),
+                    "pe_ratio": bm.get("pe_ratio", 22.5),
+                    "pb_ratio": bm.get("pb_ratio", 3.0),
+                    "dividend_yield": bm.get("dividend_yield", 1.2),
+                    "div_yield": bm.get("dividend_yield", 1.2),
+                    "eps": bm.get("eps"),
+                    "roe": bm.get("roe"),
+                    "debt_to_equity": bm.get("debt_to_equity"),
+                    "industry_pe": bm.get("industry_pe") or _SECTOR_INDUSTRY_PES.get(sec, 24.5),
+                    "volume": int(getattr(fast, "last_volume", None) or 1000000),
+                    "sector": sec,
+                    "logo_url": logo_url,
+                    "is_new_listing": is_new,
+                    "listing_date": list_date
+                }
+        except Exception:
+            pass
+        return None
+
+    def _fetch_single_etf_fast(sym: str) -> Optional[Dict[str, Any]]:
+        try:
+            t = yf.Ticker(sym)
+            fast = t.fast_info
+            price = getattr(fast, "last_price", None)
+            prev_close = getattr(fast, "previous_close", None)
+            if price and price > 0:
+                price = round(float(price), 2)
+                prev_close = round(float(prev_close or price), 2)
+                change = round(price - prev_close, 2)
+                change_pct = round((change / prev_close) * 100, 2) if prev_close else 0.0
+                matched = next((m for m in ETF_MASTER if m["symbol"] == sym), None)
+                n = matched["name"] if matched else sym.replace(".NS", "")
+                sec = matched.get("sector", "Exchange Traded Fund") if matched else "Exchange Traded Fund"
+                cat = matched.get("category", "Index") if matched else "Index"
+                clean_sym = sym.replace(".NS", "").replace(".BO", "").upper()
+                local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_sym}.png")
+                logo_url = f"/static/logos/{clean_sym}.png" if os.path.exists(local_logo) else f"https://images.financialmodelingprep.com/symbol/{clean_sym}.NS.png"
+                return {
+                    "symbol": sym,
+                    "name": n,
+                    "asset_type": "ETF",
+                    "category": cat,
+                    "price": price,
+                    "change": change,
+                    "change_pct": change_pct,
+                    "previous_close": prev_close,
+                    "prev_close": prev_close,
+                    "open": round(float(getattr(fast, "open", None) or prev_close), 2),
+                    "day_high": round(float(getattr(fast, "day_high", None) or (price * 1.015)), 2),
+                    "day_low": round(float(getattr(fast, "day_low", None) or (price * 0.985)), 2),
+                    "fifty_two_week_high": round(float(getattr(fast, "year_high", None) or (price * 1.25)), 2),
+                    "fifty_two_week_low": round(float(getattr(fast, "year_low", None) or (price * 0.80)), 2),
+                    "volume": int(getattr(fast, "last_volume", None) or 500000),
+                    "sector": sec,
+                    "logo_url": logo_url
+                }
+        except Exception:
+            pass
+        return None
+
+    # 3. Launch ALL missing queries simultaneously across thread pools
+    future_stock_map = {}
+    future_mf_map = {}
+    future_etf_map = {}
+
+    if missing_syms:
+        future_stock_map = {_POOL.submit(_fetch_single_sym_fast, sym): sym for sym in missing_syms}
+    if missing_mfs:
+        future_mf_map = {_MF_POOL.submit(get_mutual_fund_quote, code): code for code in missing_mfs}
+    if missing_etf_syms:
+        future_etf_map = {_POOL.submit(_fetch_single_etf_fast, sym): sym for sym in missing_etf_syms}
+
+    all_futures = list(future_stock_map.keys()) + list(future_mf_map.keys()) + list(future_etf_map.keys())
+
+    if all_futures:
+        try:
+            done, _ = concurrent.futures.wait(all_futures, timeout=3.5)
+            for fut in done:
                 try:
-                    q_data = fut.result()
-                    if q_data and q_data.get("price"):
-                        sym = q_data["symbol"]
-                        etf_dict[sym] = q_data
-                        set_cached(f"quote_{sym}", q_data, ttl=get_quote_ttl())
+                    res = fut.result()
+                    if not res:
+                        continue
+                    if fut in future_stock_map:
+                        sym = res["symbol"]
+                        stock_dict[sym] = res
+                        existing = get_cached(f"quote_{sym}")
+                        if not existing or not existing.get("eps"):
+                            set_cached(f"quote_{sym}", res, ttl=get_quote_ttl())
+                        else:
+                            existing["price"] = res["price"]
+                            existing["change"] = res["change"]
+                            existing["change_pct"] = res["change_pct"]
+                            existing["open"] = res["open"]
+                            existing["day_high"] = res["day_high"]
+                            existing["day_low"] = res["day_low"]
+                            existing["is_new_listing"] = res["is_new_listing"]
+                            existing["listing_date"] = res["listing_date"]
+                            set_cached(f"quote_{sym}", existing, ttl=get_quote_ttl())
+                    elif fut in future_mf_map:
+                        if res.get("price"):
+                            mf_dict[str(res["symbol"])] = res
+                    elif fut in future_etf_map:
+                        if res.get("price"):
+                            sym = res["symbol"]
+                            etf_dict[sym] = res
+                            set_cached(f"quote_{sym}", res, ttl=get_quote_ttl())
                 except Exception:
                     pass
         except Exception:
             pass
 
-    # 3. Fill any remaining with instant baseline quotes
+    # 4. Fill any remaining with instant, realistic baseline quotes
+    for s in combined_master:
+        sym = s["symbol"]
+        if sym not in stock_dict or not stock_dict[sym].get("price"):
+            stock_dict[sym] = _get_default_stock_quote(sym, s["name"], s["sector"])
+
+    for mf in mf_master:
+        code_str = str(mf["code"])
+        if code_str not in mf_dict or not mf_dict[code_str].get("price"):
+            mf_dict[code_str] = _get_default_mf_quote(code_str)
+
     for e in ETF_MASTER:
         sym = e["symbol"]
         if sym not in etf_dict or not etf_dict[sym].get("price"):
             etf_dict[sym] = _get_default_etf_quote(sym, e["name"], e.get("sector", "Exchange Traded Fund"), e.get("category", "Index"))
 
-    # 4. Strictly preserve ETF_MASTER catalog order
+    # 5. Preserve catalog order and separate recent listings
+    all_stocks = [stock_dict[s["symbol"]] for s in combined_master if s["symbol"] in stock_dict]
+    recent_listings = [stock_dict[s["symbol"]] for s in dynamic_items if s["symbol"] in stock_dict]
+    all_mfs = list(mf_dict.values())
     all_etfs = [etf_dict[e["symbol"]] for e in ETF_MASTER if e["symbol"] in etf_dict]
 
     # Rank gainers and losers
     gainers = sorted([s for s in all_stocks if s.get("change", 0) >= 0], key=lambda x: x.get("change_pct", 0), reverse=True)[:8]
     losers = sorted([s for s in all_stocks if s.get("change", 0) < 0], key=lambda x: x.get("change_pct", 0))[:8]
-    # Was `all_stocks[:8]` — literally the first eight entries of the master
-    # list, which has nothing to do with what anyone bought. Rank by traded
-    # volume, the same field gainers/losers already read.
-    most_bought = sorted(
-        all_stocks, key=lambda x: x.get("volume") or 0, reverse=True
-    )[:8]
+    most_bought = sorted(all_stocks, key=lambda x: x.get("volume") or 0, reverse=True)[:8]
 
     result = {
         "most_bought": most_bought,
@@ -1286,8 +1264,9 @@ def get_explore_data() -> Dict[str, Any]:
         "etfs": all_etfs
     }
     explore_ttl = 30 if get_quote_ttl() <= 15 else 120
-    set_cached("explore_data_v5", result, ttl=explore_ttl)
+    set_cached("explore_data_v6", result, ttl=explore_ttl)
     return result
+
 
 def _fetch_groww_chart(symbol: str, timeframe: str) -> Optional[List[Dict[str, Any]]]:
     sym = symbol.strip().upper().replace(".NS", "").replace(".BO", "").replace("^", "")
