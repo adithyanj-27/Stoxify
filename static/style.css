@@ -9513,3 +9513,406 @@ body.viewing-profile .indices-bar {
 .portfolio-chart-wrapper {
   position: relative;
 }
+
+/* ==========================================================================
+   GROWW-STYLE HOLDINGS REDESIGN (MOBILE & DESKTOP)
+   ========================================================================== */
+
+/* 1. Summary Card */
+.groww-holdings-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  padding: 1.25rem 1.25rem 1.15rem 1.25rem;
+  margin-bottom: 0.85rem;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+[data-theme="light"] .groww-holdings-card {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+
+.groww-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.groww-card-header-left {
+  display: flex;
+  flex-direction: column;
+}
+
+.groww-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+
+.groww-holdings-label {
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.groww-caret-icon {
+  color: var(--text-muted);
+  opacity: 0.75;
+}
+
+.groww-card-hero-val {
+  font-size: 1.85rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.groww-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.groww-circle-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-input, rgba(255, 255, 255, 0.04));
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.16s ease;
+  padding: 0;
+  outline: none;
+}
+
+.groww-circle-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+  transform: translateY(-1px);
+}
+
+.groww-circle-btn:active {
+  transform: scale(0.95);
+}
+
+[data-theme="light"] .groww-circle-btn {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #475569;
+}
+
+[data-theme="light"] .groww-circle-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+
+/* Green circled button for Portfolio Analysis */
+.groww-analysis-btn {
+  color: var(--accent-green, #00d09c) !important;
+  border-color: rgba(0, 208, 156, 0.45) !important;
+  background: rgba(0, 208, 156, 0.08) !important;
+}
+
+.groww-analysis-btn:hover {
+  border-color: var(--accent-green, #00d09c) !important;
+  background: rgba(0, 208, 156, 0.18) !important;
+  color: var(--accent-green, #00d09c) !important;
+  box-shadow: 0 0 12px rgba(0, 208, 156, 0.25);
+}
+
+.groww-card-divider {
+  border-top: 1px dashed var(--border-subtle);
+  margin: 1.15rem 0 0.85rem 0;
+}
+
+[data-theme="light"] .groww-card-divider {
+  border-top-color: #e2e8f0;
+}
+
+.groww-metrics-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.groww-metric-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.92rem;
+}
+
+.groww-metric-label {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.groww-metric-value {
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* 2. Holdings Toolbar */
+.groww-holdings-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 0.25rem 1.1rem 0.25rem;
+}
+
+.groww-toolbar-link {
+  background: none;
+  border: none;
+  padding: 0 0 2px 0;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-bottom: 1.5px dotted var(--text-muted);
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.groww-toolbar-link:hover {
+  color: var(--text-primary);
+  border-bottom-color: var(--text-primary);
+}
+
+.groww-toolbar-bracket {
+  font-weight: 800;
+  font-size: 0.82rem;
+  opacity: 0.85;
+}
+
+/* 3. Holdings Row Sparklines (Mobile & Desktop) */
+.groww-sparkline-svg {
+  width: 58px;
+  height: 22px;
+  display: block;
+  overflow: visible;
+}
+
+.groww-holding-row-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.5rem;
+  flex-shrink: 0;
+}
+
+.groww-sparkline-cell {
+  text-align: center;
+  width: 75px;
+  padding: 0.6rem 0.5rem !important;
+}
+
+.groww-holding-row-secondary {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* 4. Dedicated Portfolio Analysis Sub-Page */
+.portfolio-analysis-subpage {
+  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.portfolio-subpage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0 1.25rem 0;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 1.5rem;
+}
+
+.portfolio-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0.4rem 0.65rem 0.4rem 0;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.portfolio-back-btn:hover {
+  color: var(--accent-green, #00d09c);
+  transform: translateX(-3px);
+}
+
+.portfolio-subpage-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+/* 5. Sort Modal & Bottom-Sheet */
+.groww-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end; /* bottom-sheet on mobile */
+  justify-content: center;
+  animation: fadeIn 0.15s ease-out;
+}
+
+@media (min-width: 641px) {
+  .groww-modal-overlay {
+    align-items: center; /* centered dialog on desktop */
+  }
+}
+
+.groww-bottom-sheet {
+  background: var(--bg-card, #1e293b);
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px 20px 0 0;
+  width: 100%;
+  max-width: 480px;
+  padding: 1rem 1.25rem 1.75rem 1.25rem;
+  box-shadow: 0 -6px 25px rgba(0, 0, 0, 0.35);
+  animation: slideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-theme="light"] .groww-bottom-sheet {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.12);
+}
+
+@media (min-width: 641px) {
+  .groww-bottom-sheet {
+    border-radius: 16px;
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.4);
+    animation: zoomIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
+.groww-sheet-drag-handle {
+  width: 36px;
+  height: 4px;
+  background: var(--text-muted);
+  opacity: 0.45;
+  border-radius: 2px;
+  margin: 0 auto 0.75rem auto;
+}
+
+.groww-sheet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.15rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.groww-sheet-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.groww-sheet-close {
+  background: none;
+  border: none;
+  font-size: 1.15rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: color 0.15s ease;
+}
+
+.groww-sheet-close:hover {
+  color: var(--text-primary);
+}
+
+.groww-sort-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.groww-sort-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.8rem 0.75rem;
+  border-radius: 10px;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: 0.93rem;
+  font-weight: 500;
+  transition: background 0.12s ease;
+}
+
+.groww-sort-option:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="light"] .groww-sort-option:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.groww-sort-option input[type="radio"] {
+  accent-color: var(--accent-green, #00d09c);
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes zoomIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+

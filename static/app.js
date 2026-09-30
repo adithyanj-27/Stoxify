@@ -868,24 +868,15 @@ function switchOrdersSubnav(subId) {
 }
 
 function switchHoldingsSubnav(subId) {
-  document.querySelectorAll('#pane-holdings .sub-nav-btn').forEach(btn => btn.classList.remove('active'));
-  const btn = document.getElementById(`subnav-holdings-${subId}`);
-  if (btn) btn.classList.add('active');
-
-  const list = document.getElementById('holdings-list-container');
-  const analytics = document.getElementById('holdings-analytics-container');
-  const sips = document.getElementById('holdings-sips-container');
-
-  if (list) list.style.display = (subId === 'list') ? 'block' : 'none';
-  if (analytics) analytics.style.display = (subId === 'analytics') ? 'block' : 'none';
-  if (sips) sips.style.display = (subId === 'sips') ? 'block' : 'none';
-
-  if (subId === 'list') {
+  if (subId === 'analytics') {
+    if (typeof openStockPortfolioAnalysisPage === 'function') {
+      openStockPortfolioAnalysisPage();
+    }
+  } else if (subId === 'list') {
+    if (typeof closeStockPortfolioAnalysisPage === 'function') {
+      closeStockPortfolioAnalysisPage();
+    }
     fetchPortfolio(true);
-  } else if (subId === 'analytics') {
-    loadPortfolioAnalytics();
-  } else if (subId === 'sips') {
-    loadActiveSips();
   }
 }
 
@@ -1967,6 +1958,332 @@ function hideChartLoadingOverlay(containerEl) {
 // --- Holdings View (Delivery CNC) ---
 // Navigation, polling, and trade completion can request the same portfolio at
 // once. Coalesce those reads to avoid duplicate backend/cloud work.
+// --- Groww-Style Holdings State & Helpers ---
+const holdingsUIState = {
+  privacyMode: localStorage.getItem('stoxify_holdings_privacy') === '1',
+  displayMode: 'invested', // 'invested' | 'total_pnl' | 'day_pnl'
+  sortMode: 'val_desc',
+  activeHoldings: []
+};
+
+function generateMiniSparklineSvg(h) {
+  const isUp = (h.today_pnl !== undefined ? h.today_pnl : (h.total_pnl || 0)) >= 0;
+  const strokeColor = isUp ? '#00D09C' : '#EB5B3C';
+  
+  const sym = (h.symbol || 'STOCK').toUpperCase();
+  let seed = 0;
+  for (let i = 0; i < sym.length; i++) seed = (seed * 31 + sym.charCodeAt(i)) % 1000;
+  
+  const y0 = isUp ? 15 : 6;
+  const y1 = isUp ? (12 + (seed % 4)) : (9 + (seed % 4));
+  const y2 = isUp ? (14 - (seed % 5)) : (7 + (seed % 5));
+  const y3 = isUp ? (8 + (seed % 3)) : (13 - (seed % 3));
+  const y4 = isUp ? (10 - (seed % 4)) : (12 + (seed % 4));
+  const y5 = isUp ? 5 : 16;
+  
+  const d = `M 2,${y0} C 8,${y0} 10,${y1} 14,${y1} C 18,${y1} 22,${y2} 26,${y2} C 30,${y2} 34,${y3} 38,${y3} C 42,${y3} 46,${y4} 50,${y4} C 54,${y4} 56,${y5} 58,${y5}`;
+  
+  return `
+    <svg class="groww-sparkline-svg" viewBox="0 0 60 22" aria-hidden="true">
+      <path d="${d}" fill="none" stroke="${strokeColor}" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+  `;
+}
+
+function updateHoldingsPrivacyIcons() {
+  const iconOpen = document.getElementById('iconEyeOpen');
+  const iconClosed = document.getElementById('iconEyeClosed');
+  if (iconOpen && iconClosed) {
+    if (holdingsUIState.privacyMode) {
+      iconOpen.style.display = 'none';
+      iconClosed.style.display = 'block';
+    } else {
+      iconOpen.style.display = 'block';
+      iconClosed.style.display = 'none';
+    }
+  }
+}
+
+function toggleHoldingsPrivacy() {
+  holdingsUIState.privacyMode = !holdingsUIState.privacyMode;
+  localStorage.setItem('stoxify_holdings_privacy', holdingsUIState.privacyMode ? '1' : '0');
+  updateHoldingsPrivacyIcons();
+  if (holdingsUIState.activeHoldings && holdingsUIState.activeHoldings.length) {
+    updateHoldingsSummaryCard();
+    sortAndRenderHoldings();
+  }
+}
+
+function cycleHoldingsDisplayMode() {
+  if (holdingsUIState.displayMode === 'invested') {
+    holdingsUIState.displayMode = 'total_pnl';
+  } else if (holdingsUIState.displayMode === 'total_pnl') {
+    holdingsUIState.displayMode = 'day_pnl';
+  } else {
+    holdingsUIState.displayMode = 'invested';
+  }
+
+  const lbl = document.getElementById('holdingsDisplayModeLabel');
+  if (lbl) {
+    if (holdingsUIState.displayMode === 'invested') lbl.innerText = 'Current (Invested)';
+    else if (holdingsUIState.displayMode === 'total_pnl') lbl.innerText = 'Total Returns';
+    else if (holdingsUIState.displayMode === 'day_pnl') lbl.innerText = '1D Returns';
+  }
+
+  sortAndRenderHoldings();
+}
+
+function openHoldingsSortSheet() {
+  const modal = document.getElementById('holdingsSortModal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeHoldingsSortSheet(e) {
+  const modal = document.getElementById('holdingsSortModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function applyHoldingsSort(mode) {
+  holdingsUIState.sortMode = mode;
+  closeHoldingsSortSheet();
+  sortAndRenderHoldings();
+}
+
+function sortHoldingsArray(list, mode) {
+  const sorted = [...list];
+  switch (mode) {
+    case 'name_asc':
+      return sorted.sort((a, b) => (a.name || a.symbol || '').localeCompare(b.name || b.symbol || ''));
+    case 'name_desc':
+      return sorted.sort((a, b) => (b.name || b.symbol || '').localeCompare(a.name || a.symbol || ''));
+    case 'val_desc':
+      return sorted.sort((a, b) => (Number(b.current_value) || 0) - (Number(a.current_value) || 0));
+    case 'val_asc':
+      return sorted.sort((a, b) => (Number(a.current_value) || 0) - (Number(b.current_value) || 0));
+    case 'total_pnl_desc':
+      return sorted.sort((a, b) => (Number(b.total_pnl) || 0) - (Number(a.total_pnl) || 0));
+    case 'day_pnl_desc':
+      return sorted.sort((a, b) => (Number(b.today_pnl) || 0) - (Number(a.today_pnl) || 0));
+    case 'inv_desc':
+      return sorted.sort((a, b) => (Number(b.invested_value) || 0) - (Number(a.invested_value) || 0));
+    default:
+      return sorted;
+  }
+}
+
+function sortAndRenderHoldings() {
+  const sorted = sortHoldingsArray(holdingsUIState.activeHoldings, holdingsUIState.sortMode);
+  renderStockHoldingsListAndTable(sorted);
+}
+
+function openStockPortfolioAnalysisPage() {
+  const mainView = document.getElementById('holdingsMainView');
+  const subpage = document.getElementById('portfolioAnalysisSubpage');
+  if (mainView) mainView.style.display = 'none';
+  if (subpage) {
+    subpage.style.display = 'block';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // Set chart state open
+  portfolioChartsState.stock.isOpen = true;
+  const chartCard = document.getElementById('stockPortfolioChartCard');
+  if (chartCard) chartCard.style.display = 'block';
+
+  // Render chart and analytics
+  if (portfolioChartsState.stock.view === 'performance') {
+    renderStockPerformanceChart();
+  } else {
+    renderStockAllocationChart();
+  }
+  loadPortfolioAnalytics();
+}
+
+function closeStockPortfolioAnalysisPage() {
+  const mainView = document.getElementById('holdingsMainView');
+  const subpage = document.getElementById('portfolioAnalysisSubpage');
+  if (subpage) subpage.style.display = 'none';
+  if (mainView) {
+    mainView.style.display = 'block';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}
+
+function updateHoldingsSummaryCard() {
+  const stockHoldings = holdingsUIState.activeHoldings || [];
+  const curVal = stockHoldings.reduce((sum, h) => sum + (Number(h.current_value !== undefined ? h.current_value : (h.quantity * (h.current_price || 0))) || 0), 0);
+  const invVal = stockHoldings.reduce((sum, h) => sum + (Number(h.invested_value !== undefined ? h.invested_value : (h.quantity * (h.avg_price || 0))) || 0), 0);
+  const totalPnl = curVal - invVal;
+  const totalPnlPct = invVal > 0 ? ((totalPnl / invVal) * 100) : 0;
+  const todayPnl = stockHoldings.reduce((sum, h) => sum + (Number(h.today_pnl) || 0), 0);
+  const todayPnlPct = curVal > 0 ? ((todayPnl / curVal) * 100) : 0;
+
+  const countLabel = document.getElementById('growwHoldingsCountLabel');
+  if (countLabel) countLabel.innerText = `HOLDINGS (${stockHoldings.length})`;
+
+  const isPrivate = holdingsUIState.privacyMode;
+
+  const summaryCur = document.getElementById('summaryCurrentVal');
+  if (summaryCur) summaryCur.innerText = isPrivate ? '••••••••' : formatINR(curVal);
+
+  const summaryInv = document.getElementById('summaryInvestedVal');
+  if (summaryInv) summaryInv.innerText = isPrivate ? '••••••' : formatINR(invVal);
+
+  const isTotalPos = totalPnl > 0;
+  const isTotalNeg = totalPnl < 0;
+  const totalSign = isTotalPos ? '+' : '';
+  const totalColorClass = isTotalPos ? 'text-positive' : (isTotalNeg ? 'text-negative' : 'text-muted');
+  const formattedTotalPnl = `${totalSign}${formatINR(totalPnl)}`;
+  const formattedTotalPct = `${totalSign}${formatNumber(totalPnlPct)}%`;
+
+  const totalReturnsEl = document.getElementById('summaryTotalReturns');
+  if (totalReturnsEl) {
+    totalReturnsEl.innerText = isPrivate ? '••••••' : formattedTotalPnl;
+    totalReturnsEl.className = isPrivate ? 'groww-metric-value' : `groww-metric-value ${totalColorClass}`;
+  }
+  const totalPctEl = document.getElementById('summaryTotalReturnsPct');
+  if (totalPctEl) {
+    totalPctEl.innerHTML = isPrivate ? '' : `<span class="${totalColorClass}">(${formattedTotalPct})</span>`;
+  }
+
+  const isDayPos = todayPnl > 0;
+  const isDayNeg = todayPnl < 0;
+  const daySign = isDayPos ? '+' : '';
+  const dayColorClass = isDayPos ? 'text-positive' : (isDayNeg ? 'text-negative' : 'text-muted');
+  const formattedDayPnl = `${daySign}${formatINR(todayPnl)}`;
+  const formattedDayPct = `${daySign}${formatNumber(todayPnlPct)}%`;
+
+  const dayPnlEl = document.getElementById('summaryTodayPnl');
+  if (dayPnlEl) {
+    dayPnlEl.innerText = isPrivate ? '••••••' : formattedDayPnl;
+    dayPnlEl.className = isPrivate ? 'groww-metric-value' : `groww-metric-value ${dayColorClass}`;
+  }
+  const dayPctEl = document.getElementById('summaryTodayPnlPct');
+  if (dayPctEl) {
+    dayPctEl.innerHTML = isPrivate ? '' : `<span class="${dayColorClass}">(${formattedDayPct})</span>`;
+  }
+}
+
+function renderStockHoldingsListAndTable(holdings) {
+  const tableBody = document.getElementById('holdingsTableBody');
+  const mobileList = document.getElementById('holdingsMobileList');
+  const isPrivate = holdingsUIState.privacyMode;
+  const displayMode = holdingsUIState.displayMode;
+
+  if (!holdings || holdings.length === 0) {
+    if (tableBody) {
+      tableBody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 3.5rem;">No active stock holdings yet. Head to Explore to invest!</td></tr>`;
+    }
+    if (mobileList) {
+      mobileList.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 2.5rem;">No active stock holdings yet.</div>`;
+    }
+    return;
+  }
+
+  // Render Desktop Table with Trend Sparkline
+  if (tableBody) {
+    tableBody.innerHTML = holdings.map(h => {
+      const isPosTotal = h.total_pnl > 0;
+      const isNegTotal = h.total_pnl < 0;
+      const totalClass = isPosTotal ? 'text-positive' : (isNegTotal ? 'text-negative' : 'text-muted');
+      const totalSign = isPosTotal ? '+' : '';
+
+      const isPosDay = h.today_pnl > 0;
+      const isNegDay = h.today_pnl < 0;
+      const dayClass = isPosDay ? 'text-positive' : (isNegDay ? 'text-negative' : 'text-muted');
+      const daySign = isPosDay ? '+' : '';
+      const invVal = Number(h.invested_value !== undefined ? h.invested_value : (h.quantity * h.avg_price)) || 0;
+      const curVal = Number(h.current_value !== undefined ? h.current_value : (h.quantity * h.current_price)) || 0;
+
+      return `
+        <tr>
+          <td>
+            <button type="button" class="holding-name-link" onclick="openHoldingDetails('${h.symbol}', '${h.asset_type}')" title="View details for ${h.name}">${h.name}</button>
+            <div style="font-size: 0.75rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.35rem; margin-top: 2px;">
+              <span>${h.symbol}</span>
+              <span class="badge-exchange ${(h.exchange || 'NSE').toLowerCase()}">${h.exchange || 'NSE'}</span>
+            </div>
+          </td>
+          <td class="groww-sparkline-cell">
+            ${generateMiniSparklineSvg(h)}
+          </td>
+          <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;">${h.asset_type === 'MUTUAL_FUND' ? 'Mutual Fund' : (h.asset_type === 'ETF' ? 'ETF' : 'Stock')}</span></td>
+          <td style="font-weight: 600;">${h.quantity}</td>
+          <td>
+            <div style="font-weight: 600;">${isPrivate ? '••••••' : formatINR(h.avg_price)}</div>
+            <div style="font-size: 0.74rem; color: var(--text-muted);">Inv: ${isPrivate ? '••••••' : formatINR(invVal)}</div>
+          </td>
+          <td>
+            <div style="font-weight: 700; color: var(--text-primary);">${isPrivate ? '••••••' : formatINR(h.current_price)}</div>
+          </td>
+          <td>
+            <div style="font-weight: 700;">${isPrivate ? '••••••' : formatINR(curVal)}</div>
+            <div style="font-size: 0.74rem; color: var(--text-muted);">Inv: ${isPrivate ? '••••••' : formatINR(invVal)}</div>
+          </td>
+          <td class="${totalClass}" style="font-weight: 700;">
+            ${isPrivate ? '••••••' : `${totalSign}${formatINR(h.total_pnl)}`}
+            <div style="font-size: 0.75rem; font-weight: 600;">${isPrivate ? '' : `(${totalSign}${formatNumber(h.total_pnl_pct)}%)`}</div>
+          </td>
+          <td class="${dayClass}" style="font-weight: 600;">
+            ${isPrivate ? '••••••' : `${daySign}${formatINR(h.today_pnl)}`}
+          </td>
+          <td style="text-align: right;">
+            <button class="btn-danger" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" onclick="startHoldingSale('${h.symbol}', '${h.asset_type}', ${Number(h.quantity) || 0}, '${h.exchange || 'NSE'}')">Sell</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  // Render Mobile Cards List (Groww Style)
+  if (mobileList) {
+    mobileList.innerHTML = `
+      <div class="groww-holdings-list-card">
+        ${holdings.map(h => {
+          const isPosTotal = (h.total_pnl || 0) >= 0;
+          const totalClass = isPosTotal ? 'text-positive' : 'text-negative';
+          const totalSign = isPosTotal ? '+' : '';
+
+          const isPosDay = (h.today_pnl || 0) >= 0;
+          const dayClass = isPosDay ? 'text-positive' : 'text-negative';
+          const daySign = isPosDay ? '+' : '';
+
+          const curVal = Number(h.current_value !== undefined ? h.current_value : (h.quantity * h.current_price)) || 0;
+          const invVal = Number(h.invested_value !== undefined ? h.invested_value : (h.quantity * h.avg_price)) || 0;
+
+          let secondaryHtml = '';
+          if (displayMode === 'invested') {
+            secondaryHtml = `<div class="groww-holding-row-secondary">(${isPrivate ? '••••••' : formatINR(invVal)})</div>`;
+          } else if (displayMode === 'total_pnl') {
+            secondaryHtml = `<div class="groww-holding-row-secondary ${totalClass}">${isPrivate ? '••••••' : `${totalSign}${formatINR(h.total_pnl)} (${totalSign}${formatNumber(h.total_pnl_pct)}%)`}</div>`;
+          } else if (displayMode === 'day_pnl') {
+            secondaryHtml = `<div class="groww-holding-row-secondary ${dayClass}">1D: ${isPrivate ? '••••••' : `${daySign}${formatINR(h.today_pnl)} (${daySign}${formatNumber(h.today_pnl_pct)}%)`}</div>`;
+          }
+
+          return `
+            <div class="groww-holding-row" onclick="openHoldingBottomSheet('${h.symbol}')">
+              <div class="groww-holding-row-left">
+                ${renderAssetAvatar(h, h.asset_type)}
+                <div class="groww-holding-row-identity">
+                  <div class="groww-holding-row-name" title="${h.name}">${h.name}</div>
+                  <div class="groww-holding-row-sub">${h.quantity} shares • <span class="badge-exchange ${(h.exchange || 'NSE').toLowerCase()}">${h.exchange || 'NSE'}</span> • Avg. ${isPrivate ? '••••••' : formatINR(h.avg_price)}</div>
+                </div>
+              </div>
+              <div class="groww-holding-row-center">
+                ${generateMiniSparklineSvg(h)}
+              </div>
+              <div class="groww-holding-row-right">
+                <div class="groww-holding-row-curval">${isPrivate ? '••••••••' : formatINR(curVal)}</div>
+                ${secondaryHtml}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+}
+
 let portfolioRequest = null;
 let portfolioRequestVersion = 0;
 function fetchPortfolio(force = false) {
@@ -1995,7 +2312,7 @@ async function fetchPortfolioInternal(requestVersion) {
   const tableBody = document.getElementById('holdingsTableBody');
   const mobileList = document.getElementById('holdingsMobileList');
   if (tableBody && (!tableBody.children.length || tableBody.querySelector('.loading-placeholder-row') || !state.portfolioData)) {
-    tableBody.innerHTML = renderTableLoadingRow(9, 'Loading your holdings...');
+    tableBody.innerHTML = renderTableLoadingRow(10, 'Loading your holdings...');
   }
   if (mobileList && (!mobileList.children.length || mobileList.querySelector('.stoxify-loader-wrapper') || !state.portfolioData)) {
     mobileList.innerHTML = renderLoadingCircle('Loading your holdings...');
@@ -2029,181 +2346,19 @@ async function fetchPortfolioInternal(requestVersion) {
     // Strictly filter to Stock / Equity / ETF holdings only (Mutual Funds are housed in MF Dashboard)
     const allHoldings = data.holdings || [];
     const stockHoldings = allHoldings.filter(h => (h.asset_type || '').toUpperCase() !== 'MUTUAL_FUND');
+    holdingsUIState.activeHoldings = stockHoldings;
+
+    updateHoldingsPrivacyIcons();
+    updateHoldingsSummaryCard();
 
     const curVal = stockHoldings.reduce((sum, h) => sum + (Number(h.current_value !== undefined ? h.current_value : (h.quantity * (h.current_price || 0))) || 0), 0);
     const invVal = stockHoldings.reduce((sum, h) => sum + (Number(h.invested_value !== undefined ? h.invested_value : (h.quantity * (h.avg_price || 0))) || 0), 0);
-    const totalPnl = curVal - invVal;
-    const totalPnlPct = invVal > 0 ? ((totalPnl / invVal) * 100) : 0;
-    const todayPnl = stockHoldings.reduce((sum, h) => sum + (Number(h.today_pnl) || 0), 0);
-    const todayPnlPct = curVal > 0 ? ((todayPnl / curVal) * 100) : 0;
 
-    const summaryCur = document.getElementById('summaryCurrentVal');
-    if (summaryCur) summaryCur.innerText = formatINR(curVal);
-    const summaryInv = document.getElementById('summaryInvestedVal');
-    if (summaryInv) summaryInv.innerText = formatINR(invVal);
-
-    // 1. TOTAL RETURNS ON TOP (under Current Value in Card 1)
-    const isTotalPos = totalPnl > 0;
-    const isTotalNeg = totalPnl < 0;
-    const totalSign = isTotalPos ? '+' : '';
-    const totalColorClass = isTotalPos ? 'text-positive' : (isTotalNeg ? 'text-negative' : 'text-muted');
-    const formattedTotalPnl = `${totalSign}${formatINR(totalPnl)}`;
-    const formattedTotalPct = `${totalSign}${formatNumber(totalPnlPct)}%`;
-
-    const totalReturnsSub = document.getElementById('summaryTotalReturnsSub');
-    if (totalReturnsSub) {
-      totalReturnsSub.innerHTML = `<span id="summaryTotalReturnsText" class="${totalColorClass}" style="font-weight: 700; font-size: 0.84rem;">Total: ${formattedTotalPnl} (${formattedTotalPct})</span>`;
-    }
-    const totalReturnsText = document.getElementById('summaryTotalReturnsText');
-    if (totalReturnsText) {
-      totalReturnsText.innerText = `Total: ${formattedTotalPnl} (${formattedTotalPct})`;
-      totalReturnsText.className = totalColorClass;
-    }
-    const totalReturnsEl = document.getElementById('summaryTotalReturns');
-    if (totalReturnsEl) {
-      totalReturnsEl.innerText = formattedTotalPnl;
-      totalReturnsEl.className = `banner-metric-val ${totalColorClass}`;
-    }
-    const totalPctEl = document.getElementById('summaryTotalReturnsPct');
-    if (totalPctEl) {
-      totalPctEl.innerHTML = `<span class="${totalColorClass}">${formattedTotalPct}</span>`;
-    }
-
-    // 2. 1D RETURNS ON BOTTOM (in Card 3)
-    const isDayPos = todayPnl > 0;
-    const isDayNeg = todayPnl < 0;
-    const daySign = isDayPos ? '+' : '';
-    const dayColorClass = isDayPos ? 'text-positive' : (isDayNeg ? 'text-negative' : 'text-muted');
-    const formattedDayPnl = `${daySign}${formatINR(todayPnl)}`;
-    const formattedDayPct = `${daySign}${formatNumber(todayPnlPct)}%`;
-
-    const dayPnlEl = document.getElementById('summaryTodayPnl');
-    if (dayPnlEl) {
-      dayPnlEl.innerText = formattedDayPnl;
-      dayPnlEl.className = `banner-metric-val ${dayColorClass}`;
-    }
-    const dayPctEl = document.getElementById('summaryTodayPnlPct');
-    if (dayPctEl) {
-      dayPctEl.innerHTML = `<span class="${dayColorClass}">${formattedDayPct}</span>`;
-    }
-
-    const tableBody = document.getElementById('holdingsTableBody');
-    const mobileList = document.getElementById('holdingsMobileList');
-    const holdings = stockHoldings;
-    const stockChartCard = document.getElementById('stockPortfolioChartCard');
-
-    const btnStockAnalysis = document.getElementById('btnToggleStockAnalysis');
-
-    if (holdings.length === 0) {
-      if (stockChartCard) stockChartCard.style.display = 'none';
-      if (btnStockAnalysis) btnStockAnalysis.style.display = 'none';
-      if (tableBody) {
-        tableBody.innerHTML = `
-          <tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 3.5rem;">No active stock holdings yet. Head to Explore to invest!</td></tr>
-        `;
-      }
-      if (mobileList) {
-        mobileList.innerHTML = `
-          <div style="text-align: center; color: var(--text-muted); padding: 2.5rem;">No active stock holdings yet.</div>
-        `;
-      }
-      return;
-    }
-
-    if (btnStockAnalysis) {
-      btnStockAnalysis.style.display = 'inline-flex';
-    }
     if (typeof updateStockPortfolioCharts === 'function') {
       updateStockPortfolioCharts(stockHoldings, curVal, invVal);
     }
 
-    // Render Desktop Table
-    if (tableBody) {
-      tableBody.innerHTML = holdings.map(h => {
-        const isPosTotal = h.total_pnl > 0;
-        const isNegTotal = h.total_pnl < 0;
-        const totalClass = isPosTotal ? 'text-positive' : (isNegTotal ? 'text-negative' : 'text-muted');
-        const totalSign = isPosTotal ? '+' : '';
-
-        const isPosDay = h.today_pnl > 0;
-        const isNegDay = h.today_pnl < 0;
-        const dayClass = isPosDay ? 'text-positive' : (isNegDay ? 'text-negative' : 'text-muted');
-        const daySign = isPosDay ? '+' : '';
-        const invVal = Number(h.invested_value !== undefined ? h.invested_value : (h.quantity * h.avg_price)) || 0;
-        const curVal = Number(h.current_value !== undefined ? h.current_value : (h.quantity * h.current_price)) || 0;
-        return `
-          <tr>
-            <td>
-              <button type="button" class="holding-name-link" onclick="openHoldingDetails('${h.symbol}', '${h.asset_type}')" title="View details for ${h.name}">${h.name}</button>
-              <div style="font-size: 0.75rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.35rem; margin-top: 2px;">
-                <span>${h.symbol}</span>
-                <span class="badge-exchange ${(h.exchange || 'NSE').toLowerCase()}">${h.exchange || 'NSE'}</span>
-              </div>
-            </td>
-            <td><span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;">${h.asset_type === 'MUTUAL_FUND' ? 'Mutual Fund' : (h.asset_type === 'ETF' ? 'ETF' : 'Stock')}</span></td>
-            <td style="font-weight: 600;">${h.quantity}</td>
-            <td>
-              <div style="font-weight: 600;">${formatINR(h.avg_price)}</div>
-              <div style="font-size: 0.74rem; color: var(--text-muted);">Inv: ${formatINR(invVal)}</div>
-            </td>
-            <td>
-              <div style="font-weight: 700; color: var(--text-primary);">${formatINR(h.current_price)}</div>
-              <div style="font-size: 0.74rem; color: var(--brand-cyan, #0EA5E9); font-weight: 500;">Avg: ${formatINR(h.avg_price)}</div>
-            </td>
-            <td>
-              <div style="font-weight: 700;">${formatINR(curVal)}</div>
-              <div style="font-size: 0.74rem; color: var(--text-muted);">Inv: ${formatINR(invVal)}</div>
-            </td>
-            <td class="${totalClass}" style="font-weight: 700;">
-              ${totalSign}${formatINR(h.total_pnl)}
-              <div style="font-size: 0.75rem; font-weight: 600;">(${totalSign}${formatNumber(h.total_pnl_pct)}%)</div>
-            </td>
-            <td class="${dayClass}" style="font-weight: 600;">
-              ${daySign}${formatINR(h.today_pnl)}
-            </td>
-            <td style="text-align: right;">
-              <button class="btn-danger" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" onclick="startHoldingSale('${h.symbol}', '${h.asset_type}', ${Number(h.quantity) || 0}, '${h.exchange || 'NSE'}')">Sell</button>
-            </td>
-          </tr>
-        `;
-      }).join('');
-    }
-
-    // Render Mobile Holdings List (Groww Style)
-    if (mobileList) {
-      if (holdings.length === 0) {
-        mobileList.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 3rem 1rem;">No active stock holdings yet. Head to Explore to start investing!</div>`;
-      } else {
-        mobileList.innerHTML = `
-          <div class="groww-holdings-list-card">
-            ${holdings.map(h => {
-              const isPosTotal = (h.total_pnl || 0) >= 0;
-              const totalClass = isPosTotal ? 'text-positive' : 'text-negative';
-              const totalSign = isPosTotal ? '+' : '';
-              const curVal = Number(h.current_value !== undefined ? h.current_value : (h.quantity * h.current_price)) || 0;
-
-              return `
-                <div class="groww-holding-row" onclick="openHoldingBottomSheet('${h.symbol}')">
-                  <div class="groww-holding-row-left">
-                    ${renderAssetAvatar(h, h.asset_type)}
-                    <div class="groww-holding-row-identity">
-                      <div class="groww-holding-row-name" title="${h.name}">${h.name}</div>
-                      <div class="groww-holding-row-sub">${h.quantity} shares • <span class="badge-exchange ${(h.exchange || 'NSE').toLowerCase()}">${h.exchange || 'NSE'}</span> • Avg. ${formatINR(h.avg_price)}</div>
-                    </div>
-                  </div>
-                  <div class="groww-holding-row-right">
-                    <div class="groww-holding-row-curval">${formatINR(curVal)}</div>
-                    <div class="groww-holding-row-returns ${totalClass}">
-                      ${totalSign}${formatINR(h.total_pnl)} (${totalSign}${formatNumber(h.total_pnl_pct)}%)
-                    </div>
-                  </div>
-                </div>
-              `;
-            }).join('')}
-          </div>
-        `;
-      }
-    }
+    sortAndRenderHoldings();
 
   } catch (err) {
     console.error('Failed to fetch portfolio:', err);
@@ -12506,5 +12661,12 @@ window.updateStockPortfolioCharts = updateStockPortfolioCharts;
 window.updateMfPortfolioCharts = updateMfPortfolioCharts;
 window.toggleStockPortfolioAnalysis = toggleStockPortfolioAnalysis;
 window.toggleMfPortfolioAnalysis = toggleMfPortfolioAnalysis;
+window.toggleHoldingsPrivacy = toggleHoldingsPrivacy;
+window.cycleHoldingsDisplayMode = cycleHoldingsDisplayMode;
+window.openHoldingsSortSheet = openHoldingsSortSheet;
+window.closeHoldingsSortSheet = closeHoldingsSortSheet;
+window.applyHoldingsSort = applyHoldingsSort;
+window.openStockPortfolioAnalysisPage = openStockPortfolioAnalysisPage;
+window.closeStockPortfolioAnalysisPage = closeStockPortfolioAnalysisPage;
 
 
