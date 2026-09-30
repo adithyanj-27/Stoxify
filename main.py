@@ -27,7 +27,7 @@ from database import (
     phone_exists,
     create_sip, get_user_sips, cancel_sip,
     apply_ipo, get_ipo_bids, cancel_ipo_bid,
-    get_capital_gains_tax_report, get_sector_allocation,
+    get_capital_gains_tax_report, get_sector_allocation, resolve_stock_sector,
     transfer_bank_to_wallet, withdraw_wallet_to_bank, get_bank_account_details,
     get_wallet_transactions, get_connection
 )
@@ -1038,6 +1038,7 @@ def read_portfolio(request: Request):
             "name": h["name"],
             "asset_type": h["asset_type"],
             "exchange": h.get("exchange", "NSE"),
+            "sector": resolve_stock_sector(h["symbol"], h.get("asset_type")),
             "quantity": h["quantity"],
             "avg_price": h["avg_price"],
             "current_price": cur_price,

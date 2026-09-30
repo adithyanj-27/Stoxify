@@ -10695,18 +10695,23 @@ async function loadPortfolioAnalytics() {
       secContainer.innerHTML = `
         <div class="sector-bar-wrapper">
           <div class="sector-stacked-bar">
-            ${secData.map((s, idx) => `
-              <div class="sector-segment" style="width: ${s.weight_pct}%; background: ${colors[idx % colors.length]};" title="${s.sector}: ${s.weight_pct}%"></div>
-            `).join('')}
+            ${secData.map((s, idx) => {
+              const pct = Number(s.weight_pct !== undefined ? s.weight_pct : (s.percentage !== undefined ? s.percentage : 0));
+              return `<div class="sector-segment" style="width: ${pct}%; background: ${colors[idx % colors.length]};" title="${s.sector}: ${pct}%"></div>`;
+            }).join('')}
           </div>
           <div class="sector-legend-grid">
-            ${secData.map((s, idx) => `
-              <div class="sector-legend-item">
-                <span class="legend-dot" style="background: ${colors[idx % colors.length]};"></span>
-                <span class="legend-name">${s.sector}</span>
-                <strong class="legend-val">${s.weight_pct}% (${formatINR(s.value)})</strong>
-              </div>
-            `).join('')}
+            ${secData.map((s, idx) => {
+              const val = Number(s.value !== undefined ? s.value : (s.amount !== undefined ? s.amount : 0));
+              const pct = Number(s.weight_pct !== undefined ? s.weight_pct : (s.percentage !== undefined ? s.percentage : 0));
+              return `
+                <div class="sector-legend-item">
+                  <span class="legend-dot" style="background: ${colors[idx % colors.length]};"></span>
+                  <span class="legend-name">${s.sector}</span>
+                  <strong class="legend-val">${pct}% (${formatINR(val)})</strong>
+                </div>
+              `;
+            }).join('')}
           </div>
         </div>
       `;
@@ -11180,6 +11185,11 @@ function switchStockPortfolioView(view) {
     if (perfSummary) perfSummary.style.display = 'none';
     if (perfContainer) perfContainer.style.display = 'none';
     if (allocContainer) allocContainer.style.display = 'grid';
+    const allocMode = portfolioChartsState.stock.allocMode || 'holding';
+    const btnHolding = document.getElementById('btnStockAllocHolding');
+    const btnSector = document.getElementById('btnStockAllocSector');
+    if (btnHolding) btnHolding.classList.toggle('active', allocMode === 'holding');
+    if (btnSector) btnSector.classList.toggle('active', allocMode === 'sector');
     renderStockAllocationChart();
   }
 }
@@ -11211,6 +11221,11 @@ function switchMfPortfolioView(view) {
     if (perfSummary) perfSummary.style.display = 'none';
     if (perfContainer) perfContainer.style.display = 'none';
     if (allocContainer) allocContainer.style.display = 'grid';
+    const allocMode = portfolioChartsState.mf.allocMode || 'holding';
+    const btnHolding = document.getElementById('btnMfAllocHolding');
+    const btnCategory = document.getElementById('btnMfAllocCategory');
+    if (btnHolding) btnHolding.classList.toggle('active', allocMode === 'holding');
+    if (btnCategory) btnCategory.classList.toggle('active', allocMode === 'category');
     renderMfAllocationChart();
   }
 }
@@ -11634,6 +11649,144 @@ async function renderStockPerformanceChart() {
   }
 }
 
+const STOCK_SECTOR_MAP = {
+  // Energy & Oil
+  "RELIANCE": "Energy & Oil",
+  "ONGC": "Energy & Oil",
+  "BPCL": "Energy & Oil",
+  "IOC": "Energy & Oil",
+  "HPCL": "Energy & Oil",
+  "GAIL": "Energy & Oil",
+  "ADANIENT": "Energy & Oil",
+
+  // IT & Software
+  "TCS": "IT & Software",
+  "INFY": "IT & Software",
+  "WIPRO": "IT & Software",
+  "HCLTECH": "IT & Software",
+  "TECHM": "IT & Software",
+  "LTIM": "IT & Software",
+  "TATATECH": "IT & Software",
+  "TATAELXSI": "IT & Software",
+  "PAYTM": "IT & Software",
+
+  // Banking & Finance
+  "HDFCBANK": "Banking & Finance",
+  "ICICIBANK": "Banking & Finance",
+  "SBIN": "Banking & Finance",
+  "KOTAKBANK": "Banking & Finance",
+  "AXISBANK": "Banking & Finance",
+  "FEDERALBNK": "Banking & Finance",
+  "BANKBARODA": "Banking & Finance",
+  "PNB": "Banking & Finance",
+  "CANBK": "Banking & Finance",
+  "IDFCFIRSTB": "Banking & Finance",
+  "YESBANK": "Banking & Finance",
+  "BAJFINANCE": "Banking & Finance",
+  "JIOFIN": "Banking & Finance",
+  "RECLTD": "Banking & Finance",
+  "PFC": "Banking & Finance",
+  "CDSL": "Banking & Finance",
+  "BSE": "Banking & Finance",
+  "NSE": "Banking & Finance",
+
+  // Automobile
+  "MARUTI": "Automobile",
+  "TATAMOTORS": "Automobile",
+  "TMPV": "Automobile",
+  "TMCV": "Automobile",
+  "M&M": "Automobile",
+  "BAJAJ-AUTO": "Automobile",
+  "EICHERMOT": "Automobile",
+  "TVSMOTOR": "Automobile",
+  "ASHOKLEY": "Automobile",
+
+  // FMCG & Consumer
+  "ITC": "FMCG & Consumer",
+  "HINDUNILVR": "FMCG & Consumer",
+  "NESTLEIND": "FMCG & Consumer",
+  "BRITANNIA": "FMCG & Consumer",
+  "TITAN": "FMCG & Consumer",
+  "ASIANPAINT": "FMCG & Consumer",
+  "TRENT": "FMCG & Consumer",
+  "ETERNAL": "FMCG & Consumer",
+  "DMART": "FMCG & Consumer",
+  "DABUR": "FMCG & Consumer",
+  "MARICO": "FMCG & Consumer",
+  "GODREJCP": "FMCG & Consumer",
+
+  // Consumer Tech
+  "ZOMATO": "Consumer Tech",
+  "SWIGGY": "Consumer Tech",
+  "NYKAA": "Consumer Tech",
+  "POLICYBZR": "Consumer Tech",
+  "DELHIVERY": "Consumer Tech",
+
+  // Power & Energy
+  "NTPC": "Power & Energy",
+  "POWERGRID": "Power & Energy",
+  "TATAPOWER": "Power & Energy",
+  "SUZLON": "Power & Energy",
+  "BHEL": "Power & Energy",
+  "IREDA": "Power & Energy",
+  "ADANIGREEN": "Power & Energy",
+  "ADANIPOWER": "Power & Energy",
+  "NHPC": "Power & Energy",
+
+  // Defense & Aerospace
+  "HAL": "Defense & Aero",
+  "BEL": "Defense & Aero",
+  "MAZDOCK": "Defense & Aero",
+  "COCHINSHIP": "Defense & Aero",
+  "GRSE": "Defense & Aero",
+  "BDL": "Defense & Aero",
+
+  // Railways & Infra
+  "IRFC": "Railways & Infra",
+  "IRCTC": "Railways & Infra",
+  "RVNL": "Railways & Infra",
+  "RAILTEL": "Railways & Infra",
+  "CONCOR": "Railways & Infra",
+
+  // Infrastructure & Materials
+  "LT": "Infrastructure",
+  "ADANIPORTS": "Infrastructure",
+  "ULTRACEMCO": "Infrastructure",
+  "AMBUJACEM": "Infrastructure",
+  "GRASIM": "Infrastructure",
+
+  // Metals & Mining
+  "TATASTEEL": "Metals & Mining",
+  "JSWSTEEL": "Metals & Mining",
+  "HINDALCO": "Metals & Mining",
+  "VEDL": "Metals & Mining",
+  "COALINDIA": "Metals & Mining",
+  "JINDALSTEL": "Metals & Mining",
+  "NMDC": "Metals & Mining",
+  "SAIL": "Metals & Mining",
+
+  // Healthcare & Pharma
+  "SUNPHARMA": "Healthcare & Pharma",
+  "CIPLA": "Healthcare & Pharma",
+  "DRREDDY": "Healthcare & Pharma",
+  "APOLLOHOSP": "Healthcare & Pharma",
+  "DIVISLAB": "Healthcare & Pharma",
+  "LUPIN": "Healthcare & Pharma",
+  "MANKIND": "Healthcare & Pharma",
+
+  // Telecommunications
+  "BHARTIARTL": "Telecommunications",
+  "IDEA": "Telecommunications",
+  "INDUSTOWER": "Telecommunications",
+  "TATACOMM": "Telecommunications"
+};
+
+function resolveStockSector(symbol) {
+  if (!symbol) return 'Diversified / Others';
+  const clean = symbol.toUpperCase().replace(/\.NS$/, '').replace(/\.BO$/, '').trim();
+  return STOCK_SECTOR_MAP[clean] || 'Diversified / Others';
+}
+
 async function renderStockAllocationChart() {
   const canvas = document.getElementById('stockPortfolioAllocationCanvas');
   const legendList = document.getElementById('stockAllocLegendList');
@@ -11658,13 +11811,19 @@ async function renderStockAllocationChart() {
       const res = await fetch(`/api/analytics/sector-allocation?user_id=${encodeURIComponent(uid || '')}`, {
         headers: uid ? { 'X-User-Id': uid } : {}
       });
-      const secData = await res.json();
-      if (Array.isArray(secData) && secData.length > 0) {
-        slices = secData.map(s => ({
-          name: s.sector,
-          val: Number(s.value || 0),
-          pct: Number(s.weight_pct || 0)
-        })).sort((a, b) => b.val - a.val);
+      if (res.ok) {
+        const secData = await res.json();
+        if (Array.isArray(secData) && secData.length > 0) {
+          slices = secData.map(s => {
+            const val = Number(s.value !== undefined ? s.value : (s.amount !== undefined ? s.amount : 0));
+            const pct = Number(s.weight_pct !== undefined ? s.weight_pct : (s.percentage !== undefined ? s.percentage : 0));
+            return {
+              name: s.sector,
+              val: val,
+              pct: pct
+            };
+          }).filter(s => s.val > 0).sort((a, b) => b.val - a.val);
+        }
       }
     } catch (e) {
       console.warn('Sector API failed, fallback to holdings', e);
@@ -11673,8 +11832,8 @@ async function renderStockAllocationChart() {
       const secMap = {};
       let total = 0;
       holdings.forEach(h => {
-        const val = Number(h.current_value !== undefined ? h.current_value : (h.quantity * (h.current_price || 0))) || 0;
-        const sec = h.sector || 'Diversified';
+        const val = Number(h.current_value !== undefined ? h.current_value : (h.quantity * (h.current_price || h.avg_price || 0))) || 0;
+        const sec = h.sector || resolveStockSector(h.symbol);
         secMap[sec] = (secMap[sec] || 0) + val;
         total += val;
       });
@@ -11682,19 +11841,19 @@ async function renderStockAllocationChart() {
         name: k,
         val: secMap[k],
         pct: total > 0 ? ((secMap[k] / total) * 100) : 0
-      })).sort((a, b) => b.val - a.val);
+      })).filter(s => s.val > 0).sort((a, b) => b.val - a.val);
     }
   } else {
-    const total = holdings.reduce((sum, h) => sum + (Number(h.current_value !== undefined ? h.current_value : (h.quantity * (h.current_price || 0))) || 0), 0);
+    const total = holdings.reduce((sum, h) => sum + (Number(h.current_value !== undefined ? h.current_value : (h.quantity * (h.current_price || h.avg_price || 0))) || 0), 0);
     slices = holdings.map(h => {
-      const val = Number(h.current_value !== undefined ? h.current_value : (h.quantity * (h.current_price || 0))) || 0;
+      const val = Number(h.current_value !== undefined ? h.current_value : (h.quantity * (h.current_price || h.avg_price || 0))) || 0;
       return {
         name: h.name || h.symbol,
         symbol: h.symbol,
         val: val,
         pct: total > 0 ? ((val / total) * 100) : 0
       };
-    }).sort((a, b) => b.val - a.val);
+    }).filter(s => s.val > 0).sort((a, b) => b.val - a.val);
   }
 
   if (slices.length > 7) {
@@ -11704,7 +11863,7 @@ async function renderStockAllocationChart() {
     const restPct = rest.reduce((s, x) => s + x.pct, 0);
     top.push({
       name: 'Others',
-      symbol: `${rest.length} other holdings`,
+      symbol: `${rest.length} other ${mode === 'sector' ? 'sectors' : 'holdings'}`,
       val: restVal,
       pct: restPct
     });

@@ -4390,40 +4390,156 @@ def get_capital_gains_tax_report(user_id: str = "default") -> Dict[str, Any]:
 
 # --- Sector & Asset Allocation Analytics ---
 SECTOR_MAP = {
-    "RELIANCE.NS": "Energy & Oil",
-    "TCS.NS": "IT & Software",
-    "INFY.NS": "IT & Software",
-    "HDFCBANK.NS": "Banking & Finance",
-    "ICICIBANK.NS": "Banking & Finance",
-    "SBIN.NS": "Banking & Finance",
-    "FEDERALBNK.NS": "Banking & Finance",
-    "TMPV.NS": "Automobile",
-    "TATAMOTORS.NS": "Automobile",
-    "M&M.NS": "Automobile",
-    "MARUTI.NS": "Automobile",
-    "ETERNAL.NS": "Consumer Tech",
-    "ZOMATO.NS": "Consumer Tech",
-    "HAL.NS": "Defense & Aero",
-    "BEL.NS": "Defense & Aero",
-    "RVNL.NS": "Railways & Infra",
-    "IRFC.NS": "Railways & Infra",
-    "NTPC.NS": "Power & Energy",
-    "TATAPOWER.NS": "Power & Energy",
-    "SUNPHARMA.NS": "Healthcare & Pharma",
-    "CIPLA.NS": "Healthcare & Pharma",
-    "ITC.NS": "FMCG & Consumer",
-    "HINDUNILVR.NS": "FMCG & Consumer",
-    "TATASTEEL.NS": "Metals & Mining",
-    "JSWSTEEL.NS": "Metals & Mining"
+    # Energy & Oil
+    "RELIANCE": "Energy & Oil",
+    "ONGC": "Energy & Oil",
+    "BPCL": "Energy & Oil",
+    "IOC": "Energy & Oil",
+    "HPCL": "Energy & Oil",
+    "GAIL": "Energy & Oil",
+    "ADANIENT": "Energy & Oil",
+
+    # IT & Software
+    "TCS": "IT & Software",
+    "INFY": "IT & Software",
+    "WIPRO": "IT & Software",
+    "HCLTECH": "IT & Software",
+    "TECHM": "IT & Software",
+    "LTIM": "IT & Software",
+    "TATATECH": "IT & Software",
+    "TATAELXSI": "IT & Software",
+    "PAYTM": "IT & Software",
+
+    # Banking & Finance
+    "HDFCBANK": "Banking & Finance",
+    "ICICIBANK": "Banking & Finance",
+    "SBIN": "Banking & Finance",
+    "KOTAKBANK": "Banking & Finance",
+    "AXISBANK": "Banking & Finance",
+    "FEDERALBNK": "Banking & Finance",
+    "BANKBARODA": "Banking & Finance",
+    "PNB": "Banking & Finance",
+    "CANBK": "Banking & Finance",
+    "IDFCFIRSTB": "Banking & Finance",
+    "YESBANK": "Banking & Finance",
+    "BAJFINANCE": "Banking & Finance",
+    "JIOFIN": "Banking & Finance",
+    "RECLTD": "Banking & Finance",
+    "PFC": "Banking & Finance",
+    "CDSL": "Banking & Finance",
+    "BSE": "Banking & Finance",
+    "NSE": "Banking & Finance",
+
+    # Automobile
+    "MARUTI": "Automobile",
+    "TATAMOTORS": "Automobile",
+    "TMPV": "Automobile",
+    "TMCV": "Automobile",
+    "M&M": "Automobile",
+    "BAJAJ-AUTO": "Automobile",
+    "EICHERMOT": "Automobile",
+    "TVSMOTOR": "Automobile",
+    "ASHOKLEY": "Automobile",
+
+    # FMCG & Consumer
+    "ITC": "FMCG & Consumer",
+    "HINDUNILVR": "FMCG & Consumer",
+    "NESTLEIND": "FMCG & Consumer",
+    "BRITANNIA": "FMCG & Consumer",
+    "TITAN": "FMCG & Consumer",
+    "ASIANPAINT": "FMCG & Consumer",
+    "TRENT": "FMCG & Consumer",
+    "ETERNAL": "FMCG & Consumer",
+    "DMART": "FMCG & Consumer",
+    "DABUR": "FMCG & Consumer",
+    "MARICO": "FMCG & Consumer",
+    "GODREJCP": "FMCG & Consumer",
+
+    # Consumer Tech
+    "ZOMATO": "Consumer Tech",
+    "SWIGGY": "Consumer Tech",
+    "NYKAA": "Consumer Tech",
+    "POLICYBZR": "Consumer Tech",
+    "DELHIVERY": "Consumer Tech",
+
+    # Power & Energy
+    "NTPC": "Power & Energy",
+    "POWERGRID": "Power & Energy",
+    "TATAPOWER": "Power & Energy",
+    "SUZLON": "Power & Energy",
+    "BHEL": "Power & Energy",
+    "IREDA": "Power & Energy",
+    "ADANIGREEN": "Power & Energy",
+    "ADANIPOWER": "Power & Energy",
+    "NHPC": "Power & Energy",
+
+    # Defense & Aerospace
+    "HAL": "Defense & Aero",
+    "BEL": "Defense & Aero",
+    "MAZDOCK": "Defense & Aero",
+    "COCHINSHIP": "Defense & Aero",
+    "GRSE": "Defense & Aero",
+    "BDL": "Defense & Aero",
+
+    # Railways & Infra
+    "IRFC": "Railways & Infra",
+    "IRCTC": "Railways & Infra",
+    "RVNL": "Railways & Infra",
+    "RAILTEL": "Railways & Infra",
+    "CONCOR": "Railways & Infra",
+
+    # Infrastructure & Materials
+    "LT": "Infrastructure",
+    "ADANIPORTS": "Infrastructure",
+    "ULTRACEMCO": "Infrastructure",
+    "AMBUJACEM": "Infrastructure",
+    "GRASIM": "Infrastructure",
+
+    # Metals & Mining
+    "TATASTEEL": "Metals & Mining",
+    "JSWSTEEL": "Metals & Mining",
+    "HINDALCO": "Metals & Mining",
+    "VEDL": "Metals & Mining",
+    "COALINDIA": "Metals & Mining",
+    "JINDALSTEL": "Metals & Mining",
+    "NMDC": "Metals & Mining",
+    "SAIL": "Metals & Mining",
+
+    # Healthcare & Pharma
+    "SUNPHARMA": "Healthcare & Pharma",
+    "CIPLA": "Healthcare & Pharma",
+    "DRREDDY": "Healthcare & Pharma",
+    "APOLLOHOSP": "Healthcare & Pharma",
+    "DIVISLAB": "Healthcare & Pharma",
+    "LUPIN": "Healthcare & Pharma",
+    "MANKIND": "Healthcare & Pharma",
+
+    # Telecommunications
+    "BHARTIARTL": "Telecommunications",
+    "IDEA": "Telecommunications",
+    "INDUSTOWER": "Telecommunications",
+    "TATACOMM": "Telecommunications"
 }
+
+def resolve_stock_sector(symbol: str, asset_type: str = "STOCK") -> str:
+    """Resolves standard industry sector for a given symbol, ignoring exchange suffixes."""
+    if (asset_type or "").upper() == "MUTUAL_FUND":
+        return "Mutual Funds (Equities)"
+    sym = (symbol or "").upper().strip()
+    if sym in SECTOR_MAP:
+        return SECTOR_MAP[sym]
+    clean_sym = sym.replace(".NS", "").replace(".BO", "").strip()
+    if clean_sym in SECTOR_MAP:
+        return SECTOR_MAP[clean_sym]
+    if f"{clean_sym}.NS" in SECTOR_MAP:
+        return SECTOR_MAP[f"{clean_sym}.NS"]
+    return "Diversified / Others"
 
 def get_sector_allocation(user_id: str = "default", price_lookup=None) -> List[Dict[str, Any]]:
     """Sector weights of the portfolio.
 
     `price_lookup(holding)` should return the live price, so this measures
-    market value the same way /api/portfolio does. It used to weight by
-    `avg_price` unconditionally, which is why the sector chart and the
-    portfolio summary never reconciled. Without a lookup (or when a quote is
+    market value the same way /api/portfolio does. Without a lookup (or when a quote is
     unavailable) the holding falls back to cost basis.
     """
     holdings = get_holdings(user_id)
@@ -4441,13 +4557,10 @@ def get_sector_allocation(user_id: str = "default", price_lookup=None) -> List[D
             except Exception:
                 price = None
         if not price or price <= 0:
-            price = h["avg_price"]
+            price = h.get("current_price") or h["avg_price"]
         val = h["quantity"] * price
         total_val += val
-        if h.get("asset_type") == "MUTUAL_FUND":
-            sector = "Mutual Funds (Equities)"
-        else:
-            sector = SECTOR_MAP.get(h["symbol"], "Diversified / Others")
+        sector = resolve_stock_sector(h["symbol"], h.get("asset_type"))
         sector_totals[sector] = sector_totals.get(sector, 0.0) + val
 
     if total_val <= 0:
@@ -4459,7 +4572,9 @@ def get_sector_allocation(user_id: str = "default", price_lookup=None) -> List[D
         results.append({
             "sector": sector,
             "amount": round(amt, 2),
-            "percentage": pct
+            "percentage": pct,
+            "value": round(amt, 2),
+            "weight_pct": pct
         })
     results.sort(key=lambda x: x["amount"], reverse=True)
     return results
