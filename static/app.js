@@ -826,11 +826,6 @@ function switchTab(tabId, updateUrl = true) {
 function switchExploreSubnav(subId) {
   if (subId === 'ipo') {
     switchProduct('stocks', 'explore');
-    if (typeof toggleExploreIpos === 'function') {
-      toggleExploreIpos(true);
-    }
-    const ipoSec = document.getElementById('exploreIpoHubCard') || document.getElementById('explore-ipo-section');
-    if (ipoSec) ipoSec.scrollIntoView({ behavior: 'smooth' });
     return;
   }
   switchProduct(subId, 'explore');
