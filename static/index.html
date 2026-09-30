@@ -858,10 +858,10 @@
                 <line x1="19" y1="12" x2="5" y2="12"></line>
                 <polyline points="12 19 5 12 12 5"></polyline>
               </svg>
-              <span>Holdings</span>
+              <span class="portfolio-back-btn-text">Holdings</span>
             </button>
             <h2 class="portfolio-subpage-title">Portfolio Insights</h2>
-            <div style="width: 75px;"></div>
+            <div class="portfolio-subpage-spacer"></div>
           </div>
 
           <div class="portfolio-subpage-content">
@@ -924,61 +924,6 @@
                   </div>
                 </div>
                 <div class="portfolio-alloc-legend-list" id="stockAllocLegendList"></div>
-              </div>
-            </div>
-
-            <!-- Capital Gains Tax Card (Budget 2024: STCG 20%, LTCG 12.5%) -->
-            <div class="asset-section-card" id="portfolioTaxSection" style="margin-top: 1.5rem;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                <h3 class="section-heading" style="margin-bottom: 0;">Capital Gains Tax Statement (FY 2024-25)</h3>
-                <span class="funds-badge-pill">Budget 2024 Rules</span>
-              </div>
-              <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
-                • Short-Term Capital Gains (STCG) on equity/intraday taxed at <strong>20%</strong> (revised from 15%).<br>
-                • Long-Term Capital Gains (LTCG) held &ge; 1 year taxed at <strong>12.5%</strong> with <strong>₹1,25,000</strong> annual exemption.
-              </p>
-
-              <div class="portfolio-banner" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 1.5rem;">
-                <div>
-                  <div class="banner-metric-label">Net STCG (&lt;1 Year)</div>
-                  <div class="banner-metric-val" id="taxStcgGain">₹0.00</div>
-                  <div class="banner-metric-sub">Tax @ 20%: <strong id="taxStcgLiability" style="color: var(--danger-red);">₹0.00</strong></div>
-                </div>
-                <div>
-                  <div class="banner-metric-label">Net LTCG (≥1 Year)</div>
-                  <div class="banner-metric-val" id="taxLtcgGain">₹0.00</div>
-                  <div class="banner-metric-sub">Exemption: ₹1.25L applied</div>
-                </div>
-                <div>
-                  <div class="banner-metric-label">Taxable LTCG</div>
-                  <div class="banner-metric-val" id="taxLtcgTaxable">₹0.00</div>
-                  <div class="banner-metric-sub">Tax @ 12.5%: <strong id="taxLtcgLiability" style="color: var(--danger-red);">₹0.00</strong></div>
-                </div>
-                <div>
-                  <div class="banner-metric-label">Total Estimated Tax</div>
-                  <div class="banner-metric-val" id="taxTotalLiability" style="color: var(--danger-red);">₹0.00</div>
-                  <div class="banner-metric-sub" style="color: var(--text-muted);">Advance tax reference</div>
-                </div>
-              </div>
-
-              <!-- Tax Trades Table -->
-              <div class="table-container desktop-table-container">
-                <table class="groww-table">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Asset</th>
-                      <th>Product</th>
-                      <th>Shares Sold</th>
-                      <th>Sale Price</th>
-                      <th>Realized Gain / Loss</th>
-                      <th>Applicable Tax Provision</th>
-                    </tr>
-                  </thead>
-                  <tbody id="taxTradesTableBody">
-                    <tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">No realized sell trades to report for capital gains tax.</td></tr>
-                  </tbody>
-                </table>
               </div>
             </div>
           </div>
