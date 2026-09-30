@@ -3940,9 +3940,24 @@ function renderCardStarBtn(symbol, name, assetType) {
 }
 
 // --- Recently Viewed Assets (Stocks & Mutual Funds) ---
+function getRecentlyViewedKey(type) {
+  const uid = localStorage.getItem('stoxify_user_id') || (currentUser && currentUser.id);
+  const prefix = type === 'MUTUAL_FUND' ? 'stoxify_recent_mutual_funds' : 'stoxify_recent_stocks';
+  if (uid && uid !== 'default' && uid !== 'guest') {
+    return `${prefix}_${uid}`;
+  }
+  return `${prefix}_guest`;
+}
+
+// Purge legacy unscoped keys once so old cross-account browsing data doesn't persist
+try {
+  localStorage.removeItem('stoxify_recent_stocks');
+  localStorage.removeItem('stoxify_recent_mutual_funds');
+} catch (e) {}
+
 function getRecentlyViewed(type) {
   try {
-    const key = type === 'MUTUAL_FUND' ? 'stoxify_recent_mutual_funds' : 'stoxify_recent_stocks';
+    const key = getRecentlyViewedKey(type);
     const raw = localStorage.getItem(key);
     if (raw) {
       const parsed = JSON.parse(raw);
@@ -3954,7 +3969,7 @@ function getRecentlyViewed(type) {
 
 function recordRecentlyViewed(item, type) {
   if (!item || !item.symbol) return;
-  const key = type === 'MUTUAL_FUND' ? 'stoxify_recent_mutual_funds' : 'stoxify_recent_stocks';
+  const key = getRecentlyViewedKey(type);
   try {
     let list = getRecentlyViewed(type);
     const cleanSym = (item.symbol || '').toUpperCase();
@@ -3978,7 +3993,7 @@ function recordRecentlyViewed(item, type) {
 }
 
 function clearRecentlyViewed(type) {
-  const key = type === 'MUTUAL_FUND' ? 'stoxify_recent_mutual_funds' : 'stoxify_recent_stocks';
+  const key = getRecentlyViewedKey(type);
   try {
     localStorage.removeItem(key);
   } catch (e) {}
@@ -7856,6 +7871,9 @@ async function fetchCurrentUser() {
         localStorage.removeItem('stoxify_guest_mode');
         document.documentElement.classList.add('user-logged-in');
         document.documentElement.classList.remove('user-guest');
+        state.watchlist = getLocalWatchlistSet();
+        renderRecentlyViewedStocks();
+        renderRecentlyViewedMutualFunds();
         fetchPortfolio(true).catch(() => {});
       } else if (u && (u.is_guest || u.id === 'default' || !u.id)) {
         // If the server returns guest, but the client had an active stored user ID,
@@ -7991,6 +8009,8 @@ function enterGuestMode() {
   document.documentElement.classList.add('user-guest');
   currentUser = null;
   state.watchlist = getLocalWatchlistSet();
+  renderRecentlyViewedStocks();
+  renderRecentlyViewedMutualFunds();
   updateNavbarProfile();
 }
 
@@ -8002,6 +8022,8 @@ function logoutUser() {
   if (state.currentTab === 'positions') fetchPositions();
   if (state.currentTab === 'orders') fetchOrders();
   if (state.currentTab === 'watchlist') fetchWatchlist();
+  renderRecentlyViewedStocks();
+  renderRecentlyViewedMutualFunds();
   showWelcomePane();
   navigateTo('/');
 }
@@ -9325,6 +9347,8 @@ async function submitLogin() {
     document.documentElement.classList.add('user-logged-in');
     document.documentElement.classList.remove('user-guest');
     state.watchlist = getLocalWatchlistSet();
+    renderRecentlyViewedStocks();
+    renderRecentlyViewedMutualFunds();
 
     updateNavbarProfile();
     saveRecentAccount(currentUser);
@@ -12117,6 +12141,9 @@ function finishOnboarding() {
     return;
   }
   updateNavbarProfile();
+  state.watchlist = getLocalWatchlistSet();
+  renderRecentlyViewedStocks();
+  renderRecentlyViewedMutualFunds();
   navigateTo('/explore');
   showToast(`Welcome to Stoxify, ${currentUser.name}!`);
 }
