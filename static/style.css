@@ -9600,7 +9600,7 @@ body.viewing-profile .indices-bar {
 /* Green circled button for Portfolio Analysis */
 .groww-analysis-btn {
   color: var(--accent-green, #00d09c) !important;
-  border-color: rgba(0, 208, 156, 0.45) !important;
+  border-color: rgba(0, 208, 156, 0.6) !important;
   background: rgba(0, 208, 156, 0.08) !important;
 }
 
@@ -9608,7 +9608,18 @@ body.viewing-profile .indices-bar {
   border-color: var(--accent-green, #00d09c) !important;
   background: rgba(0, 208, 156, 0.18) !important;
   color: var(--accent-green, #00d09c) !important;
-  box-shadow: 0 0 12px rgba(0, 208, 156, 0.25);
+  box-shadow: 0 0 10px rgba(0, 208, 156, 0.25);
+}
+
+[data-theme="light"] .groww-analysis-btn {
+  color: #00b386 !important;
+  border-color: rgba(0, 179, 134, 0.55) !important;
+  background: rgba(0, 208, 156, 0.06) !important;
+}
+
+[data-theme="light"] .groww-analysis-btn:hover {
+  border-color: #00b386 !important;
+  background: rgba(0, 208, 156, 0.14) !important;
 }
 
 .groww-card-divider {
