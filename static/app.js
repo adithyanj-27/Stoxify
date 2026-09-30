@@ -2257,20 +2257,16 @@ function renderStockHoldingsListAndTable(holdings) {
           } else if (displayMode === 'total_pnl') {
             secondaryHtml = `<div class="groww-holding-row-secondary ${totalClass}">${isPrivate ? '••••••' : `${totalSign}${formatINR(h.total_pnl)} (${totalSign}${formatNumber(h.total_pnl_pct)}%)`}</div>`;
           } else if (displayMode === 'day_pnl') {
-            secondaryHtml = `<div class="groww-holding-row-secondary ${dayClass}">1D: ${isPrivate ? '••••••' : `${daySign}${formatINR(h.today_pnl)} (${daySign}${formatNumber(h.today_pnl_pct)}%)`}</div>`;
+            secondaryHtml = `<div class="groww-holding-row-secondary ${dayClass}">${isPrivate ? '••••••' : `${daySign}${formatINR(h.today_pnl)} (${daySign}${formatNumber(h.today_pnl_pct)}%)`}</div>`;
           }
 
           return `
             <div class="groww-holding-row" onclick="openHoldingBottomSheet('${h.symbol}')">
               <div class="groww-holding-row-left">
-                ${renderAssetAvatar(h, h.asset_type)}
                 <div class="groww-holding-row-identity">
                   <div class="groww-holding-row-name" title="${h.name}">${h.name}</div>
-                  <div class="groww-holding-row-sub">${h.quantity} shares • <span class="badge-exchange ${(h.exchange || 'NSE').toLowerCase()}">${h.exchange || 'NSE'}</span> • Avg. ${isPrivate ? '••••••' : formatINR(h.avg_price)}</div>
+                  <div class="groww-holding-row-sub">${h.quantity} shares</div>
                 </div>
-              </div>
-              <div class="groww-holding-row-center">
-                ${generateMiniSparklineSvg(h)}
               </div>
               <div class="groww-holding-row-right">
                 <div class="groww-holding-row-curval">${isPrivate ? '••••••••' : formatINR(curVal)}</div>
