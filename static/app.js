@@ -632,11 +632,7 @@ function switchProduct(product, targetSubTab = null, updateUrl = true) {
   const activeDesktopBtn = document.getElementById(`prod-${product}`);
   if (activeDesktopBtn) activeDesktopBtn.classList.add('active');
 
-  // 2. Mobile Top Header Product Title (Stocks | F&O | Mutual Funds)
-  const mobTitle = document.getElementById('mobileProductTitle');
-  if (mobTitle) {
-    mobTitle.innerText = product === 'stocks' ? 'Stocks' : (product === 'fo' ? 'F&O' : 'Mutual Funds');
-  }
+
 
   // 3. Mobile Bottom Bar Product Switcher Tabs (Stocks | F&O | Mutual Funds)
   document.querySelectorAll('.mobile-bottom-bar .mobile-nav-item').forEach(btn => btn.classList.remove('active'));
@@ -693,11 +689,7 @@ function switchProductSubTab(subTabId, updateUrl = true) {
     activeSubBtn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
   }
 
-  // 2. Synchronize Mobile Top Header Product Title and Bottom Bar
-  const mobTitle = document.getElementById('mobileProductTitle');
-  if (mobTitle) {
-    mobTitle.innerText = state.activeProduct === 'stocks' ? 'Stocks' : (state.activeProduct === 'fo' ? 'F&O' : 'Mutual Funds');
-  }
+
   document.querySelectorAll('.mobile-bottom-bar .mobile-nav-item').forEach(btn => btn.classList.remove('active'));
   const activeMobBottom = document.getElementById(`mob-bottom-${state.activeProduct}`);
   if (activeMobBottom) activeMobBottom.classList.add('active');
