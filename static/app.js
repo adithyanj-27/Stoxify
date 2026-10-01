@@ -14328,8 +14328,7 @@ function openOrderConfirmModal(spec) {
 
   const submitBtn = document.getElementById('btnSubmitConfirmedOrder');
   if (submitBtn) {
-    const exchSuffix = (specExch === 'NSE' || specExch === 'BSE') ? ` on ${specExch}` : '';
-    submitBtn.innerText = isBuy ? `Place Buy Order${exchSuffix} →` : `Place Sell Order${exchSuffix} →`;
+    submitBtn.innerText = isBuy ? 'Place Buy Order →' : 'Place Sell Order →';
     submitBtn.className = `btn-confirm-execute ${isBuy ? 'buy' : 'sell'}`;
     submitBtn.disabled = false;
   }
