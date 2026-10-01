@@ -925,6 +925,85 @@ _BASE_STOCK_PRICES = {
     "DEEPA.NS": (195.48, 6.59, 3.49),
     "PERNIASPOP.NS": (547.9, 17.15, 3.23),
     "MOMSBELIEF.NS": (234.64, -21.32, -8.33),
+    "DIXON.NS": (12450.0, 115.0, 0.93),
+    "HAVELLS.NS": (1620.0, -12.5, -0.77),
+    "POLYCAB.NS": (5380.0, 42.0, 0.79),
+    "KAYNES.NS": (4120.0, 35.0, 0.86),
+    "VOLTAS.NS": (1320.0, 8.5, 0.65),
+    "BLUESTARCO.NS": (1740.0, 14.0, 0.81),
+    "NYKAA.NS": (182.5, 1.25, 0.69),
+    "DMART.NS": (3820.0, -25.0, -0.65),
+    "VBL.NS": (580.0, 4.2, 0.73),
+    "INDIGO.NS": (4150.0, 52.0, 1.27),
+    "PAGEIND.NS": (43200.0, 150.0, 0.35),
+    "COLPAL.NS": (2890.0, -11.0, -0.38),
+    "DABUR.NS": (512.0, -2.1, -0.41),
+    "MARICO.NS": (640.0, 3.5, 0.55),
+    "NESTLEIND.NS": (2240.0, 12.0, 0.54),
+    "BRITANNIA.NS": (4950.0, 22.0, 0.45),
+    "GODREJCP.NS": (1180.0, 5.0, 0.43),
+    "KALYANKJIL.NS": (545.0, 8.5, 1.58),
+    "JUBLFOOD.NS": (570.0, -3.2, -0.56),
+    "INDHOTEL.NS": (680.0, 9.4, 1.40),
+    "BATAINDIA.NS": (1340.0, -8.0, -0.59),
+    "ZYDUSLIFE.NS": (960.0, 7.2, 0.76),
+    "DIVISLAB.NS": (5420.0, 65.0, 1.21),
+    "MANKIND.NS": (2410.0, 18.0, 0.75),
+    "TORNTPHARM.NS": (3180.0, -15.0, -0.47),
+    "LUPIN.NS": (2120.0, 24.0, 1.15),
+    "AUROPHARMA.NS": (1260.0, 11.0, 0.88),
+    "BIOCON.NS": (345.0, 2.5, 0.73),
+    "ANGELONE.NS": (2780.0, 45.0, 1.65),
+    "POLICYBZR.NS": (1720.0, 21.0, 1.24),
+    "MCX.NS": (5850.0, 85.0, 1.47),
+    "IEX.NS": (185.0, 1.2, 0.65),
+    "HDFCLIFE.NS": (690.0, 4.0, 0.58),
+    "SBILIFE.NS": (1520.0, 12.0, 0.80),
+    "ICICIPRULI.NS": (650.0, -3.0, -0.46),
+    "ICICIGI.NS": (1840.0, 16.0, 0.88),
+    "INDUSINDBK.NS": (1080.0, -14.0, -1.28),
+    "AUBANK.NS": (580.0, 6.0, 1.05),
+    "BANDHANBNK.NS": (175.0, -1.5, -0.85),
+    "MUTHOOTFIN.NS": (1890.0, 22.0, 1.18),
+    "SHRIRAMFIN.NS": (3150.0, 40.0, 1.29),
+    "CHOLAFIN.NS": (1420.0, 15.0, 1.07),
+    "MOTILALOFS.NS": (890.0, 14.0, 1.60),
+    "HCLTECH.NS": (1780.0, 15.0, 0.85),
+    "TECHM.NS": (1640.0, -8.0, -0.49),
+    "LTIM.NS": (5720.0, 48.0, 0.85),
+    "PERSISTENT.NS": (5120.0, 62.0, 1.23),
+    "COFORGE.NS": (7650.0, 95.0, 1.26),
+    "MPHASIS.NS": (2780.0, -12.0, -0.43),
+    "KPITTECH.NS": (1520.0, 18.0, 1.20),
+    "LTTS.NS": (4980.0, 32.0, 0.65),
+    "DELHIVERY.NS": (340.0, -2.5, -0.73),
+    "NAUKRI.NS": (6850.0, 75.0, 1.11),
+    "DLF.NS": (780.0, 8.5, 1.10),
+    "GODREJPROP.NS": (2650.0, 32.0, 1.22),
+    "LODHA.NS": (1180.0, 12.0, 1.03),
+    "PRESTIGE.NS": (1620.0, 14.0, 0.87),
+    "OBEROIRLTY.NS": (1780.0, -11.0, -0.61),
+    "GMRINFRA.NS": (82.0, 0.8, 0.99),
+    "IRB.NS": (52.0, 0.4, 0.78),
+    "SIEMENS.NS": (6920.0, 80.0, 1.17),
+    "ABB.NS": (7450.0, 95.0, 1.29),
+    "CUMMINSIND.NS": (3560.0, 38.0, 1.08),
+    "PIDILITIND.NS": (2980.0, -15.0, -0.50),
+    "SRF.NS": (2280.0, 18.0, 0.80),
+    "DEEPAKNTR.NS": (2640.0, 22.0, 0.84),
+    "TATACHEM.NS": (980.0, -5.0, -0.51),
+    "ASTRAL.NS": (1790.0, 12.0, 0.67),
+    "AMBUJACEM.NS": (560.0, 4.0, 0.72),
+    "ACC.NS": (2240.0, 16.0, 0.72),
+    "BPCL.NS": (310.0, -1.8, -0.58),
+    "IOC.NS": (140.0, -0.8, -0.57),
+    "GAIL.NS": (195.0, 1.5, 0.78),
+    "OLAELEC.NS": (68.0, -1.2, -1.73),
+    "ZENTEC.NS": (1740.0, 18.0, 1.05),
+    "DATAPATTNS.NS": (2650.0, -15.0, -0.56),
+    "TITAGARH.NS": (1120.0, 14.0, 1.26),
+    "WAAREEENER.NS": (2890.0, 42.0, 1.47),
+    "PREMIERENE.NS": (1080.0, 16.0, 1.50),
 }
 
 _BASE_ETF_PRICES = {
@@ -1818,13 +1897,13 @@ def search_market(query: str) -> List[Dict[str, Any]]:
         except Exception as e:
             logger.debug(f"FO search candidate error: {e}")
 
-    # Sort descending by relevance score
-    candidates.sort(key=lambda x: x["score"], reverse=True)
+    # 6. External exchange search fallback if local stock candidates are sparse or have low score, and query is at least 2 chars
+    stock_candidates = [c for c in candidates if c["asset_type"] == "STOCK"]
+    top_stock_score = max([c["score"] for c in stock_candidates], default=0)
 
-    # 6. External fallback only if local high-quality matches are 0 and query is at least 4 chars
-    if len(candidates) == 0 and len(q) >= 4:
+    if (len(stock_candidates) < 3 or top_stock_score < 700) and len(q) >= 2:
         try:
-            yf_search_url = f"https://query2.finance.yahoo.com/v1/finance/search?q={requests.utils.quote(query.strip())}&quotesCount=8&newsCount=0"
+            yf_search_url = f"https://query2.finance.yahoo.com/v1/finance/search?q={requests.utils.quote(query.strip())}&quotesCount=10&newsCount=0"
             headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
             r = requests.get(yf_search_url, headers=headers, timeout=0.85)
             if r.status_code == 200:
@@ -1833,7 +1912,7 @@ def search_market(query: str) -> List[Dict[str, Any]]:
                 for item in quotes:
                     sym = item.get("symbol", "")
                     exchange = item.get("exchange", "")
-                    if sym.startswith("0P") or "=" in sym:
+                    if sym.startswith("0P") or "=" in sym or sym.startswith("^"):
                         continue
                     if sym.endswith(".NS") or sym.endswith(".BO") or exchange in ["NSI", "BSE", "NSE"]:
                         clean_item_sym = sym.upper().replace(".NS", "").replace(".BO", "").strip()
@@ -1848,17 +1927,43 @@ def search_market(query: str) -> List[Dict[str, Any]]:
                         unified_sym = f"{clean_item_sym}.NS"
                         seen_symbols.add(unified_sym)
 
+                        # Intelligent relevance score for external candidates
+                        q_clean = q.strip().upper()
+                        clean_sym_upper = clean_item_sym.upper()
+                        name_upper = short_name.upper()
+                        if clean_sym_upper == q_clean:
+                            ext_score = 950
+                        elif clean_sym_upper.startswith(q_clean):
+                            ext_score = 840
+                        elif name_upper.startswith(q_clean):
+                            ext_score = 780
+                        elif any(w.startswith(q_clean) for w in name_upper.split()):
+                            ext_score = 720
+                        elif q_clean in clean_sym_upper:
+                            ext_score = 500
+                        elif q_clean in name_upper:
+                            ext_score = 420
+                        else:
+                            ext_score = 300
+
                         local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_item_sym}.png")
                         logo_url = f"/static/logos/{clean_item_sym}.png" if os.path.exists(local_logo) else f"https://images.financialmodelingprep.com/symbol/{clean_item_sym}.NS.png"
+
+                        cq = get_cached(f"quote_{unified_sym}") or _CACHE.get(f"quote_{unified_sym}")
+                        base_p = _BASE_STOCK_PRICES.get(unified_sym) or _BASE_STOCK_PRICES.get(clean_item_sym)
+                        price = cq.get("price") if (cq and cq.get("price")) else (base_p[0] if base_p else None)
+                        chg = cq.get("change") if (cq and cq.get("price")) else (base_p[1] if base_p else None)
+                        chg_pct = cq.get("change_pct") if (cq and cq.get("price")) else (base_p[2] if base_p else None)
+
                         candidates.append({
-                            "score": 100,
+                            "score": ext_score,
                             "symbol": unified_sym,
                             "name": short_name,
                             "asset_type": "STOCK",
                             "exchange": "NSE",
-                            "price": None,
-                            "change": None,
-                            "change_pct": None,
+                            "price": price,
+                            "change": chg,
+                            "change_pct": chg_pct,
                             "logo_url": logo_url,
                             "subtext": f"Stock • {clean_item_sym}",
                             "sector": "Equity",
@@ -1866,6 +1971,9 @@ def search_market(query: str) -> List[Dict[str, Any]]:
                         })
         except Exception:
             pass
+
+    # Sort descending by relevance score (so both local and external candidates rank properly)
+    candidates.sort(key=lambda x: x["score"], reverse=True)
 
     # Strip internal score and limit results to top 25 (with strict clean symbol deduplication)
     final_results = []

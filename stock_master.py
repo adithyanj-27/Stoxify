@@ -44,18 +44,23 @@ STOCK_MASTER = [
     {"symbol": "COCHINSHIP.NS", "name": "Cochin Shipyard Ltd", "sector": "Defense", "aliases": ["cochin shipyard", "cochinship"]},
     {"symbol": "GRSE.NS", "name": "Garden Reach Shipbuilders Ltd", "sector": "Defense", "aliases": ["grse", "garden reach"]},
     {"symbol": "BDL.NS", "name": "Bharat Dynamics Ltd", "sector": "Defense", "aliases": ["bdl", "missiles"]},
+    {"symbol": "ZENTEC.NS", "name": "Zen Technologies Ltd", "sector": "Defense", "aliases": ["zen", "zen tech", "zen technologies", "drones"]},
+    {"symbol": "DATAPATTNS.NS", "name": "Data Patterns (India) Ltd", "sector": "Defense", "aliases": ["data patterns", "datapattns", "radar"]},
 
     # --- Railways & PSUs ---
     {"symbol": "IRFC.NS", "name": "Indian Railway Finance Corp", "sector": "Railways", "aliases": ["irfc", "railway finance"]},
     {"symbol": "IRCTC.NS", "name": "Indian Railway Catering & Tourism Corp", "sector": "Railways", "aliases": ["irctc", "railway booking"]},
     {"symbol": "RVNL.NS", "name": "Rail Vikas Nigam Ltd", "sector": "Railways", "aliases": ["rvnl", "rail vikas"]},
     {"symbol": "RAILTEL.NS", "name": "RailTel Corp of India Ltd", "sector": "Railways", "aliases": ["railtel", "railway wifi"]},
+    {"symbol": "TITAGARH.NS", "name": "Titagarh Rail Systems Ltd", "sector": "Railways", "aliases": ["titagarh", "wagons", "trains"]},
     {"symbol": "BHEL.NS", "name": "Bharat Heavy Electricals Ltd", "sector": "Energy", "aliases": ["bhel", "turbines"]},
 
     # --- Power, Renewable & Clean Energy ---
     {"symbol": "TATAPOWER.NS", "name": "Tata Power Company Ltd", "sector": "Energy", "aliases": ["tata power", "ev charging", "solar"]},
     {"symbol": "SUZLON.NS", "name": "Suzlon Energy Ltd", "sector": "Energy", "aliases": ["suzlon", "wind energy", "green power"]},
     {"symbol": "IREDA.NS", "name": "Indian Renewable Energy Dev Agency", "sector": "Energy", "aliases": ["ireda", "green finance"]},
+    {"symbol": "WAAREEENER.NS", "name": "Waaree Energies Ltd", "sector": "Energy", "aliases": ["waaree", "waaree energies", "solar panels"]},
+    {"symbol": "PREMIERENE.NS", "name": "Premier Energies Ltd", "sector": "Energy", "aliases": ["premier energies", "premier", "solar cells"]},
     {"symbol": "ADANIGREEN.NS", "name": "Adani Green Energy Ltd", "sector": "Energy", "aliases": ["adani green", "solar"]},
     {"symbol": "ADANIPOWER.NS", "name": "Adani Power Ltd", "sector": "Energy", "aliases": ["adani power"]},
     {"symbol": "NHPC.NS", "name": "NHPC Ltd", "sector": "Energy", "aliases": ["nhpc", "hydro power"]},
@@ -89,10 +94,98 @@ STOCK_MASTER = [
     {"symbol": "JSWSTEEL.NS", "name": "JSW Steel Ltd", "sector": "Metals", "aliases": ["jsw steel", "jindal"]},
     {"symbol": "HINDALCO.NS", "name": "Hindalco Industries Ltd", "sector": "Metals", "aliases": ["hindalco", "aluminium"]},
 
-    # --- Pharma ---
+    # --- Pharma & Healthcare ---
     {"symbol": "CIPLA.NS", "name": "Cipla Ltd", "sector": "Pharma", "aliases": ["cipla"]},
     {"symbol": "DRREDDY.NS", "name": "Dr. Reddy's Laboratories Ltd", "sector": "Pharma", "aliases": ["dr reddy", "drreddy"]},
-    {"symbol": "APOLLOHOSP.NS", "name": "Apollo Hospitals Enterprise", "sector": "Pharma", "aliases": ["apollo hospitals", "apollo pharmacy"]}
+    {"symbol": "APOLLOHOSP.NS", "name": "Apollo Hospitals Enterprise", "sector": "Pharma", "aliases": ["apollo hospitals", "apollo pharmacy"]},
+    {"symbol": "ZYDUSLIFE.NS", "name": "Zydus Lifesciences Ltd", "sector": "Pharma", "aliases": ["zydus", "zydus life", "cadila"]},
+    {"symbol": "DIVISLAB.NS", "name": "Divi's Laboratories Ltd", "sector": "Pharma", "aliases": ["divis", "divi", "divislab"]},
+    {"symbol": "MANKIND.NS", "name": "Mankind Pharma Ltd", "sector": "Pharma", "aliases": ["mankind", "manforce"]},
+    {"symbol": "TORNTPHARM.NS", "name": "Torrent Pharmaceuticals Ltd", "sector": "Pharma", "aliases": ["torrent pharma", "torntpharm"]},
+    {"symbol": "LUPIN.NS", "name": "Lupin Ltd", "sector": "Pharma", "aliases": ["lupin"]},
+    {"symbol": "AUROPHARMA.NS", "name": "Aurobindo Pharma Ltd", "sector": "Pharma", "aliases": ["aurobindo", "auropharma"]},
+    {"symbol": "BIOCON.NS", "name": "Biocon Ltd", "sector": "Pharma", "aliases": ["biocon", "kiran mazumdar"]},
+
+    # --- Consumer Electronics, Durables & EMS ---
+    {"symbol": "DIXON.NS", "name": "Dixon Technologies (India) Ltd", "sector": "Consumer", "aliases": ["dixon", "dixon tech", "ems", "electronics"]},
+    {"symbol": "HAVELLS.NS", "name": "Havells India Ltd", "sector": "Consumer", "aliases": ["havells", "lloyd", "electricals"]},
+    {"symbol": "POLYCAB.NS", "name": "Polycab India Ltd", "sector": "Infra", "aliases": ["polycab", "cables", "wires"]},
+    {"symbol": "KAYNES.NS", "name": "Kaynes Technology India Ltd", "sector": "IT", "aliases": ["kaynes", "semiconductor", "ems"]},
+    {"symbol": "VOLTAS.NS", "name": "Voltas Ltd", "sector": "Consumer", "aliases": ["voltas", "ac", "air conditioner"]},
+    {"symbol": "BLUESTARCO.NS", "name": "Blue Star Ltd", "sector": "Consumer", "aliases": ["blue star", "bluestar"]},
+
+    # --- Consumer, Retail & E-Commerce ---
+    {"symbol": "NYKAA.NS", "name": "FSN E-Commerce Ventures (Nykaa)", "sector": "Consumer", "aliases": ["nykaa", "fsn", "beauty", "cosmetics"]},
+    {"symbol": "DMART.NS", "name": "Avenue Supermarts Ltd (DMart)", "sector": "Consumer", "aliases": ["dmart", "avenue supermarts", "radhakishan damani", "retail"]},
+    {"symbol": "VBL.NS", "name": "Varun Beverages Ltd (PepsiCo)", "sector": "Consumer", "aliases": ["vbl", "varun beverages", "pepsi", "sting"]},
+    {"symbol": "INDIGO.NS", "name": "InterGlobe Aviation Ltd (IndiGo)", "sector": "Consumer", "aliases": ["indigo", "interglobe", "airlines", "flight"]},
+    {"symbol": "PAGEIND.NS", "name": "Page Industries Ltd (Jockey)", "sector": "Consumer", "aliases": ["page", "pageind", "jockey"]},
+    {"symbol": "COLPAL.NS", "name": "Colgate-Palmolive (India) Ltd", "sector": "Consumer", "aliases": ["colgate", "colpal"]},
+    {"symbol": "DABUR.NS", "name": "Dabur India Ltd", "sector": "Consumer", "aliases": ["dabur", "chyawanprash"]},
+    {"symbol": "MARICO.NS", "name": "Marico Ltd", "sector": "Consumer", "aliases": ["marico", "parachute", "saffola"]},
+    {"symbol": "NESTLEIND.NS", "name": "Nestle India Ltd", "sector": "Consumer", "aliases": ["nestle", "maggi", "nescafe"]},
+    {"symbol": "BRITANNIA.NS", "name": "Britannia Industries Ltd", "sector": "Consumer", "aliases": ["britannia", "good day", "biscuits"]},
+    {"symbol": "GODREJCP.NS", "name": "Godrej Consumer Products Ltd", "sector": "Consumer", "aliases": ["godrej cp", "godrej consumer", "good knight"]},
+    {"symbol": "KALYANKJIL.NS", "name": "Kalyan Jewellers India Ltd", "sector": "Consumer", "aliases": ["kalyan", "kalyan jewellers", "gold"]},
+    {"symbol": "JUBLFOOD.NS", "name": "Jubilant FoodWorks Ltd (Domino's)", "sector": "Consumer", "aliases": ["jubilant", "dominos", "pizza"]},
+    {"symbol": "INDHOTEL.NS", "name": "The Indian Hotels Co Ltd (Taj)", "sector": "Consumer", "aliases": ["indhotel", "taj", "taj hotels", "ihcl"]},
+    {"symbol": "BATAINDIA.NS", "name": "Bata India Ltd", "sector": "Consumer", "aliases": ["bata", "shoes"]},
+
+    # --- Banking, Insurance & Broking ---
+    {"symbol": "ANGELONE.NS", "name": "Angel One Ltd", "sector": "Finance", "aliases": ["angel one", "angel broking", "angelone"]},
+    {"symbol": "POLICYBZR.NS", "name": "PB Fintech Ltd (Policybazaar)", "sector": "Finance", "aliases": ["policybazaar", "pb fintech", "policybzr"]},
+    {"symbol": "MCX.NS", "name": "Multi Commodity Exchange of India", "sector": "Finance", "aliases": ["mcx", "commodity exchange", "gold futures"]},
+    {"symbol": "IEX.NS", "name": "Indian Energy Exchange Ltd", "sector": "Energy", "aliases": ["iex", "power exchange"]},
+    {"symbol": "HDFCLIFE.NS", "name": "HDFC Life Insurance Co Ltd", "sector": "Finance", "aliases": ["hdfc life", "life insurance"]},
+    {"symbol": "SBILIFE.NS", "name": "SBI Life Insurance Co Ltd", "sector": "Finance", "aliases": ["sbi life", "life insurance"]},
+    {"symbol": "ICICIPRULI.NS", "name": "ICICI Prudential Life Insurance", "sector": "Finance", "aliases": ["icici pru", "icici life"]},
+    {"symbol": "ICICIGI.NS", "name": "ICICI Lombard General Insurance", "sector": "Finance", "aliases": ["icici lombard", "general insurance"]},
+    {"symbol": "INDUSINDBK.NS", "name": "IndusInd Bank Ltd", "sector": "Banking", "aliases": ["indusind", "indusind bank"]},
+    {"symbol": "AUBANK.NS", "name": "AU Small Finance Bank Ltd", "sector": "Banking", "aliases": ["au bank", "au small finance"]},
+    {"symbol": "BANDHANBNK.NS", "name": "Bandhan Bank Ltd", "sector": "Banking", "aliases": ["bandhan bank", "bandhan"]},
+    {"symbol": "MUTHOOTFIN.NS", "name": "Muthoot Finance Ltd", "sector": "Finance", "aliases": ["muthoot", "muthoot finance", "gold loan"]},
+    {"symbol": "SHRIRAMFIN.NS", "name": "Shriram Finance Ltd", "sector": "Finance", "aliases": ["shriram", "shriram finance"]},
+    {"symbol": "CHOLAFIN.NS", "name": "Cholamandalam Investment & Finance", "sector": "Finance", "aliases": ["cholamandalam", "cholafin", "chola"]},
+    {"symbol": "MOTILALOFS.NS", "name": "Motilal Oswal Financial Services", "sector": "Finance", "aliases": ["motilal", "motilal oswal", "mofs"]},
+
+    # --- IT, Software & Digital ---
+    {"symbol": "HCLTECH.NS", "name": "HCL Technologies Ltd", "sector": "IT", "aliases": ["hcl", "hcl tech", "hcltech"]},
+    {"symbol": "TECHM.NS", "name": "Tech Mahindra Ltd", "sector": "IT", "aliases": ["tech mahindra", "techm"]},
+    {"symbol": "LTIM.NS", "name": "LTIMindtree Ltd", "sector": "IT", "aliases": ["ltim", "ltimindtree", "mindtree", "l&t infotech"]},
+    {"symbol": "PERSISTENT.NS", "name": "Persistent Systems Ltd", "sector": "IT", "aliases": ["persistent", "persistent systems"]},
+    {"symbol": "COFORGE.NS", "name": "Coforge Ltd", "sector": "IT", "aliases": ["coforge", "niit tech"]},
+    {"symbol": "MPHASIS.NS", "name": "Mphasis Ltd", "sector": "IT", "aliases": ["mphasis"]},
+    {"symbol": "KPITTECH.NS", "name": "KPIT Technologies Ltd", "sector": "IT", "aliases": ["kpit", "kpit tech", "auto software"]},
+    {"symbol": "LTTS.NS", "name": "L&T Technology Services Ltd", "sector": "IT", "aliases": ["ltts", "l&t tech"]},
+    {"symbol": "DELHIVERY.NS", "name": "Delhivery Ltd", "sector": "Consumer", "aliases": ["delhivery", "logistics", "courier"]},
+    {"symbol": "NAUKRI.NS", "name": "Info Edge (India) Ltd (Naukri)", "sector": "IT", "aliases": ["naukri", "info edge", "jeevansathi", "99acres"]},
+
+    # --- Realty & Infrastructure ---
+    {"symbol": "DLF.NS", "name": "DLF Ltd", "sector": "Infra", "aliases": ["dlf", "real estate", "realty"]},
+    {"symbol": "GODREJPROP.NS", "name": "Godrej Properties Ltd", "sector": "Infra", "aliases": ["godrej properties", "godrej prop"]},
+    {"symbol": "LODHA.NS", "name": "Macrotech Developers Ltd (Lodha)", "sector": "Infra", "aliases": ["lodha", "macrotech"]},
+    {"symbol": "PRESTIGE.NS", "name": "Prestige Estates Projects Ltd", "sector": "Infra", "aliases": ["prestige", "prestige estates"]},
+    {"symbol": "OBEROIRLTY.NS", "name": "Oberoi Realty Ltd", "sector": "Infra", "aliases": ["oberoi realty", "oberoi"]},
+    {"symbol": "GMRINFRA.NS", "name": "GMR Airports Infrastructure Ltd", "sector": "Infra", "aliases": ["gmr", "gmr infra", "airports"]},
+    {"symbol": "IRB.NS", "name": "IRB Infrastructure Developers", "sector": "Infra", "aliases": ["irb", "irb infra", "highways", "toll"]},
+
+    # --- Industrial, Engineering & Chemicals ---
+    {"symbol": "SIEMENS.NS", "name": "Siemens Ltd", "sector": "Infra", "aliases": ["siemens", "engineering"]},
+    {"symbol": "ABB.NS", "name": "ABB India Ltd", "sector": "Infra", "aliases": ["abb", "abb india", "automation"]},
+    {"symbol": "CUMMINSIND.NS", "name": "Cummins India Ltd", "sector": "Infra", "aliases": ["cummins", "generators", "engines"]},
+    {"symbol": "PIDILITIND.NS", "name": "Pidilite Industries Ltd", "sector": "Consumer", "aliases": ["pidilite", "fevicol", "m-seal", "dr fixit"]},
+    {"symbol": "SRF.NS", "name": "SRF Ltd", "sector": "Metals", "aliases": ["srf", "chemicals", "packaging"]},
+    {"symbol": "DEEPAKNTR.NS", "name": "Deepak Nitrite Ltd", "sector": "Metals", "aliases": ["deepak nitrite", "chemicals"]},
+    {"symbol": "TATACHEM.NS", "name": "Tata Chemicals Ltd", "sector": "Metals", "aliases": ["tata chem", "tata chemicals", "soda ash"]},
+    {"symbol": "ASTRAL.NS", "name": "Astral Ltd", "sector": "Infra", "aliases": ["astral", "astral pipes", "pipes"]},
+
+    # --- Cement, Energy & EV ---
+    {"symbol": "AMBUJACEM.NS", "name": "Ambuja Cements Ltd", "sector": "Infra", "aliases": ["ambuja", "ambuja cement"]},
+    {"symbol": "ACC.NS", "name": "ACC Ltd", "sector": "Infra", "aliases": ["acc", "acc cement"]},
+    {"symbol": "BPCL.NS", "name": "Bharat Petroleum Corp Ltd", "sector": "Energy", "aliases": ["bpcl", "bharat petroleum", "petrol"]},
+    {"symbol": "IOC.NS", "name": "Indian Oil Corporation Ltd", "sector": "Energy", "aliases": ["ioc", "indian oil", "petrol"]},
+    {"symbol": "GAIL.NS", "name": "GAIL (India) Ltd", "sector": "Energy", "aliases": ["gail", "gas authority"]},
+    {"symbol": "OLAELEC.NS", "name": "Ola Electric Mobility Ltd", "sector": "Auto", "aliases": ["ola electric", "ola", "scooter"]}
 ]
 
 MUTUAL_FUND_MASTER = [
