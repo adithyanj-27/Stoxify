@@ -1489,45 +1489,97 @@ def get_mf_chart(code: str, timeframe: str = "1M") -> List[Dict[str, Any]]:
 
 _SEARCH_CACHE: Dict[str, Any] = {}
 
+SECTOR_SYNONYMS = {
+    "defense": ["defence", "military", "aerospace", "shipbuilder", "shipbuilders", "shipyard", "missile", "missiles", "army", "navy"],
+    "railways": ["railway", "train", "rail", "trains", "irctc", "irfc", "rvnl", "railtel", "locomotive"],
+    "energy": ["power", "solar", "renewable", "green", "clean energy", "electricity", "wind", "hydro"],
+    "auto": ["automobiles", "automotive", "car", "cars", "bike", "bikes", "motor", "motors", "ev", "electric vehicle", "truck", "trucks"],
+    "banking": ["bank", "banks", "lender", "nbfc", "banking", "finance"],
+    "finance": ["financial", "wealth", "fintech", "demat", "exchange", "depository", "broker"],
+    "it": ["tech", "technology", "software", "digital", "computers", "services", "it services"],
+    "pharma": ["pharmaceutical", "drugs", "healthcare", "health", "hospital", "hospitals", "medicine", "pharma"],
+    "metals": ["metal", "steel", "mining", "aluminium", "iron", "zinc", "copper", "metals"],
+    "consumer": ["fmcg", "retail", "fashion", "food", "beverages", "hotels", "ecommerce", "consumer"],
+    "gold & silver": ["gold", "silver", "bullion", "sona", "chandi", "commodity", "precious metals"]
+}
+
 def _score_search_candidate(q: str, sym_clean: str, name_clean: str, aliases: List[str], is_index: bool = False) -> int:
+    sym_clean = sym_clean.lower()
+    name_clean = name_clean.lower()
+    clean_aliases = [a.lower().strip() for a in aliases if a]
+    words = name_clean.split()
+
+    # 1. Exact matches
     if sym_clean == q:
         return 1000
-    if is_index and any(q == a for a in aliases):
+    if is_index and any(q == a for a in clean_aliases):
         return 960
+    if any(q == a for a in clean_aliases):
+        return 920
+    if name_clean == q:
+        return 900
+
+    # 2. Prefix matches
     if sym_clean.startswith(q):
-        return 850
+        return 860
     if name_clean.startswith(q):
-        return 750
-    words = name_clean.split()
+        return 800
     if any(w.startswith(q) for w in words):
-        return 620
-    for a in aliases:
-        if a == q:
-            return 700
-        if a.startswith(q):
-            return 580
-        if any(w.startswith(q) for w in a.split()):
-            return 480
+        return 720
+    if any(a.startswith(q) for a in clean_aliases):
+        return 650
+    if any(w.startswith(q) for a in clean_aliases for w in a.split()):
+        return 580
+
+    # 3. Multi-token (order-independent) matching (e.g. "gold etf", "tata motor", "nifty bank")
+    q_words = [w for w in q.split() if w]
+    if len(q_words) > 1:
+        all_tokens = [sym_clean] + words + [w for a in clean_aliases for w in a.split()]
+        all_matched = True
+        token_pts = 0
+        for qw in q_words:
+            matched_token = False
+            for t in all_tokens:
+                if t == qw:
+                    matched_token = True
+                    token_pts += 150
+                    break
+                elif t.startswith(qw):
+                    matched_token = True
+                    token_pts += 100
+                    break
+                elif qw in t:
+                    matched_token = True
+                    token_pts += 60
+                    break
+            if not matched_token:
+                all_matched = False
+                break
+        if all_matched:
+            return 750 + min(token_pts, 200)
+
+    # 4. Substring matches
     if q in sym_clean:
-        return 400
+        return 450
     if q in name_clean:
+        return 400
+    if any(q in a for a in clean_aliases):
         return 350
-    if any(q in a for a in aliases):
-        return 300
-    # Fuzzy matching for typos (e.g. relience, tatamoters, hdfcbnk)
-    if len(q) >= 4:
+
+    # 5. Typo-tolerant / distance matching for queries >= 3 chars
+    if len(q) >= 3:
         r_sym = difflib.SequenceMatcher(None, q, sym_clean).ratio()
-        if r_sym >= 0.72:
-            return int(180 + r_sym * 100)
+        if r_sym >= 0.75:
+            return int(200 + r_sym * 100)
         for w in words:
             if len(w) >= 3:
                 r_w = difflib.SequenceMatcher(None, q, w).ratio()
-                if r_w >= 0.75:
-                    return int(170 + r_w * 100)
-        for a in aliases:
+                if r_w >= 0.78:
+                    return int(180 + r_w * 100)
+        for a in clean_aliases:
             if len(a) >= 3:
                 r_a = difflib.SequenceMatcher(None, q, a).ratio()
-                if r_a >= 0.75:
+                if r_a >= 0.80:
                     return int(160 + r_a * 100)
     return 0
 
@@ -1571,14 +1623,22 @@ def search_market(query: str) -> List[Dict[str, Any]]:
                 "change": chg,
                 "change_pct": chg_pct,
                 "logo_url": logo_url,
-                "subtext": f"Index • {idx.get('short', name)}"
+                "subtext": f"Index • {idx.get('short', name)}",
+                "sector": "Index Benchmark",
+                "badge": "Index"
             })
 
     # 2. Combined Stock Master (Equities)
     for s in get_combined_stock_master():
         sym_clean = s["symbol"].lower().replace(".ns", "").replace(".bo", "").strip()
         name_clean = s["name"].lower()
+        sector = s.get("sector", "")
         aliases = [a.lower() for a in s.get("aliases", [])]
+        if sector:
+            aliases.append(sector.lower())
+            for syn in SECTOR_SYNONYMS.get(sector.lower(), []):
+                aliases.append(syn.lower())
+
         score = _score_search_candidate(q, sym_clean, name_clean, aliases, is_index=False)
         clean_s = s["symbol"].upper().replace(".NS", "").replace(".BO", "").strip()
         if score > 0 and clean_s not in seen_clean_stocks:
@@ -1612,6 +1672,8 @@ def search_market(query: str) -> List[Dict[str, Any]]:
                 "change_pct": chg_pct,
                 "logo_url": logo_url,
                 "subtext": subtext,
+                "sector": sector or "Equity",
+                "badge": sector or "Stock",
                 "is_new_listing": s.get("is_new_listing", False)
             })
 
@@ -1620,7 +1682,11 @@ def search_market(query: str) -> List[Dict[str, Any]]:
         sym_clean = e["symbol"].lower().replace(".ns", "").replace(".bo", "").strip()
         name_clean = e["name"].lower()
         cat_clean = e.get("category", "").lower()
-        aliases = [a.lower() for a in e.get("aliases", [])] + [cat_clean]
+        sector_clean = e.get("sector", "").lower()
+        aliases = [a.lower() for a in e.get("aliases", [])] + [cat_clean, sector_clean, "etf"]
+        for syn in SECTOR_SYNONYMS.get(cat_clean, []) + SECTOR_SYNONYMS.get(sector_clean, []):
+            aliases.append(syn.lower())
+
         score = _score_search_candidate(q, sym_clean, name_clean, aliases, is_index=False)
         clean_e = e["symbol"].upper().replace(".NS", "").replace(".BO", "").strip()
         if score > 0 and clean_e not in seen_clean_stocks and e["symbol"] not in seen_symbols:
@@ -1645,7 +1711,9 @@ def search_market(query: str) -> List[Dict[str, Any]]:
                 "change": chg,
                 "change_pct": chg_pct,
                 "logo_url": logo_url,
-                "subtext": f"ETF • {clean_e}"
+                "subtext": f"ETF • {clean_e}",
+                "sector": e.get("category", "ETF"),
+                "badge": e.get("category", "ETF")
             })
 
     # 4. Mutual Funds
@@ -1654,7 +1722,18 @@ def search_market(query: str) -> List[Dict[str, Any]]:
         name_clean = mf["name"].lower()
         cat_clean = mf.get("category", "").lower()
         house_clean = mf.get("fund_house", "").lower()
-        aliases = [cat_clean, house_clean, code_str]
+        aliases = [cat_clean, house_clean, code_str, "mutual fund", "mf", "fund"]
+        if "small" in cat_clean:
+            aliases.extend(["small cap", "smallcap"])
+        if "mid" in cat_clean:
+            aliases.extend(["mid cap", "midcap"])
+        if "large" in cat_clean:
+            aliases.extend(["large cap", "largecap", "bluechip"])
+        if "flexi" in cat_clean:
+            aliases.extend(["flexi cap", "flexicap"])
+        if "index" in cat_clean:
+            aliases.extend(["index fund", "passive", "nifty"])
+
         score = _score_search_candidate(q, code_str, name_clean, aliases, is_index=False)
         if score > 0 and code_str not in seen_symbols:
             seen_symbols.add(code_str)
@@ -1677,26 +1756,83 @@ def search_market(query: str) -> List[Dict[str, Any]]:
                 "change": chg,
                 "change_pct": chg_pct,
                 "logo_url": logo_url,
-                "subtext": f"Mutual Fund • {mf['category']}"
+                "subtext": f"Mutual Fund • {mf['category']}",
+                "sector": mf.get("category", "Mutual Fund"),
+                "badge": mf.get("category", "Mutual Fund")
             })
+
+    # 5. F&O Derivatives (Call / Put Options & Indices)
+    fo_triggers = ["ce", "pe", "call", "put", "option", "options", "fo", "f&o", "derivative", "strike", "exp", "expiry"]
+    has_digit = any(c.isdigit() for c in q)
+    if any(t in q for t in fo_triggers) or "nifty" in q or "bank" in q or has_digit:
+        try:
+            import fo_service
+            for underlying in ["NIFTY", "BANKNIFTY"]:
+                if underlying.lower() in q or not ("nifty" in q and underlying == "BANKNIFTY"):
+                    chain_data = fo_service.get_option_chain(underlying)
+                    chain_rows = chain_data.get("chain", [])
+                    expiry = chain_data.get("expiry", "Weekly")
+                    lot_size = fo_service.LOT_SIZES.get(underlying, 25)
+                    for row in chain_rows:
+                        strike = row.get("strike", 0)
+                        is_atm = row.get("is_atm", False)
+                        strike_str = str(strike)
+                        match_strike = (strike_str in q) if has_digit else is_atm
+
+                        if match_strike or is_atm:
+                            for opt_type, opt_key in [("CE", "call"), ("PE", "put")]:
+                                opt_data = row.get(opt_key, {})
+                                opt_sym = opt_data.get("symbol", f"{underlying}{strike}{opt_type}")
+                                opt_name = f"{underlying} {strike} {'Call' if opt_type == 'CE' else 'Put'}"
+                                opt_aliases = [
+                                    underlying.lower(),
+                                    opt_type.lower(),
+                                    "call" if opt_type == "CE" else "put",
+                                    f"{underlying.lower()} {opt_type.lower()}",
+                                    f"{underlying.lower()} {strike}",
+                                    f"{underlying.lower()} {strike} {opt_type.lower()}",
+                                    f"{strike} {opt_type.lower()}",
+                                    "options", "fo", "f&o"
+                                ]
+                                score = _score_search_candidate(q, opt_sym.lower(), opt_name.lower(), opt_aliases, is_index=False)
+                                if score > 0:
+                                    candidates.append({
+                                        "score": score + (50 if is_atm else 0),
+                                        "symbol": opt_sym,
+                                        "name": opt_name,
+                                        "asset_type": "FO",
+                                        "exchange": "NSE NFO",
+                                        "price": opt_data.get("ltp", 0.0),
+                                        "change": 0.0,
+                                        "change_pct": opt_data.get("oi_chg_pct", 0.0),
+                                        "logo_url": "/static/logos/NSE.png",
+                                        "subtext": f"F&O • {opt_type} • Exp {expiry}",
+                                        "sector": "Derivatives",
+                                        "badge": f"{opt_type} {'(ATM)' if is_atm else ''}".strip(),
+                                        "strike": strike,
+                                        "option_type": opt_type,
+                                        "underlying": underlying,
+                                        "lot_size": lot_size,
+                                        "iv": opt_data.get("iv", 13.0)
+                                    })
+        except Exception as e:
+            logger.debug(f"FO search candidate error: {e}")
 
     # Sort descending by relevance score
     candidates.sort(key=lambda x: x["score"], reverse=True)
 
-    # 5. External fallback only if local high-quality matches are < 5 and query is at least 3 chars
-    if len(candidates) < 5 and len(q) >= 3:
+    # 6. External fallback only if local high-quality matches are 0 and query is at least 4 chars
+    if len(candidates) == 0 and len(q) >= 4:
         try:
             yf_search_url = f"https://query2.finance.yahoo.com/v1/finance/search?q={requests.utils.quote(query.strip())}&quotesCount=8&newsCount=0"
             headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
             r = requests.get(yf_search_url, headers=headers, timeout=0.85)
             if r.status_code == 200:
                 quotes = r.json().get("quotes", [])
-                # Prioritize NSE (.NS) over BSE (.BO) so NSE entry is parsed first
                 quotes.sort(key=lambda x: 0 if x.get("symbol", "").upper().endswith(".NS") else 1)
                 for item in quotes:
                     sym = item.get("symbol", "")
                     exchange = item.get("exchange", "")
-                    # Ignore obscure or synthetic symbols
                     if sym.startswith("0P") or "=" in sym:
                         continue
                     if sym.endswith(".NS") or sym.endswith(".BO") or exchange in ["NSI", "BSE", "NSE"]:
@@ -1709,7 +1845,6 @@ def search_market(query: str) -> List[Dict[str, Any]]:
                         seen_symbols.add(sym)
 
                         short_name = item.get("shortname") or item.get("longname") or clean_item_sym
-                        # Standardize to NSE (.NS) by default for Indian equities
                         unified_sym = f"{clean_item_sym}.NS"
                         seen_symbols.add(unified_sym)
 
@@ -1725,12 +1860,14 @@ def search_market(query: str) -> List[Dict[str, Any]]:
                             "change": None,
                             "change_pct": None,
                             "logo_url": logo_url,
-                            "subtext": f"Stock • {clean_item_sym}"
+                            "subtext": f"Stock • {clean_item_sym}",
+                            "sector": "Equity",
+                            "badge": "Stock"
                         })
         except Exception:
             pass
 
-    # Strip internal score and limit results to top 15 (with strict clean symbol deduplication)
+    # Strip internal score and limit results to top 25 (with strict clean symbol deduplication)
     final_results = []
     final_seen = set()
     for c in candidates:
@@ -1748,9 +1885,16 @@ def search_market(query: str) -> List[Dict[str, Any]]:
             "change_pct": c.get("change_pct"),
             "logo_url": c.get("logo_url", ""),
             "subtext": c["subtext"],
-            "is_new_listing": c.get("is_new_listing", False)
+            "sector": c.get("sector", ""),
+            "badge": c.get("badge", ""),
+            "is_new_listing": c.get("is_new_listing", False),
+            "strike": c.get("strike"),
+            "option_type": c.get("option_type"),
+            "underlying": c.get("underlying"),
+            "lot_size": c.get("lot_size"),
+            "iv": c.get("iv")
         })
-        if len(final_results) >= 15:
+        if len(final_results) >= 25:
             break
 
     _SEARCH_CACHE[q] = (now, final_results)

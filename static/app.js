@@ -797,16 +797,11 @@ function updateMobileBottomNav(product) {
 }
 
 function toggleMobileSearch() {
-  const wrapper = document.querySelector('.search-wrapper');
-  if (wrapper) {
-    wrapper.classList.toggle('mobile-open');
-    if (wrapper.classList.contains('mobile-open')) {
-      const input = document.getElementById('globalSearchInput');
-      if (input) input.focus();
-      pushModalState('mobileSearchWrapper', closeSearchBar);
-    } else {
-      dismissModalState('mobileSearchWrapper');
-    }
+  const overlay = document.getElementById('mobileSearchOverlay');
+  if (overlay && overlay.style.display !== 'none') {
+    closeMobileSearch();
+  } else {
+    openMobileSearch();
   }
 }
 
@@ -7167,26 +7162,69 @@ let searchActiveCategory = 'ALL';
 let currentSearchResults = [];
 let activeSearchIndex = -1;
 
-const TRENDING_SEARCHES = [
-  { symbol: 'NIFTY 50', name: 'NIFTY 50', asset_type: 'INDEX', subtext: 'Index • NIFTY 50', exchange: 'INDEX' },
-  { symbol: 'SENSEX', name: 'BSE SENSEX', asset_type: 'INDEX', subtext: 'Index • SENSEX', exchange: 'INDEX' },
-  { symbol: 'RELIANCE.NS', name: 'Reliance Industries', asset_type: 'STOCK', subtext: 'Stock • RELIANCE', exchange: 'NSE' },
-  { symbol: 'TATAMOTORS.NS', name: 'Tata Motors', asset_type: 'STOCK', subtext: 'Stock • TATAMOTORS', exchange: 'NSE' },
-  { symbol: 'HDFCBANK.NS', name: 'HDFC Bank', asset_type: 'STOCK', subtext: 'Stock • HDFCBANK', exchange: 'NSE' },
-  { symbol: 'GOLDBEES.NS', name: 'Nippon India ETF Gold BeES', asset_type: 'ETF', subtext: 'ETF • GOLDBEES', exchange: 'NSE' },
-  { symbol: '122639', name: 'Parag Parikh Flexi Cap Fund', asset_type: 'MUTUAL_FUND', subtext: 'Mutual Fund • Flexi Cap', exchange: 'AMFI' }
+const SEARCH_CATEGORY_TABS = [
+  { id: 'ALL', label: 'All' },
+  { id: 'STOCK', label: 'Stocks' },
+  { id: 'FO', label: 'F&O' },
+  { id: 'MUTUAL_FUND', label: 'Mutual Funds' },
+  { id: 'ETF', label: 'ETFs' },
+  { id: 'INDEX', label: 'Indices' }
 ];
+
+const SEARCH_THEME_CHIPS = [
+  { label: '⚡ NIFTY 50', query: 'NIFTY 50', cat: 'INDEX' },
+  { label: '🏦 Banking', query: 'bank', cat: 'STOCK' },
+  { label: '🛡️ Defense', query: 'defence', cat: 'STOCK' },
+  { label: '💻 IT Sector', query: 'it', cat: 'STOCK' },
+  { label: '🥇 Gold & Silver', query: 'gold etf', cat: 'ETF' },
+  { label: '📈 Flexi Cap MFs', query: 'flexi cap', cat: 'MUTUAL_FUND' },
+  { label: '⚡ Top F&O Options', query: 'nifty ce', cat: 'FO' }
+];
+
+const TRENDING_SEARCHES = [
+  { symbol: 'NIFTY 50', name: 'NIFTY 50', asset_type: 'INDEX', subtext: 'Index • NIFTY 50', sector: 'Index', price: 22550.0, change_pct: 0.52, exchange: 'INDEX' },
+  { symbol: 'SENSEX', name: 'BSE SENSEX', asset_type: 'INDEX', subtext: 'Index • SENSEX', sector: 'Index', price: 78000.0, change_pct: 0.45, exchange: 'INDEX' },
+  { symbol: 'BANK NIFTY', name: 'BANK NIFTY', asset_type: 'INDEX', subtext: 'Index • BANK NIFTY', sector: 'Index', price: 51200.0, change_pct: 0.38, exchange: 'INDEX' },
+  { symbol: 'RELIANCE.NS', name: 'Reliance Industries', asset_type: 'STOCK', subtext: 'Stock • RELIANCE', sector: 'Energy', price: 1187.0, change_pct: 0.42, exchange: 'NSE' },
+  { symbol: 'TATAPOWER.NS', name: 'Tata Power Company Ltd', asset_type: 'STOCK', subtext: 'Stock • TATAPOWER', sector: 'Energy', price: 359.0, change_pct: 1.15, exchange: 'NSE' },
+  { symbol: 'HDFCBANK.NS', name: 'HDFC Bank Ltd', asset_type: 'STOCK', subtext: 'Stock • HDFCBANK', sector: 'Banking', price: 708.7, change_pct: -0.65, exchange: 'NSE' },
+  { symbol: 'GOLDBEES.NS', name: 'Nippon India ETF Gold BeES', asset_type: 'ETF', subtext: 'ETF • GOLDBEES', sector: 'Gold', price: 125.75, change_pct: 0.79, exchange: 'NSE' },
+  { symbol: '122639', name: 'Parag Parikh Flexi Cap Fund', asset_type: 'MUTUAL_FUND', subtext: 'Mutual Fund • Flexi Cap', sector: 'Flexi Cap', price: 88.84, change_pct: 0.85, exchange: 'AMFI' },
+  { symbol: 'NIFTY22550CE', name: 'NIFTY 22550 Call', asset_type: 'FO', subtext: 'F&O • Call CE • Exp Weekly', sector: 'Derivatives', price: 129.5, change_pct: 4.2, exchange: 'NSE NFO' }
+];
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function highlightSearchMatch(text, query) {
+  if (!text) return '';
+  const escaped = escapeHtml(text);
+  if (!query || !query.trim()) return escaped;
+  const terms = query.trim().split(/\s+/).filter(t => t.length > 0);
+  if (!terms.length) return escaped;
+  terms.sort((a, b) => b.length - a.length);
+  const regex = new RegExp(`(${terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
+  return escaped.replace(regex, '<mark class="search-highlight">$1</mark>');
+}
 
 function formatSearchSubtitle(r) {
   if (!r) return '';
-  if (r.subtext && (r.subtext.startsWith('Stock •') || r.subtext.startsWith('ETF •') || r.subtext.startsWith('Index •') || r.subtext.startsWith('Mutual Fund •') || r.subtext.startsWith('NEW •'))) {
+  if (r.subtext && (r.subtext.startsWith('Stock •') || r.subtext.startsWith('ETF •') || r.subtext.startsWith('Index •') || r.subtext.startsWith('Mutual Fund •') || r.subtext.startsWith('F&O •') || r.subtext.startsWith('NEW •'))) {
     return r.subtext;
   }
   const cleanSym = (r.symbol || '').replace('.NS', '').replace('.BO', '').replace('^', '').toUpperCase();
   const type = (r.asset_type || 'STOCK').toUpperCase();
-  if (type === 'MUTUAL_FUND') return `Mutual Fund • ${r.subtext ? r.subtext.replace('Mutual Fund • ', '') : 'Direct Plan'}`;
+  if (type === 'MUTUAL_FUND') return `Mutual Fund • ${r.subtext ? r.subtext.replace('Mutual Fund • ', '') : (r.sector || 'Direct Plan')}`;
   if (type === 'ETF') return `ETF • ${cleanSym}`;
   if (type === 'INDEX') return `Index • ${cleanSym}`;
+  if (type === 'FO') return `F&O • ${cleanSym}`;
   return `Stock • ${cleanSym}`;
 }
 
@@ -7210,9 +7248,15 @@ function saveRecentSearch(item) {
       name: item.name || item.symbol,
       asset_type: item.asset_type || 'STOCK',
       subtext: formatSearchSubtitle(item),
+      sector: item.sector || '',
       price: item.price || null,
       change_pct: item.change_pct !== undefined ? item.change_pct : null,
-      exchange: item.exchange || 'NSE'
+      exchange: item.exchange || 'NSE',
+      strike: item.strike,
+      option_type: item.option_type,
+      underlying: item.underlying,
+      lot_size: item.lot_size,
+      iv: item.iv
     });
     if (recent.length > 8) recent = recent.slice(0, 8);
     localStorage.setItem('stoxify_recent_searches', JSON.stringify(recent));
@@ -7228,7 +7272,8 @@ function removeRecentSearch(symbol, e) {
     let recent = getRecentSearches();
     recent = recent.filter(r => (r.symbol || '').toUpperCase() !== (symbol || '').toUpperCase());
     localStorage.setItem('stoxify_recent_searches', JSON.stringify(recent));
-    renderSearchZeroState();
+    renderDesktopZeroState();
+    renderMobileZeroState();
   } catch (e) {}
 }
 
@@ -7239,23 +7284,40 @@ function clearRecentSearches(e) {
   }
   try {
     localStorage.removeItem('stoxify_recent_searches');
-    renderSearchZeroState();
+    renderDesktopZeroState();
+    renderMobileZeroState();
   } catch (e) {}
 }
 window.removeRecentSearch = removeRecentSearch;
 window.clearRecentSearches = clearRecentSearches;
 
-function renderSearchCategoryTabs() {
-  const tabs = [
-    { id: 'ALL', label: 'All' },
-    { id: 'STOCK', label: 'Stocks' },
-    { id: 'MUTUAL_FUND', label: 'Mutual Funds' },
-    { id: 'ETF', label: 'ETFs' },
-    { id: 'INDEX', label: 'Indices' }
-  ];
+function toggleSearchWatchlist(e, symbol, name, assetType) {
+  if (e) {
+    e.stopPropagation();
+    e.preventDefault();
+  }
+  toggleWatchlistItem(symbol, name, assetType);
+  setTimeout(() => {
+    const isWatched = (state.watchlist && state.watchlist.has(symbol));
+    document.querySelectorAll(`.search-star-btn[data-sym="${symbol}"]`).forEach(btn => {
+      if (isWatched) {
+        btn.classList.add('watched');
+        btn.title = 'Remove from watchlist';
+        btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>`;
+      } else {
+        btn.classList.remove('watched');
+        btn.title = 'Add to watchlist';
+        btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>`;
+      }
+    });
+  }, 40);
+}
+window.toggleSearchWatchlist = toggleSearchWatchlist;
+
+function renderDesktopCategoryTabs() {
   return `
     <div class="search-tabs-rail" onclick="event.stopPropagation()">
-      ${tabs.map(t => `
+      ${SEARCH_CATEGORY_TABS.map(t => `
         <button type="button" class="search-tab-pill ${searchActiveCategory === t.id ? 'active' : ''}" onclick="setSearchCategory('${t.id}')">
           ${t.label}
         </button>
@@ -7266,45 +7328,112 @@ function renderSearchCategoryTabs() {
 
 function setSearchCategory(cat) {
   searchActiveCategory = cat;
-  const input = document.getElementById('globalSearchInput');
-  const query = (input ? input.value : '').trim();
-  if (!query) {
-    renderSearchZeroState();
+  // Sync desktop tabs
+  document.querySelectorAll('#searchResultsDropdown .search-tab-pill').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-cat') === cat);
+  });
+  // Sync mobile tabs
+  document.querySelectorAll('#mobileSearchTabsRail .search-tab-pill').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-cat') === cat);
+  });
+
+  const desktopInput = document.getElementById('globalSearchInput');
+  const mobileInput = document.getElementById('mobileSearchInput');
+  const dQuery = (desktopInput ? desktopInput.value : '').trim();
+  const mQuery = (mobileInput ? mobileInput.value : '').trim();
+
+  if (dQuery) {
+    renderDesktopSearchResults(currentSearchResults, dQuery);
   } else {
-    renderSearchResultsList(currentSearchResults, query);
+    renderDesktopZeroState();
+  }
+
+  if (mQuery) {
+    renderMobileSearchResults(currentSearchResults, mQuery);
+  } else {
+    renderMobileZeroState();
   }
 }
 window.setSearchCategory = setSearchCategory;
 
-function renderSearchZeroState() {
+function filterResultsByCategory(results) {
+  if (!results || !results.length) return [];
+  if (searchActiveCategory === 'ALL') return results;
+  return results.filter(r => {
+    const type = (r.asset_type || '').toUpperCase();
+    if (searchActiveCategory === 'STOCK') return type === 'STOCK' || type === 'EQUITY';
+    if (searchActiveCategory === 'FO') return type === 'FO' || type === 'OPTION';
+    if (searchActiveCategory === 'MUTUAL_FUND') return type === 'MUTUAL_FUND';
+    if (searchActiveCategory === 'ETF') return type === 'ETF';
+    if (searchActiveCategory === 'INDEX') return type === 'INDEX' || (r.symbol || '').startsWith('^');
+    return true;
+  });
+}
+
+function deduplicateResults(results) {
+  const seenCleanKeys = new Set();
+  const deduped = [];
+  for (const r of (results || [])) {
+    const isStockOrEtf = r.asset_type === 'STOCK' || r.asset_type === 'EQUITY' || r.asset_type === 'ETF';
+    const key = isStockOrEtf ? (r.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase() : (r.symbol || '').toUpperCase();
+    if (key && seenCleanKeys.has(key)) continue;
+    if (key) seenCleanKeys.add(key);
+    deduped.push(r);
+  }
+  return deduped;
+}
+
+function renderDesktopZeroState() {
   if (!searchDropdown) return;
   const recent = getRecentSearches();
-  
+
   let recentHtml = '';
   if (recent.length > 0) {
     recentHtml = `
       <div style="margin-bottom: 0.85rem;">
         <div class="search-zero-heading">
           <span>Recent Searches</span>
-          <button type="button" class="search-clear-recent-btn" onclick="clearRecentSearches(event)">Clear</button>
+          <button type="button" class="search-clear-recent-btn" onclick="clearRecentSearches(event)">Clear All</button>
         </div>
         <div>
-          ${recent.map((r, idx) => `
-            <div class="search-recent-item" data-index="${idx}" onclick="selectSearchResult('${r.symbol}', '${r.asset_type}')">
-              <div style="display: flex; align-items: center; gap: 0.65rem; min-width: 0;">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--text-muted); flex-shrink: 0;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                <div style="min-width: 0;">
-                  <div style="font-weight: 600; font-size: 0.84rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${r.name}</div>
-                  <div style="font-size: 0.72rem; color: var(--text-muted);">${formatSearchSubtitle(r)}</div>
+          ${recent.map((r, idx) => {
+            const hasPrice = r.price !== null && r.price !== undefined && !isNaN(r.price) && r.price > 0;
+            const isPos = (r.change_pct || 0) >= 0;
+            return `
+              <div class="search-recent-item" data-index="${idx}" onclick="selectSearchResult('${r.symbol}', '${r.asset_type}')">
+                <div style="display: flex; align-items: center; gap: 0.65rem; min-width: 0;">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--text-muted); flex-shrink: 0;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                  <div style="min-width: 0;">
+                    <div style="font-weight: 600; font-size: 0.84rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(r.name)}</div>
+                    <div style="font-size: 0.72rem; color: var(--text-muted);">${escapeHtml(formatSearchSubtitle(r))}</div>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  ${hasPrice ? `<span style="font-size: 0.78rem; font-weight: 700; color: ${isPos ? 'var(--accent-green)' : 'var(--danger-red)'};">${isPos ? '+' : ''}${formatNumber(r.change_pct)}%</span>` : ''}
+                  <button type="button" class="search-recent-remove" onclick="removeRecentSearch('${r.symbol}', event)" title="Remove">✕</button>
                 </div>
               </div>
-              <button type="button" class="search-recent-remove" onclick="removeRecentSearch('${r.symbol}', event)" title="Remove">✕</button>
-            </div>
-          `).join('')}
+            `;
+          }).join('')}
         </div>
       </div>
     `;
   }
+
+  const themesHtml = `
+    <div style="margin-bottom: 0.85rem;">
+      <div class="search-zero-heading">
+        <span>Popular Themes &amp; Sectors</span>
+      </div>
+      <div class="search-discovery-chips">
+        ${SEARCH_THEME_CHIPS.map(c => `
+          <button type="button" class="search-discovery-chip" onclick="triggerDesktopTheme('${c.query}', '${c.cat}')">
+            <span>${c.label}</span>
+          </button>
+        `).join('')}
+      </div>
+    </div>
+  `;
 
   const trendingHtml = `
     <div>
@@ -7312,60 +7441,62 @@ function renderSearchZeroState() {
         <span>Trending in India ⚡</span>
       </div>
       <div class="search-trending-chips">
-        ${TRENDING_SEARCHES.map(t => `
-          <button type="button" class="search-trending-chip" onclick="selectSearchResult('${t.symbol}', '${t.asset_type}')">
-            <span>${t.name}</span>
-            <span class="badge-exchange ${t.exchange.toLowerCase()}" style="font-size: 0.62rem; padding: 0 4px;">${t.exchange}</span>
-          </button>
-        `).join('')}
+        ${TRENDING_SEARCHES.map(t => {
+          const isPos = (t.change_pct || 0) >= 0;
+          return `
+            <button type="button" class="search-trending-chip" onclick="selectSearchResult('${t.symbol}', '${t.asset_type}')">
+              <span>${escapeHtml(t.name)}</span>
+              ${t.price ? `<span style="font-size: 0.68rem; font-weight: 700; color: ${isPos ? 'var(--accent-green)' : 'var(--danger-red)'};">${isPos ? '+' : ''}${t.change_pct}%</span>` : ''}
+              <span class="badge-exchange ${t.exchange.toLowerCase()}" style="font-size: 0.62rem; padding: 0 4px;">${t.exchange}</span>
+            </button>
+          `;
+        }).join('')}
       </div>
     </div>
   `;
 
   searchDropdown.innerHTML = `
-    ${renderSearchCategoryTabs()}
+    ${renderDesktopCategoryTabs()}
     <div class="search-zero-state">
       ${recentHtml}
+      ${themesHtml}
       ${trendingHtml}
+    </div>
+    <div class="search-dropdown-footer">
+      <span><kbd>↑</kbd> <kbd>↓</kbd> to navigate</span>
+      <span><kbd>↵</kbd> to select</span>
+      <span><kbd>Esc</kbd> to close</span>
     </div>
   `;
   searchDropdown.style.display = 'block';
   activeSearchIndex = -1;
 }
 
-function renderSearchResultsList(results, query) {
+function renderDesktopSearchResults(results, query) {
   if (!searchDropdown) return;
   currentSearchResults = results || [];
 
-  let filtered = currentSearchResults;
-  if (searchActiveCategory !== 'ALL') {
-    filtered = currentSearchResults.filter(r => {
-      const type = (r.asset_type || '').toUpperCase();
-      if (searchActiveCategory === 'STOCK') return type === 'STOCK' || type === 'EQUITY';
-      if (searchActiveCategory === 'MUTUAL_FUND') return type === 'MUTUAL_FUND';
-      if (searchActiveCategory === 'ETF') return type === 'ETF';
-      if (searchActiveCategory === 'INDEX') return type === 'INDEX' || (r.symbol || '').startsWith('^');
-      return true;
-    });
-  }
-
-  // Deduplicate on client side so each stock/ETF appears only once
-  const seenCleanKeys = new Set();
-  const deduped = [];
-  for (const r of filtered) {
-    const isStockOrEtf = r.asset_type === 'STOCK' || r.asset_type === 'EQUITY' || r.asset_type === 'ETF';
-    const key = isStockOrEtf ? (r.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase() : (r.symbol || '').toUpperCase();
-    if (key && seenCleanKeys.has(key)) continue;
-    if (key) seenCleanKeys.add(key);
-    deduped.push(r);
-  }
-  filtered = deduped;
+  let filtered = deduplicateResults(filterResultsByCategory(currentSearchResults));
 
   if (filtered.length === 0) {
     searchDropdown.innerHTML = `
-      ${renderSearchCategoryTabs()}
-      <div style="padding: 1.5rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
-        No securities found matching "${query}" in ${searchActiveCategory === 'ALL' ? 'market' : searchActiveCategory.toLowerCase()}
+      ${renderDesktopCategoryTabs()}
+      <div style="padding: 2rem 1.5rem; text-align: center; color: var(--text-muted);">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="margin-bottom: 0.6rem; opacity: 0.6;">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <div style="font-weight: 700; font-size: 0.95rem; color: var(--text-primary); margin-bottom: 0.25rem;">No results found</div>
+        <div style="font-size: 0.8rem; margin-bottom: 1rem;">We couldn't find any securities matching "${escapeHtml(query)}" in ${searchActiveCategory === 'ALL' ? 'all categories' : searchActiveCategory.toLowerCase()}</div>
+        <div class="search-trending-chips" style="justify-content: center;">
+          <button type="button" class="search-trending-chip" onclick="triggerDesktopTheme('Reliance', 'STOCK')">Reliance</button>
+          <button type="button" class="search-trending-chip" onclick="triggerDesktopTheme('NIFTY 50', 'INDEX')">Nifty 50</button>
+          <button type="button" class="search-trending-chip" onclick="triggerDesktopTheme('gold etf', 'ETF')">Gold BeES</button>
+          <button type="button" class="search-trending-chip" onclick="triggerDesktopTheme('bank', 'STOCK')">Banking</button>
+        </div>
+      </div>
+      <div class="search-dropdown-footer">
+        <span><kbd>Esc</kbd> to clear</span>
       </div>
     `;
     searchDropdown.style.display = 'block';
@@ -7377,37 +7508,394 @@ function renderSearchResultsList(results, query) {
     const isPos = (r.change_pct || 0) >= 0;
     const hasPrice = r.price !== null && r.price !== undefined && !isNaN(r.price) && r.price > 0;
     const subDisplay = formatSearchSubtitle(r);
+    const cleanSym = (r.symbol || '').replace('.NS', '').replace('.BO', '');
+    const isWatched = (state.watchlist && state.watchlist.has(r.symbol));
+    const escapedName = (r.name || r.symbol).replace(/'/g, "\\'");
+
+    let badgeClass = 'stock';
+    if (r.asset_type === 'FO') badgeClass = 'fo';
+    else if (r.asset_type === 'INDEX') badgeClass = 'index';
+    else if (r.asset_type === 'MUTUAL_FUND') badgeClass = 'mf';
+    else if (r.asset_type === 'ETF') badgeClass = 'etf';
 
     return `
       <div class="search-item ${idx === activeSearchIndex ? 'selected' : ''}" data-index="${idx}" onclick="selectSearchResult('${r.symbol}', '${r.asset_type}')">
         <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0; flex: 1;">
           ${renderAssetAvatar(r, r.asset_type)}
           <div style="min-width: 0; overflow: hidden;">
-            <div class="search-item-title" style="font-weight: 700; font-size: 0.88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${r.name}</div>
+            <div class="search-item-title" style="font-weight: 700; font-size: 0.88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+              ${highlightSearchMatch(r.name, query)}
+            </div>
             <div class="search-item-sub" style="font-size: 0.73rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.35rem; margin-top: 2px;">
-              <span>${subDisplay}</span>
+              <span class="search-badge ${badgeClass}">${escapeHtml(r.badge || r.sector || r.asset_type)}</span>
+              <span>${highlightSearchMatch(cleanSym, query)}</span>
+              <span>•</span>
+              <span>${escapeHtml(r.exchange || 'NSE')}</span>
             </div>
           </div>
         </div>
         <div class="search-price-col">
-          ${hasPrice ? `<span class="search-item-price">${formatINR(r.price)}</span>` : `<span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;">${r.asset_type === 'MUTUAL_FUND' ? 'Mutual Fund' : (r.asset_type === 'ETF' ? 'ETF' : 'Stock')}</span>`}
+          ${hasPrice ? `<span class="search-item-price">${formatINR(r.price)}</span>` : `<span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;">${r.asset_type}</span>`}
           ${hasPrice && r.change_pct !== null && r.change_pct !== undefined ? `
             <span class="${isPos ? 'badge-positive' : 'badge-negative'}" style="font-size: 0.68rem; padding: 1px 5px;">
               ${isPos ? '+' : ''}${formatNumber(r.change_pct)}%
             </span>
           ` : ''}
         </div>
+        <div class="search-row-actions">
+          <button type="button" class="search-star-btn ${isWatched ? 'watched' : ''}" data-sym="${r.symbol}" title="${isWatched ? 'Remove from watchlist' : 'Add to watchlist'}" onclick="toggleSearchWatchlist(event, '${r.symbol}', '${escapedName}', '${r.asset_type}')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="${isWatched ? '#F59E0B' : 'none'}" stroke="${isWatched ? '#F59E0B' : 'currentColor'}" stroke-width="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            </svg>
+          </button>
+        </div>
       </div>
     `;
   }).join('');
 
   searchDropdown.innerHTML = `
-    ${renderSearchCategoryTabs()}
+    ${renderDesktopCategoryTabs()}
     <div class="search-items-list">
       ${itemsHtml}
     </div>
+    <div class="search-dropdown-footer">
+      <span><kbd>↑</kbd> <kbd>↓</kbd> to navigate</span>
+      <span><kbd>↵</kbd> to view</span>
+      <span><kbd>Esc</kbd> to close</span>
+    </div>
   `;
   searchDropdown.style.display = 'block';
+}
+
+function triggerDesktopTheme(query, cat) {
+  const input = document.getElementById('globalSearchInput');
+  const box = document.getElementById('desktopSearchInputBox');
+  if (input) {
+    input.value = query;
+    if (box) box.classList.add('has-text');
+    input.focus();
+  }
+  if (cat) searchActiveCategory = cat;
+  triggerDesktopSearch(query);
+}
+window.triggerDesktopTheme = triggerDesktopTheme;
+
+function triggerDesktopSearch(query) {
+  const spinner = document.getElementById('desktopSearchSpinner');
+  if (spinner) spinner.style.display = 'inline-block';
+  clearTimeout(searchDebounceTimer);
+  if (searchAbortController) {
+    searchAbortController.abort();
+    searchAbortController = null;
+  }
+  searchDebounceTimer = setTimeout(async () => {
+    try {
+      searchAbortController = new AbortController();
+      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`, { signal: searchAbortController.signal });
+      const results = await res.json();
+      activeSearchIndex = -1;
+      renderDesktopSearchResults(results, query);
+    } catch (err) {
+      if (err.name !== 'AbortError') console.error('Search error:', err);
+    } finally {
+      if (spinner) spinner.style.display = 'none';
+    }
+  }, 120);
+}
+
+function clearDesktopSearch(e) {
+  if (e) {
+    e.stopPropagation();
+    e.preventDefault();
+  }
+  const input = document.getElementById('globalSearchInput');
+  const box = document.getElementById('desktopSearchInputBox');
+  if (input) {
+    input.value = '';
+    input.focus();
+  }
+  if (box) box.classList.remove('has-text');
+  currentSearchResults = [];
+  renderDesktopZeroState();
+}
+window.clearDesktopSearch = clearDesktopSearch;
+
+// --- Dedicated Mobile Search Overlay Logic ---
+function openMobileSearch(initialQuery = '') {
+  const overlay = document.getElementById('mobileSearchOverlay');
+  const input = document.getElementById('mobileSearchInput');
+  const box = document.getElementById('mobileSearchInputBox');
+  if (!overlay) return;
+
+  overlay.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  pushModalState('mobileSearchOverlay', closeMobileSearch);
+
+  // Sync category tabs
+  setMobileSearchCategory(searchActiveCategory || 'ALL');
+
+  if (input) {
+    if (initialQuery) {
+      input.value = initialQuery;
+      if (box) box.classList.add('has-text');
+      triggerMobileSearch(initialQuery);
+    } else {
+      input.value = '';
+      if (box) box.classList.remove('has-text');
+      renderMobileZeroState();
+    }
+    setTimeout(() => {
+      input.focus();
+    }, 60);
+  }
+}
+window.openMobileSearch = openMobileSearch;
+
+function closeMobileSearch(options = {}) {
+  const overlay = document.getElementById('mobileSearchOverlay');
+  const input = document.getElementById('mobileSearchInput');
+  if (overlay) {
+    overlay.style.display = 'none';
+  }
+  document.body.style.overflow = '';
+  if (input) {
+    input.blur();
+  }
+  dismissModalState('mobileSearchOverlay', options);
+}
+window.closeMobileSearch = closeMobileSearch;
+
+function clearMobileSearch(e) {
+  if (e) {
+    e.stopPropagation();
+    e.preventDefault();
+  }
+  const input = document.getElementById('mobileSearchInput');
+  const box = document.getElementById('mobileSearchInputBox');
+  if (input) {
+    input.value = '';
+    input.focus();
+  }
+  if (box) box.classList.remove('has-text');
+  currentSearchResults = [];
+  renderMobileZeroState();
+}
+window.clearMobileSearch = clearMobileSearch;
+
+function setMobileSearchCategory(cat) {
+  searchActiveCategory = cat;
+  document.querySelectorAll('#mobileSearchTabsRail .search-tab-pill').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-cat') === cat);
+  });
+  const input = document.getElementById('mobileSearchInput');
+  const query = (input ? input.value : '').trim();
+  if (query) {
+    renderMobileSearchResults(currentSearchResults, query);
+  } else {
+    renderMobileZeroState();
+  }
+}
+window.setMobileSearchCategory = setMobileSearchCategory;
+
+function triggerMobileTheme(query, cat) {
+  const input = document.getElementById('mobileSearchInput');
+  const box = document.getElementById('mobileSearchInputBox');
+  if (input) {
+    input.value = query;
+    if (box) box.classList.add('has-text');
+  }
+  if (cat) {
+    searchActiveCategory = cat;
+    document.querySelectorAll('#mobileSearchTabsRail .search-tab-pill').forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-cat') === cat);
+    });
+  }
+  triggerMobileSearch(query);
+}
+window.triggerMobileTheme = triggerMobileTheme;
+
+function triggerMobileSearch(query) {
+  const spinner = document.getElementById('mobileSearchSpinner');
+  if (spinner) spinner.style.display = 'inline-block';
+  clearTimeout(searchDebounceTimer);
+  if (searchAbortController) {
+    searchAbortController.abort();
+    searchAbortController = null;
+  }
+  searchDebounceTimer = setTimeout(async () => {
+    try {
+      searchAbortController = new AbortController();
+      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`, { signal: searchAbortController.signal });
+      const results = await res.json();
+      renderMobileSearchResults(results, query);
+    } catch (err) {
+      if (err.name !== 'AbortError') console.error('Search error:', err);
+    } finally {
+      if (spinner) spinner.style.display = 'none';
+    }
+  }, 120);
+}
+
+function renderMobileZeroState() {
+  const body = document.getElementById('mobileSearchBody');
+  if (!body) return;
+  const recent = getRecentSearches();
+
+  let recentHtml = '';
+  if (recent.length > 0) {
+    recentHtml = `
+      <div style="margin-bottom: 1.25rem;">
+        <div class="search-zero-heading">
+          <span>Recent Searches</span>
+          <button type="button" class="search-clear-recent-btn" onclick="clearRecentSearches(event)">Clear All</button>
+        </div>
+        <div>
+          ${recent.map((r, idx) => {
+            const hasPrice = r.price !== null && r.price !== undefined && !isNaN(r.price) && r.price > 0;
+            const isPos = (r.change_pct || 0) >= 0;
+            return `
+              <div class="search-recent-item" data-index="${idx}" onclick="selectSearchResult('${r.symbol}', '${r.asset_type}')">
+                <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--text-muted); flex-shrink: 0;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                  <div style="min-width: 0;">
+                    <div style="font-weight: 700; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(r.name)}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(formatSearchSubtitle(r))}</div>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                  ${hasPrice ? `<span style="font-size: 0.8rem; font-weight: 700; color: ${isPos ? 'var(--accent-green)' : 'var(--danger-red)'};">${isPos ? '+' : ''}${formatNumber(r.change_pct)}%</span>` : ''}
+                  <button type="button" class="search-recent-remove" onclick="removeRecentSearch('${r.symbol}', event)" title="Remove" style="padding: 6px 10px;">✕</button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  const themesHtml = `
+    <div style="margin-bottom: 1.25rem;">
+      <div class="search-zero-heading">
+        <span>Explore Sectors &amp; Themes</span>
+      </div>
+      <div class="search-discovery-chips">
+        ${SEARCH_THEME_CHIPS.map(c => `
+          <button type="button" class="search-discovery-chip" onclick="triggerMobileTheme('${c.query}', '${c.cat}')" style="padding: 0.4rem 0.85rem; font-size: 0.82rem;">
+            <span>${c.label}</span>
+          </button>
+        `).join('')}
+      </div>
+    </div>
+  `;
+
+  const trendingHtml = `
+    <div>
+      <div class="search-zero-heading">
+        <span>Trending on Stoxify 🔥</span>
+      </div>
+      <div class="search-trending-chips">
+        ${TRENDING_SEARCHES.map(t => {
+          const isPos = (t.change_pct || 0) >= 0;
+          return `
+            <button type="button" class="search-trending-chip" onclick="selectSearchResult('${t.symbol}', '${t.asset_type}')" style="padding: 0.4rem 0.85rem;">
+              <span>${escapeHtml(t.name)}</span>
+              ${t.price ? `<span style="font-size: 0.72rem; font-weight: 700; color: ${isPos ? 'var(--accent-green)' : 'var(--danger-red)'};">${isPos ? '+' : ''}${t.change_pct}%</span>` : ''}
+              <span class="badge-exchange ${t.exchange.toLowerCase()}" style="font-size: 0.65rem; padding: 1px 5px;">${t.exchange}</span>
+            </button>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+
+  body.innerHTML = `
+    ${recentHtml}
+    ${themesHtml}
+    ${trendingHtml}
+  `;
+}
+
+function renderMobileSearchResults(results, query) {
+  const body = document.getElementById('mobileSearchBody');
+  if (!body) return;
+  currentSearchResults = results || [];
+
+  let filtered = deduplicateResults(filterResultsByCategory(currentSearchResults));
+
+  if (filtered.length === 0) {
+    body.innerHTML = `
+      <div style="padding: 3rem 1.5rem; text-align: center; color: var(--text-muted);">
+        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="margin-bottom: 0.75rem; opacity: 0.6;">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <div style="font-weight: 700; font-size: 1.05rem; color: var(--text-primary); margin-bottom: 0.35rem;">No results found</div>
+        <div style="font-size: 0.85rem; margin-bottom: 1.25rem;">No securities match "${escapeHtml(query)}" in ${searchActiveCategory === 'ALL' ? 'all' : searchActiveCategory.toLowerCase()}</div>
+        <div class="search-trending-chips" style="justify-content: center;">
+          <button type="button" class="search-trending-chip" onclick="triggerMobileTheme('Reliance', 'STOCK')">Reliance</button>
+          <button type="button" class="search-trending-chip" onclick="triggerMobileTheme('NIFTY 50', 'INDEX')">Nifty 50</button>
+          <button type="button" class="search-trending-chip" onclick="triggerMobileTheme('gold etf', 'ETF')">Gold BeES</button>
+          <button type="button" class="search-trending-chip" onclick="triggerMobileTheme('bank', 'STOCK')">Banking</button>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  const itemsHtml = filtered.map(r => {
+    const isPos = (r.change_pct || 0) >= 0;
+    const hasPrice = r.price !== null && r.price !== undefined && !isNaN(r.price) && r.price > 0;
+    const cleanSym = (r.symbol || '').replace('.NS', '').replace('.BO', '');
+    const isWatched = (state.watchlist && state.watchlist.has(r.symbol));
+    const escapedName = (r.name || r.symbol).replace(/'/g, "\\'");
+
+    let badgeClass = 'stock';
+    if (r.asset_type === 'FO') badgeClass = 'fo';
+    else if (r.asset_type === 'INDEX') badgeClass = 'index';
+    else if (r.asset_type === 'MUTUAL_FUND') badgeClass = 'mf';
+    else if (r.asset_type === 'ETF') badgeClass = 'etf';
+
+    return `
+      <div class="mobile-search-item" onclick="selectSearchResult('${r.symbol}', '${r.asset_type}')">
+        <div style="display: flex; align-items: center; gap: 0.85rem; min-width: 0; flex: 1;">
+          ${renderAssetAvatar(r, r.asset_type)}
+          <div style="min-width: 0; overflow: hidden;">
+            <div style="font-weight: 700; font-size: 0.92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary);">
+              ${highlightSearchMatch(r.name, query)}
+            </div>
+            <div style="font-size: 0.76rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.35rem; margin-top: 3px;">
+              <span class="search-badge ${badgeClass}">${escapeHtml(r.badge || r.sector || r.asset_type)}</span>
+              <span>${highlightSearchMatch(cleanSym, query)}</span>
+              <span>•</span>
+              <span>${escapeHtml(r.exchange || 'NSE')}</span>
+            </div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0;">
+          <div class="search-price-col">
+            ${hasPrice ? `<span class="search-item-price" style="font-size: 0.92rem;">${formatINR(r.price)}</span>` : `<span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;">${r.asset_type}</span>`}
+            ${hasPrice && r.change_pct !== null && r.change_pct !== undefined ? `
+              <span class="${isPos ? 'badge-positive' : 'badge-negative'}" style="font-size: 0.72rem; padding: 1px 6px;">
+                ${isPos ? '+' : ''}${formatNumber(r.change_pct)}%
+              </span>
+            ` : ''}
+          </div>
+          <button type="button" class="search-star-btn ${isWatched ? 'watched' : ''}" data-sym="${r.symbol}" title="${isWatched ? 'Remove from watchlist' : 'Add to watchlist'}" onclick="toggleSearchWatchlist(event, '${r.symbol}', '${escapedName}', '${r.asset_type}')" style="width: 38px; height: 38px;">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="${isWatched ? '#F59E0B' : 'none'}" stroke="${isWatched ? '#F59E0B' : 'currentColor'}" stroke-width="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            </svg>
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  body.innerHTML = `
+    <div class="search-items-list" style="padding-top: 0.25rem;">
+      ${itemsHtml}
+    </div>
+  `;
 }
 
 function updateSearchSelection(items) {
@@ -7430,66 +7918,42 @@ function closeSearchBar(e, options = {}) {
   }
   const input = document.getElementById('globalSearchInput');
   const dropdown = document.getElementById('searchResultsDropdown');
-  const wrapper = document.querySelector('.search-wrapper');
   if (input) {
     input.value = '';
-    const box = input.closest('.search-input-box');
+    const box = document.getElementById('desktopSearchInputBox');
     if (box) box.classList.remove('has-text');
     input.blur();
   }
   if (dropdown) {
     dropdown.style.display = 'none';
   }
-  if (wrapper && wrapper.classList.contains('mobile-open')) {
-    wrapper.classList.remove('mobile-open');
-  }
   activeSearchIndex = -1;
-  dismissModalState('mobileSearchWrapper', options);
+  closeMobileSearch(options);
 }
 window.closeSearchBar = closeSearchBar;
 
+// Setup Desktop Input Event Listeners
 if (searchInput) {
   searchInput.addEventListener('focus', () => {
     const query = searchInput.value.trim();
     if (!query) {
-      renderSearchZeroState();
+      renderDesktopZeroState();
     } else if (currentSearchResults.length > 0) {
-      renderSearchResultsList(currentSearchResults, query);
+      renderDesktopSearchResults(currentSearchResults, query);
     }
   });
 
   searchInput.addEventListener('input', (e) => {
     const query = e.target.value.trim();
-    const box = searchInput.closest('.search-input-box');
+    const box = document.getElementById('desktopSearchInputBox');
     if (box) {
-      if (query.length > 0) {
-        box.classList.add('has-text');
-      } else {
-        box.classList.remove('has-text');
-      }
-    }
-    clearTimeout(searchDebounceTimer);
-    if (searchAbortController) {
-      searchAbortController.abort();
-      searchAbortController = null;
+      box.classList.toggle('has-text', query.length > 0);
     }
     if (!query) {
-      renderSearchZeroState();
+      renderDesktopZeroState();
       return;
     }
-    searchDebounceTimer = setTimeout(async () => {
-      try {
-        searchAbortController = new AbortController();
-        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`, { signal: searchAbortController.signal });
-        const results = await res.json();
-        activeSearchIndex = -1;
-        renderSearchResultsList(results, query);
-      } catch (err) {
-        if (err.name !== 'AbortError') {
-          console.error('Search error:', err);
-        }
-      }
-    }, 160);
+    triggerDesktopSearch(query);
   });
 
   searchInput.addEventListener('keydown', (e) => {
@@ -7513,25 +7977,75 @@ if (searchInput) {
     } else if (e.key === 'Escape') {
       e.preventDefault();
       closeSearchBar();
+    } else if (e.key === 'Tab') {
+      // Cycle through category tabs with Tab key
+      e.preventDefault();
+      const catIds = SEARCH_CATEGORY_TABS.map(t => t.id);
+      const currIdx = catIds.indexOf(searchActiveCategory);
+      const nextIdx = e.shiftKey ? (currIdx - 1 + catIds.length) % catIds.length : (currIdx + 1) % catIds.length;
+      setSearchCategory(catIds[nextIdx]);
     }
   });
 }
 
+// Setup Mobile Input Event Listeners
+const mobInput = document.getElementById('mobileSearchInput');
+if (mobInput) {
+  mobInput.addEventListener('input', (e) => {
+    const query = e.target.value.trim();
+    const box = document.getElementById('mobileSearchInputBox');
+    if (box) {
+      box.classList.toggle('has-text', query.length > 0);
+    }
+    if (!query) {
+      renderMobileZeroState();
+      return;
+    }
+    triggerMobileSearch(query);
+  });
+
+  mobInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      mobInput.blur();
+    } else if (e.key === 'Escape') {
+      closeMobileSearch();
+    }
+  });
+}
+
+// Auto-dismiss virtual keyboard on mobile scroll
+const mobBody = document.getElementById('mobileSearchBody');
+if (mobBody) {
+  let isScrolling = false;
+  mobBody.addEventListener('touchmove', () => {
+    if (document.activeElement === mobInput) {
+      mobInput.blur();
+    }
+  }, { passive: true });
+}
+
+// Mac vs Windows Shortcut Detection
+(function initShortcutHint() {
+  const isMac = navigator.platform && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+  const kbdKey = document.getElementById('searchShortcutKey');
+  if (kbdKey) {
+    kbdKey.textContent = isMac ? '⌘' : 'Ctrl';
+  }
+})();
+
 // Global hotkeys: Ctrl+K or Cmd+K or '/' to focus search
 document.addEventListener('keydown', (e) => {
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+  const isK = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k';
+  const isSlash = e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+
+  if (isK || isSlash) {
     e.preventDefault();
-    if (searchInput) {
+    if (window.innerWidth <= 768) {
+      openMobileSearch();
+    } else if (searchInput) {
       searchInput.focus();
       searchInput.select();
-      if (!searchInput.value.trim()) renderSearchZeroState();
-    }
-  } else if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
-    e.preventDefault();
-    if (searchInput) {
-      searchInput.focus();
-      searchInput.select();
-      if (!searchInput.value.trim()) renderSearchZeroState();
+      if (!searchInput.value.trim()) renderDesktopZeroState();
     }
   }
 });
@@ -7539,24 +8053,11 @@ document.addEventListener('keydown', (e) => {
 function handleOutsideSearch(e) {
   const input = document.getElementById('globalSearchInput');
   const dropdown = document.getElementById('searchResultsDropdown');
-  const wrapper = document.querySelector('.search-wrapper');
-  const mobileBtn = document.getElementById('mobileSearchBtn');
 
-  // Close dropdown if clicked outside input and dropdown
+  // Close desktop dropdown if clicked outside input and dropdown
   if (dropdown && dropdown.style.display !== 'none' && input) {
     if (!input.contains(e.target) && !dropdown.contains(e.target)) {
       dropdown.style.display = 'none';
-    }
-  }
-
-  // Mobile View Only: Dismiss mobile search bar when touching/clicking elsewhere on screen
-  if (wrapper && wrapper.classList.contains('mobile-open')) {
-    if (!wrapper.contains(e.target) && (!mobileBtn || !mobileBtn.contains(e.target))) {
-      wrapper.classList.remove('mobile-open');
-      if (dropdown) dropdown.style.display = 'none';
-      if (input) {
-        input.blur();
-      }
     }
   }
 }
@@ -7573,13 +8074,11 @@ function selectSearchResult(symbol, assetType) {
   if (searchDropdown) searchDropdown.style.display = 'none';
   if (searchInput) {
     searchInput.value = '';
-    const box = searchInput.closest('.search-input-box');
+    const box = document.getElementById('desktopSearchInputBox');
     if (box) box.classList.remove('has-text');
   }
-  const wrapper = document.querySelector('.search-wrapper');
-  if (wrapper && wrapper.classList.contains('mobile-open')) {
-    wrapper.classList.remove('mobile-open');
-  }
+
+  closeMobileSearch();
 
   const matched = (currentSearchResults || []).find(r => r.symbol === symbol) ||
                   TRENDING_SEARCHES.find(t => t.symbol === symbol);
@@ -7587,6 +8086,18 @@ function selectSearchResult(symbol, assetType) {
     saveRecentSearch(matched);
   } else {
     saveRecentSearch({ symbol, name: symbol, asset_type: assetType });
+  }
+
+  if (assetType === 'FO') {
+    if (matched && matched.strike && matched.option_type) {
+      switchProduct('fo');
+      setTimeout(() => {
+        openOptionBuyModal(matched.underlying || 'NIFTY', matched.strike, matched.option_type, matched.price || 120, matched.iv || 13, matched.lot_size || 25);
+      }, 250);
+      return;
+    }
+    switchProduct('fo');
+    return;
   }
 
   openAssetModal(symbol, assetType);
