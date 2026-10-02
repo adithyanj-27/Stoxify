@@ -12018,8 +12018,8 @@ function renderCandlestickCanvas(canvas, points, hoveredIdx = -1, crosshairY = -
   const parentW = canvas.parentElement ? canvas.parentElement.clientWidth : 0;
   const fallbackW = isMobile ? Math.min(window.innerWidth - 30, 420) : 800;
   const cssWidth = parentW > 50 ? parentW : fallbackW;
-  const cssHeight = isMobile ? 255 : 380;
-  const dpr = window.devicePixelRatio || 1;
+  const cssHeight = isMobile ? 330 : 380;
+  const dpr = Math.max(window.devicePixelRatio || 1, 2);
 
   canvas.width = Math.round(cssWidth * dpr);
   canvas.height = Math.round(cssHeight * dpr);
@@ -12035,10 +12035,10 @@ function renderCandlestickCanvas(canvas, points, hoveredIdx = -1, crosshairY = -
     return;
   }
 
-  const paddingLeft = isMobile ? 4 : 16;
-  const paddingRight = isMobile ? 4 : 72;
+  const paddingLeft = isMobile ? 0 : 16;
+  const paddingRight = isMobile ? 0 : 72;
   const paddingTop = 15;
-  const paddingBottom = isMobile ? 6 : 26;
+  const paddingBottom = isMobile ? 8 : 26;
   const chartWidth = cssWidth - paddingLeft - paddingRight;
   const chartHeight = cssHeight - paddingTop - paddingBottom;
 
@@ -12370,13 +12370,18 @@ function renderLineChartWithChartJs(canvas, points) {
   const isMobile = window.innerWidth <= 768;
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
   const strokeColor = isPos ? '#00D09C' : '#EB5B3C';
-  const chartHeight = canvas.clientHeight || (isMobile ? 255 : 380);
+  const chartHeight = canvas.clientHeight || (isMobile ? 330 : 380);
 
-  // Triple-stop radiant luminous gradient (clean fade, zero muddiness)
-  const gradient = ctx.createLinearGradient(0, 0, 0, chartHeight);
-  gradient.addColorStop(0, isPos ? 'rgba(0, 208, 156, 0.20)' : 'rgba(235, 91, 60, 0.20)');
-  gradient.addColorStop(0.5, isPos ? 'rgba(0, 208, 156, 0.05)' : 'rgba(235, 91, 60, 0.05)');
-  gradient.addColorStop(1, isPos ? 'rgba(0, 208, 156, 0.0)' : 'rgba(235, 91, 60, 0.0)');
+  // Groww Minimalist Mode on mobile: pure clean razor-sharp line without area gradient fill.
+  // On desktop: subtle radiant luminous gradient.
+  let gradient = 'transparent';
+  if (!isMobile) {
+    const grad = ctx.createLinearGradient(0, 0, 0, chartHeight);
+    grad.addColorStop(0, isPos ? 'rgba(0, 208, 156, 0.18)' : 'rgba(235, 91, 60, 0.18)');
+    grad.addColorStop(0.5, isPos ? 'rgba(0, 208, 156, 0.04)' : 'rgba(235, 91, 60, 0.04)');
+    grad.addColorStop(1, isPos ? 'rgba(0, 208, 156, 0.0)' : 'rgba(235, 91, 60, 0.0)');
+    gradient = grad;
+  }
 
   // Baseline calculation (Previous Close for 1D session baseline)
   let baseline = null;
@@ -12388,10 +12393,10 @@ function renderLineChartWithChartJs(canvas, points) {
     label: 'Price',
     data: prices,
     borderColor: strokeColor,
-    borderWidth: isMobile ? 1.5 : 2.0,
+    borderWidth: isMobile ? 1.75 : 2.0,
     backgroundColor: gradient,
-    fill: true,
-    tension: 0.32,
+    fill: !isMobile,
+    tension: 0.28,
     borderCapStyle: 'round',
     borderJoinStyle: 'round',
     pointRadius: 0,
@@ -12439,12 +12444,13 @@ function renderLineChartWithChartJs(canvas, points) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      devicePixelRatio: Math.max(window.devicePixelRatio || 1, 2),
       layout: {
         padding: {
-          left: isMobile ? 2 : 0,
-          right: isMobile ? 2 : 0,
-          top: 8,
-          bottom: isMobile ? 2 : 0
+          left: 0,
+          right: 0,
+          top: isMobile ? 12 : 8,
+          bottom: isMobile ? 8 : 0
         }
       },
       interaction: {
@@ -12496,13 +12502,13 @@ function renderLineChartWithChartJs(canvas, points) {
           }
         },
         y: { 
-          display: true,
+          display: !isMobile,
           position: 'right',
-          grace: '8%',
+          grace: isMobile ? '6%' : '8%',
           border: { display: false },
           grid: { 
             drawTicks: false,
-            color: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)' 
+            color: isMobile ? 'transparent' : (isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)') 
           },
           ticks: {
             display: !isMobile,

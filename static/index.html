@@ -1453,9 +1453,12 @@
             </div>
           </div>
 
-          <!-- Chart Card -->
+          <!-- Chart Card (Groww Layout: Canvas first, Timeframes & Indicators below) -->
           <div class="asset-chart-card">
-            <div class="chart-controls" style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+            <div class="chart-wrapper" style="height: 380px; position: relative;">
+              <canvas id="pageAssetChartCanvas"></canvas>
+            </div>
+            <div class="chart-controls" style="margin-top: 0.85rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
               <div class="chart-timeframes">
                 <button class="tf-btn active" onclick="loadPageChartTimeframe('1D', this)">1D</button>
                 <button class="tf-btn" onclick="loadPageChartTimeframe('1W', this)">1W</button>
@@ -1475,9 +1478,6 @@
                 <button class="ema-chip" id="btnEma20" onclick="toggleEma(20)">20 EMA</button>
                 <button class="ema-chip" id="btnEma50" onclick="toggleEma(50)">50 EMA</button>
               </div>
-            </div>
-            <div class="chart-wrapper" style="height: 380px; position: relative;">
-              <canvas id="pageAssetChartCanvas"></canvas>
             </div>
           </div>
 

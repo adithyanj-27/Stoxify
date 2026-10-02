@@ -4020,7 +4020,20 @@ body.pwa-installed #mobileInstallBanner {
     white-space: nowrap !important;
   }
 
-  .asset-chart-card,
+  .asset-chart-card {
+    padding: 0.25rem 0 0.85rem 0 !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    margin-left: -1rem !important;
+    margin-right: -1rem !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+
   .asset-section-card {
     padding: 0.85rem !important;
     border-radius: 14px !important;
@@ -4033,10 +4046,12 @@ body.pwa-installed #mobileInstallBanner {
   .chart-controls {
     display: flex !important;
     flex-direction: column !important;
-    gap: 0.55rem !important;
+    gap: 0.65rem !important;
     width: 100% !important;
     box-sizing: border-box !important;
-    margin-bottom: 0.65rem !important;
+    padding: 0 1rem !important;
+    margin-top: 0.75rem !important;
+    margin-bottom: 0.25rem !important;
   }
 
   .chart-timeframes {
@@ -4044,10 +4059,11 @@ body.pwa-installed #mobileInstallBanner {
     width: 100% !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
-    gap: 0.25rem !important;
+    gap: 0.35rem !important;
     overflow-x: auto !important;
     scrollbar-width: none !important;
     -webkit-overflow-scrolling: touch !important;
+    align-items: center !important;
   }
 
   .chart-timeframes::-webkit-scrollbar {
@@ -4056,11 +4072,22 @@ body.pwa-installed #mobileInstallBanner {
 
   .chart-timeframes .tf-btn {
     flex: 1 1 0 !important;
-    min-width: 30px !important;
-    padding: 0.28rem 0.15rem !important;
-    font-size: 0.68rem !important;
+    min-width: 34px !important;
+    padding: 0.32rem 0.2rem !important;
+    font-size: 0.72rem !important;
+    font-weight: 600 !important;
     text-align: center !important;
-    border-radius: 5px !important;
+    border-radius: 20px !important;
+    background: transparent !important;
+    border: 1px solid transparent !important;
+    color: var(--text-muted) !important;
+    transition: all 0.15s ease !important;
+  }
+
+  .chart-timeframes .tf-btn.active {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+    color: var(--text-primary) !important;
   }
 
   .chart-indicators-row {
@@ -4093,7 +4120,7 @@ body.pwa-installed #mobileInstallBanner {
   .chart-wrapper {
     width: 100% !important;
     max-width: 100% !important;
-    height: 255px !important;
+    height: 330px !important;
     position: relative !important;
     box-sizing: border-box !important;
     overflow: hidden !important;
