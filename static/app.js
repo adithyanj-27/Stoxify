@@ -5905,18 +5905,25 @@ function generateMiniSparklineSvg(h) {
   let seed = 0;
   for (let i = 0; i < sym.length; i++) seed = (seed * 31 + sym.charCodeAt(i)) % 1000;
   
-  const y0 = isUp ? 15 : 6;
-  const y1 = isUp ? (12 + (seed % 4)) : (9 + (seed % 4));
-  const y2 = isUp ? (14 - (seed % 5)) : (7 + (seed % 5));
-  const y3 = isUp ? (8 + (seed % 3)) : (13 - (seed % 3));
-  const y4 = isUp ? (10 - (seed % 4)) : (12 + (seed % 4));
-  const y5 = isUp ? 5 : 16;
+  // Generate 8 anchor points for a more detailed, sharper sparkline
+  const pts = [];
+  const xs = [2, 9, 16, 23, 30, 37, 44, 51, 58];
+  const s = seed;
+  if (isUp) {
+    pts.push(16, 14 - (s % 3), 15 - (s % 4), 12 + (s % 3), 11 - (s % 5), 9 + (s % 2), 8 - (s % 3), 7 + (s % 2), 5);
+  } else {
+    pts.push(5, 7 + (s % 3), 6 + (s % 4), 9 - (s % 3), 10 + (s % 5), 12 - (s % 2), 13 + (s % 3), 14 - (s % 2), 16);
+  }
   
-  const d = `M 2,${y0} C 8,${y0} 10,${y1} 14,${y1} C 18,${y1} 22,${y2} 26,${y2} C 30,${y2} 34,${y3} 38,${y3} C 42,${y3} 46,${y4} 50,${y4} C 54,${y4} 56,${y5} 58,${y5}`;
+  // Build path with straight line segments between points (sharp/angular)
+  let d = `M ${xs[0]},${pts[0]}`;
+  for (let i = 1; i < xs.length; i++) {
+    d += ` L ${xs[i]},${pts[i]}`;
+  }
   
   return `
     <svg class="groww-sparkline-svg" viewBox="0 0 60 22" aria-hidden="true">
-      <path d="${d}" fill="none" stroke="${strokeColor}" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" />
+      <path d="${d}" fill="none" stroke="${strokeColor}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
   `;
 }
@@ -8631,10 +8638,11 @@ function renderChart(points) {
       datasets: [{
         data: values,
         borderColor: strokeColor,
-        borderWidth: isMobile ? 1.5 : 2.0,
+        borderWidth: isMobile ? 1.8 : 2.2,
         backgroundColor: gradient,
         fill: true,
-        tension: 0.32,
+        tension: 0.08,
+        cubicInterpolationMode: 'monotone',
         borderCapStyle: 'round',
         borderJoinStyle: 'round',
         pointRadius: 0,
@@ -16330,7 +16338,8 @@ async function renderStockPerformanceChart() {
             borderWidth: isMobile ? 2.2 : 2.6,
             backgroundColor: grad,
             fill: true,
-            tension: 0.32,
+            tension: 0.08,
+            cubicInterpolationMode: 'monotone',
             borderCapStyle: 'round',
             borderJoinStyle: 'round',
             pointRadius: 0,
@@ -16348,7 +16357,8 @@ async function renderStockPerformanceChart() {
             borderDash: [5, 4],
             backgroundColor: 'transparent',
             fill: false,
-            tension: 0.15,
+            tension: 0.05,
+            cubicInterpolationMode: 'monotone',
             borderCapStyle: 'round',
             borderJoinStyle: 'round',
             pointRadius: 0,
@@ -16994,7 +17004,8 @@ async function renderMfPerformanceChart() {
             borderWidth: isMobile ? 2.2 : 2.6,
             backgroundColor: grad,
             fill: true,
-            tension: 0.32,
+            tension: 0.08,
+            cubicInterpolationMode: 'monotone',
             borderCapStyle: 'round',
             borderJoinStyle: 'round',
             pointRadius: 0,
@@ -17012,7 +17023,8 @@ async function renderMfPerformanceChart() {
             borderDash: [5, 4],
             backgroundColor: 'transparent',
             fill: false,
-            tension: 0.15,
+            tension: 0.05,
+            cubicInterpolationMode: 'monotone',
             borderCapStyle: 'round',
             borderJoinStyle: 'round',
             pointRadius: 0,
