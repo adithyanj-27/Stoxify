@@ -1162,6 +1162,8 @@ def read_portfolio_chart(request: Request, timeframe: str = "1M", asset_type: st
 
     # Determine timeframe window start strictly clamped to inception date
     if tf_upper == "1D":
+        # Anchor 1D to the active/most recent trading day (or previous working day when exchange is closed/holiday, exactly like Groww)
+        # We start with today at 09:15, and refine to the exact trading day once candles are fetched.
         window_start = datetime(now.year, now.month, now.day, 9, 15)
         if earliest_dt > window_start:
             window_start = earliest_dt
@@ -1221,6 +1223,20 @@ def read_portfolio_chart(request: Request, timeframe: str = "1M", asset_type: st
         for s, pts in sym_charts.items():
             if len(pts) > len(ref_pts):
                 ref_pts = pts
+
+        # For 1D: align to the latest active/completed trading day present in the candles
+        # (on weekends, holidays, or before 09:15, this is the previous working day, exactly like Groww)
+        if tf_upper == "1D" and ref_pts:
+            target_iso_date = ref_pts[-1].get("iso_date")
+            if target_iso_date:
+                try:
+                    target_date = datetime.strptime(target_iso_date, "%Y-%m-%d").date()
+                    day_start = datetime.combine(target_date, datetime.min.time()).replace(hour=9, minute=15)
+                    window_start = day_start
+                    if earliest_dt > window_start:
+                        window_start = earliest_dt
+                except Exception:
+                    pass
 
         window_start_ts = int(window_start.timestamp())
         filtered_candles = [p for p in ref_pts if p.get("ts", 0) >= window_start_ts - 300]
@@ -1350,8 +1366,35 @@ def read_portfolio_chart(request: Request, timeframe: str = "1M", asset_type: st
 
         total_pnl = round(last_val - last_invested, 2)
         total_pnl_pct = round((total_pnl / last_invested) * 100, 2) if last_invested > 0 else 0.0
-        tf_pnl = round(last_val - first_val, 2)
-        tf_pnl_pct = round((tf_pnl / first_val) * 100, 2) if first_val > 0 else 0.0
+
+        # Previous close baseline for 1D session (used by Groww-style charts)
+        baseline = None
+        if tf_upper == "1D" and holdings:
+            try:
+                base_val = 0.0
+                for h in holdings:
+                    q = float(h.get("quantity", 0))
+                    sym = h.get("symbol", "")
+                    if is_mf or sym.isdigit():
+                        quote = market_service.get_mutual_fund_quote(sym)
+                    else:
+                        quote = market_service.get_stock_quote(sym)
+                    pc = quote.get("previous_close") or quote.get("close") or quote.get("prev_close")
+                    if pc is not None and float(pc) > 0:
+                        base_val += q * float(pc)
+                    else:
+                        base_val += q * float(quote.get("price") or h.get("avg_price", 0))
+                if base_val > 0:
+                    baseline = round(base_val, 2)
+            except Exception:
+                pass
+
+        if tf_upper == "1D" and baseline and baseline > 0:
+            tf_pnl = round(last_val - baseline, 2)
+            tf_pnl_pct = round((tf_pnl / baseline) * 100, 2)
+        else:
+            tf_pnl = round(last_val - first_val, 2)
+            tf_pnl_pct = round((tf_pnl / first_val) * 100, 2) if first_val > 0 else 0.0
 
         return {
             "points": points,
@@ -1361,6 +1404,7 @@ def read_portfolio_chart(request: Request, timeframe: str = "1M", asset_type: st
             "total_pnl_pct": total_pnl_pct,
             "timeframe_pnl": tf_pnl,
             "timeframe_pnl_pct": tf_pnl_pct,
+            "baseline": baseline,
             "timeframe": tf_upper
         }
     except Exception as e:

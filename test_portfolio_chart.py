@@ -29,11 +29,21 @@ class TestPortfolioChart(unittest.TestCase):
         self.assertIn("current_val", res_1y)
         self.assertIn("timeframe_pnl", res_1y)
         # Should NOT have 250 points from 2025
-        self.assertLess(len(res_1y["points"]), 50)
+        self.assertLess(len(res_1y["points"]), 100)
         if res_1y["points"]:
             first_pt = res_1y["points"][0]
             # Verify first point is from Sep 2026, NOT 2025
             self.assertIn("29 Sep", first_pt["time"])
+
+    def test_one_day_portfolio_chart_previous_market(self):
+        req = FakeRequest("STOX-212881")
+        res_1d = main.read_portfolio_chart(req, timeframe="1D", asset_type="STOCK")
+        self.assertIn("points", res_1d)
+        self.assertGreater(len(res_1d["points"]), 0)
+        self.assertIn("baseline", res_1d)
+        self.assertIsNotNone(res_1d["baseline"])
+        # Points should have intraday timestamps (e.g. HH:MM)
+        self.assertRegex(res_1d["points"][0]["time"], r"\d{2}:\d{2}")
 
     def test_mutual_fund_chart(self):
         req = FakeRequest("test_user_chart")

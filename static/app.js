@@ -16179,7 +16179,10 @@ async function renderStockPerformanceChart() {
     firstVal = values[0] || 0;
     const lastVal = values[values.length - 1] || 0;
     const lastInvested = investedValues[investedValues.length - 1] || (data.invested_val || portfolioChartsState.stock.invVal);
-    const isPos = (tf === '1D') ? (lastVal >= firstVal) : (lastVal >= lastInvested);
+    const baseline = data.baseline || null;
+    const isPos = (tf === '1D') 
+      ? (baseline ? (lastVal >= baseline) : (lastVal >= firstVal)) 
+      : (lastVal >= lastInvested);
     const strokeColor = isPos ? '#00D09C' : '#EB5B3C';
     const investedLineColor = isDark ? 'rgba(148, 163, 184, 0.75)' : 'rgba(100, 116, 139, 0.75)';
 
@@ -16189,7 +16192,7 @@ async function renderStockPerformanceChart() {
     grad.addColorStop(0.5, isPos ? 'rgba(0, 208, 156, 0.06)' : 'rgba(235, 91, 60, 0.06)');
     grad.addColorStop(1, isPos ? 'rgba(0, 208, 156, 0.0)' : 'rgba(235, 91, 60, 0.0)');
 
-    const defaultTfReturns = (data.timeframe_pnl !== undefined) ? data.timeframe_pnl : (lastVal - firstVal);
+    const defaultTfReturns = (data.timeframe_pnl !== undefined) ? data.timeframe_pnl : (lastVal - (baseline || firstVal));
     updateStockSummaryDisplay(lastVal, lastInvested, defaultTfReturns);
 
     canvas.onmouseleave = () => {
@@ -16202,6 +16205,7 @@ async function renderStockPerformanceChart() {
       firstVal,
       lastVal,
       lastInvested,
+      baseline,
       defaultTfReturns
     };
 
@@ -16234,7 +16238,7 @@ async function renderStockPerformanceChart() {
 
         const hVal = curr.values[idx] || 0;
         const hInv = curr.investedValues[idx] || 0;
-        const hTf = hVal - curr.firstVal;
+        const hTf = (tf === '1D' && curr.baseline) ? (hVal - curr.baseline) : (hVal - curr.firstVal);
         updateStockSummaryDisplay(hVal, hInv, hTf);
       }
 
@@ -16261,6 +16265,33 @@ async function renderStockPerformanceChart() {
       canvas.addEventListener('touchcancel', handleEnd, { passive: true });
     }
     initStockTouchScrubbing();
+
+    const baselinePlugin = {
+      id: 'baselineCrosshairStock',
+      afterDraw(chart) {
+        if (tf !== '1D' || !baseline) return;
+        const { ctx: pCtx, chartArea, scales: { y: yScale } } = chart;
+        if (!chartArea || !yScale) return;
+        if (baseline >= yScale.min && baseline <= yScale.max) {
+          const yBaseline = yScale.getPixelForValue(baseline);
+          pCtx.save();
+          pCtx.setLineDash([4, 4]);
+          pCtx.strokeStyle = isDark ? 'rgba(148, 163, 184, 0.32)' : 'rgba(100, 116, 139, 0.32)';
+          pCtx.lineWidth = 1;
+          pCtx.beginPath();
+          pCtx.moveTo(chartArea.left, yBaseline);
+          pCtx.lineTo(chartArea.right, yBaseline);
+          pCtx.stroke();
+          if (!isMobile && chartArea.right - chartArea.left > 220) {
+            pCtx.fillStyle = isDark ? '#94A3B8' : '#64748B';
+            pCtx.font = '500 9.5px Sora, sans-serif';
+            pCtx.textAlign = 'right';
+            pCtx.fillText(`Prev. Close: ${formatINR(baseline)}`, chartArea.right - 8, yBaseline - 5);
+          }
+          pCtx.restore();
+        }
+      }
+    };
 
     const verticalLinePlugin = {
       id: 'verticalCrosshairStock',
@@ -16327,7 +16358,7 @@ async function renderStockPerformanceChart() {
 
     portfolioChartsState.stock.perfInstance = new Chart(ctx, {
       type: 'line',
-      plugins: [verticalLinePlugin],
+      plugins: [baselinePlugin, verticalLinePlugin],
       data: {
         labels: labels,
         datasets: [
@@ -16388,7 +16419,7 @@ async function renderStockPerformanceChart() {
             const idx = activeElements[0].index;
             const hVal = values[idx] || 0;
             const hInv = investedValues[idx] || 0;
-            const hTf = hVal - firstVal;
+            const hTf = (tf === '1D' && baseline) ? (hVal - baseline) : (hVal - firstVal);
             updateStockSummaryDisplay(hVal, hInv, hTf);
           }
         },
@@ -16845,7 +16876,10 @@ async function renderMfPerformanceChart() {
     firstVal = values[0] || 0;
     const lastVal = values[values.length - 1] || 0;
     const lastInvested = investedValues[investedValues.length - 1] || (data.invested_val || portfolioChartsState.mf.invVal);
-    const isPos = (tf === '1D') ? (lastVal >= firstVal) : (lastVal >= lastInvested);
+    const baseline = data.baseline || null;
+    const isPos = (tf === '1D') 
+      ? (baseline ? (lastVal >= baseline) : (lastVal >= firstVal)) 
+      : (lastVal >= lastInvested);
     const strokeColor = isPos ? '#00D09C' : '#EB5B3C';
     const investedLineColor = isDark ? 'rgba(148, 163, 184, 0.75)' : 'rgba(100, 116, 139, 0.75)';
 
@@ -16855,7 +16889,7 @@ async function renderMfPerformanceChart() {
     grad.addColorStop(0.5, isPos ? 'rgba(0, 208, 156, 0.06)' : 'rgba(235, 91, 60, 0.06)');
     grad.addColorStop(1, isPos ? 'rgba(0, 208, 156, 0.0)' : 'rgba(235, 91, 60, 0.0)');
 
-    const defaultTfReturns = (data.timeframe_pnl !== undefined) ? data.timeframe_pnl : (lastVal - firstVal);
+    const defaultTfReturns = (data.timeframe_pnl !== undefined) ? data.timeframe_pnl : (lastVal - (baseline || firstVal));
     updateMfSummaryDisplay(lastVal, lastInvested, defaultTfReturns);
 
     canvas.onmouseleave = () => {
@@ -16868,6 +16902,7 @@ async function renderMfPerformanceChart() {
       firstVal,
       lastVal,
       lastInvested,
+      baseline,
       defaultTfReturns
     };
 
@@ -16900,7 +16935,7 @@ async function renderMfPerformanceChart() {
 
         const hVal = curr.values[idx] || 0;
         const hInv = curr.investedValues[idx] || 0;
-        const hTf = hVal - curr.firstVal;
+        const hTf = (tf === '1D' && curr.baseline) ? (hVal - curr.baseline) : (hVal - curr.firstVal);
         updateMfSummaryDisplay(hVal, hInv, hTf);
       }
 
@@ -16927,6 +16962,33 @@ async function renderMfPerformanceChart() {
       canvas.addEventListener('touchcancel', handleEnd, { passive: true });
     }
     initMfTouchScrubbing();
+
+    const baselinePlugin = {
+      id: 'baselineCrosshairMf',
+      afterDraw(chart) {
+        if (tf !== '1D' || !baseline) return;
+        const { ctx: pCtx, chartArea, scales: { y: yScale } } = chart;
+        if (!chartArea || !yScale) return;
+        if (baseline >= yScale.min && baseline <= yScale.max) {
+          const yBaseline = yScale.getPixelForValue(baseline);
+          pCtx.save();
+          pCtx.setLineDash([4, 4]);
+          pCtx.strokeStyle = isDark ? 'rgba(148, 163, 184, 0.32)' : 'rgba(100, 116, 139, 0.32)';
+          pCtx.lineWidth = 1;
+          pCtx.beginPath();
+          pCtx.moveTo(chartArea.left, yBaseline);
+          pCtx.lineTo(chartArea.right, yBaseline);
+          pCtx.stroke();
+          if (!isMobile && chartArea.right - chartArea.left > 220) {
+            pCtx.fillStyle = isDark ? '#94A3B8' : '#64748B';
+            pCtx.font = '500 9.5px Sora, sans-serif';
+            pCtx.textAlign = 'right';
+            pCtx.fillText(`Prev. Close: ${formatINR(baseline)}`, chartArea.right - 8, yBaseline - 5);
+          }
+          pCtx.restore();
+        }
+      }
+    };
 
     const verticalLinePlugin = {
       id: 'verticalCrosshairMf',
@@ -16993,7 +17055,7 @@ async function renderMfPerformanceChart() {
 
     portfolioChartsState.mf.perfInstance = new Chart(ctx, {
       type: 'line',
-      plugins: [verticalLinePlugin],
+      plugins: [baselinePlugin, verticalLinePlugin],
       data: {
         labels: labels,
         datasets: [
@@ -17054,7 +17116,7 @@ async function renderMfPerformanceChart() {
             const idx = activeElements[0].index;
             const hVal = values[idx] || 0;
             const hInv = investedValues[idx] || 0;
-            const hTf = hVal - firstVal;
+            const hTf = (tf === '1D' && baseline) ? (hVal - baseline) : (hVal - firstVal);
             updateMfSummaryDisplay(hVal, hInv, hTf);
           }
         },
