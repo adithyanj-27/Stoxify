@@ -3821,34 +3821,35 @@ body.pwa-installed #mobileInstallBanner {
     box-sizing: border-box !important;
     overflow: hidden !important;
     gap: 0.65rem !important;
-    margin-bottom: 0.75rem !important;
+    margin-bottom: 0.5rem !important;
+    padding: 0 0.15rem !important;
   }
 
   .back-link-btn {
-    width: 34px !important;
-    height: 34px !important;
+    width: 32px !important;
+    height: 32px !important;
     padding: 0 !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
     flex-shrink: 0 !important;
     border-radius: 8px !important;
-    background: var(--bg-card) !important;
-    border: 1px solid var(--border-subtle) !important;
-    color: var(--text-secondary) !important;
+    background: transparent !important;
+    border: none !important;
+    color: var(--text-primary) !important;
   }
 
   .back-link-btn:active {
-    background: var(--bg-card-hover) !important;
+    background: rgba(255, 255, 255, 0.08) !important;
     color: var(--text-primary) !important;
-    border-color: var(--brand-cyan) !important;
+    border-color: transparent !important;
   }
 
   .breadcrumb-trail {
     display: flex !important;
     align-items: center !important;
     gap: 0.35rem !important;
-    font-size: 0.76rem !important;
+    font-size: 0.78rem !important;
     min-width: 0 !important;
     overflow: hidden !important;
     white-space: nowrap !important;
@@ -3865,8 +3866,11 @@ body.pwa-installed #mobileInstallBanner {
   }
 
   .asset-hero-card {
-    padding: 0.85rem 0.95rem !important;
-    border-radius: 14px !important;
+    padding: 0.35rem 0.15rem 0.45rem 0.15rem !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
     display: flex !important;
     flex-direction: row !important;
     align-items: center !important;
@@ -3916,8 +3920,9 @@ body.pwa-installed #mobileInstallBanner {
   }
 
   .asset-hero-title {
-    font-size: 0.96rem !important;
-    font-weight: 600 !important;
+    font-size: 1.05rem !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.01em !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
@@ -3970,7 +3975,7 @@ body.pwa-installed #mobileInstallBanner {
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
-    font-size: 0.72rem !important;
+    font-size: 0.74rem !important;
   }
 
   .asset-ticker {
@@ -4000,21 +4005,22 @@ body.pwa-installed #mobileInstallBanner {
     text-align: right !important;
     flex-shrink: 0 !important;
     min-width: 0 !important;
-    gap: 0.15rem !important;
+    gap: 0.2rem !important;
   }
 
   .asset-hero-price {
-    font-size: 1.15rem !important;
-    font-weight: 600 !important;
+    font-size: 1.35rem !important;
+    font-weight: 700 !important;
     white-space: nowrap !important;
     font-variant-numeric: tabular-nums !important;
-    line-height: 1.2 !important;
+    line-height: 1.15 !important;
+    letter-spacing: -0.01em !important;
   }
 
   .asset-hero-right .badge-positive,
   .asset-hero-right .badge-negative {
-    font-size: 0.72rem !important;
-    font-weight: 500 !important;
+    font-size: 0.75rem !important;
+    font-weight: 600 !important;
     padding: 1px 6px !important;
     border-radius: 5px !important;
     white-space: nowrap !important;
