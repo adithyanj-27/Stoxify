@@ -45,6 +45,15 @@ class TestPortfolioChart(unittest.TestCase):
         # Points should have intraday timestamps (e.g. HH:MM)
         self.assertRegex(res_1d["points"][0]["time"], r"\d{2}:\d{2}")
 
+    def test_inflows_not_counted_as_profit(self):
+        req = FakeRequest("STOX-696351")
+        res_1m = main.read_portfolio_chart(req, timeframe="1M", asset_type="STOCK")
+        if res_1m.get("points") and res_1m.get("invested_val", 0) > 40000:
+            # User invested increased over time due to buys; timeframe_pnl must NOT treat new deposits as profit
+            self.assertLess(res_1m["timeframe_pnl"], 10000)
+            # Total P&L and timeframe P&L direction should be consistent (not +44,000 on a -1,400 portfolio)
+            self.assertLess(res_1m["timeframe_pnl"], 0)
+
     def test_mutual_fund_chart(self):
         req = FakeRequest("test_user_chart")
         res = main.read_portfolio_chart(req, timeframe="1M", asset_type="MUTUAL_FUND")

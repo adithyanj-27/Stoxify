@@ -453,7 +453,21 @@ def get_stock_available_exchanges(symbol_or_clean: str, known_symbol: str = "") 
 
 def get_stock_quote(symbol: str) -> Dict[str, Any]:
     raw_sym = symbol.strip().upper()
-    if raw_sym in ("NSE", "NSE.BO"):
+    clean_sym = raw_sym.replace(".NS", "").replace(".BO", "").replace("^", "")
+
+    if raw_sym.startswith("^"):
+        formatted_symbol = raw_sym
+    elif clean_sym in ("NSEI", "NIFTY", "NIFTY50", "NIFTY 50", "NSE50"):
+        formatted_symbol = "^NSEI"
+    elif clean_sym in ("BSESN", "SENSEX", "SENSEX30"):
+        formatted_symbol = "^BSESN"
+    elif clean_sym in ("NSEBANK", "BANKNIFTY", "BANK NIFTY"):
+        formatted_symbol = "^NSEBANK"
+    elif clean_sym in ("CNXIT", "NIFTYIT", "NIFTY IT"):
+        formatted_symbol = "^CNXIT"
+    elif clean_sym in ("NSEMDCP50", "NIFTYMIDCAP50", "NIFTY MIDCAP 50"):
+        formatted_symbol = "^NSEMDCP50"
+    elif raw_sym in ("NSE", "NSE.BO"):
         formatted_symbol = "NSE.BO"
     elif not raw_sym.endswith(".NS") and not raw_sym.endswith(".BO") and not raw_sym.startswith("^"):
         # Check if master catalog defines it as a .BO symbol
@@ -1356,37 +1370,101 @@ def get_explore_data() -> Dict[str, Any]:
     return result
 
 
+_GROWW_SCRIP_CACHE: Dict[str, str] = {
+    "NSE": "544937",
+}
+
+def _resolve_groww_bse_scrip(sym: str) -> Optional[str]:
+    if sym in _GROWW_SCRIP_CACHE:
+        return _GROWW_SCRIP_CACHE[sym]
+    try:
+        r = requests.get(
+            f"https://groww.in/v1/api/search/v1/entity?app=false&entity_type=stocks&page=0&q={sym}&size=5",
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=3.5,
+        )
+        if r.status_code == 200:
+            for item in r.json().get("content", []):
+                nse_code = (item.get("nse_scrip_code") or "").upper()
+                bse_code = item.get("bse_scrip_code")
+                if bse_code and (nse_code == sym or (item.get("title") or "").upper().startswith(sym)):
+                    _GROWW_SCRIP_CACHE[sym] = str(bse_code)
+                    return str(bse_code)
+    except Exception:
+        pass
+    return None
+
+
 def _fetch_groww_chart(symbol: str, timeframe: str) -> Optional[List[Dict[str, Any]]]:
     sym = symbol.strip().upper().replace(".NS", "").replace(".BO", "").replace("^", "")
-    if sym in ("NSEI", "NIFTY50"):
+    if sym in ("NSEI", "NIFTY50", "NIFTY 50", "NSE50"):
         sym = "NIFTY"
-    elif sym == "BSESN":
+    elif sym in ("BSESN", "SENSEX30"):
         sym = "SENSEX"
+    elif sym in ("NSEBANK", "BANK NIFTY"):
+        sym = "BANKNIFTY"
+    elif sym in ("CNXIT", "NIFTY IT"):
+        sym = "NIFTYIT"
+    elif sym == "LTIM":
+        sym = "LTM"
+    elif sym == "GMRINFRA":
+        sym = "GMRAIRPORT"
+    elif sym == "ZOMATO":
+        sym = "ETERNAL"
+    elif sym == "TATAMOTORS":
+        sym = "TMPV"
+    elif sym == "NSE":
+        sym = "544937"
 
-    exchange = "BSE" if symbol.strip().upper().endswith(".BO") or sym == "SENSEX" else "NSE"
+    is_bse = symbol.strip().upper().endswith(".BO") or sym in ("SENSEX", "544937")
+    if is_bse and sym != "SENSEX" and not sym.isdigit():
+        bse_code = _resolve_groww_bse_scrip(sym)
+        if bse_code:
+            sym = bse_code
+        else:
+            is_bse = False
+
+    exchange = "BSE" if is_bse else "NSE"
     tf = timeframe.strip().upper()
 
-    url_map = {
-        "1D": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{exchange}/segment/CASH/{sym}/daily?intervalInMinutes=5",
-        "1W": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{exchange}/segment/CASH/{sym}/weekly?intervalInMinutes=15",
-        "1M": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{exchange}/segment/CASH/{sym}/monthly?intervalInMinutes=60",
-        "3M": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{exchange}/segment/CASH/{sym}/monthly/v2?months=3",
-        "6M": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{exchange}/segment/CASH/{sym}/monthly/v2?months=6",
-        "1Y": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{exchange}/segment/CASH/{sym}/1y?intervalInDays=1",
-        "3Y": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{exchange}/segment/CASH/{sym}/3y?intervalInDays=3",
-        "5Y": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{exchange}/segment/CASH/{sym}/5y?intervalInDays=5",
-        "ALL": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{exchange}/segment/CASH/{sym}/all?noOfCandles=300",
-    }
-    url = url_map.get(tf)
+    def _build_url(ex: str, s: str, t_frame: str) -> Optional[str]:
+        u_map = {
+            "1D": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{ex}/segment/CASH/{s}/daily?intervalInMinutes=5",
+            "1W": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{ex}/segment/CASH/{s}/weekly?intervalInMinutes=15",
+            "1M": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{ex}/segment/CASH/{s}/monthly?intervalInMinutes=60",
+            "3M": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{ex}/segment/CASH/{s}/monthly/v2?months=3",
+            "6M": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{ex}/segment/CASH/{s}/monthly/v2?months=6",
+            "1Y": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{ex}/segment/CASH/{s}/1y?intervalInDays=1",
+            "3Y": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{ex}/segment/CASH/{s}/3y?intervalInDays=3",
+            "5Y": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{ex}/segment/CASH/{s}/5y?intervalInDays=5",
+            "ALL": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{ex}/segment/CASH/{s}/all?noOfCandles=300",
+        }
+        return u_map.get(t_frame)
+
+    url = _build_url(exchange, sym, tf)
     if not url:
         return None
 
     try:
-        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=3.5)
+        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=6.0)
         if resp.status_code != 200:
             return None
         data = resp.json()
         candles = data.get("candles", [])
+
+        # For newly listed IPO stocks (e.g. NSE listed Sep 2026) with < 15 daily candles on longer timeframes,
+        # use hourly 1M candles so the chart renders a detailed curve from listing day instead of 3-8 jagged points.
+        effective_tf = tf
+        if tf in ("3M", "6M", "1Y", "3Y", "5Y", "ALL") and 0 < len(candles) < 15:
+            monthly_url = _build_url(exchange, sym, "1M")
+            if monthly_url:
+                m_resp = requests.get(monthly_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=5.0)
+                if m_resp.status_code == 200:
+                    m_candles = m_resp.json().get("candles", [])
+                    if len(m_candles) > len(candles):
+                        candles = m_candles
+                        effective_tf = "1M"
+
         if not candles:
             return None
 
@@ -1395,9 +1473,9 @@ def _fetch_groww_chart(symbol: str, timeframe: str) -> Optional[List[Dict[str, A
         points = []
         for idx, c in enumerate(candles):
             dt = datetime.fromtimestamp(c[0], tz=IST)
-            if tf == "1D":
+            if effective_tf == "1D":
                 time_str = dt.strftime("%H:%M")
-            elif tf in ("1W", "1M"):
+            elif effective_tf in ("1W", "1M"):
                 time_str = dt.strftime("%d %b %H:%M")
             else:
                 time_str = dt.strftime("%d %b %Y")
@@ -1406,13 +1484,15 @@ def _fetch_groww_chart(symbol: str, timeframe: str) -> Optional[List[Dict[str, A
             if idx == 0 and closing_ref is not None:
                 open_val = round(float(closing_ref), 2)
 
+            vol = int(c[5]) if len(c) > 5 and c[5] is not None else 0
+
             points.append({
                 "time": time_str,
                 "value": round(float(c[4]), 2),
                 "open": open_val,
                 "high": round(float(c[2]), 2),
                 "low": round(float(c[3]), 2),
-                "volume": int(c[5]) if len(c) > 5 else 0,
+                "volume": vol,
                 "ts": int(c[0]),
                 "iso_date": dt.strftime("%Y-%m-%d")
             })
@@ -1421,9 +1501,35 @@ def _fetch_groww_chart(symbol: str, timeframe: str) -> Optional[List[Dict[str, A
         return None
 
 def get_stock_chart(symbol: str, timeframe: str = "1D") -> List[Dict[str, Any]]:
-    formatted_symbol = symbol.strip().upper()
-    if not formatted_symbol.endswith(".NS") and not formatted_symbol.endswith(".BO") and not formatted_symbol.startswith("^"):
-        formatted_symbol += ".NS"
+    raw_sym = symbol.strip().upper()
+    clean_sym = raw_sym.replace(".NS", "").replace(".BO", "").replace("^", "")
+
+    # Index canonicalization
+    if raw_sym.startswith("^"):
+        formatted_symbol = raw_sym
+    elif clean_sym in ("NSEI", "NIFTY", "NIFTY50", "NIFTY 50", "NSE50"):
+        formatted_symbol = "^NSEI"
+    elif clean_sym in ("BSESN", "SENSEX", "SENSEX30"):
+        formatted_symbol = "^BSESN"
+    elif clean_sym in ("NSEBANK", "BANKNIFTY", "BANK NIFTY"):
+        formatted_symbol = "^NSEBANK"
+    elif clean_sym in ("CNXIT", "NIFTYIT", "NIFTY IT"):
+        formatted_symbol = "^CNXIT"
+    elif clean_sym in ("NSEMDCP50", "NIFTYMIDCAP50", "NIFTY MIDCAP 50"):
+        formatted_symbol = "^NSEMDCP50"
+    elif raw_sym in ("NSE", "NSE.BO"):
+        formatted_symbol = "NSE.BO"
+    elif raw_sym.endswith(".BO"):
+        formatted_symbol = raw_sym
+    elif raw_sym.endswith(".NS"):
+        formatted_symbol = raw_sym
+    else:
+        # Check if master catalog defines it as a .BO symbol
+        matched_bo = next((s for s in get_combined_stock_master() if s["symbol"] == f"{raw_sym}.BO"), None)
+        if matched_bo:
+            formatted_symbol = f"{raw_sym}.BO"
+        else:
+            formatted_symbol = f"{raw_sym}.NS"
 
     tf_upper = timeframe.strip().upper()
     cache_key = f"chart_{formatted_symbol}_{tf_upper}"
@@ -1434,7 +1540,7 @@ def get_stock_chart(symbol: str, timeframe: str = "1D") -> List[Dict[str, Any]]:
     now = datetime.now()
 
     # 1. First priority: Fetch real-time candles from Groww Charting API (exact match with Groww)
-    groww_points = _fetch_groww_chart(symbol, tf_upper)
+    groww_points = _fetch_groww_chart(formatted_symbol, tf_upper)
     if groww_points:
         set_cached(cache_key, groww_points, ttl=120)
         return groww_points
@@ -1445,7 +1551,7 @@ def get_stock_chart(symbol: str, timeframe: str = "1D") -> List[Dict[str, Any]]:
         period_map = {
             "1D": ("1d", "5m"),
             "1W": ("5d", "15m"),
-            "1M": ("1mo", "1d"),
+            "1M": ("1mo", "60m"),
             "3M": ("3mo", "1d"),
             "6M": ("6mo", "1d"),
             "1Y": ("1y", "1d"),
@@ -1482,7 +1588,7 @@ def get_stock_chart(symbol: str, timeframe: str = "1D") -> List[Dict[str, Any]]:
         pass
 
     # 3. Third priority: Smooth curve fallback anchored on actual real-time price
-    quote = get_stock_quote(symbol)
+    quote = get_stock_quote(formatted_symbol)
     base_price = quote["price"]
     points = []
     count = 25 if tf_upper == "1D" else 40

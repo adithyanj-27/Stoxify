@@ -1124,14 +1124,8 @@ def read_portfolio_chart(request: Request, timeframe: str = "1M", asset_type: st
     # Fetch user's executed orders for this asset class
     raw_orders = []
     try:
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT symbol, asset_type, order_type, quantity, price, timestamp FROM orders WHERE user_id = ? AND status LIKE 'EXECUTED%' ORDER BY timestamp ASC",
-            (uid,)
-        )
-        raw_orders = [dict(r) for r in cursor.fetchall()]
-        conn.close()
+        raw_orders = get_orders(limit=2000, status_filter="EXECUTED", user_id=uid) or []
+        raw_orders.sort(key=lambda o: str(o.get("timestamp") or ""))
     except Exception as e:
         logger.warning(f"Could not load orders for portfolio chart: {e}")
 
@@ -1329,9 +1323,7 @@ def read_portfolio_chart(request: Request, timeframe: str = "1M", asset_type: st
                 for sym, q in ledger_qty.items():
                     if q <= 0:
                         continue
-                    price = None
-                    if tf_upper == "1D":
-                        price = sym_price_by_ts.get(sym, {}).get(pts_ts)
+                    price = sym_price_by_ts.get(sym, {}).get(pts_ts)
                     if price is None:
                         price = sym_price_by_date.get(sym, {}).get(iso_d)
                     if price is None and sym in last_known_price:
@@ -1393,8 +1385,13 @@ def read_portfolio_chart(request: Request, timeframe: str = "1M", asset_type: st
             tf_pnl = round(last_val - baseline, 2)
             tf_pnl_pct = round((tf_pnl / baseline) * 100, 2)
         else:
-            tf_pnl = round(last_val - first_val, 2)
-            tf_pnl_pct = round((tf_pnl / first_val) * 100, 2) if first_val > 0 else 0.0
+            first_invested = points[0]["invested"] if points else last_invested
+            first_pnl = first_val - first_invested
+            last_pnl = last_val - last_invested
+            # Net change in P&L across the timeframe isolates market returns from deposits/withdrawals
+            tf_pnl = round(last_pnl - first_pnl, 2)
+            base_capital = max(first_invested, last_invested) if max(first_invested, last_invested) > 0 else (first_invested or last_invested)
+            tf_pnl_pct = round((tf_pnl / base_capital) * 100, 2) if base_capital > 0 else 0.0
 
         return {
             "points": points,

@@ -8112,7 +8112,8 @@ function selectSearchResult(symbol, assetType) {
 
 // --- Asset Detail & Trade Modal ---
 function openAssetModal(symbol, assetType = 'STOCK', preselectAction = null) {
-  const cleanSym = (symbol || '').replace('.NS', '').replace('.BO', '');
+  const isBseSymbol = (symbol || '').endsWith('.BO');
+  const cleanSym = isBseSymbol ? (symbol || '').trim() : (symbol || '').replace('.NS', '').replace('.BO', '');
   if (preselectAction) {
     sessionStorage.setItem('stoxify_preselect_action', preselectAction);
   } else {
@@ -11370,14 +11371,29 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
 
   const loadId = ++currentAssetPageLoadId;
 
-  const cleanSymInit = (symbol || '').replace('.NS', '').replace('.BO', '').trim();
-  const isMFInit = assetType === 'MUTUAL_FUND' || symbol.match(/^\d+$/);
-  const isETFInit = assetType === 'ETF';
-  const isIndexInit = (symbol || '').startsWith('^') || assetType === 'INDEX';
-  const indexNameInit = isIndexInit ? (INDEX_NAMES[symbol] || symbol.replace('^', '')) : null;
+  const rawClean = (symbol || '').replace('.NS', '').replace('.BO', '').replace('^', '').trim().toUpperCase();
+  const isIndexAlias = ['NSEI', 'NIFTY', 'NIFTY50', 'NIFTY 50', 'NSE50', 'BSESN', 'SENSEX', 'SENSEX30', 'NSEBANK', 'BANKNIFTY', 'BANK NIFTY', 'CNXIT', 'NIFTYIT', 'NIFTY IT', 'NSEMDCP50', 'NIFTYMIDCAP50'].includes(rawClean);
+
+  let canonicalSymbol = symbol;
+  let canonicalAssetType = assetType;
+  if ((symbol || '').startsWith('^') || assetType === 'INDEX' || isIndexAlias) {
+    canonicalAssetType = 'INDEX';
+    if (['NSEI', 'NIFTY', 'NIFTY50', 'NIFTY 50', 'NSE50'].includes(rawClean)) canonicalSymbol = '^NSEI';
+    else if (['BSESN', 'SENSEX', 'SENSEX30'].includes(rawClean)) canonicalSymbol = '^BSESN';
+    else if (['NSEBANK', 'BANKNIFTY', 'BANK NIFTY'].includes(rawClean)) canonicalSymbol = '^NSEBANK';
+    else if (['CNXIT', 'NIFTYIT', 'NIFTY IT'].includes(rawClean)) canonicalSymbol = '^CNXIT';
+    else if (['NSEMDCP50', 'NIFTYMIDCAP50'].includes(rawClean)) canonicalSymbol = '^NSEMDCP50';
+    else if (!(symbol || '').startsWith('^')) canonicalSymbol = '^' + rawClean;
+  }
+
+  const cleanSymInit = (canonicalSymbol || '').replace('.NS', '').replace('.BO', '').replace('^', '').trim();
+  const isMFInit = canonicalAssetType === 'MUTUAL_FUND' || canonicalSymbol.match(/^\d+$/);
+  const isETFInit = canonicalAssetType === 'ETF';
+  const isIndexInit = canonicalAssetType === 'INDEX' || (canonicalSymbol || '').startsWith('^');
+  const indexNameInit = isIndexInit ? (INDEX_NAMES[canonicalSymbol] || canonicalSymbol.replace('^', '')) : null;
 
   // Immediately resolve target asset from bundled or memory cache
-  const initialAsset = findKnownAsset(symbol, assetType);
+  const initialAsset = findKnownAsset(canonicalSymbol, canonicalAssetType);
 
   // EVICT OLD ASSET STATE IMMEDIATELY - never let the old stock linger in memory!
   currentPageAsset = initialAsset ? { ...initialAsset } : null;
@@ -11417,18 +11433,21 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
     holdingSale = JSON.parse(sessionStorage.getItem('stoxify_holding_sale') || 'null');
   } catch (_) {}
 
-  let querySymbol = symbol;
+  let querySymbol = canonicalSymbol;
   let initialExchange = 'NSE';
   if (!isMFInit && !isIndexInit) {
+    const isBseOnly = (initialAsset && Array.isArray(initialAsset.exchanges) && initialAsset.exchanges.length === 1 && initialAsset.exchanges[0] === 'BSE') ||
+                      (initialAsset && Array.isArray(initialAsset.available_exchanges) && initialAsset.available_exchanges.length === 1 && initialAsset.available_exchanges[0] === 'BSE') ||
+                      rawClean === 'NSE';
     if (holdingSale && holdingSale.exchange === 'BSE') {
       initialExchange = 'BSE';
       querySymbol = cleanSymInit + '.BO';
-    } else if (symbol.endsWith('.BO')) {
+    } else if (canonicalSymbol.endsWith('.BO') || isBseOnly) {
       initialExchange = 'BSE';
-      querySymbol = symbol;
-    } else if (symbol.endsWith('.NS')) {
+      querySymbol = canonicalSymbol.endsWith('.BO') ? canonicalSymbol : (cleanSymInit + '.BO');
+    } else if (canonicalSymbol.endsWith('.NS')) {
       initialExchange = 'NSE';
-      querySymbol = symbol;
+      querySymbol = canonicalSymbol;
     } else {
       querySymbol = cleanSymInit + '.NS';
     }
@@ -16142,7 +16161,7 @@ async function renderStockPerformanceChart() {
   const invValEl = document.getElementById('stockPerfInvVal');
   const tfLabelEl = document.getElementById('stockPerfTfLabel');
 
-  function updateStockSummaryDisplay(val, inv, tfReturns) {
+  function updateStockSummaryDisplay(val, inv, tfReturns, tfReturnsPct) {
     if (curValEl) curValEl.innerText = formatINR(val);
     if (invValEl) invValEl.innerText = formatINR(inv);
     const netPnl = val - inv;
@@ -16153,9 +16172,24 @@ async function renderStockPerformanceChart() {
       pnlPillEl.className = 'portfolio-perf-pnl-pill' + (netPnl < 0 ? ' negative' : '');
     }
     if (tfLabelEl) {
-      const tfPnl = (tfReturns !== undefined) ? tfReturns : (val - (values && values.length ? values[0] : 0));
+      let tfPnl = tfReturns;
+      if (tfPnl === undefined) {
+        const firstV = values && values.length ? values[0] : 0;
+        const firstI = investedValues && investedValues.length ? investedValues[0] : 0;
+        tfPnl = (val - inv) - (firstV - firstI);
+      }
       const tfSign = tfPnl >= 0 ? '+' : '';
-      tfLabelEl.innerHTML = `${tf} Return: <strong style="color: ${tfPnl >= 0 ? '#00D09C' : '#EB5B3C'};">${tfSign}${formatINR(tfPnl)}</strong>`;
+      let pctStr = '';
+      if (tfReturnsPct !== undefined && tfReturnsPct !== null) {
+        pctStr = ` (${tfSign}${Number(tfReturnsPct).toFixed(2)}%)`;
+      } else {
+        const baseCap = (tf === '1D' && baseline) ? baseline : Math.max(inv, investedValues && investedValues.length ? investedValues[0] : inv);
+        if (baseCap > 0) {
+          const calculatedPct = (tfPnl / baseCap) * 100;
+          pctStr = ` (${tfSign}${calculatedPct.toFixed(2)}%)`;
+        }
+      }
+      tfLabelEl.innerHTML = `${tf} Return: <strong style="color: ${tfPnl >= 0 ? '#00D09C' : '#EB5B3C'};">${tfSign}${formatINR(tfPnl)}${pctStr}</strong>`;
     }
   }
 
@@ -16175,7 +16209,7 @@ async function renderStockPerformanceChart() {
       ctx.textBaseline = 'middle';
       ctx.fillText('Performance history tracking active holdings across ' + tf, canvas.width / 2, (canvas.height || 260) / 2);
       ctx.restore();
-      updateStockSummaryDisplay(data.current_val || 0, data.invested_val || 0, 0);
+      updateStockSummaryDisplay(data.current_val || 0, data.invested_val || 0, 0, 0);
       return;
     }
 
@@ -16183,6 +16217,7 @@ async function renderStockPerformanceChart() {
     values = points.map(p => p.value);
     investedValues = points.map(p => (p.invested !== undefined ? p.invested : (data.invested_val || portfolioChartsState.stock.invVal)));
     firstVal = values[0] || 0;
+    const firstInvested = investedValues[0] || (data.invested_val || portfolioChartsState.stock.invVal);
     const lastVal = values[values.length - 1] || 0;
     const lastInvested = investedValues[investedValues.length - 1] || (data.invested_val || portfolioChartsState.stock.invVal);
     const baseline = data.baseline || null;
@@ -16198,21 +16233,30 @@ async function renderStockPerformanceChart() {
     grad.addColorStop(0.5, isPos ? 'rgba(0, 208, 156, 0.06)' : 'rgba(235, 91, 60, 0.06)');
     grad.addColorStop(1, isPos ? 'rgba(0, 208, 156, 0.0)' : 'rgba(235, 91, 60, 0.0)');
 
-    const defaultTfReturns = (data.timeframe_pnl !== undefined) ? data.timeframe_pnl : (lastVal - (baseline || firstVal));
-    updateStockSummaryDisplay(lastVal, lastInvested, defaultTfReturns);
+    const defaultTfReturns = (data.timeframe_pnl !== undefined) 
+      ? data.timeframe_pnl 
+      : ((lastVal - lastInvested) - (firstVal - firstInvested));
+    const defaultTfPct = data.timeframe_pnl_pct;
+    updateStockSummaryDisplay(lastVal, lastInvested, defaultTfReturns, defaultTfPct);
 
-    canvas.onmouseleave = () => {
-      updateStockSummaryDisplay(lastVal, lastInvested, defaultTfReturns);
+    const resetSummaryDisplay = () => {
+      updateStockSummaryDisplay(lastVal, lastInvested, defaultTfReturns, defaultTfPct);
+    };
+    canvas.onmouseleave = resetSummaryDisplay;
+    canvas.onmouseout = (e) => {
+      if (!canvas.contains(e.relatedTarget)) resetSummaryDisplay();
     };
 
     portfolioChartsState.stock.currentData = {
       values,
       investedValues,
       firstVal,
+      firstInvested,
       lastVal,
       lastInvested,
       baseline,
-      defaultTfReturns
+      defaultTfReturns,
+      defaultTfPct
     };
 
     function initStockTouchScrubbing() {
@@ -16244,8 +16288,11 @@ async function renderStockPerformanceChart() {
 
         const hVal = curr.values[idx] || 0;
         const hInv = curr.investedValues[idx] || 0;
-        const hTf = (tf === '1D' && curr.baseline) ? (hVal - curr.baseline) : (hVal - curr.firstVal);
-        updateStockSummaryDisplay(hVal, hInv, hTf);
+        const firstInv = curr.firstInvested || (curr.investedValues && curr.investedValues[0]) || 0;
+        const hTf = (tf === '1D' && curr.baseline) ? (hVal - curr.baseline) : ((hVal - hInv) - (curr.firstVal - firstInv));
+        const baseCap = (tf === '1D' && curr.baseline) ? curr.baseline : Math.max(firstInv, hInv);
+        const hTfPct = baseCap > 0 ? ((hTf / baseCap) * 100) : 0;
+        updateStockSummaryDisplay(hVal, hInv, hTf, hTfPct);
       }
 
       function handleEnd() {
@@ -16257,7 +16304,7 @@ async function renderStockPerformanceChart() {
         }
         const curr = portfolioChartsState.stock.currentData;
         if (curr) {
-          updateStockSummaryDisplay(curr.lastVal, curr.lastInvested, curr.defaultTfReturns);
+          updateStockSummaryDisplay(curr.lastVal, curr.lastInvested, curr.defaultTfReturns, curr.defaultTfPct);
         }
       }
 
@@ -16374,7 +16421,7 @@ async function renderStockPerformanceChart() {
             borderColor: strokeColor,
             borderWidth: isMobile ? 2.2 : 2.6,
             backgroundColor: grad,
-            fill: true,
+            fill: 'start',
             tension: 0.08,
             cubicInterpolationMode: 'monotone',
             borderCapStyle: 'round',
@@ -16384,7 +16431,7 @@ async function renderStockPerformanceChart() {
             pointHoverBackgroundColor: strokeColor,
             pointHoverBorderColor: isDark ? '#0F172A' : '#ffffff',
             pointHoverBorderWidth: 2,
-            order: 1
+            order: 2
           },
           {
             label: 'Invested Value',
@@ -16403,7 +16450,7 @@ async function renderStockPerformanceChart() {
             pointHoverBackgroundColor: investedLineColor,
             pointHoverBorderColor: isDark ? '#0F172A' : '#ffffff',
             pointHoverBorderWidth: 2,
-            order: 2
+            order: 1
           }
         ]
       },
@@ -16425,8 +16472,11 @@ async function renderStockPerformanceChart() {
             const idx = activeElements[0].index;
             const hVal = values[idx] || 0;
             const hInv = investedValues[idx] || 0;
-            const hTf = (tf === '1D' && baseline) ? (hVal - baseline) : (hVal - firstVal);
-            updateStockSummaryDisplay(hVal, hInv, hTf);
+            const firstInv = investedValues[0] || 0;
+            const hTf = (tf === '1D' && baseline) ? (hVal - baseline) : ((hVal - hInv) - (firstVal - firstInv));
+            const baseCap = (tf === '1D' && baseline) ? baseline : Math.max(firstInv, hInv);
+            const hTfPct = baseCap > 0 ? ((hTf / baseCap) * 100) : 0;
+            updateStockSummaryDisplay(hVal, hInv, hTf, hTfPct);
           }
         },
         plugins: {
@@ -16839,7 +16889,7 @@ async function renderMfPerformanceChart() {
   const invValEl = document.getElementById('mfPerfInvVal');
   const tfLabelEl = document.getElementById('mfPerfTfLabel');
 
-  function updateMfSummaryDisplay(val, inv, tfReturns) {
+  function updateMfSummaryDisplay(val, inv, tfReturns, tfReturnsPct) {
     if (curValEl) curValEl.innerText = formatINR(val);
     if (invValEl) invValEl.innerText = formatINR(inv);
     const netPnl = val - inv;
@@ -16850,9 +16900,24 @@ async function renderMfPerformanceChart() {
       pnlPillEl.className = 'portfolio-perf-pnl-pill' + (netPnl < 0 ? ' negative' : '');
     }
     if (tfLabelEl) {
-      const tfPnl = (tfReturns !== undefined) ? tfReturns : (val - (values && values.length ? values[0] : 0));
+      let tfPnl = tfReturns;
+      if (tfPnl === undefined) {
+        const firstV = values && values.length ? values[0] : 0;
+        const firstI = investedValues && investedValues.length ? investedValues[0] : 0;
+        tfPnl = (val - inv) - (firstV - firstI);
+      }
       const tfSign = tfPnl >= 0 ? '+' : '';
-      tfLabelEl.innerHTML = `${tf} Return: <strong style="color: ${tfPnl >= 0 ? '#00D09C' : '#EB5B3C'};">${tfSign}${formatINR(tfPnl)}</strong>`;
+      let pctStr = '';
+      if (tfReturnsPct !== undefined && tfReturnsPct !== null) {
+        pctStr = ` (${tfSign}${Number(tfReturnsPct).toFixed(2)}%)`;
+      } else {
+        const baseCap = (tf === '1D' && baseline) ? baseline : Math.max(inv, investedValues && investedValues.length ? investedValues[0] : inv);
+        if (baseCap > 0) {
+          const calculatedPct = (tfPnl / baseCap) * 100;
+          pctStr = ` (${tfSign}${calculatedPct.toFixed(2)}%)`;
+        }
+      }
+      tfLabelEl.innerHTML = `${tf} Return: <strong style="color: ${tfPnl >= 0 ? '#00D09C' : '#EB5B3C'};">${tfSign}${formatINR(tfPnl)}${pctStr}</strong>`;
     }
   }
 
@@ -16872,7 +16937,7 @@ async function renderMfPerformanceChart() {
       ctx.textBaseline = 'middle';
       ctx.fillText('Mutual fund performance tracking active schemes across ' + tf, canvas.width / 2, (canvas.height || 260) / 2);
       ctx.restore();
-      updateMfSummaryDisplay(data.current_val || 0, data.invested_val || 0, 0);
+      updateMfSummaryDisplay(data.current_val || 0, data.invested_val || 0, 0, 0);
       return;
     }
 
@@ -16880,6 +16945,7 @@ async function renderMfPerformanceChart() {
     values = points.map(p => p.value);
     investedValues = points.map(p => (p.invested !== undefined ? p.invested : (data.invested_val || portfolioChartsState.mf.invVal)));
     firstVal = values[0] || 0;
+    const firstInvested = investedValues[0] || (data.invested_val || portfolioChartsState.mf.invVal);
     const lastVal = values[values.length - 1] || 0;
     const lastInvested = investedValues[investedValues.length - 1] || (data.invested_val || portfolioChartsState.mf.invVal);
     const baseline = data.baseline || null;
@@ -16895,21 +16961,30 @@ async function renderMfPerformanceChart() {
     grad.addColorStop(0.5, isPos ? 'rgba(0, 208, 156, 0.06)' : 'rgba(235, 91, 60, 0.06)');
     grad.addColorStop(1, isPos ? 'rgba(0, 208, 156, 0.0)' : 'rgba(235, 91, 60, 0.0)');
 
-    const defaultTfReturns = (data.timeframe_pnl !== undefined) ? data.timeframe_pnl : (lastVal - (baseline || firstVal));
-    updateMfSummaryDisplay(lastVal, lastInvested, defaultTfReturns);
+    const defaultTfReturns = (data.timeframe_pnl !== undefined) 
+      ? data.timeframe_pnl 
+      : ((lastVal - lastInvested) - (firstVal - firstInvested));
+    const defaultTfPct = data.timeframe_pnl_pct;
+    updateMfSummaryDisplay(lastVal, lastInvested, defaultTfReturns, defaultTfPct);
 
-    canvas.onmouseleave = () => {
-      updateMfSummaryDisplay(lastVal, lastInvested, defaultTfReturns);
+    const resetSummaryDisplay = () => {
+      updateMfSummaryDisplay(lastVal, lastInvested, defaultTfReturns, defaultTfPct);
+    };
+    canvas.onmouseleave = resetSummaryDisplay;
+    canvas.onmouseout = (e) => {
+      if (!canvas.contains(e.relatedTarget)) resetSummaryDisplay();
     };
 
     portfolioChartsState.mf.currentData = {
       values,
       investedValues,
       firstVal,
+      firstInvested,
       lastVal,
       lastInvested,
       baseline,
-      defaultTfReturns
+      defaultTfReturns,
+      defaultTfPct
     };
 
     function initMfTouchScrubbing() {
@@ -16941,8 +17016,11 @@ async function renderMfPerformanceChart() {
 
         const hVal = curr.values[idx] || 0;
         const hInv = curr.investedValues[idx] || 0;
-        const hTf = (tf === '1D' && curr.baseline) ? (hVal - curr.baseline) : (hVal - curr.firstVal);
-        updateMfSummaryDisplay(hVal, hInv, hTf);
+        const firstInv = curr.firstInvested || (curr.investedValues && curr.investedValues[0]) || 0;
+        const hTf = (tf === '1D' && curr.baseline) ? (hVal - curr.baseline) : ((hVal - hInv) - (curr.firstVal - firstInv));
+        const baseCap = (tf === '1D' && curr.baseline) ? curr.baseline : Math.max(firstInv, hInv);
+        const hTfPct = baseCap > 0 ? ((hTf / baseCap) * 100) : 0;
+        updateMfSummaryDisplay(hVal, hInv, hTf, hTfPct);
       }
 
       function handleEnd() {
@@ -16954,7 +17032,7 @@ async function renderMfPerformanceChart() {
         }
         const curr = portfolioChartsState.mf.currentData;
         if (curr) {
-          updateMfSummaryDisplay(curr.lastVal, curr.lastInvested, curr.defaultTfReturns);
+          updateMfSummaryDisplay(curr.lastVal, curr.lastInvested, curr.defaultTfReturns, curr.defaultTfPct);
         }
       }
 
@@ -17071,7 +17149,7 @@ async function renderMfPerformanceChart() {
             borderColor: strokeColor,
             borderWidth: isMobile ? 2.2 : 2.6,
             backgroundColor: grad,
-            fill: true,
+            fill: 'start',
             tension: 0.08,
             cubicInterpolationMode: 'monotone',
             borderCapStyle: 'round',
@@ -17081,7 +17159,7 @@ async function renderMfPerformanceChart() {
             pointHoverBackgroundColor: strokeColor,
             pointHoverBorderColor: isDark ? '#0F172A' : '#ffffff',
             pointHoverBorderWidth: 2,
-            order: 1
+            order: 2
           },
           {
             label: 'Invested Value',
@@ -17100,7 +17178,7 @@ async function renderMfPerformanceChart() {
             pointHoverBackgroundColor: investedLineColor,
             pointHoverBorderColor: isDark ? '#0F172A' : '#ffffff',
             pointHoverBorderWidth: 2,
-            order: 2
+            order: 1
           }
         ]
       },
@@ -17122,8 +17200,11 @@ async function renderMfPerformanceChart() {
             const idx = activeElements[0].index;
             const hVal = values[idx] || 0;
             const hInv = investedValues[idx] || 0;
-            const hTf = (tf === '1D' && baseline) ? (hVal - baseline) : (hVal - firstVal);
-            updateMfSummaryDisplay(hVal, hInv, hTf);
+            const firstInv = investedValues[0] || 0;
+            const hTf = (tf === '1D' && baseline) ? (hVal - baseline) : ((hVal - hInv) - (firstVal - firstInv));
+            const baseCap = (tf === '1D' && baseline) ? baseline : Math.max(firstInv, hInv);
+            const hTfPct = baseCap > 0 ? ((hTf / baseCap) * 100) : 0;
+            updateMfSummaryDisplay(hVal, hInv, hTf, hTfPct);
           }
         },
         plugins: {
