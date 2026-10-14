@@ -11868,10 +11868,12 @@ function updatePageAssetStar(symbol) {
   const inWatchlist = state.watchlist && state.watchlist.has(symbol);
   if (inWatchlist) {
     btn.classList.add('active');
-    btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg><span class="star-nav-label desktop-only" id="pageAssetStarLabel">Saved</span>';
+    btn.setAttribute('title', 'Remove from Watchlist');
+    btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>';
   } else {
     btn.classList.remove('active');
-    btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg><span class="star-nav-label desktop-only" id="pageAssetStarLabel">Watchlist</span>';
+    btn.setAttribute('title', 'Add to Watchlist');
+    btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>';
   }
 }
 
