@@ -3655,6 +3655,16 @@ body.pwa-installed #mobileInstallBanner {
     box-sizing: border-box !important;
   }
 
+  html.viewing-asset-detail .navbar,
+  body.viewing-asset-detail .navbar,
+  html.viewing-asset-detail .indices-bar,
+  body.viewing-asset-detail .indices-bar,
+  html.viewing-asset-detail #productSubNavBar,
+  body.viewing-asset-detail #productSubNavBar,
+  html.viewing-asset-detail .sub-nav,
+  body.viewing-asset-detail .sub-nav,
+  html.viewing-asset-detail .mobile-install-banner,
+  body.viewing-asset-detail .mobile-install-banner,
   html.viewing-asset-detail .mobile-bottom-bar,
   body.viewing-asset-detail .mobile-bottom-bar {
     display: none !important;
@@ -3662,6 +3672,7 @@ body.pwa-installed #mobileInstallBanner {
 
   html.viewing-asset-detail,
   body.viewing-asset-detail {
+    padding-top: env(safe-area-inset-top, 0px) !important;
     padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
