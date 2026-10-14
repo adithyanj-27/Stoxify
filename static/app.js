@@ -782,7 +782,10 @@ function activateExploreProductView(product) {
 
   if (product === 'stocks') {
     renderRecentlyViewedStocks();
-    if (!state.exploreData) fetchExploreData();
+    // Detail quotes update the Explore data in memory. Redraw when returning so
+    // the card immediately reflects that quote instead of showing stale DOM.
+    renderExploreStocks();
+    fetchExploreData();
   } else if (product === 'fo') {
     fetchOptionChain();
   } else if (product === 'mf') {
@@ -4934,6 +4937,36 @@ function saveStoredExploreData(data) {
       localStorage.setItem('stoxify_explore_cache', JSON.stringify(data));
     }
   } catch (e) {}
+}
+
+// Keep every Explore rail that contains an asset synchronized with a quote
+// fetched by the detail page. The rails are separate API arrays, so updating
+// all of them avoids a card reverting when the user changes a filter.
+function syncExploreQuote(quote) {
+  if (!quote || !quote.symbol || quote.price === null || quote.price === undefined ||
+      !state.exploreData) return false;
+
+  const cleanSymbol = String(quote.symbol).replace('.NS', '').replace('.BO', '').toUpperCase();
+  const collections = ['all_stocks', 'etfs', 'most_bought', 'gainers', 'losers', 'recent_listings', 'mutual_funds'];
+  let updated = false;
+
+  collections.forEach(key => {
+    const items = state.exploreData[key];
+    if (!Array.isArray(items)) return;
+    items.forEach(item => {
+      const itemSymbol = String(item.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase();
+      if (itemSymbol !== cleanSymbol) return;
+      item.price = quote.price;
+      if (quote.change !== undefined) item.change = quote.change;
+      if (quote.change_pct !== undefined) item.change_pct = quote.change_pct;
+      if (quote.previous_close !== undefined) item.previous_close = quote.previous_close;
+      if (quote.prev_close !== undefined) item.prev_close = quote.prev_close;
+      updated = true;
+    });
+  });
+
+  if (updated) saveStoredExploreData(state.exploreData);
+  return updated;
 }
 
 // --- Explore View ---
@@ -11578,17 +11611,7 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
     const isETF = data.asset_type === 'ETF' || assetType === 'ETF';
     if (!isIndex) {
       recordRecentlyViewed(data, isMF ? 'MUTUAL_FUND' : (isETF ? 'ETF' : 'STOCK'));
-      // Synchronize live quote into Explore cache so explore page always matches
-      if (state.exploreData && state.exploreData.all_stocks && data && data.symbol && data.price) {
-        const cleanD = (data.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase();
-        const found = state.exploreData.all_stocks.find(s => (s.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase() === cleanD);
-        if (found) {
-          found.price = data.price;
-          found.change = data.change;
-          found.change_pct = data.change_pct;
-          saveStoredExploreData(state.exploreData);
-        }
-      }
+      syncExploreQuote(data);
     }
     
     document.getElementById('assetBreadcrumbCategory').innerText = isIndex ? 'Indices' : (isMF ? 'Mutual Funds' : (isETF ? 'ETFs & Gold' : 'Stocks'));
@@ -12628,6 +12651,7 @@ setInterval(async () => {
           currentPageAsset.price = fresh.price;
           currentPageAsset.change = fresh.change;
           currentPageAsset.change_pct = fresh.change_pct;
+          syncExploreQuote(fresh);
           resetHeroPrice();
           if (currentChartPoints && currentChartPoints.length > 0 && currentChartRange === '1D') {
             const last = currentChartPoints[currentChartPoints.length - 1];

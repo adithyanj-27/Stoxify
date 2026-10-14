@@ -58,6 +58,13 @@ def set_cached(key: str, val: Any, ttl: int = 60):
     _CACHE[key] = val
     _CACHE_EXPIRY[key] = time.time() + ttl
 
+def invalidate_explore_data_cache() -> None:
+    """Ensure the next Explore response incorporates a freshly fetched quote."""
+    for key in list(_CACHE):
+        if key.startswith("explore_data_"):
+            _CACHE.pop(key, None)
+            _CACHE_EXPIRY.pop(key, None)
+
 def get_quote_ttl() -> int:
     """Dynamic cache TTL: 15s during active market hours, 120s when closed."""
     try:
@@ -677,6 +684,7 @@ def _refresh_stock_quote_sync(formatted_symbol: str) -> Dict[str, Any]:
             "listing_date": matched.get("listing_date") if matched else None
         }
         set_cached(cache_key, data, ttl=get_quote_ttl())
+        invalidate_explore_data_cache()
         return data
     except Exception:
         # Fallback to stale cache if available
