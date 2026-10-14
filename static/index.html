@@ -1419,6 +1419,9 @@
           <span id="assetBreadcrumbSep">/</span>
           <span id="assetBreadcrumbName" class="active-crumb">Reliance Industries</span>
         </div>
+        <button class="card-star-btn page-asset-star-nav" id="pageAssetStarBtn" title="Toggle Watchlist" aria-label="Toggle Watchlist">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+        </button>
       </div>
 
       <div class="asset-page-grid">
@@ -1428,13 +1431,7 @@
           <div class="asset-hero-card">
             <div class="asset-hero-left">
               <div class="asset-hero-avatar" id="pageAssetAvatar"></div>
-              <div class="asset-hero-meta" style="min-width: 0; flex: 1 1 0; overflow: hidden;">
-                <div class="asset-hero-title-row" style="display: flex; align-items: center; gap: 0.5rem; min-width: 0; overflow: hidden;">
-                  <h1 class="asset-hero-title" id="pageAssetTitle">Asset Name</h1>
-                  <button class="card-star-btn" id="pageAssetStarBtn" title="Toggle Watchlist">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-                  </button>
-                </div>
+              <div class="asset-hero-meta">
                 <div class="asset-hero-sub">
                   <span class="asset-ticker" id="pageAssetSymbol">SYMBOL</span>
                   <div class="exchange-toggle-group" id="pageExchangeToggle">
@@ -1445,11 +1442,17 @@
                   <span class="sub-sep">•</span>
                   <span id="pageAssetSector" style="color: var(--text-muted); font-size: 0.85rem;">Equities</span>
                 </div>
+                <div class="asset-hero-title-row">
+                  <h1 class="asset-hero-title" id="pageAssetTitle">Asset Name</h1>
+                </div>
               </div>
             </div>
             <div class="asset-hero-right">
               <div class="asset-hero-price" id="pageAssetPrice">₹0.00</div>
-              <div class="badge-positive" id="pageAssetChangeBadge">+0.00 (0.00%)</div>
+              <div class="asset-hero-change-row">
+                <span class="badge-positive" id="pageAssetChangeBadge">+0.00 (0.00%)</span>
+                <span class="asset-change-tf" id="pageAssetChangeTf">1D</span>
+              </div>
             </div>
           </div>
 
