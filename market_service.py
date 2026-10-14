@@ -1160,7 +1160,7 @@ def _get_default_stock_quote(symbol: str, name: str = "", sector: str = "NSE Equ
     }
 
 def get_explore_data() -> Dict[str, Any]:
-    cached = get_cached("explore_data_v8")
+    cached = get_cached("explore_data_v9")
     if cached and cached.get("all_stocks") and cached.get("etfs"):
         return cached
 
@@ -1199,11 +1199,23 @@ def get_explore_data() -> Dict[str, Any]:
     missing_market_syms = list(dict.fromkeys(missing_syms + missing_etf_syms))
 
     # 3. High-speed batch download: Fetch ALL missing stocks and ETFs in one single network call
-    # concurrently with the mutual funds pool so everything completes in ~4-5 seconds with 100% real prices.
+    # concurrently with the mutual funds pool.  Daily bars only expose the previous
+    # close while the market is open, which caused Explore cards to disagree with the
+    # asset page's latest quote.  Use the most recent one-minute bar in that session;
+    # after the close, retain daily bars to avoid treating an old intraday bar as live.
     df = None
     if missing_market_syms or missing_mfs:
+        market_is_open = get_quote_ttl() <= 15
+        market_period = "5d"
+        market_interval = "1m" if market_is_open else "1d"
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            fut_mkt = executor.submit(yf.download, missing_market_syms, period="5d", interval="1d", progress=False) if missing_market_syms else None
+            fut_mkt = executor.submit(
+                yf.download,
+                missing_market_syms,
+                period=market_period,
+                interval=market_interval,
+                progress=False,
+            ) if missing_market_syms else None
             fut_mfs = {executor.submit(get_mutual_fund_quote, code): code for code in missing_mfs} if missing_mfs else {}
 
             if fut_mkt:
@@ -1234,7 +1246,19 @@ def get_explore_data() -> Dict[str, Any]:
                 if len(c_s) == 0:
                     continue
                 price = round(float(c_s.iloc[-1]), 2)
-                prev_close = round(float(c_s.iloc[-2]), 2) if len(c_s) > 1 else price
+                if market_is_open and isinstance(c_s.index, pd.DatetimeIndex):
+                    # The prior *bar* is a minute ago, not the previous close.  Find
+                    # the last close from the previous trading session for the daily
+                    # change displayed alongside the current intraday price.
+                    session_days = c_s.index.date
+                    latest_session = session_days[-1]
+                    previous_session = c_s[[day < latest_session for day in session_days]]
+                    prev_close = round(
+                        float(previous_session.iloc[-1] if not previous_session.empty else c_s.iloc[0]),
+                        2,
+                    )
+                else:
+                    prev_close = round(float(c_s.iloc[-2]), 2) if len(c_s) > 1 else price
                 change = round(price - prev_close, 2)
                 change_pct = round((change / prev_close) * 100, 2) if prev_close else 0.0
 
@@ -1365,8 +1389,8 @@ def get_explore_data() -> Dict[str, Any]:
         "mutual_funds": all_mfs,
         "etfs": all_etfs
     }
-    explore_ttl = 30 if get_quote_ttl() <= 15 else 120
-    set_cached("explore_data_v8", result, ttl=explore_ttl)
+    # Keep Explore's live cache in lockstep with the individual quote cache.
+    set_cached("explore_data_v9", result, ttl=get_quote_ttl())
     return result
 
 

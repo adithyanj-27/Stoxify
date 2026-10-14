@@ -930,7 +930,7 @@ async function fetchIndices() {
   }
 }
 
-const EXPLORE_CACHE_VERSION = '2026.09.30.v8';
+const EXPLORE_CACHE_VERSION = '2026.10.14.v9';
 
 const DEFAULT_EXPLORE_DATA = {
   "version": "2026.09.30.v8",
@@ -9509,6 +9509,7 @@ function bootApp() {
   setInterval(() => fetchMarketStatus(), 10000);
   setInterval(() => {
     fetchIndices();
+    if (state.currentTab === 'explore' && state.activeProduct === 'stocks') fetchExploreData();
     if (state.currentTab === 'holdings') fetchPortfolio(true);
     if (state.currentTab === 'dashboard') renderMutualFundDashboard(true);
     if (state.currentTab === 'positions') fetchPositions();
