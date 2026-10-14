@@ -5359,8 +5359,8 @@ function recordRecentlyViewed(item, type) {
   const key = getRecentlyViewedKey(type);
   try {
     let list = getRecentlyViewed(type);
-    const cleanSym = (item.symbol || '').toUpperCase();
-    list = list.filter(i => (i.symbol || '').toUpperCase() !== cleanSym);
+    const cleanSym = (item.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase().trim();
+    list = list.filter(i => (i.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase().trim() !== cleanSym);
     list.unshift({
       symbol: item.symbol,
       name: item.name || item.symbol,
@@ -5405,12 +5405,24 @@ function renderRecentlyViewedStocks() {
   }
 
   let storageUpdated = false;
-  const sanitizedList = list.filter(s => {
+  const seenSymbols = new Set();
+  const sanitizedList = [];
+
+  for (const s of list) {
     const sym = (s.symbol || '').toUpperCase().trim();
-    return sym && sym !== 'TEST';
-  }).map(s => {
+    if (!sym || sym === 'TEST') {
+      storageUpdated = true;
+      continue;
+    }
+    const cleanSym = sym.replace('.NS', '').replace('.BO', '');
+    if (seenSymbols.has(cleanSym)) {
+      // Duplicate entry (e.g. recorded under both NSE and BSE)
+      storageUpdated = true;
+      continue;
+    }
+    seenSymbols.add(cleanSym);
+
     let live = { ...s };
-    const cleanSym = (s.symbol || '').replace('.NS', '').replace('.BO', '').toUpperCase();
 
     // Fix stale dummy NSE test data with authentic National Stock Exchange listing
     if (cleanSym === 'NSE') {
@@ -5452,12 +5464,13 @@ function renderRecentlyViewedStocks() {
         live.is_etf = true;
       }
     }
-    return live;
-  });
+    sanitizedList.push(live);
+  }
 
   if (storageUpdated || sanitizedList.length !== list.length) {
     try {
-      localStorage.setItem('stoxify_recent_stocks', JSON.stringify(sanitizedList));
+      const key = getRecentlyViewedKey('STOCK');
+      localStorage.setItem(key, JSON.stringify(sanitizedList));
     } catch(e) {}
   }
 
@@ -5495,8 +5508,17 @@ function renderRecentlyViewedMutualFunds() {
     return;
   }
 
+  const seenMf = new Set();
+  const dedupedList = [];
+  for (const mf of list) {
+    const sym = (mf.symbol || '').toUpperCase().trim();
+    if (!sym || seenMf.has(sym)) continue;
+    seenMf.add(sym);
+    dedupedList.push(mf);
+  }
+
   sec.style.display = 'block';
-  carousel.innerHTML = list.map(mf => {
+  carousel.innerHTML = dedupedList.map(mf => {
     let live = mf;
     if (state.exploreData && state.exploreData.mutual_funds) {
       const match = state.exploreData.mutual_funds.find(m => (m.symbol || '').toUpperCase() === (mf.symbol || '').toUpperCase());
