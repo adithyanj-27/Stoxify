@@ -122,6 +122,8 @@ def startup():
         t_sync.start()
         t_explore = threading.Thread(target=market_service.get_explore_data, daemon=True, name="stoxify-warm-explore")
         t_explore.start()
+        t_indices = threading.Thread(target=market_service.get_indices, daemon=True, name="stoxify-warm-indices")
+        t_indices.start()
     except Exception:
         pass
 

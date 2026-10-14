@@ -40,12 +40,12 @@ _SECTOR_INDUSTRY_PES = {
 _CACHE: Dict[str, Any] = {}
 _CACHE_EXPIRY: Dict[str, float] = {}
 
-# Pre-populate index metadata
+# Pre-populate index metadata with realistic baseline values
 _CACHE["indices"] = [
-    {"symbol": "^NSEI", "name": "NIFTY 50", "short": "NIFTY 50", "price": 24000.0, "change": 120.5, "change_pct": 0.50},
-    {"symbol": "^BSESN", "name": "SENSEX", "short": "SENSEX", "price": 78000.0, "change": 350.0, "change_pct": 0.45},
-    {"symbol": "^NSEBANK", "name": "BANK NIFTY", "short": "BANK NIFTY", "price": 51000.0, "change": -45.0, "change_pct": -0.09},
-    {"symbol": "^CNXIT", "name": "NIFTY IT", "short": "NIFTY IT", "price": 38500.0, "change": 210.0, "change_pct": 0.55}
+    {"symbol": "^NSEI", "name": "NIFTY 50", "short": "NIFTY 50", "price": 22622.70, "change": -99.25, "change_pct": -0.44},
+    {"symbol": "^BSESN", "name": "SENSEX", "short": "SENSEX", "price": 72781.89, "change": -251.89, "change_pct": -0.34},
+    {"symbol": "^NSEBANK", "name": "BANK NIFTY", "short": "BANK NIFTY", "price": 55316.00, "change": -165.05, "change_pct": -0.30},
+    {"symbol": "^CNXIT", "name": "NIFTY IT", "short": "NIFTY IT", "price": 30171.00, "change": 340.90, "change_pct": 1.14}
 ]
 _CACHE_EXPIRY["indices"] = 0  # Mark expired initially to fetch live immediately
 
@@ -363,6 +363,9 @@ def run_daily_market_sync_worker():
 # MF fetches -- most funds never returned in time and fell through to the fallback.
 _MF_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=12, thread_name_prefix="mf")
 
+# Dedicated pool for index fetches so they are never starved by stock background downloads
+_INDICES_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="indices")
+
 def get_indices() -> List[Dict[str, Any]]:
     cached = get_cached("indices")
     if cached:
@@ -393,8 +396,8 @@ def _refresh_indices_sync():
         {"symbol": "^CNXIT", "name": "NIFTY IT", "short": "NIFTY IT"}
     ]
     results = []
-    future_map = {_POOL.submit(_fetch_single_index, item): item for item in indices_meta}
-    done, _ = concurrent.futures.wait(future_map.keys(), timeout=1.8)
+    future_map = {_INDICES_POOL.submit(_fetch_single_index, item): item for item in indices_meta}
+    done, _ = concurrent.futures.wait(future_map.keys(), timeout=5.0)
     for f in done:
         try:
             r = f.result()
@@ -403,6 +406,7 @@ def _refresh_indices_sync():
         except Exception:
             pass
 
+    live_count = len(results)
     # If any failed or timed out, fill from fallback cache
     seen = {r["symbol"] for r in results}
     for item in _CACHE.get("indices", []):
@@ -410,7 +414,10 @@ def _refresh_indices_sync():
             results.append(item)
 
     if results:
-        set_cached("indices", results, ttl=get_quote_ttl())
+        # Cache with full TTL only when all indices were freshly retrieved live.
+        # If any timed out or fell back, cache for only 3 seconds so the next poll retries.
+        ttl = get_quote_ttl() if live_count == len(indices_meta) else 3
+        set_cached("indices", results, ttl=ttl)
         return results
     return _CACHE.get("indices", [])
 

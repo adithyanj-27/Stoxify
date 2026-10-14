@@ -7244,9 +7244,9 @@ const SEARCH_THEME_CHIPS = [
 ];
 
 const TRENDING_SEARCHES = [
-  { symbol: 'NIFTY 50', name: 'NIFTY 50', asset_type: 'INDEX', subtext: 'Index • NIFTY 50', sector: 'Index', price: 22550.0, change_pct: 0.52, exchange: 'INDEX' },
-  { symbol: 'SENSEX', name: 'BSE SENSEX', asset_type: 'INDEX', subtext: 'Index • SENSEX', sector: 'Index', price: 78000.0, change_pct: 0.45, exchange: 'INDEX' },
-  { symbol: 'BANK NIFTY', name: 'BANK NIFTY', asset_type: 'INDEX', subtext: 'Index • BANK NIFTY', sector: 'Index', price: 51200.0, change_pct: 0.38, exchange: 'INDEX' },
+  { symbol: 'NIFTY 50', name: 'NIFTY 50', asset_type: 'INDEX', subtext: 'Index • NIFTY 50', sector: 'Index', price: 22622.7, change_pct: -0.44, exchange: 'INDEX' },
+  { symbol: 'SENSEX', name: 'BSE SENSEX', asset_type: 'INDEX', subtext: 'Index • SENSEX', sector: 'Index', price: 72781.89, change_pct: -0.34, exchange: 'INDEX' },
+  { symbol: 'BANK NIFTY', name: 'BANK NIFTY', asset_type: 'INDEX', subtext: 'Index • BANK NIFTY', sector: 'Index', price: 55316.0, change_pct: -0.30, exchange: 'INDEX' },
   { symbol: 'RELIANCE.NS', name: 'Reliance Industries', asset_type: 'STOCK', subtext: 'Stock • RELIANCE', sector: 'Energy', price: 1187.0, change_pct: 0.42, exchange: 'NSE' },
   { symbol: 'TATAPOWER.NS', name: 'Tata Power Company Ltd', asset_type: 'STOCK', subtext: 'Stock • TATAPOWER', sector: 'Energy', price: 359.0, change_pct: 1.15, exchange: 'NSE' },
   { symbol: 'HDFCBANK.NS', name: 'HDFC Bank Ltd', asset_type: 'STOCK', subtext: 'Stock • HDFCBANK', sector: 'Banking', price: 708.7, change_pct: -0.65, exchange: 'NSE' },

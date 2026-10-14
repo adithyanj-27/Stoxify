@@ -54,11 +54,11 @@ def get_option_chain(symbol: str = "NIFTY") -> Dict[str, Any]:
     if "BANK" in clean_sym:
         clean_sym = "BANKNIFTY"
         idx_sym = "^NSEBANK"
-        default_spot = 51000.0
+        default_spot = 55316.0
     else:
         clean_sym = "NIFTY"
         idx_sym = "^NSEI"
-        default_spot = 24000.0
+        default_spot = 22622.7
 
     # Get live spot index price
     indices = market_service.get_indices()
