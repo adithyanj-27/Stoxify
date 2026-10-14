@@ -133,7 +133,7 @@ def startup():
 # authoritative source of identity.
 
 SESSION_TTL_SECONDS = 60 * 60 * 24 * 14  # 14 days
-_EPHEMERAL_SESSION_SECRET = secrets.token_bytes(32)
+_CACHED_SESSION_SECRET: Optional[bytes] = None
 
 
 def _session_secret() -> bytes:
@@ -145,20 +145,27 @@ def _session_secret() -> bytes:
     any real deployment (tokens otherwise stop verifying when an instance is
     replaced).
     """
+    global _CACHED_SESSION_SECRET
+    if _CACHED_SESSION_SECRET is not None:
+        return _CACHED_SESSION_SECRET
+
     env = os.environ.get("SESSION_SECRET")
     if env:
-        return env.encode("utf-8")
+        _CACHED_SESSION_SECRET = env.encode("utf-8")
+        return _CACHED_SESSION_SECRET
     secret_path = os.path.join(BASE_DIR, ".session_secret")
     try:
         if os.path.exists(secret_path):
             with open(secret_path, "rb") as fh:
                 stored = fh.read().strip()
             if stored:
-                return stored
-        generated = secrets.token_bytes(32)
+                _CACHED_SESSION_SECRET = stored
+                return _CACHED_SESSION_SECRET
+        generated = secrets.token_hex(32).encode("ascii")
         with open(secret_path, "wb") as fh:
             fh.write(generated)
-        return generated
+        _CACHED_SESSION_SECRET = generated
+        return _CACHED_SESSION_SECRET
     except OSError:
         # Serverless environment (such as Vercel) where BASE_DIR is read-only.
         # Derive a stable HMAC key from SUPABASE_KEY / salt so tokens minted on
@@ -168,7 +175,8 @@ def _session_secret() -> bytes:
             seed = SUPABASE_KEY or "stoxify-stable-session-secret-salt-2024-v1"
         except Exception:
             seed = "stoxify-stable-session-secret-salt-2024-v1"
-        return hashlib.sha256(f"stoxify-session-secret:{seed}".encode("utf-8")).digest()
+        _CACHED_SESSION_SECRET = hashlib.sha256(f"stoxify-session-secret:{seed}".encode("utf-8")).digest()
+        return _CACHED_SESSION_SECRET
 
 
 def issue_session_token(user_id: str) -> str:
