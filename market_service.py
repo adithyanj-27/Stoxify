@@ -1168,7 +1168,7 @@ def _get_default_stock_quote(symbol: str, name: str = "", sector: str = "NSE Equ
     }
 
 def get_explore_data() -> Dict[str, Any]:
-    cached = get_cached("explore_data_v9")
+    cached = get_cached("explore_data_v10")
     if cached and cached.get("all_stocks") and cached.get("etfs"):
         return cached
 
@@ -1206,9 +1206,11 @@ def get_explore_data() -> Dict[str, Any]:
     missing_etf_syms = [s for s in all_etf_symbols if s not in etf_dict]
     missing_market_syms = list(dict.fromkeys(missing_syms + missing_etf_syms))
 
-    # 3. High-speed batch download: Fetch ALL missing stocks and ETFs in one single network call
-    # concurrently with the mutual funds pool.  Daily bars only expose the previous
-    # close while the market is open, which caused Explore cards to disagree with the
+    # 3. Download the market catalogue in bounded batches concurrently with the
+    # mutual-funds pool. A single request containing the whole catalogue can return
+    # a partial result from the provider; the omitted symbols then used the built-in
+    # sample prices even though their individual detail quote was available. Daily
+    # bars only expose the previous close while the market is open, which caused Explore cards to disagree with the
     # asset page's latest quote.  Use the most recent one-minute bar in that session;
     # after the close, retain daily bars to avoid treating an old intraday bar as live.
     df = None
@@ -1217,20 +1219,31 @@ def get_explore_data() -> Dict[str, Any]:
         market_period = "5d"
         market_interval = "1m" if market_is_open else "1d"
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            fut_mkt = executor.submit(
-                yf.download,
-                missing_market_syms,
-                period=market_period,
-                interval=market_interval,
-                progress=False,
-            ) if missing_market_syms else None
+            market_chunks = [missing_market_syms[i:i + 25] for i in range(0, len(missing_market_syms), 25)]
+            fut_mkt = {
+                executor.submit(
+                    yf.download,
+                    chunk,
+                    period=market_period,
+                    interval=market_interval,
+                    progress=False,
+                    threads=False,
+                ): chunk
+                for chunk in market_chunks
+            }
             fut_mfs = {executor.submit(get_mutual_fund_quote, code): code for code in missing_mfs} if missing_mfs else {}
 
-            if fut_mkt:
+            market_frames = []
+            for fut, chunk in fut_mkt.items():
                 try:
-                    df = fut_mkt.result(timeout=12.0)
+                    batch_df = fut.result(timeout=12.0)
+                    if batch_df is not None and not batch_df.empty:
+                        market_frames.append(batch_df)
                 except Exception as ex:
-                    logger.warning(f"Batch market download error: {ex}")
+                    logger.warning(f"Market download error for {len(chunk)} symbols: {ex}")
+
+            if market_frames:
+                df = market_frames[0] if len(market_frames) == 1 else pd.concat(market_frames, axis=1)
 
             for fut, code in fut_mfs.items():
                 try:
@@ -1398,7 +1411,7 @@ def get_explore_data() -> Dict[str, Any]:
         "etfs": all_etfs
     }
     # Keep Explore's live cache in lockstep with the individual quote cache.
-    set_cached("explore_data_v9", result, ttl=get_quote_ttl())
+    set_cached("explore_data_v10", result, ttl=get_quote_ttl())
     return result
 
 

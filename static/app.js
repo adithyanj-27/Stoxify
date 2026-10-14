@@ -933,7 +933,7 @@ async function fetchIndices() {
   }
 }
 
-const EXPLORE_CACHE_VERSION = '2026.10.14.v9';
+const EXPLORE_CACHE_VERSION = '2026.10.14.v10';
 
 const DEFAULT_EXPLORE_DATA = {
   "version": "2026.09.30.v8",
