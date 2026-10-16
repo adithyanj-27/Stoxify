@@ -676,6 +676,15 @@ function switchProductSubTab(subTabId, updateUrl = true) {
   document.documentElement.classList.remove('viewing-profile');
   document.body.classList.remove('viewing-onboarding');
   document.documentElement.classList.remove('viewing-onboarding');
+  document.body.classList.remove('viewing-portfolio-analysis');
+  document.documentElement.classList.remove('viewing-portfolio-analysis');
+  document.body.dataset.activeSubtab = subTabId;
+  document.documentElement.dataset.activeSubtab = subTabId;
+  dismissModalState('portfolioAnalysisSubpage', { fromPopState: true });
+  const paSubpage = document.getElementById('portfolioAnalysisSubpage');
+  if (paSubpage) paSubpage.style.display = 'none';
+  const holdingsMain = document.getElementById('holdingsMainView');
+  if (holdingsMain && subTabId === 'holdings') holdingsMain.style.display = 'block';
   const navAvatarBtn = document.getElementById('navUserAvatarBtn');
   if (navAvatarBtn) navAvatarBtn.classList.remove('active');
   closeMobileTradeDrawer();
@@ -6078,6 +6087,12 @@ function openStockPortfolioAnalysisPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  document.body.classList.add('viewing-portfolio-analysis');
+  document.documentElement.classList.add('viewing-portfolio-analysis');
+
+  // Register on modal history stack for mobile back gesture / hardware back
+  pushModalState('portfolioAnalysisSubpage', (opts) => closeStockPortfolioAnalysisPage(opts));
+
   // Set chart state open
   portfolioChartsState.stock.isOpen = true;
   const chartCard = document.getElementById('stockPortfolioChartCard');
@@ -6092,7 +6107,10 @@ function openStockPortfolioAnalysisPage() {
   loadPortfolioAnalytics();
 }
 
-function closeStockPortfolioAnalysisPage() {
+function closeStockPortfolioAnalysisPage(options = {}) {
+  dismissModalState('portfolioAnalysisSubpage', options);
+  document.body.classList.remove('viewing-portfolio-analysis');
+  document.documentElement.classList.remove('viewing-portfolio-analysis');
   const mainView = document.getElementById('holdingsMainView');
   const subpage = document.getElementById('portfolioAnalysisSubpage');
   if (subpage) subpage.style.display = 'none';
@@ -9601,6 +9619,9 @@ function showProfilePage() {
   document.documentElement.classList.remove('viewing-asset-detail');
   document.body.classList.remove('viewing-onboarding');
   document.documentElement.classList.remove('viewing-onboarding');
+  document.body.classList.remove('viewing-portfolio-analysis');
+  document.documentElement.classList.remove('viewing-portfolio-analysis');
+  dismissModalState('portfolioAnalysisSubpage', { fromPopState: true });
   document.body.classList.add('viewing-profile');
   document.documentElement.classList.add('viewing-profile');
   closeMobileTradeDrawer();
@@ -9696,6 +9717,9 @@ function handleRoute() {
     document.body.classList.remove('viewing-onboarding');
     document.documentElement.classList.remove('viewing-onboarding');
   }
+
+  document.body.classList.remove('viewing-portfolio-analysis');
+  document.documentElement.classList.remove('viewing-portfolio-analysis');
 
   if (path.startsWith('/stock/')) {
     const sym = decodeURIComponent(path.replace('/stock/', '')).trim();
@@ -11473,6 +11497,9 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
   document.documentElement.classList.remove('viewing-profile');
   document.body.classList.remove('viewing-onboarding');
   document.documentElement.classList.remove('viewing-onboarding');
+  document.body.classList.remove('viewing-portfolio-analysis');
+  document.documentElement.classList.remove('viewing-portfolio-analysis');
+  dismissModalState('portfolioAnalysisSubpage', { fromPopState: true });
   document.body.classList.add('viewing-asset-detail');
   document.documentElement.classList.add('viewing-asset-detail');
   window.scrollTo(0, 0);
@@ -13413,6 +13440,9 @@ function showOnboardingPage() {
       document.documentElement.classList.remove('viewing-profile');
       document.body.classList.remove('viewing-asset-detail');
       document.documentElement.classList.remove('viewing-asset-detail');
+      document.body.classList.remove('viewing-portfolio-analysis');
+      document.documentElement.classList.remove('viewing-portfolio-analysis');
+      dismissModalState('portfolioAnalysisSubpage', { fromPopState: true });
       document.body.classList.add('viewing-onboarding');
       document.documentElement.classList.add('viewing-onboarding');
       closeMobileTradeDrawer();
@@ -13431,6 +13461,9 @@ function showOnboardingPage() {
   document.documentElement.classList.remove('viewing-profile');
   document.body.classList.remove('viewing-asset-detail');
   document.documentElement.classList.remove('viewing-asset-detail');
+  document.body.classList.remove('viewing-portfolio-analysis');
+  document.documentElement.classList.remove('viewing-portfolio-analysis');
+  dismissModalState('portfolioAnalysisSubpage', { fromPopState: true });
   document.body.classList.add('viewing-onboarding');
   document.documentElement.classList.add('viewing-onboarding');
   closeMobileTradeDrawer();

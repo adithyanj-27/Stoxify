@@ -3677,7 +3677,7 @@ body.pwa-installed #mobileInstallBanner {
     padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
-  /* Dedicated Profile Page on Mobile: Cover top navbar, ticker bar, sub-nav, install banner, and bottom nav bar */
+  /* Dedicated Profile & Portfolio Analysis Pages on Mobile: Cover top navbar, ticker bar, sub-nav, install banner, and bottom nav bar */
   html.viewing-profile .navbar,
   body.viewing-profile .navbar,
   html.viewing-profile .indices-bar,
@@ -3689,18 +3689,34 @@ body.pwa-installed #mobileInstallBanner {
   html.viewing-profile .mobile-install-banner,
   body.viewing-profile .mobile-install-banner,
   html.viewing-profile .mobile-bottom-bar,
-  body.viewing-profile .mobile-bottom-bar {
+  body.viewing-profile .mobile-bottom-bar,
+  html.viewing-portfolio-analysis .navbar,
+  body.viewing-portfolio-analysis .navbar,
+  html.viewing-portfolio-analysis .indices-bar,
+  body.viewing-portfolio-analysis .indices-bar,
+  html.viewing-portfolio-analysis #productSubNavBar,
+  body.viewing-portfolio-analysis #productSubNavBar,
+  html.viewing-portfolio-analysis .sub-nav,
+  body.viewing-portfolio-analysis .sub-nav,
+  html.viewing-portfolio-analysis .mobile-install-banner,
+  body.viewing-portfolio-analysis .mobile-install-banner,
+  html.viewing-portfolio-analysis .mobile-bottom-bar,
+  body.viewing-portfolio-analysis .mobile-bottom-bar {
     display: none !important;
   }
 
   html.viewing-profile,
-  body.viewing-profile {
+  body.viewing-profile,
+  html.viewing-portfolio-analysis,
+  body.viewing-portfolio-analysis {
     padding-top: env(safe-area-inset-top, 0px) !important;
     padding-bottom: calc(2.5rem + env(safe-area-inset-bottom, 0px)) !important;
   }
 
   html.viewing-profile .main-content,
-  body.viewing-profile .main-content {
+  body.viewing-profile .main-content,
+  html.viewing-portfolio-analysis .main-content,
+  body.viewing-portfolio-analysis .main-content {
     padding-top: 0.25rem !important;
   }
 
@@ -7907,13 +7923,19 @@ html.user-guest #navProfileWrapper {
 }
 
 /* ==========================================================================
-/* Hide sub-nav and indices-bar on Profile and Account Onboarding (Desktop & Mobile) */
+/* Hide sub-nav and indices-bar on Profile, Portfolio Analysis, and Account Onboarding (Desktop & Mobile) */
 html.viewing-profile .indices-bar,
 body.viewing-profile .indices-bar,
 html.viewing-profile #productSubNavBar,
 body.viewing-profile #productSubNavBar,
 html.viewing-profile .sub-nav,
 body.viewing-profile .sub-nav,
+html.viewing-portfolio-analysis .indices-bar,
+body.viewing-portfolio-analysis .indices-bar,
+html.viewing-portfolio-analysis #productSubNavBar,
+body.viewing-portfolio-analysis #productSubNavBar,
+html.viewing-portfolio-analysis .sub-nav,
+body.viewing-portfolio-analysis .sub-nav,
 html.viewing-onboarding .indices-bar,
 body.viewing-onboarding .indices-bar,
 html.viewing-onboarding #productSubNavBar,
@@ -7923,6 +7945,31 @@ body.viewing-onboarding .sub-nav,
 body:has(#pane-onboarding.active) .indices-bar,
 body:has(#pane-onboarding.active) #productSubNavBar,
 body:has(#pane-onboarding.active) .sub-nav {
+  display: none !important;
+}
+
+/* Hide market indices ticker on non-Explore tabs (Holdings, Positions, Orders, Watchlist, MF Dashboard, SIPs) */
+body:has(#pane-watchlist.active) .indices-bar,
+body:has(#pane-holdings.active) .indices-bar,
+body:has(#pane-positions.active) .indices-bar,
+body:has(#pane-orders.active) .indices-bar,
+body:has(#pane-mf-dashboard.active) .indices-bar,
+body:has(#pane-mf-sips.active) .indices-bar {
+  display: none !important;
+}
+
+body[data-active-subtab="watchlist"] .indices-bar,
+body[data-active-subtab="holdings"] .indices-bar,
+body[data-active-subtab="positions"] .indices-bar,
+body[data-active-subtab="orders"] .indices-bar,
+body[data-active-subtab="dashboard"] .indices-bar,
+body[data-active-subtab="sips"] .indices-bar,
+html[data-active-subtab="watchlist"] .indices-bar,
+html[data-active-subtab="holdings"] .indices-bar,
+html[data-active-subtab="positions"] .indices-bar,
+html[data-active-subtab="orders"] .indices-bar,
+html[data-active-subtab="dashboard"] .indices-bar,
+html[data-active-subtab="sips"] .indices-bar {
   display: none !important;
 }
 .profile-page-header {
@@ -9846,8 +9893,15 @@ body:has(#pane-onboarding.active) .sub-nav {
 
 @media (max-width: 768px) {
   .portfolio-subpage-header {
-    padding: 0.35rem 0 0.85rem 0 !important;
-    margin-bottom: 0.95rem !important;
+    position: sticky;
+    top: 0;
+    z-index: 95;
+    background: var(--bg-main);
+    padding: 0.5rem 0.25rem 0.65rem 0.25rem !important;
+    margin-bottom: 0.85rem !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-subtle);
   }
 
   .portfolio-back-btn {
