@@ -17777,12 +17777,111 @@ function switchNotifFilter(filter) {
   }
 }
 
+function getNotifDateGroup(dateStr) {
+  if (!dateStr) return 'Today';
+  try {
+    const d = dateStr.includes('T') ? new Date(dateStr) : new Date(dateStr.replace(' ', 'T') + 'Z');
+    const now = new Date();
+    if (d.toDateString() === now.toDateString()) return 'Today';
+    const yest = new Date(now);
+    yest.setDate(yest.getDate() - 1);
+    if (d.toDateString() === yest.toDateString()) return 'Yesterday';
+    return 'Earlier';
+  } catch (e) {
+    return 'Today';
+  }
+}
+
+function formatGrowwNotificationItem(item) {
+  const isUnread = !item.is_read;
+  const pct = Number(item.change_pct || 0);
+  const isPositive = pct > 0;
+  const isNegative = pct < 0;
+  const pctFormatted = (pct > 0 ? '+' : '') + pct.toFixed(2) + '%';
+  const priceFormatted = item.price ? ('₹' + Number(item.price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })) : '';
+
+  const cleanSym = (item.symbol || '').replace('.NS', '').replace('.BO', '');
+  
+  let initials = 'STX';
+  if (cleanSym) {
+    initials = cleanSym.replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase();
+  }
+
+  // Clean title & message for Groww minimalist aesthetic
+  let displayTitle = cleanSym || (item.title || 'Market Alert').replace(/^[📈📉]\s*/, '').replace(/^Drastic\s+(Change|Surge|Drop):\s*/i, '');
+  if (cleanSym && (displayTitle.includes('is +') || displayTitle.includes('is -') || displayTitle.includes('surged') || displayTitle.includes('dropped'))) {
+    displayTitle = cleanSym;
+  }
+
+  let displaySub = item.message || '';
+  if (item.type === 'PRICE_ALERT' && cleanSym) {
+    displaySub = priceFormatted 
+      ? `${priceFormatted} · In watchlist`
+      : displaySub.replace(/Tap to view.*/i, '').trim();
+  } else {
+    displaySub = displaySub.replace(/Tap to view.*/i, '').trim();
+  }
+
+  const timeLabel = formatNotifTime(item.created_at);
+  const escapedSymbol = (item.symbol || '').replace(/'/g, "\\'");
+  const escapedAssetType = (item.asset_type || 'STOCK').replace(/'/g, "\\'");
+  const escapedUrl = (item.action_url || '').replace(/'/g, "\\'");
+
+  return `
+    <div class="notif-row ${isUnread ? 'unread' : ''}" onclick="handleNotificationClick(${item.id}, '${escapedSymbol}', '${escapedAssetType}', '${escapedUrl}')">
+      <div class="notif-avatar-wrap">
+        <div class="notif-avatar ${isPositive ? 'rise' : (isNegative ? 'fall' : '')}">
+          <span>${initials}</span>
+        </div>
+        ${item.type === 'PRICE_ALERT' ? `
+          <div class="notif-badge-indicator ${isPositive ? 'up' : 'down'}">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              ${isPositive 
+                ? '<polyline points="18 15 18 6 9 6"></polyline><line x1="6" y1="18" x2="18" y2="6"></line>' 
+                : '<polyline points="18 9 18 18 9 18"></polyline><line x1="6" y1="6" x2="18" y2="6"></line>'}
+            </svg>
+          </div>
+        ` : ''}
+      </div>
+
+      <div class="notif-row-content">
+        <div class="notif-row-header">
+          <div class="notif-stock-name">
+            <strong>${displayTitle}</strong>
+            ${item.type === 'PRICE_ALERT' && pct !== 0 ? `
+              <span class="notif-pill ${isPositive ? 'green' : 'red'}">${pctFormatted}</span>
+            ` : ''}
+          </div>
+          <div class="notif-meta">
+            <span class="notif-row-time">${timeLabel}</span>
+            ${isUnread ? '<span class="notif-unread-dot" title="Unread"></span>' : ''}
+          </div>
+        </div>
+        <div class="notif-row-desc">
+          <span>${displaySub}</span>
+        </div>
+      </div>
+
+      <div class="notif-row-actions" onclick="event.stopPropagation()">
+        <button class="notif-delete-btn" onclick="deleteNotificationItem(${item.id}, event)" title="Dismiss">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="6"></line>
+          </svg>
+        </button>
+        <svg class="notif-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+      </div>
+    </div>
+  `;
+}
+
 function renderNotificationList() {
   const container = document.getElementById('notifListContainer');
   if (!container) return;
 
   const filter = state.currentNotifFilter || 'all';
-  const items = state.notifications.filter((n) => {
+  const items = (state.notifications || []).filter((n) => {
     if (filter === 'unread') return !n.is_read;
     return true;
   });
@@ -17803,68 +17902,27 @@ function renderNotificationList() {
     return;
   }
 
-  container.innerHTML = items.map((item) => {
-    const isUnread = !item.is_read;
-    const isPositive = Number(item.change_pct || 0) > 0;
-    const isNegative = Number(item.change_pct || 0) < 0;
+  // Group items by day (Today, Yesterday, Earlier)
+  const groups = { Today: [], Yesterday: [], Earlier: [] };
+  items.forEach((item) => {
+    const g = getNotifDateGroup(item.created_at);
+    if (groups[g]) groups[g].push(item);
+    else groups['Earlier'].push(item);
+  });
 
-    let iconClass = 'system';
-    let iconSvg = `
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-      </svg>
-    `;
-
-    if (item.type === 'PRICE_ALERT') {
-      if (isPositive) {
-        iconClass = 'rise';
-        iconSvg = `
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
-            <polyline points="17 6 23 6 23 12"></polyline>
-          </svg>
-        `;
-      } else if (isNegative) {
-        iconClass = 'fall';
-        iconSvg = `
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline>
-            <polyline points="17 18 23 18 23 12"></polyline>
-          </svg>
-        `;
-      }
+  let outputHtml = '';
+  ['Today', 'Yesterday', 'Earlier'].forEach((gKey) => {
+    if (groups[gKey] && groups[gKey].length > 0) {
+      outputHtml += `
+        <div class="notif-section-header">${gKey}</div>
+        <div class="notif-group-items">
+          ${groups[gKey].map((it) => formatGrowwNotificationItem(it)).join('')}
+        </div>
+      `;
     }
+  });
 
-    const timeLabel = formatNotifTime(item.created_at);
-    const escapedSymbol = (item.symbol || '').replace(/'/g, "\\'");
-    const escapedAssetType = (item.asset_type || 'STOCK').replace(/'/g, "\\'");
-    const escapedUrl = (item.action_url || '').replace(/'/g, "\\'");
-
-    return `
-      <div class="notif-item ${isUnread ? 'unread' : ''}" onclick="handleNotificationClick(${item.id}, '${escapedSymbol}', '${escapedAssetType}', '${escapedUrl}')">
-        <div class="notif-icon-box ${iconClass}">
-          ${iconSvg}
-        </div>
-        <div class="notif-content">
-          <div class="notif-content-header">
-            <span class="notif-title">${item.title}</span>
-            <span class="notif-time">${timeLabel}</span>
-          </div>
-          <p class="notif-message">${item.message}</p>
-          ${item.symbol ? `
-            <div class="notif-cta">
-              View ${item.symbol.replace('.NS', '').replace('.BO', '')} Chart
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-            </div>
-          ` : ''}
-        </div>
-        <button class="notif-item-delete" onclick="deleteNotificationItem(${item.id}, event)" title="Delete notification" aria-label="Delete">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-        </button>
-      </div>
-    `;
-  }).join('');
+  container.innerHTML = outputHtml;
 }
 
 async function handleNotificationClick(notifId, symbol, assetType, actionUrl) {
@@ -18061,8 +18119,8 @@ async function triggerTestNotification() {
 
     // 2. Direct native OS notification trigger so Windows shows it immediately
     if (hasPermission) {
-      const notifTitle = `📈 Drastic Change: ${cleanSym} is +4.25%`;
-      const notifBody = `${cleanSym} surged to ₹2,940.00 in your watchlist. Tap to view chart & details.`;
+      const notifTitle = `${cleanSym} surged +4.25%`;
+      const notifBody = `Trading at ₹2,940.00 · In your watchlist`;
       const notifOptions = {
         body: notifBody,
         icon: '/static/icon-192.png',
@@ -18103,8 +18161,8 @@ async function triggerTestNotification() {
       // Optimistically insert into notifications list in memory so drawer displays it instantly
       const newNotif = {
         id: data.notification_id || Date.now(),
-        title: data.title || `📈 Drastic Change: ${cleanSym} is +4.25%`,
-        message: data.message || `${cleanSym} surged to ₹2,940.00 in your watchlist. Tap to view chart & details.`,
+        title: data.title || `${cleanSym} surged +4.25%`,
+        message: data.message || `Trading at ₹2,940.00 · In your watchlist`,
         type: 'PRICE_ALERT',
         symbol: sym,
         asset_type: 'STOCK',

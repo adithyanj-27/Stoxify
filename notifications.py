@@ -255,13 +255,12 @@ def scan_and_dispatch_price_alerts() -> List[Dict[str, Any]]:
 
             # Craft notification title & body
             sign = "+" if change_pct > 0 else ""
-            direction_emoji = "📈" if change_pct > 0 else "📉"
             direction_word = "surged" if change_pct > 0 else "dropped"
-            action_desc = "Surge" if change_pct > 0 else "Drop"
 
             clean_sym = sym.replace(".NS", "").replace(".BO", "")
-            title = f"{direction_emoji} Drastic {action_desc}: {clean_sym} is {sign}{change_pct:.2f}%"
-            message = f"{name} {direction_word} to ₹{price:,.2f} ({source}). Tap to view chart & trade."
+            title = f"{clean_sym} {direction_word} {sign}{change_pct:.2f}%"
+            source_label = "your watchlist" if source == "WATCHLIST" else "your holdings"
+            message = f"Trading at ₹{price:,.2f} · In {source_label}"
             action_url = f"/stock/{sym}"
 
             notif_id = dispatch_notification(

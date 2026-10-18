@@ -2148,12 +2148,11 @@ def api_push_test(req: PushTestRequest, request: Request):
     name = quote.get("name") or sym.replace(".NS", "")
     
     sign = "+" if pct > 0 else ""
-    direction_emoji = "📈" if pct > 0 else "📉"
     direction_word = "surged" if pct > 0 else "dropped"
     
     clean_sym = sym.replace(".NS", "").replace(".BO", "")
-    title = f"{direction_emoji} Drastic Change: {clean_sym} is {sign}{pct:.2f}%"
-    msg = f"{name} {direction_word} to ₹{price:,.2f} in your watchlist. Tap to view chart & details."
+    title = f"{clean_sym} {direction_word} {sign}{pct:.2f}%"
+    msg = f"Trading at ₹{price:,.2f} · In your watchlist"
     
     notif_id = notifications.dispatch_notification(
         user_id=uid,

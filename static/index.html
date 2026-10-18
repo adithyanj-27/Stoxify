@@ -3390,13 +3390,11 @@
             <span class="notif-unread-pill" id="notifUnreadPill" style="display: none;">0 new</span>
           </div>
           <div class="notif-header-actions">
-            <button class="notif-action-btn" id="notifMarkAllReadBtn" onclick="markAllNotificationsAsRead()" title="Mark all as read">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-              <span>Read all</span>
+            <button class="notif-link-btn" id="notifMarkAllReadBtn" onclick="markAllNotificationsAsRead()" title="Mark all as read">
+              Mark all read
             </button>
-            <button class="notif-action-btn danger" id="notifClearAllBtn" onclick="clearAllNotifications()" title="Clear all notifications">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-              <span>Clear</span>
+            <button class="notif-icon-btn danger" id="notifClearAllBtn" onclick="clearAllNotifications()" title="Clear all notifications" aria-label="Clear all">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
             </button>
             <button class="notif-close-btn" onclick="closeNotificationDrawer()" aria-label="Close notifications">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
