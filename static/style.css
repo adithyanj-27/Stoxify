@@ -11214,39 +11214,6 @@ body:has(#pane-onboarding.active) .sub-nav {
   white-space: nowrap;
 }
 
-/* Floating Dismiss Button on Hover */
-.notif-dismiss-btn {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  background: rgba(15, 23, 42, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: #94A3B8;
-  cursor: pointer;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
-  z-index: 2;
-}
-
-.notif-row:hover .notif-dismiss-btn {
-  opacity: 0.85;
-  pointer-events: auto;
-}
-
-.notif-dismiss-btn:hover {
-  opacity: 1 !important;
-  color: #EB5B3C;
-  background: rgba(235, 91, 60, 0.2);
-  border-color: rgba(235, 91, 60, 0.4);
-}
-
 /* Light Theme Overrides */
 [data-theme="light"] .notif-drawer-header {
   background: #FFFFFF;

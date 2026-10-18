@@ -17807,12 +17807,12 @@ function formatGrowwNotificationItem(item) {
     initials = cleanSym.replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase();
   }
 
-  // Headline: "NSE surged +4.25%" or "NSE dropped -3.50%"
-  let headline = cleanSym ? `${cleanSym} ${pct > 0 ? 'surged' : 'dropped'} ${pctFormatted}` : (item.title || 'Market Alert');
+  // Headline: "NSE surged" or "NSE dropped"
+  let headline = cleanSym ? `${cleanSym} ${pct > 0 ? 'surged' : 'dropped'}` : (item.title || 'Market Alert');
   if (item.type === 'PRICE_ALERT' && cleanSym) {
-    headline = `${cleanSym} ${pct > 0 ? 'surged' : 'dropped'} ${pctFormatted}`;
+    headline = `${cleanSym} ${pct > 0 ? 'surged' : 'dropped'}`;
   } else {
-    headline = (item.title || 'Market Alert').replace(/^[📈📉]\s*/, '').replace(/^Drastic\s+(Change|Surge|Drop):\s*/i, '');
+    headline = (item.title || 'Market Alert').replace(/^[📈📉]\s*/, '').replace(/^Drastic\s+(Change|Surge|Drop):\s*/i, '').replace(/\s+[+-]?\d+(\.\d+)?%/, '');
   }
 
   // Subtitle: "Trading at ₹1,749.45 · In watchlist"
@@ -17858,13 +17858,6 @@ function formatGrowwNotificationItem(item) {
         ` : ''}
         <span class="notif-row-time">${timeLabel}</span>
       </div>
-
-      <button class="notif-dismiss-btn" onclick="deleteNotificationItem(${item.id}, event)" title="Dismiss notification" aria-label="Dismiss">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="6"></line>
-        </svg>
-      </button>
     </div>
   `;
 }
