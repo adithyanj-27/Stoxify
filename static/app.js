@@ -17807,19 +17807,20 @@ function formatGrowwNotificationItem(item) {
     initials = cleanSym.replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase();
   }
 
-  // Clean title & message for Groww minimalist aesthetic
-  let displayTitle = cleanSym || (item.title || 'Market Alert').replace(/^[📈📉]\s*/, '').replace(/^Drastic\s+(Change|Surge|Drop):\s*/i, '');
-  if (cleanSym && (displayTitle.includes('is +') || displayTitle.includes('is -') || displayTitle.includes('surged') || displayTitle.includes('dropped'))) {
-    displayTitle = cleanSym;
+  // Headline: "NSE surged +4.25%" or "NSE dropped -3.50%"
+  let headline = cleanSym ? `${cleanSym} ${pct > 0 ? 'surged' : 'dropped'} ${pctFormatted}` : (item.title || 'Market Alert');
+  if (item.type === 'PRICE_ALERT' && cleanSym) {
+    headline = `${cleanSym} ${pct > 0 ? 'surged' : 'dropped'} ${pctFormatted}`;
+  } else {
+    headline = (item.title || 'Market Alert').replace(/^[📈📉]\s*/, '').replace(/^Drastic\s+(Change|Surge|Drop):\s*/i, '');
   }
 
-  let displaySub = item.message || '';
+  // Subtitle: "Trading at ₹1,749.45 · In watchlist"
+  let subtext = '';
   if (item.type === 'PRICE_ALERT' && cleanSym) {
-    displaySub = priceFormatted 
-      ? `${priceFormatted} · In watchlist`
-      : displaySub.replace(/Tap to view.*/i, '').trim();
+    subtext = priceFormatted ? `Trading at ${priceFormatted} · In watchlist` : 'Alert from watchlist';
   } else {
-    displaySub = displaySub.replace(/Tap to view.*/i, '').trim();
+    subtext = (item.message || '').replace(/Tap to view.*/i, '').trim();
   }
 
   const timeLabel = formatNotifTime(item.created_at);
@@ -17829,13 +17830,15 @@ function formatGrowwNotificationItem(item) {
 
   return `
     <div class="notif-row ${isUnread ? 'unread' : ''}" onclick="handleNotificationClick(${item.id}, '${escapedSymbol}', '${escapedAssetType}', '${escapedUrl}')">
+      ${isUnread ? '<span class="notif-unread-indicator" title="Unread"></span>' : ''}
+
       <div class="notif-avatar-wrap">
         <div class="notif-avatar ${isPositive ? 'rise' : (isNegative ? 'fall' : '')}">
           <span>${initials}</span>
         </div>
         ${item.type === 'PRICE_ALERT' ? `
           <div class="notif-badge-indicator ${isPositive ? 'up' : 'down'}">
-            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
               ${isPositive 
                 ? '<polyline points="18 15 18 6 9 6"></polyline><line x1="6" y1="18" x2="18" y2="6"></line>' 
                 : '<polyline points="18 9 18 18 9 18"></polyline><line x1="6" y1="6" x2="18" y2="6"></line>'}
@@ -17845,33 +17848,23 @@ function formatGrowwNotificationItem(item) {
       </div>
 
       <div class="notif-row-content">
-        <div class="notif-row-header">
-          <div class="notif-stock-name">
-            <strong>${displayTitle}</strong>
-            ${item.type === 'PRICE_ALERT' && pct !== 0 ? `
-              <span class="notif-pill ${isPositive ? 'green' : 'red'}">${pctFormatted}</span>
-            ` : ''}
-          </div>
-          <div class="notif-meta">
-            <span class="notif-row-time">${timeLabel}</span>
-            ${isUnread ? '<span class="notif-unread-dot" title="Unread"></span>' : ''}
-          </div>
-        </div>
-        <div class="notif-row-desc">
-          <span>${displaySub}</span>
-        </div>
+        <div class="notif-row-headline">${headline}</div>
+        <div class="notif-row-subtext">${subtext}</div>
       </div>
 
-      <div class="notif-row-actions" onclick="event.stopPropagation()">
-        <button class="notif-delete-btn" onclick="deleteNotificationItem(${item.id}, event)" title="Dismiss">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="6"></line>
-          </svg>
-        </button>
-        <svg class="notif-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="9 18 15 12 9 6"></polyline>
-        </svg>
+      <div class="notif-row-right">
+        ${item.type === 'PRICE_ALERT' && pct !== 0 ? `
+          <span class="notif-pill ${isPositive ? 'green' : 'red'}">${pctFormatted}</span>
+        ` : ''}
+        <span class="notif-row-time">${timeLabel}</span>
       </div>
+
+      <button class="notif-dismiss-btn" onclick="deleteNotificationItem(${item.id}, event)" title="Dismiss notification" aria-label="Dismiss">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="6"></line>
+        </svg>
+      </button>
     </div>
   `;
 }
