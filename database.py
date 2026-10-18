@@ -4754,42 +4754,73 @@ def add_notification(
     action_url: Optional[str] = None
 ) -> int:
     """Insert a new in-app notification record and return its ID."""
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO notifications (user_id, title, message, type, symbol, asset_type, change_pct, price, action_url, is_read)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-    """, (
-        user_id or "default",
-        title,
-        message,
-        type,
-        symbol,
-        asset_type,
-        float(change_pct or 0.0),
-        float(price or 0.0),
-        action_url or (f"/stock/{symbol}" if symbol else None)
-    ))
-    notif_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
+    uid = user_id or "default"
+    act_url = action_url or (f"/stock/{symbol}" if symbol else None)
+    num_change = float(change_pct or 0.0)
+    num_price = float(price or 0.0)
 
-    if is_supabase_enabled() and user_id and user_id != "guest":
+    # 1. Supabase Insert (Primary for persistent & serverless multi-container sync)
+    sb_id = None
+    sb_created_at = None
+    if is_supabase_enabled() and uid and uid != "guest":
         try:
-            supabase_api("POST", "notifications", payload={
-                "user_id": user_id or "default",
+            sb_res = supabase_api("POST", "notifications", payload={
+                "user_id": uid,
                 "title": title,
                 "message": message,
                 "type": type,
                 "symbol": symbol,
                 "asset_type": asset_type,
-                "change_pct": float(change_pct or 0.0),
-                "price": float(price or 0.0),
-                "action_url": action_url or (f"/stock/{symbol}" if symbol else None),
+                "change_pct": num_change,
+                "price": num_price,
+                "action_url": act_url,
                 "is_read": False
             })
+            if sb_res and isinstance(sb_res, list) and len(sb_res) > 0:
+                sb_id = sb_res[0].get("id")
+                sb_created_at = sb_res[0].get("created_at")
         except Exception as e:
             logger.warning(f"Supabase notification insert skipped: {e}")
+
+    # 2. SQLite write (Local cache for instant reads)
+    conn = get_connection()
+    cursor = conn.cursor()
+    if sb_id is not None:
+        cursor.execute("""
+            INSERT OR REPLACE INTO notifications (id, user_id, title, message, type, symbol, asset_type, change_pct, price, action_url, is_read, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, COALESCE(?, CURRENT_TIMESTAMP))
+        """, (
+            sb_id,
+            uid,
+            title,
+            message,
+            type,
+            symbol,
+            asset_type,
+            num_change,
+            num_price,
+            act_url,
+            sb_created_at
+        ))
+        notif_id = sb_id
+    else:
+        cursor.execute("""
+            INSERT INTO notifications (user_id, title, message, type, symbol, asset_type, change_pct, price, action_url, is_read)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+        """, (
+            uid,
+            title,
+            message,
+            type,
+            symbol,
+            asset_type,
+            num_change,
+            num_price,
+            act_url
+        ))
+        notif_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
 
     return notif_id
 
@@ -4816,9 +4847,17 @@ def get_notifications(
                 sb_params["is_read"] = "eq.false"
 
             sb_notifs = supabase_api("GET", "notifications", params=sb_params)
-            if sb_notifs and isinstance(sb_notifs, list):
+            if sb_notifs is not None and isinstance(sb_notifs, list):
                 conn = get_connection()
                 cur = conn.cursor()
+                remote_ids = [n.get("id") for n in sb_notifs if n.get("id") is not None]
+                if offset == 0:
+                    if remote_ids:
+                        placeholders = ",".join(["?"] * len(remote_ids))
+                        cur.execute(f"DELETE FROM notifications WHERE user_id = ? AND id NOT IN ({placeholders})", [uid] + remote_ids)
+                    else:
+                        cur.execute("DELETE FROM notifications WHERE user_id = ?", (uid,))
+
                 for n in sb_notifs:
                     cur.execute("""
                         INSERT OR REPLACE INTO notifications (id, user_id, title, message, type, symbol, asset_type, change_pct, price, action_url, is_read, created_at)
@@ -4837,6 +4876,13 @@ def get_notifications(
                         1 if n.get("is_read") else 0,
                         n.get("created_at") or datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
                     ))
+                # Purge any local duplicate rows by keeping only the latest ID per symbol and title
+                cur.execute("""
+                    DELETE FROM notifications
+                    WHERE id NOT IN (
+                        SELECT MAX(id) FROM notifications GROUP BY user_id, title, symbol
+                    ) AND user_id = ?
+                """, (uid,))
                 conn.commit()
                 conn.close()
         except Exception as e:
@@ -5222,6 +5268,31 @@ def can_and_record_price_alert(
     if abs(current_pct) < threshold_pct:
         return False
 
+    # 1. Sync from Supabase if enabled to ensure cross-container cooldown persistence
+    if is_supabase_enabled() and user_id and user_id != "guest":
+        try:
+            sb_tracker = supabase_api("GET", "price_alert_tracker", params={
+                "user_id": f"eq.{user_id}",
+                "symbol": f"eq.{symbol}",
+                "limit": "1"
+            })
+            if sb_tracker and isinstance(sb_tracker, list) and len(sb_tracker) > 0:
+                tr = sb_tracker[0]
+                conn = get_connection()
+                cur = conn.cursor()
+                cur.execute("""
+                    INSERT INTO price_alert_tracker (user_id, symbol, last_alert_pct, last_alert_price, last_alert_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(user_id, symbol) DO UPDATE SET
+                        last_alert_pct = excluded.last_alert_pct,
+                        last_alert_price = excluded.last_alert_price,
+                        last_alert_at = excluded.last_alert_at
+                """, (user_id, symbol, float(tr.get("last_alert_pct") or 0.0), float(tr.get("last_alert_price") or 0.0), tr.get("last_alert_at")))
+                conn.commit()
+                conn.close()
+        except Exception as e:
+            logger.warning(f"Supabase tracker fetch skipped: {e}")
+
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -5261,6 +5332,18 @@ def can_and_record_price_alert(
         """, (user_id, symbol, current_pct, current_price))
         conn.commit()
 
+        if is_supabase_enabled() and user_id and user_id != "guest":
+            try:
+                supabase_api("POST", "price_alert_tracker", payload={
+                    "user_id": user_id,
+                    "symbol": symbol,
+                    "last_alert_pct": float(current_pct),
+                    "last_alert_price": float(current_price)
+                }, params={"on_conflict": "user_id,symbol"})
+            except Exception as e:
+                logger.warning(f"Supabase tracker save skipped: {e}")
+
     conn.close()
     return should_alert
+
 

@@ -290,6 +290,10 @@ def scan_and_dispatch_price_alerts() -> List[Dict[str, Any]]:
 
 def _price_alert_worker():
     """Background worker daemon thread that runs periodically during market hours."""
+    # Guard against serverless execution environments (Vercel, AWS Lambda)
+    if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+        return
+
     while True:
         try:
             status = market_hours.get_market_status()

@@ -17655,15 +17655,36 @@ async function fetchNotifications(silent = false) {
     if (!res.ok) return;
     const data = await res.json();
     const prevUnread = state.unreadNotificationCount || 0;
-    state.notifications = data.notifications || [];
-    state.unreadNotificationCount = data.unread_count || 0;
+
+    // Robust deduplication by id and by (symbol, title, 60s time bucket)
+    const rawList = data.notifications || [];
+    const seenIds = new Set();
+    const seenKeys = new Set();
+    const cleanList = [];
+
+    for (const notif of rawList) {
+      if (!notif || seenIds.has(notif.id)) continue;
+      seenIds.add(notif.id);
+
+      const timeBucket = notif.created_at ? Math.floor(new Date(notif.created_at).getTime() / 60000) : 0;
+      const dedupeKey = `${notif.symbol || ''}_${notif.title || ''}_${timeBucket}`;
+      if (seenKeys.has(dedupeKey)) continue;
+      seenKeys.add(dedupeKey);
+
+      cleanList.push(notif);
+    }
+
+    state.notifications = cleanList;
+    state.unreadNotificationCount = data.unread_count !== undefined ? data.unread_count : cleanList.filter(n => !n.is_read).length;
 
     updateNotificationBadges();
 
     // If new drastic alert arrived while user is active on the page, show in-app toast
-    if (silent && state.unreadNotificationCount > prevUnread && state.notifications.length > 0) {
-      const latest = state.notifications[0];
-      if (latest && !latest.is_read) {
+    // Suppress duplicate toasts using state.lastToastNotifId
+    if (silent && prevUnread > 0 && state.unreadNotificationCount > prevUnread && cleanList.length > 0) {
+      const latest = cleanList[0];
+      if (latest && !latest.is_read && state.lastToastNotifId !== latest.id) {
+        state.lastToastNotifId = latest.id;
         showToast(`${latest.title} — Tap bell to view`);
       }
     }
@@ -18141,36 +18162,10 @@ async function triggerTestNotification() {
     });
 
     if (res.ok) {
-      const data = await res.json();
       showToast('Test price alert triggered! 🔔');
-
-      // Optimistically insert into notifications list in memory so drawer displays it instantly
-      const newNotif = {
-        id: data.notification_id || Date.now(),
-        title: data.title || `${cleanSym} surged +4.25%`,
-        message: data.message || `Trading at ₹2,940.00 · In your watchlist`,
-        type: 'PRICE_ALERT',
-        symbol: sym,
-        asset_type: 'STOCK',
-        change_pct: 4.25,
-        price: 2940.0,
-        action_url: `/stock/${sym}`,
-        is_read: 0,
-        created_at: new Date().toISOString()
-      };
-
-      if (!state.notifications) state.notifications = [];
-      if (!state.notifications.some(n => n.id === newNotif.id)) {
-        state.notifications = [newNotif, ...state.notifications];
-        state.unreadNotificationCount = (state.unreadNotificationCount || 0) + 1;
-      }
-
-      updateNotificationBadges();
+      await fetchNotifications(false);
       switchNotifFilter('all');
       renderNotificationList();
-
-      // Background sync from API
-      await fetchNotifications(true);
     }
   } catch (e) {
     showToast('Failed to trigger test alert: ' + (e.message || e), true);
