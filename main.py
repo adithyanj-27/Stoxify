@@ -2063,6 +2063,23 @@ class PushTestRequest(BaseModel):
     symbol: Optional[str] = "RELIANCE.NS"
     change_pct: Optional[float] = 3.85
 
+_last_market_alert_scan_at = 0.0
+
+def maybe_trigger_background_price_scan():
+    global _last_market_alert_scan_at
+    now = time.time()
+    if now - _last_market_alert_scan_at < 60.0:
+        return
+    _last_market_alert_scan_at = now
+    try:
+        status = market_hours.get_market_status()
+        if status.get("is_open") or status.get("is_simulated"):
+            t = threading.Thread(target=notifications.scan_and_dispatch_price_alerts, daemon=True, name="stoxify-scan-alerts")
+            t.start()
+    except Exception:
+        pass
+
+
 @app.get("/api/notifications")
 @app.get("/notifications/list")
 def api_get_notifications(
@@ -2071,6 +2088,7 @@ def api_get_notifications(
     offset: int = Query(0, ge=0),
     unread_only: bool = Query(False)
 ):
+    maybe_trigger_background_price_scan()
     uid = get_user_id(request) or "default"
     clean_limit = int(limit.default if hasattr(limit, "default") else (limit or 50))
     clean_offset = int(offset.default if hasattr(offset, "default") else (offset or 0))
@@ -2167,7 +2185,7 @@ def api_push_test(req: PushTestRequest, request: Request):
     )
     return {"success": True, "notification_id": notif_id, "title": title, "message": msg}
 
-@app.post("/api/notifications/trigger-scan")
+@app.api_route("/api/notifications/trigger-scan", methods=["GET", "POST"])
 def api_trigger_scan():
     dispatched = notifications.scan_and_dispatch_price_alerts()
     return {"success": True, "count": len(dispatched), "alerts": dispatched}
