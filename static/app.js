@@ -9620,12 +9620,25 @@ function navigateTo(path, pushState = true) {
 function goBackFromAssetPage() {
   currentPageAsset = null;
   state.currentModalAsset = null;
+  document.body.classList.remove('viewing-asset-detail');
+  document.documentElement.classList.remove('viewing-asset-detail');
+
+  const currentPath = window.location.pathname;
+  const fallbackRoute = state.lastMainRoute || '/explore';
+
   if (window.history.length > 1) {
     window.history.back();
+    // Fallback watchdog: if history.back didn't trigger route change (e.g. root of stack), navigate cleanly
+    setTimeout(() => {
+      if (window.location.pathname === currentPath) {
+        navigateTo(fallbackRoute);
+      }
+    }, 150);
   } else {
-    navigateTo('/explore');
+    navigateTo(fallbackRoute);
   }
 }
+window.goBackFromAssetPage = goBackFromAssetPage;
 
 function goBackFromProfilePage() {
   document.body.classList.remove('viewing-profile');
@@ -9745,6 +9758,10 @@ function handleRoute() {
 
   document.body.classList.remove('viewing-portfolio-analysis');
   document.documentElement.classList.remove('viewing-portfolio-analysis');
+
+  if (!path.startsWith('/stock/') && !path.startsWith('/etf/') && !path.startsWith('/mf/') && path !== '/onboarding' && path !== '/profile' && path !== '/welcome') {
+    state.lastMainRoute = path;
+  }
 
   if (path.startsWith('/stock/')) {
     const sym = decodeURIComponent(path.replace('/stock/', '')).trim();
@@ -17947,12 +17964,37 @@ async function handleNotificationClick(notifId, symbol, assetType, actionUrl) {
     }
   } catch (e) {}
 
-  closeNotificationDrawer();
-
+  // 1. Resolve destination route
+  let targetPath = null;
   if (symbol && symbol !== 'None' && symbol !== 'undefined' && symbol.trim().length > 0) {
-    openAssetModal(symbol, assetType || 'STOCK');
+    const isBseSymbol = (symbol || '').endsWith('.BO');
+    const cleanSym = isBseSymbol ? (symbol || '').trim() : (symbol || '').replace('.NS', '').replace('.BO', '');
+    if (assetType === 'MUTUAL_FUND' || symbol.match(/^\d+$/)) {
+      targetPath = '/mf/' + cleanSym;
+    } else if (assetType === 'ETF') {
+      targetPath = '/etf/' + cleanSym;
+    } else {
+      targetPath = '/stock/' + cleanSym;
+    }
   } else if (actionUrl && actionUrl !== 'None' && actionUrl !== 'undefined') {
-    navigateTo(actionUrl);
+    targetPath = actionUrl;
+  }
+
+  // 2. Hide drawer overlay visually without triggering an asynchronous history.back()
+  const overlay = document.getElementById('notificationDrawerOverlay');
+  if (overlay) overlay.style.display = 'none';
+  dismissModalState('notificationDrawerOverlay', { fromPopState: true });
+
+  // 3. Navigate cleanly and preserve back navigation history
+  if (targetPath) {
+    // If the drawer had a modal history entry, replace it with the target page
+    // so going back returns cleanly to the tab the user was on before opening notifications!
+    if (window.history.state && window.history.state.isModal) {
+      history.replaceState({ returnTo: state.lastMainRoute || '/explore' }, '', targetPath);
+      handleRoute();
+    } else {
+      navigateTo(targetPath);
+    }
   }
 }
 
