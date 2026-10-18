@@ -14,8 +14,16 @@ import market_hours
 logger = logging.getLogger("stoxify.notifications")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(BASE_DIR, "data")
-os.makedirs(DATA_DIR, exist_ok=True)
+if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+    import tempfile
+    DATA_DIR = tempfile.gettempdir()
+else:
+    DATA_DIR = os.path.join(BASE_DIR, "data")
+    try:
+        os.makedirs(DATA_DIR, exist_ok=True)
+    except Exception:
+        pass
+
 VAPID_FILE = os.path.join(DATA_DIR, "vapid_keys.json")
 
 _PUSH_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix="stoxify-push")
@@ -31,6 +39,18 @@ def ensure_vapid_keys() -> Dict[str, str]:
         if _vapid_keys_cache:
             return _vapid_keys_cache
 
+        # 1. Environment variables override (ideal for cloud serverless like Vercel)
+        env_pub = os.environ.get("VAPID_PUBLIC_KEY")
+        env_priv = os.environ.get("VAPID_PRIVATE_KEY")
+        if env_pub and env_priv:
+            _vapid_keys_cache = {
+                "public_key": env_pub,
+                "private_key": env_priv,
+                "subject": os.environ.get("VAPID_SUBJECT", "mailto:support@stoxify.app")
+            }
+            return _vapid_keys_cache
+
+        # 2. Cached file on disk
         if os.path.exists(VAPID_FILE):
             try:
                 with open(VAPID_FILE, "r", encoding="utf-8") as f:
@@ -41,7 +61,7 @@ def ensure_vapid_keys() -> Dict[str, str]:
             except Exception as e:
                 logger.warning(f"Failed to read existing VAPID file: {e}")
 
-        # Generate fresh VAPID keypair
+        # 3. Generate fresh VAPID keypair
         try:
             from py_vapid import Vapid
             from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
@@ -57,8 +77,11 @@ def ensure_vapid_keys() -> Dict[str, str]:
                 "private_key": priv_pem,
                 "subject": "mailto:support@stoxify.app"
             }
-            with open(VAPID_FILE, "w", encoding="utf-8") as f:
-                json.dump(keys, f, indent=2)
+            try:
+                with open(VAPID_FILE, "w", encoding="utf-8") as f:
+                    json.dump(keys, f, indent=2)
+            except Exception as fe:
+                logger.warning(f"Could not persist VAPID file to disk (in-memory only): {fe}")
 
             _vapid_keys_cache = keys
             logger.info("Generated new persistent VAPID keypair for Web Push")

@@ -3462,6 +3462,13 @@
                 <button type="button" class="notif-threshold-btn" data-threshold="5.0" onclick="setNotifThreshold(5.0)">±5.0%</button>
               </div>
             </div>
+            <div class="notif-setting-item" style="margin-top: 0.5rem; margin-bottom: 0.75rem;">
+              <div class="notif-setting-text">
+                <span class="notif-setting-title">Device & Laptop Notifications</span>
+                <span class="notif-setting-desc" id="notifPushPermissionStatus">Web Push notification bar alerts</span>
+              </div>
+              <button type="button" class="btn-push-enable" id="notifEnablePushBtn" onclick="enablePushNotifications()" style="padding: 0.4rem 0.85rem; font-size: 0.78rem; font-weight: 700; background: #0EA5E9; color: #fff; border: none; border-radius: 6px; cursor: pointer; transition: all 0.2s ease;">Enable</button>
+            </div>
             <button class="btn-test-notif" onclick="triggerTestNotification()">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
               Send Test Alert Now

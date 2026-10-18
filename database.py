@@ -4773,6 +4773,24 @@ def add_notification(
     notif_id = cursor.lastrowid
     conn.commit()
     conn.close()
+
+    if is_supabase_enabled() and user_id and user_id != "guest":
+        try:
+            supabase_api("POST", "notifications", payload={
+                "user_id": user_id or "default",
+                "title": title,
+                "message": message,
+                "type": type,
+                "symbol": symbol,
+                "asset_type": asset_type,
+                "change_pct": float(change_pct or 0.0),
+                "price": float(price or 0.0),
+                "action_url": action_url or (f"/stock/{symbol}" if symbol else None),
+                "is_read": False
+            })
+        except Exception as e:
+            logger.warning(f"Supabase notification insert skipped: {e}")
+
     return notif_id
 
 
@@ -4783,10 +4801,49 @@ def get_notifications(
     unread_only: bool = False
 ) -> Dict[str, Any]:
     """Retrieve notifications for a user, sorted newest-first, along with total and unread counts."""
+    uid = user_id or "default"
+
+    # 1. Supabase sync if enabled
+    if is_supabase_enabled() and uid and uid != "guest":
+        try:
+            sb_params = {
+                "user_id": f"eq.{uid}",
+                "order": "id.desc",
+                "limit": str(limit),
+                "offset": str(offset)
+            }
+            if unread_only:
+                sb_params["is_read"] = "eq.false"
+
+            sb_notifs = supabase_api("GET", "notifications", params=sb_params)
+            if sb_notifs and isinstance(sb_notifs, list):
+                conn = get_connection()
+                cur = conn.cursor()
+                for n in sb_notifs:
+                    cur.execute("""
+                        INSERT OR REPLACE INTO notifications (id, user_id, title, message, type, symbol, asset_type, change_pct, price, action_url, is_read, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        n.get("id"),
+                        uid,
+                        n.get("title"),
+                        n.get("message"),
+                        n.get("type", "PRICE_ALERT"),
+                        n.get("symbol"),
+                        n.get("asset_type", "STOCK"),
+                        float(n.get("change_pct") or 0.0),
+                        float(n.get("price") or 0.0),
+                        n.get("action_url"),
+                        1 if n.get("is_read") else 0,
+                        n.get("created_at") or datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+                    ))
+                conn.commit()
+                conn.close()
+        except Exception as e:
+            logger.warning(f"Supabase notifications fetch skipped: {e}")
+
     conn = get_connection()
     cursor = conn.cursor()
-
-    uid = user_id or "default"
 
     # Count total unread
     cursor.execute("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0", (uid,))
@@ -4844,6 +4901,16 @@ def mark_notification_read(
         return False
     conn.commit()
     conn.close()
+
+    if is_supabase_enabled() and uid and uid != "guest":
+        try:
+            if mark_all:
+                supabase_api("PATCH", "notifications", payload={"is_read": True}, params={"user_id": f"eq.{uid}"})
+            elif notification_id is not None:
+                supabase_api("PATCH", "notifications", payload={"is_read": True}, params={"id": f"eq.{notification_id}", "user_id": f"eq.{uid}"})
+        except Exception:
+            pass
+
     return True
 
 
@@ -4865,6 +4932,16 @@ def delete_notification(
         return False
     conn.commit()
     conn.close()
+
+    if is_supabase_enabled() and uid and uid != "guest":
+        try:
+            if delete_all:
+                supabase_api("DELETE", "notifications", params={"user_id": f"eq.{uid}"})
+            elif notification_id is not None:
+                supabase_api("DELETE", "notifications", params={"id": f"eq.{notification_id}", "user_id": f"eq.{uid}"})
+        except Exception:
+            pass
+
     return True
 
 
@@ -4886,6 +4963,18 @@ def save_push_subscription(user_id: str, endpoint: str, p256dh: str, auth: str) 
     """, (uid, endpoint, p256dh, auth))
     conn.commit()
     conn.close()
+
+    if is_supabase_enabled() and uid:
+        try:
+            supabase_api("POST", "push_subscriptions", payload={
+                "user_id": uid,
+                "endpoint": endpoint,
+                "p256dh": p256dh,
+                "auth": auth
+            }, params={"on_conflict": "endpoint"})
+        except Exception:
+            pass
+
     return True
 
 
@@ -4901,18 +4990,52 @@ def delete_push_subscription(endpoint: str, user_id: Optional[str] = None) -> bo
         cursor.execute("DELETE FROM push_subscriptions WHERE endpoint = ?", (endpoint,))
     conn.commit()
     conn.close()
+
+    if is_supabase_enabled():
+        try:
+            params = {"endpoint": f"eq.{endpoint}"}
+            if user_id:
+                params["user_id"] = f"eq.{user_id}"
+            supabase_api("DELETE", "push_subscriptions", params=params)
+        except Exception:
+            pass
+
     return True
 
 
 def get_user_push_subscriptions(user_id: str) -> List[Dict[str, Any]]:
     """Return all active push subscriptions for a user."""
+    uid = user_id or "default"
+    if is_supabase_enabled() and uid:
+        try:
+            sb_subs = supabase_api("GET", "push_subscriptions", params={"user_id": f"eq.{uid}"})
+            if sb_subs and isinstance(sb_subs, list):
+                conn = get_connection()
+                cur = conn.cursor()
+                for s in sb_subs:
+                    cur.execute("""
+                        INSERT OR REPLACE INTO push_subscriptions (user_id, endpoint, p256dh, auth, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, (
+                        uid,
+                        s.get("endpoint"),
+                        s.get("p256dh"),
+                        s.get("auth"),
+                        s.get("created_at") or datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+                        s.get("updated_at") or datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+                    ))
+                conn.commit()
+                conn.close()
+        except Exception as e:
+            logger.warning(f"Supabase push_subscriptions fetch skipped: {e}")
+
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
         SELECT id, user_id, endpoint, p256dh, auth, created_at
         FROM push_subscriptions
         WHERE user_id = ?
-    """, (user_id or "default",))
+    """, (uid,))
     rows = cursor.fetchall()
     conn.close()
     return [dict(r) for r in rows]
@@ -4920,9 +5043,30 @@ def get_user_push_subscriptions(user_id: str) -> List[Dict[str, Any]]:
 
 def get_notification_settings(user_id: str) -> Dict[str, Any]:
     """Retrieve user alert preferences, or sensible defaults."""
+    uid = user_id or "default"
+    if is_supabase_enabled() and uid:
+        try:
+            sb_set = supabase_api("GET", "user_notification_settings", params={"user_id": f"eq.{uid}"})
+            if sb_set and isinstance(sb_set, list) and len(sb_set) > 0:
+                s = sb_set[0]
+                conn = get_connection()
+                cur = conn.cursor()
+                cur.execute("""
+                    INSERT INTO user_notification_settings (user_id, price_alerts_enabled, threshold_pct, sound_enabled, updated_at)
+                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(user_id) DO UPDATE SET
+                        price_alerts_enabled = excluded.price_alerts_enabled,
+                        threshold_pct = excluded.threshold_pct,
+                        sound_enabled = excluded.sound_enabled,
+                        updated_at = CURRENT_TIMESTAMP
+                """, (uid, 1 if s.get("price_alerts_enabled") else 0, float(s.get("threshold_pct") or 3.0), 1 if s.get("sound_enabled") else 0))
+                conn.commit()
+                conn.close()
+        except Exception:
+            pass
+
     conn = get_connection()
     cursor = conn.cursor()
-    uid = user_id or "default"
     cursor.execute("SELECT price_alerts_enabled, threshold_pct, sound_enabled FROM user_notification_settings WHERE user_id = ?", (uid,))
     row = cursor.fetchone()
     conn.close()
@@ -4965,6 +5109,18 @@ def update_notification_settings(
     """, (uid, 1 if pa else 0, th, 1 if snd else 0))
     conn.commit()
     conn.close()
+
+    if is_supabase_enabled() and uid:
+        try:
+            supabase_api("POST", "user_notification_settings", payload={
+                "user_id": uid,
+                "price_alerts_enabled": pa,
+                "threshold_pct": th,
+                "sound_enabled": snd
+            }, params={"on_conflict": "user_id"})
+        except Exception:
+            pass
+
     return {
         "price_alerts_enabled": pa,
         "threshold_pct": th,

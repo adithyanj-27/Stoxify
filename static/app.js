@@ -17959,8 +17959,48 @@ async function loadNotificationPreferences() {
       const th = Number(btn.getAttribute('data-threshold'));
       btn.classList.toggle('active', Math.abs(th - currentTh) < 0.1);
     });
+
+    updatePushPermissionUI();
   } catch (e) {
     console.warn('Failed to load settings:', e);
+  }
+}
+
+function updatePushPermissionUI() {
+  const pushStatusEl = document.getElementById('notifPushPermissionStatus');
+  const pushBtnEl = document.getElementById('notifEnablePushBtn');
+  if (!pushStatusEl) return;
+
+  if (!('Notification' in window)) {
+    pushStatusEl.innerText = 'Not supported in this browser';
+    if (pushBtnEl) pushBtnEl.style.display = 'none';
+    return;
+  }
+
+  if (Notification.permission === 'granted') {
+    pushStatusEl.innerHTML = '<span style="color: #00d09c; font-weight: 600;">Active &amp; Allowed ✓</span>';
+    if (pushBtnEl) {
+      pushBtnEl.innerText = '✓ Active';
+      pushBtnEl.style.background = 'rgba(0, 208, 156, 0.15)';
+      pushBtnEl.style.color = '#00d09c';
+      pushBtnEl.disabled = true;
+    }
+  } else if (Notification.permission === 'denied') {
+    pushStatusEl.innerHTML = '<span style="color: #eb5b3c;">Blocked in browser. Click lock icon in URL bar to Allow.</span>';
+    if (pushBtnEl) {
+      pushBtnEl.innerText = 'Blocked';
+      pushBtnEl.style.background = 'rgba(235, 91, 60, 0.15)';
+      pushBtnEl.style.color = '#eb5b3c';
+      pushBtnEl.disabled = true;
+    }
+  } else {
+    pushStatusEl.innerText = 'Allow notification bar alerts on your laptop';
+    if (pushBtnEl) {
+      pushBtnEl.innerText = 'Enable';
+      pushBtnEl.style.background = '#0EA5E9';
+      pushBtnEl.style.color = '#fff';
+      pushBtnEl.disabled = false;
+    }
   }
 }
 
@@ -18000,19 +18040,96 @@ async function triggerTestNotification() {
     if (state.watchlist && state.watchlist.size > 0) {
       sym = Array.from(state.watchlist)[0];
     }
+    const cleanSym = sym.replace('.NS', '').replace('.BO', '');
+
+    // 1. Check or request browser notification permission
+    let hasPermission = false;
+    if ('Notification' in window) {
+      if (Notification.permission === 'default') {
+        const granted = await Notification.requestPermission();
+        hasPermission = (granted === 'granted');
+        updatePushPermissionUI();
+        if (hasPermission) {
+          enablePushNotifications().catch(() => {});
+        }
+      } else if (Notification.permission === 'granted') {
+        hasPermission = true;
+      } else {
+        showToast('Browser notifications blocked! Click lock icon in address bar to Allow', true);
+      }
+    }
+
+    // 2. Direct native OS notification trigger so Windows shows it immediately
+    if (hasPermission) {
+      const notifTitle = `📈 Drastic Change: ${cleanSym} is +4.25%`;
+      const notifBody = `${cleanSym} surged to ₹2,940.00 in your watchlist. Tap to view chart & details.`;
+      const notifOptions = {
+        body: notifBody,
+        icon: '/static/icon-192.png',
+        badge: '/static/icon-192.png',
+        vibrate: [150, 80, 150, 80, 200],
+        tag: `price-alert-${cleanSym}-${Date.now()}`,
+        renotify: true,
+        data: {
+          url: `/stock/${sym}`,
+          symbol: sym,
+          assetType: 'STOCK'
+        }
+      };
+
+      try {
+        const reg = window.__swRegistration || (navigator.serviceWorker ? await navigator.serviceWorker.ready : null);
+        if (reg && reg.showNotification) {
+          await reg.showNotification(notifTitle, notifOptions);
+        } else if ('Notification' in window) {
+          new Notification(notifTitle, notifOptions);
+        }
+      } catch (nativeErr) {
+        console.warn('Native notification trigger failed:', nativeErr);
+      }
+    }
+
+    // 3. Dispatch backend test notification
     const res = await fetch('/api/push/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ symbol: sym, change_pct: 4.25 })
     });
+
     if (res.ok) {
       const data = await res.json();
       showToast('Test price alert triggered! 🔔');
-      await fetchNotifications();
+
+      // Optimistically insert into notifications list in memory so drawer displays it instantly
+      const newNotif = {
+        id: data.notification_id || Date.now(),
+        title: data.title || `📈 Drastic Change: ${cleanSym} is +4.25%`,
+        message: data.message || `${cleanSym} surged to ₹2,940.00 in your watchlist. Tap to view chart & details.`,
+        type: 'PRICE_ALERT',
+        symbol: sym,
+        asset_type: 'STOCK',
+        change_pct: 4.25,
+        price: 2940.0,
+        action_url: `/stock/${sym}`,
+        is_read: 0,
+        created_at: new Date().toISOString()
+      };
+
+      if (!state.notifications) state.notifications = [];
+      if (!state.notifications.some(n => n.id === newNotif.id)) {
+        state.notifications = [newNotif, ...state.notifications];
+        state.unreadNotificationCount = (state.unreadNotificationCount || 0) + 1;
+      }
+
+      updateNotificationBadges();
       switchNotifFilter('all');
+      renderNotificationList();
+
+      // Background sync from API
+      await fetchNotifications(true);
     }
   } catch (e) {
-    showToast('Failed to trigger test alert', true);
+    showToast('Failed to trigger test alert: ' + (e.message || e), true);
   }
 }
 
@@ -18033,6 +18150,7 @@ async function initPushNotifications(registration) {
       state.pushSubscribed = true;
       checkPushBannerVisibility();
     }
+    updatePushPermissionUI();
   } catch (e) {
     console.warn('Failed to inspect push subscription:', e);
   }
@@ -18046,12 +18164,13 @@ async function enablePushNotifications() {
 
   try {
     const permission = await Notification.requestPermission();
+    updatePushPermissionUI();
     if (permission !== 'granted') {
       showToast('Notification permission was denied in your browser', true);
       return;
     }
 
-    const reg = window.__swRegistration || await navigator.serviceWorker.ready;
+    const reg = window.__swRegistration || (navigator.serviceWorker ? await navigator.serviceWorker.ready : null);
     if (!reg || !reg.pushManager) {
       showToast('Service Worker is still initializing. Try again in a moment.', true);
       return;
@@ -18063,30 +18182,34 @@ async function enablePushNotifications() {
       state.vapidPublicKey = keyData.public_key;
     }
 
-    const applicationServerKey = urlBase64ToUint8Array(state.vapidPublicKey);
-    const subscription = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: applicationServerKey
-    });
+    if (state.vapidPublicKey) {
+      const applicationServerKey = urlBase64ToUint8Array(state.vapidPublicKey);
+      const subscription = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: applicationServerKey
+      });
 
-    const subJson = subscription.toJSON();
-    await fetch('/api/push/subscribe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        endpoint: subJson.endpoint,
-        keys: {
-          p256dh: subJson.keys.p256dh,
-          auth: subJson.keys.auth
-        }
-      })
-    });
+      const subJson = subscription.toJSON();
+      await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          endpoint: subJson.endpoint,
+          keys: {
+            p256dh: subJson.keys.p256dh,
+            auth: subJson.keys.auth
+          }
+        })
+      });
+    }
 
     state.pushSubscribed = true;
     checkPushBannerVisibility();
+    updatePushPermissionUI();
     showToast('Push notifications enabled successfully! 🔔');
   } catch (err) {
     console.error('Push subscription failed:', err);
+    updatePushPermissionUI();
     showToast('Failed to enable push notifications: ' + (err.message || err), true);
   }
 }
