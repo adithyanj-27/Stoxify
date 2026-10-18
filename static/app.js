@@ -323,7 +323,12 @@ const state = {
   productType: 'DELIVERY',
   orderVariety: 'MARKET',
   marketStatus: null,
-  chartInstance: null
+  chartInstance: null,
+  notifications: [],
+  unreadNotificationCount: 0,
+  currentNotifFilter: 'all',
+  vapidPublicKey: null,
+  pushSubscribed: false
 };
 
 // --- Helpers & Formatters ---
@@ -9470,10 +9475,28 @@ window.addEventListener('appinstalled', () => {
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js', { scope: '/' }).then((reg) => {
+      window.__swRegistration = reg;
       reg.update();
       console.log('Stoxify PWA Service Worker registered:', reg.scope);
+      try {
+        initPushNotifications(reg);
+      } catch (pe) {
+        console.warn('Push init error:', pe);
+      }
     }).catch((err) => {
       console.warn('Service Worker registration skipped:', err);
+    });
+
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data && event.data.type === 'OPEN_NOTIFICATION_ASSET') {
+        const sym = event.data.symbol;
+        const assetType = event.data.assetType || 'STOCK';
+        if (sym) {
+          openAssetModal(sym, assetType);
+        } else if (event.data.url) {
+          navigateTo(event.data.url);
+        }
+      }
     });
   });
 }
@@ -9553,7 +9576,8 @@ function bootApp() {
     fetchExploreData().catch(e => console.warn(e)),
     fetchWatchlist().catch(e => console.warn(e)),
     fetchPositions().catch(e => console.warn(e)),
-    fetchPortfolio(true).catch(e => console.warn(e))
+    fetchPortfolio(true).catch(e => console.warn(e)),
+    fetchNotifications().catch(e => console.warn(e))
   ]);
 
   // Polling intervals
@@ -9564,6 +9588,7 @@ function bootApp() {
     if (state.currentTab === 'holdings') fetchPortfolio(true);
     if (state.currentTab === 'dashboard') renderMutualFundDashboard(true);
     if (state.currentTab === 'positions') fetchPositions();
+    fetchNotifications(true);
   }, 15000);
 }
 
@@ -17586,5 +17611,506 @@ window.closeHoldingsSortSheet = closeHoldingsSortSheet;
 window.applyHoldingsSort = applyHoldingsSort;
 window.openStockPortfolioAnalysisPage = openStockPortfolioAnalysisPage;
 window.closeStockPortfolioAnalysisPage = closeStockPortfolioAnalysisPage;
+
+// ==============================================================================
+// --- Notification Center & Web Push Controller ---
+// ==============================================================================
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+function formatNotifTime(dateStr) {
+  if (!dateStr) return 'Just now';
+  try {
+    const parsed = dateStr.includes('T') ? new Date(dateStr) : new Date(dateStr.replace(' ', 'T') + 'Z');
+    const now = new Date();
+    const diffSecs = Math.max(0, Math.floor((now - parsed) / 1000));
+
+    if (diffSecs < 60) return 'Just now';
+    const diffMins = Math.floor(diffSecs / 60);
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays}d ago`;
+
+    return parsed.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+  } catch (e) {
+    return 'Recently';
+  }
+}
+
+async function fetchNotifications(silent = false) {
+  try {
+    const res = await fetch('/api/notifications?limit=60');
+    if (!res.ok) return;
+    const data = await res.json();
+    const prevUnread = state.unreadNotificationCount || 0;
+    state.notifications = data.notifications || [];
+    state.unreadNotificationCount = data.unread_count || 0;
+
+    updateNotificationBadges();
+
+    // If new drastic alert arrived while user is active on the page, show in-app toast
+    if (silent && state.unreadNotificationCount > prevUnread && state.notifications.length > 0) {
+      const latest = state.notifications[0];
+      if (latest && !latest.is_read) {
+        showToast(`${latest.title} — Tap bell to view`);
+      }
+    }
+
+    const drawerOverlay = document.getElementById('notificationDrawerOverlay');
+    if (drawerOverlay && drawerOverlay.style.display !== 'none' && state.currentNotifFilter !== 'settings') {
+      renderNotificationList();
+    }
+  } catch (err) {
+    if (!silent) console.warn('Failed to fetch notifications:', err);
+  }
+}
+
+function updateNotificationBadges() {
+  const badge = document.getElementById('notificationBadge');
+  const unreadCount = state.unreadNotificationCount || 0;
+
+  if (badge) {
+    if (unreadCount > 0) {
+      badge.style.display = 'block';
+      badge.innerText = unreadCount > 99 ? '99+' : unreadCount;
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+
+  const pill = document.getElementById('notifUnreadPill');
+  if (pill) {
+    if (unreadCount > 0) {
+      pill.style.display = 'inline-block';
+      pill.innerText = `${unreadCount} new`;
+    } else {
+      pill.style.display = 'none';
+    }
+  }
+
+  const tabBadgeAll = document.getElementById('notifTabBadgeAll');
+  if (tabBadgeAll) {
+    tabBadgeAll.innerText = state.notifications.length || 0;
+  }
+
+  const tabBadgeUnread = document.getElementById('notifTabBadgeUnread');
+  if (tabBadgeUnread) {
+    tabBadgeUnread.innerText = unreadCount;
+  }
+}
+
+function openNotificationDrawer() {
+  const overlay = document.getElementById('notificationDrawerOverlay');
+  if (!overlay) return;
+
+  pushModalState('notificationDrawerOverlay', closeNotificationDrawer);
+  overlay.style.display = 'flex';
+
+  // Check push banner visibility
+  checkPushBannerVisibility();
+
+  fetchNotifications();
+  renderNotificationList();
+}
+
+function closeNotificationDrawer(options = {}) {
+  const overlay = document.getElementById('notificationDrawerOverlay');
+  if (overlay) {
+    overlay.style.display = 'none';
+  }
+  dismissModalState('notificationDrawerOverlay', options);
+}
+
+function toggleNotificationDrawer() {
+  const overlay = document.getElementById('notificationDrawerOverlay');
+  if (overlay && overlay.style.display !== 'none') {
+    closeNotificationDrawer();
+  } else {
+    openNotificationDrawer();
+  }
+}
+
+function checkPushBannerVisibility() {
+  const banner = document.getElementById('notifPushBanner');
+  if (!banner) return;
+
+  const isDismissed = localStorage.getItem('stoxify_push_banner_dismissed') === 'true';
+  const isSupported = 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
+
+  if (!isSupported || isDismissed || Notification.permission === 'granted' || state.pushSubscribed) {
+    banner.style.display = 'none';
+  } else {
+    banner.style.display = 'flex';
+  }
+}
+
+function switchNotifFilter(filter) {
+  state.currentNotifFilter = filter;
+  ['all', 'unread', 'settings'].forEach((f) => {
+    const btn = document.getElementById(`notifTab${f.charAt(0).toUpperCase() + f.slice(1)}`);
+    if (btn) btn.classList.toggle('active', f === filter);
+  });
+
+  const listContainer = document.getElementById('notifListContainer');
+  const settingsPane = document.getElementById('notifSettingsPane');
+
+  if (filter === 'settings') {
+    if (listContainer) listContainer.style.display = 'none';
+    if (settingsPane) settingsPane.style.display = 'block';
+    loadNotificationPreferences();
+  } else {
+    if (listContainer) listContainer.style.display = 'flex';
+    if (settingsPane) settingsPane.style.display = 'none';
+    renderNotificationList();
+  }
+}
+
+function renderNotificationList() {
+  const container = document.getElementById('notifListContainer');
+  if (!container) return;
+
+  const filter = state.currentNotifFilter || 'all';
+  const items = state.notifications.filter((n) => {
+    if (filter === 'unread') return !n.is_read;
+    return true;
+  });
+
+  if (items.length === 0) {
+    container.innerHTML = `
+      <div class="notif-empty-state">
+        <div class="notif-empty-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          </svg>
+        </div>
+        <div class="notif-empty-title">${filter === 'unread' ? 'All caught up!' : 'No notifications yet'}</div>
+        <div class="notif-empty-desc">${filter === 'unread' ? 'You have read all your price alerts and updates.' : 'You will be alerted when stocks in your watchlist or holdings make drastic price moves (&plusmn;3%).'}</div>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = items.map((item) => {
+    const isUnread = !item.is_read;
+    const isPositive = Number(item.change_pct || 0) > 0;
+    const isNegative = Number(item.change_pct || 0) < 0;
+
+    let iconClass = 'system';
+    let iconSvg = `
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+      </svg>
+    `;
+
+    if (item.type === 'PRICE_ALERT') {
+      if (isPositive) {
+        iconClass = 'rise';
+        iconSvg = `
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+            <polyline points="17 6 23 6 23 12"></polyline>
+          </svg>
+        `;
+      } else if (isNegative) {
+        iconClass = 'fall';
+        iconSvg = `
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline>
+            <polyline points="17 18 23 18 23 12"></polyline>
+          </svg>
+        `;
+      }
+    }
+
+    const timeLabel = formatNotifTime(item.created_at);
+    const escapedSymbol = (item.symbol || '').replace(/'/g, "\\'");
+    const escapedAssetType = (item.asset_type || 'STOCK').replace(/'/g, "\\'");
+    const escapedUrl = (item.action_url || '').replace(/'/g, "\\'");
+
+    return `
+      <div class="notif-item ${isUnread ? 'unread' : ''}" onclick="handleNotificationClick(${item.id}, '${escapedSymbol}', '${escapedAssetType}', '${escapedUrl}')">
+        <div class="notif-icon-box ${iconClass}">
+          ${iconSvg}
+        </div>
+        <div class="notif-content">
+          <div class="notif-content-header">
+            <span class="notif-title">${item.title}</span>
+            <span class="notif-time">${timeLabel}</span>
+          </div>
+          <p class="notif-message">${item.message}</p>
+          ${item.symbol ? `
+            <div class="notif-cta">
+              View ${item.symbol.replace('.NS', '').replace('.BO', '')} Chart
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </div>
+          ` : ''}
+        </div>
+        <button class="notif-item-delete" onclick="deleteNotificationItem(${item.id}, event)" title="Delete notification" aria-label="Delete">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+    `;
+  }).join('');
+}
+
+async function handleNotificationClick(notifId, symbol, assetType, actionUrl) {
+  try {
+    fetch('/api/notifications/mark-read', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: notifId })
+    });
+    const found = state.notifications.find((n) => n.id === notifId);
+    if (found && !found.is_read) {
+      found.is_read = 1;
+      state.unreadNotificationCount = Math.max(0, (state.unreadNotificationCount || 1) - 1);
+      updateNotificationBadges();
+    }
+  } catch (e) {}
+
+  closeNotificationDrawer();
+
+  if (symbol && symbol !== 'None' && symbol !== 'undefined' && symbol.trim().length > 0) {
+    openAssetModal(symbol, assetType || 'STOCK');
+  } else if (actionUrl && actionUrl !== 'None' && actionUrl !== 'undefined') {
+    navigateTo(actionUrl);
+  }
+}
+
+async function markAllNotificationsAsRead() {
+  try {
+    const res = await fetch('/api/notifications/mark-read', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mark_all: true })
+    });
+    if (res.ok) {
+      state.notifications.forEach((n) => { n.is_read = 1; });
+      state.unreadNotificationCount = 0;
+      updateNotificationBadges();
+      renderNotificationList();
+      showToast('All notifications marked as read');
+    }
+  } catch (err) {
+    showToast('Failed to mark all as read', true);
+  }
+}
+
+async function clearAllNotifications() {
+  if (state.notifications.length === 0) return;
+  try {
+    const res = await fetch('/api/notifications', { method: 'DELETE' });
+    if (res.ok) {
+      state.notifications = [];
+      state.unreadNotificationCount = 0;
+      updateNotificationBadges();
+      renderNotificationList();
+      showToast('All notifications cleared');
+    }
+  } catch (err) {
+    showToast('Failed to clear notifications', true);
+  }
+}
+
+async function deleteNotificationItem(notifId, event) {
+  if (event) event.stopPropagation();
+  try {
+    const res = await fetch(`/api/notifications/${notifId}`, { method: 'DELETE' });
+    if (res.ok) {
+      const idx = state.notifications.findIndex((n) => n.id === notifId);
+      if (idx !== -1) {
+        if (!state.notifications[idx].is_read) {
+          state.unreadNotificationCount = Math.max(0, (state.unreadNotificationCount || 1) - 1);
+        }
+        state.notifications.splice(idx, 1);
+      }
+      updateNotificationBadges();
+      renderNotificationList();
+    }
+  } catch (err) {
+    console.warn('Failed to delete notification:', err);
+  }
+}
+
+async function loadNotificationPreferences() {
+  try {
+    const res = await fetch('/api/notifications/settings');
+    if (!res.ok) return;
+    const settings = await res.json();
+    const chk = document.getElementById('notifSettingPriceAlerts');
+    if (chk) chk.checked = !!settings.price_alerts_enabled;
+
+    const currentTh = Number(settings.threshold_pct || 3.0);
+    document.querySelectorAll('.notif-threshold-btn').forEach((btn) => {
+      const th = Number(btn.getAttribute('data-threshold'));
+      btn.classList.toggle('active', Math.abs(th - currentTh) < 0.1);
+    });
+  } catch (e) {
+    console.warn('Failed to load settings:', e);
+  }
+}
+
+async function setNotifThreshold(val) {
+  document.querySelectorAll('.notif-threshold-btn').forEach((btn) => {
+    btn.classList.toggle('active', Number(btn.getAttribute('data-threshold')) === val);
+  });
+  await saveNotificationPreferences(val);
+}
+
+async function saveNotificationPreferences(explicitThreshold = null) {
+  const chk = document.getElementById('notifSettingPriceAlerts');
+  const activeBtn = document.querySelector('.notif-threshold-btn.active');
+  const threshold = explicitThreshold !== null ? explicitThreshold : (activeBtn ? Number(activeBtn.getAttribute('data-threshold')) : 3.0);
+
+  try {
+    const res = await fetch('/api/notifications/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        price_alerts_enabled: chk ? chk.checked : true,
+        threshold_pct: threshold,
+        sound_enabled: true
+      })
+    });
+    if (res.ok) {
+      showToast(`Alert threshold set to ±${threshold}%`);
+    }
+  } catch (e) {
+    showToast('Failed to save preferences', true);
+  }
+}
+
+async function triggerTestNotification() {
+  try {
+    let sym = 'RELIANCE.NS';
+    if (state.watchlist && state.watchlist.size > 0) {
+      sym = Array.from(state.watchlist)[0];
+    }
+    const res = await fetch('/api/push/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbol: sym, change_pct: 4.25 })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      showToast('Test price alert triggered! 🔔');
+      await fetchNotifications();
+      switchNotifFilter('all');
+    }
+  } catch (e) {
+    showToast('Failed to trigger test alert', true);
+  }
+}
+
+async function initPushNotifications(registration) {
+  if (!('Notification' in window) || !('PushManager' in window) || !registration) {
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/push/public-key');
+    if (res.ok) {
+      const data = await res.json();
+      state.vapidPublicKey = data.public_key;
+    }
+
+    const existingSub = await registration.pushManager.getSubscription();
+    if (existingSub) {
+      state.pushSubscribed = true;
+      checkPushBannerVisibility();
+    }
+  } catch (e) {
+    console.warn('Failed to inspect push subscription:', e);
+  }
+}
+
+async function enablePushNotifications() {
+  if (!('Notification' in window)) {
+    showToast('Notifications are not supported on this browser', true);
+    return;
+  }
+
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      showToast('Notification permission was denied in your browser', true);
+      return;
+    }
+
+    const reg = window.__swRegistration || await navigator.serviceWorker.ready;
+    if (!reg || !reg.pushManager) {
+      showToast('Service Worker is still initializing. Try again in a moment.', true);
+      return;
+    }
+
+    if (!state.vapidPublicKey) {
+      const keyRes = await fetch('/api/push/public-key');
+      const keyData = await keyRes.json();
+      state.vapidPublicKey = keyData.public_key;
+    }
+
+    const applicationServerKey = urlBase64ToUint8Array(state.vapidPublicKey);
+    const subscription = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: applicationServerKey
+    });
+
+    const subJson = subscription.toJSON();
+    await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        endpoint: subJson.endpoint,
+        keys: {
+          p256dh: subJson.keys.p256dh,
+          auth: subJson.keys.auth
+        }
+      })
+    });
+
+    state.pushSubscribed = true;
+    checkPushBannerVisibility();
+    showToast('Push notifications enabled successfully! 🔔');
+  } catch (err) {
+    console.error('Push subscription failed:', err);
+    showToast('Failed to enable push notifications: ' + (err.message || err), true);
+  }
+}
+
+function dismissPushBanner() {
+  localStorage.setItem('stoxify_push_banner_dismissed', 'true');
+  const banner = document.getElementById('notifPushBanner');
+  if (banner) banner.style.display = 'none';
+}
+
+// Window bindings for Notification Center UI
+window.openNotificationDrawer = openNotificationDrawer;
+window.closeNotificationDrawer = closeNotificationDrawer;
+window.toggleNotificationDrawer = toggleNotificationDrawer;
+window.switchNotifFilter = switchNotifFilter;
+window.handleNotificationClick = handleNotificationClick;
+window.markAllNotificationsAsRead = markAllNotificationsAsRead;
+window.clearAllNotifications = clearAllNotifications;
+window.deleteNotificationItem = deleteNotificationItem;
+window.setNotifThreshold = setNotifThreshold;
+window.saveNotificationPreferences = saveNotificationPreferences;
+window.triggerTestNotification = triggerTestNotification;
+window.enablePushNotifications = enablePushNotifications;
+window.dismissPushBanner = dismissPushBanner;
+window.fetchNotifications = fetchNotifications;
 
 

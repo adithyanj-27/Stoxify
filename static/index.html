@@ -371,6 +371,17 @@
         <span class="btn-auth-text">Login / Register</span>
       </button>
 
+      <!-- Notification Bell Button -->
+      <div class="notification-bell-wrapper" id="navNotificationWrapper">
+        <button class="icon-btn notification-bell-btn" id="navNotificationBtn" onclick="toggleNotificationDrawer()" title="Notifications" aria-label="Notifications">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          </svg>
+          <span class="notification-badge" id="notificationBadge" style="display: none;">0</span>
+        </button>
+      </div>
+
       <!-- Theme Toggle Button -->
       <button class="icon-btn" onclick="toggleTheme()" title="Toggle Dark/Light Mode">
         <svg id="themeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -3364,6 +3375,98 @@
           <button class="btn-subtle" style="width: 100%; justify-content: center; padding: 0.65rem; font-size: 0.85rem; font-weight: 700;" onclick="closeLoginModal(); navigateTo('/onboarding');">
             Open Demat Account (Paperless 60s)
           </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Center Drawer Overlay -->
+  <div class="notification-drawer-overlay" id="notificationDrawerOverlay" style="display: none;" onclick="if(event.target===this)closeNotificationDrawer()">
+    <div class="notification-drawer" id="notificationDrawer" role="dialog" aria-modal="true" aria-labelledby="notifDrawerTitle">
+      <div class="notif-drawer-header">
+        <div class="notif-header-title-row">
+          <div class="notif-title-group">
+            <h3 id="notifDrawerTitle">Notifications</h3>
+            <span class="notif-unread-pill" id="notifUnreadPill" style="display: none;">0 new</span>
+          </div>
+          <div class="notif-header-actions">
+            <button class="notif-action-btn" id="notifMarkAllReadBtn" onclick="markAllNotificationsAsRead()" title="Mark all as read">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              <span>Read all</span>
+            </button>
+            <button class="notif-action-btn danger" id="notifClearAllBtn" onclick="clearAllNotifications()" title="Clear all notifications">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+              <span>Clear</span>
+            </button>
+            <button class="notif-close-btn" onclick="closeNotificationDrawer()" aria-label="Close notifications">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Push Permission Banner -->
+        <div class="notif-push-banner" id="notifPushBanner" style="display: none;">
+          <div class="notif-push-banner-content">
+            <div class="notif-push-banner-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00D09C" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+              </svg>
+            </div>
+            <div class="notif-push-banner-text">
+              <strong>Enable Price Alerts</strong>
+              <span>Get notified on sharp moves (&plusmn;3%) in your watchlist & holdings</span>
+            </div>
+          </div>
+          <div class="notif-push-banner-actions">
+            <button class="btn-enable-push" onclick="enablePushNotifications()">Enable</button>
+            <button class="btn-dismiss-push" onclick="dismissPushBanner()">Later</button>
+          </div>
+        </div>
+
+        <!-- Filter Tabs -->
+        <div class="notif-tabs-bar">
+          <button class="notif-tab active" id="notifTabAll" onclick="switchNotifFilter('all')">
+            All <span class="notif-tab-badge" id="notifTabBadgeAll">0</span>
+          </button>
+          <button class="notif-tab" id="notifTabUnread" onclick="switchNotifFilter('unread')">
+            Unread <span class="notif-tab-badge" id="notifTabBadgeUnread">0</span>
+          </button>
+          <button class="notif-tab" id="notifTabSettings" onclick="switchNotifFilter('settings')">
+            Settings
+          </button>
+        </div>
+      </div>
+
+      <!-- Notification Items Body -->
+      <div class="notif-drawer-body" id="notifDrawerBody">
+        <div class="notif-list" id="notifListContainer">
+          <!-- Dynamically populated -->
+        </div>
+
+        <!-- Settings Pane (hidden by default) -->
+        <div class="notif-settings-pane" id="notifSettingsPane" style="display: none;">
+          <div class="notif-settings-group">
+            <label class="notif-setting-item">
+              <div class="notif-setting-text">
+                <span class="notif-setting-title">Drastic Price Change Alerts</span>
+                <span class="notif-setting-desc">Alert when watchlist or holdings move sharply</span>
+              </div>
+              <input type="checkbox" id="notifSettingPriceAlerts" onchange="saveNotificationPreferences()" checked>
+            </label>
+            <div class="notif-setting-threshold">
+              <span class="notif-setting-title">Trigger Threshold Percentage</span>
+              <div class="notif-threshold-buttons">
+                <button type="button" class="notif-threshold-btn" data-threshold="2.0" onclick="setNotifThreshold(2.0)">±2.0%</button>
+                <button type="button" class="notif-threshold-btn active" data-threshold="3.0" onclick="setNotifThreshold(3.0)">±3.0%</button>
+                <button type="button" class="notif-threshold-btn" data-threshold="5.0" onclick="setNotifThreshold(5.0)">±5.0%</button>
+              </div>
+            </div>
+            <button class="btn-test-notif" onclick="triggerTestNotification()">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              Send Test Alert Now
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -207,6 +207,10 @@ def reconcile_users_with_supabase(force: bool = False):
                         cur.execute("DELETE FROM ipo_bids WHERE user_id = ?", (gid,))
                         cur.execute("DELETE FROM bank_transactions WHERE user_id = ?", (gid,))
                         cur.execute("DELETE FROM wallet_transactions WHERE user_id = ?", (gid,))
+                        cur.execute("DELETE FROM notifications WHERE user_id = ?", (gid,))
+                        cur.execute("DELETE FROM price_alert_tracker WHERE user_id = ?", (gid,))
+                        cur.execute("DELETE FROM push_subscriptions WHERE user_id = ?", (gid,))
+                        cur.execute("DELETE FROM user_notification_settings WHERE user_id = ?", (gid,))
                         cur.execute("DELETE FROM users WHERE id = ?", (gid,))
                     conn.commit()
                     print(f"[Supabase Sync] Cleaned up {len(ghost_ids)} orphaned users from SQLite: {ghost_ids}")
@@ -703,6 +707,64 @@ def init_db():
             status TEXT NOT NULL DEFAULT 'APPLIED',
             upi_id TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # 10. Notifications table (In-app history, drastic price alerts, order status)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL DEFAULT 'default',
+            title TEXT NOT NULL,
+            message TEXT NOT NULL,
+            type TEXT NOT NULL DEFAULT 'PRICE_ALERT',
+            symbol TEXT,
+            asset_type TEXT DEFAULT 'STOCK',
+            change_pct REAL DEFAULT 0.0,
+            price REAL DEFAULT 0.0,
+            action_url TEXT,
+            is_read INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, id DESC)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(user_id, is_read)")
+
+    # 11. Price Alert Tracker (de-duplication & smart cooldown for drastic changes)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS price_alert_tracker (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            symbol TEXT NOT NULL,
+            last_alert_pct REAL NOT NULL,
+            last_alert_price REAL NOT NULL,
+            last_alert_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, symbol)
+        )
+    """)
+
+    # 12. PWA Web Push Subscriptions
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS push_subscriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            endpoint TEXT NOT NULL UNIQUE,
+            p256dh TEXT NOT NULL,
+            auth TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id)")
+
+    # 13. Notification Settings (Preferences per user)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS user_notification_settings (
+            user_id TEXT PRIMARY KEY,
+            price_alerts_enabled INTEGER NOT NULL DEFAULT 1,
+            threshold_pct REAL NOT NULL DEFAULT 3.0,
+            sound_enabled INTEGER NOT NULL DEFAULT 1,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
 
@@ -4019,6 +4081,10 @@ def delete_user(user_id: str) -> bool:
     cursor.execute("DELETE FROM ipo_bids WHERE user_id = ?", (user_id,))
     cursor.execute("DELETE FROM bank_transactions WHERE user_id = ?", (user_id,))
     cursor.execute("DELETE FROM wallet_transactions WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM notifications WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM price_alert_tracker WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM push_subscriptions WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM user_notification_settings WHERE user_id = ?", (user_id,))
     cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
     conn.commit()
     conn.close()
@@ -4670,4 +4736,375 @@ def auto_square_off_intraday(user_id: Optional[str] = None) -> Dict[str, Any]:
             "cancelled_orders": cancelled_orders,
             "squared_off_positions": squared_off_positions
         }
+
+
+# ==============================================================================
+# --- Notification & Web Push Services ---
+# ==============================================================================
+
+def add_notification(
+    user_id: str,
+    title: str,
+    message: str,
+    type: str = "PRICE_ALERT",
+    symbol: Optional[str] = None,
+    asset_type: str = "STOCK",
+    change_pct: float = 0.0,
+    price: float = 0.0,
+    action_url: Optional[str] = None
+) -> int:
+    """Insert a new in-app notification record and return its ID."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO notifications (user_id, title, message, type, symbol, asset_type, change_pct, price, action_url, is_read)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+    """, (
+        user_id or "default",
+        title,
+        message,
+        type,
+        symbol,
+        asset_type,
+        float(change_pct or 0.0),
+        float(price or 0.0),
+        action_url or (f"/stock/{symbol}" if symbol else None)
+    ))
+    notif_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return notif_id
+
+
+def get_notifications(
+    user_id: str = "default",
+    limit: int = 50,
+    offset: int = 0,
+    unread_only: bool = False
+) -> Dict[str, Any]:
+    """Retrieve notifications for a user, sorted newest-first, along with total and unread counts."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    uid = user_id or "default"
+
+    # Count total unread
+    cursor.execute("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0", (uid,))
+    unread_count = cursor.fetchone()[0]
+
+    # Query items
+    if unread_only:
+        cursor.execute("""
+            SELECT id, user_id, title, message, type, symbol, asset_type, change_pct, price, action_url, is_read, created_at
+            FROM notifications
+            WHERE user_id = ? AND is_read = 0
+            ORDER BY id DESC
+            LIMIT ? OFFSET ?
+        """, (uid, limit, offset))
+    else:
+        cursor.execute("""
+            SELECT id, user_id, title, message, type, symbol, asset_type, change_pct, price, action_url, is_read, created_at
+            FROM notifications
+            WHERE user_id = ?
+            ORDER BY id DESC
+            LIMIT ? OFFSET ?
+        """, (uid, limit, offset))
+
+    rows = cursor.fetchall()
+    notifications = [dict(r) for r in rows]
+
+    cursor.execute("SELECT COUNT(*) FROM notifications WHERE user_id = ?", (uid,))
+    total_count = cursor.fetchone()[0]
+
+    conn.close()
+    return {
+        "notifications": notifications,
+        "unread_count": unread_count,
+        "total": total_count,
+        "limit": limit,
+        "offset": offset
+    }
+
+
+def mark_notification_read(
+    user_id: str = "default",
+    notification_id: Optional[int] = None,
+    mark_all: bool = False
+) -> bool:
+    """Mark a specific notification or all notifications as read."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    uid = user_id or "default"
+    if mark_all:
+        cursor.execute("UPDATE notifications SET is_read = 1 WHERE user_id = ?", (uid,))
+    elif notification_id is not None:
+        cursor.execute("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?", (notification_id, uid))
+    else:
+        conn.close()
+        return False
+    conn.commit()
+    conn.close()
+    return True
+
+
+def delete_notification(
+    user_id: str = "default",
+    notification_id: Optional[int] = None,
+    delete_all: bool = False
+) -> bool:
+    """Delete a single notification or clear all notifications for a user."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    uid = user_id or "default"
+    if delete_all:
+        cursor.execute("DELETE FROM notifications WHERE user_id = ?", (uid,))
+    elif notification_id is not None:
+        cursor.execute("DELETE FROM notifications WHERE id = ? AND user_id = ?", (notification_id, uid))
+    else:
+        conn.close()
+        return False
+    conn.commit()
+    conn.close()
+    return True
+
+
+def save_push_subscription(user_id: str, endpoint: str, p256dh: str, auth: str) -> bool:
+    """Persist or update a user's PWA push subscription."""
+    if not endpoint or not p256dh or not auth:
+        return False
+    conn = get_connection()
+    cursor = conn.cursor()
+    uid = user_id or "default"
+    cursor.execute("""
+        INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, updated_at)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(endpoint) DO UPDATE SET
+            user_id = excluded.user_id,
+            p256dh = excluded.p256dh,
+            auth = excluded.auth,
+            updated_at = CURRENT_TIMESTAMP
+    """, (uid, endpoint, p256dh, auth))
+    conn.commit()
+    conn.close()
+    return True
+
+
+def delete_push_subscription(endpoint: str, user_id: Optional[str] = None) -> bool:
+    """Remove an expired or unsubscribed push endpoint."""
+    if not endpoint:
+        return False
+    conn = get_connection()
+    cursor = conn.cursor()
+    if user_id:
+        cursor.execute("DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?", (endpoint, user_id))
+    else:
+        cursor.execute("DELETE FROM push_subscriptions WHERE endpoint = ?", (endpoint,))
+    conn.commit()
+    conn.close()
+    return True
+
+
+def get_user_push_subscriptions(user_id: str) -> List[Dict[str, Any]]:
+    """Return all active push subscriptions for a user."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, user_id, endpoint, p256dh, auth, created_at
+        FROM push_subscriptions
+        WHERE user_id = ?
+    """, (user_id or "default",))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_notification_settings(user_id: str) -> Dict[str, Any]:
+    """Retrieve user alert preferences, or sensible defaults."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    uid = user_id or "default"
+    cursor.execute("SELECT price_alerts_enabled, threshold_pct, sound_enabled FROM user_notification_settings WHERE user_id = ?", (uid,))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return {
+            "price_alerts_enabled": bool(row["price_alerts_enabled"]),
+            "threshold_pct": float(row["threshold_pct"]),
+            "sound_enabled": bool(row["sound_enabled"])
+        }
+    return {
+        "price_alerts_enabled": True,
+        "threshold_pct": 3.0,
+        "sound_enabled": True
+    }
+
+
+def update_notification_settings(
+    user_id: str,
+    price_alerts_enabled: Optional[bool] = None,
+    threshold_pct: Optional[float] = None,
+    sound_enabled: Optional[bool] = None
+) -> Dict[str, Any]:
+    """Update user alert settings."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    uid = user_id or "default"
+    current = get_notification_settings(uid)
+    pa = current["price_alerts_enabled"] if price_alerts_enabled is None else bool(price_alerts_enabled)
+    th = current["threshold_pct"] if threshold_pct is None else max(0.5, min(25.0, float(threshold_pct)))
+    snd = current["sound_enabled"] if sound_enabled is None else bool(sound_enabled)
+
+    cursor.execute("""
+        INSERT INTO user_notification_settings (user_id, price_alerts_enabled, threshold_pct, sound_enabled, updated_at)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(user_id) DO UPDATE SET
+            price_alerts_enabled = excluded.price_alerts_enabled,
+            threshold_pct = excluded.threshold_pct,
+            sound_enabled = excluded.sound_enabled,
+            updated_at = CURRENT_TIMESTAMP
+    """, (uid, 1 if pa else 0, th, 1 if snd else 0))
+    conn.commit()
+    conn.close()
+    return {
+        "price_alerts_enabled": pa,
+        "threshold_pct": th,
+        "sound_enabled": snd
+    }
+
+
+def get_monitored_symbols_by_user() -> Dict[str, Dict[str, Any]]:
+    """
+    Returns all symbols monitored across active users from watchlists & holdings.
+    Returns:
+        {
+            symbol: {
+                "name": str,
+                "asset_type": str,
+                "users": [
+                    {"user_id": str, "source": "WATCHLIST"|"HOLDINGS", "threshold_pct": float}
+                ]
+            }
+        }
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    symbol_map: Dict[str, Dict[str, Any]] = {}
+
+    # 1. Fetch user notification preferences map
+    cursor.execute("SELECT user_id, price_alerts_enabled, threshold_pct FROM user_notification_settings")
+    settings_map = {
+        row["user_id"]: {
+            "enabled": bool(row["price_alerts_enabled"]),
+            "threshold": float(row["threshold_pct"])
+        }
+        for row in cursor.fetchall()
+    }
+
+    # 2. Watchlist items
+    cursor.execute("SELECT user_id, symbol, name, asset_type FROM watchlist")
+    for row in cursor.fetchall():
+        uid = row["user_id"]
+        pref = settings_map.get(uid, {"enabled": True, "threshold": 3.0})
+        if not pref["enabled"]:
+            continue
+        sym = row["symbol"]
+        if sym not in symbol_map:
+            symbol_map[sym] = {"name": row["name"], "asset_type": row["asset_type"], "users": []}
+        symbol_map[sym]["users"].append({
+            "user_id": uid,
+            "source": "WATCHLIST",
+            "threshold_pct": pref["threshold"]
+        })
+
+    # 3. Holdings items
+    cursor.execute("SELECT user_id, symbol, name, asset_type FROM holdings WHERE quantity > 0")
+    for row in cursor.fetchall():
+        uid = row["user_id"]
+        pref = settings_map.get(uid, {"enabled": True, "threshold": 3.0})
+        if not pref["enabled"]:
+            continue
+        sym = row["symbol"]
+        if sym not in symbol_map:
+            symbol_map[sym] = {"name": row["name"], "asset_type": row["asset_type"], "users": []}
+        # Check if already added for this user
+        existing_uids = [u["user_id"] for u in symbol_map[sym]["users"]]
+        if uid in existing_uids:
+            for u in symbol_map[sym]["users"]:
+                if u["user_id"] == uid:
+                    u["source"] = "WATCHLIST & HOLDINGS"
+        else:
+            symbol_map[sym]["users"].append({
+                "user_id": uid,
+                "source": "HOLDINGS",
+                "threshold_pct": pref["threshold"]
+            })
+
+    conn.close()
+    return symbol_map
+
+
+def can_and_record_price_alert(
+    user_id: str,
+    symbol: str,
+    current_pct: float,
+    current_price: float,
+    threshold_pct: float = 3.0,
+    cooldown_seconds: int = 7200
+) -> bool:
+    """
+    Check if a drastic price change notification should be fired for this symbol & user.
+    Prevents alert spam via a smart cooldown and threshold expansion check:
+    1. Returns False if absolute change < threshold_pct.
+    2. If never notified before: saves record and returns True.
+    3. If previously notified:
+       - Returns True if cooldown_seconds (default 2 hrs) elapsed.
+       - Returns True if price moved by another +2.0% or -2.0% further in magnitude.
+       - Returns True if movement direction reversed (was +3%, now -3%).
+       - Otherwise returns False (suppressed).
+    """
+    if abs(current_pct) < threshold_pct:
+        return False
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT last_alert_pct, last_alert_price, strftime('%s', last_alert_at) as alert_ts
+        FROM price_alert_tracker
+        WHERE user_id = ? AND symbol = ?
+    """, (user_id, symbol))
+    row = cursor.fetchone()
+
+    should_alert = False
+    now_ts = int(time.time())
+
+    if not row:
+        should_alert = True
+    else:
+        last_pct = float(row["last_alert_pct"])
+        last_ts = int(row["alert_ts"]) if row["alert_ts"] else 0
+        time_elapsed = now_ts - last_ts
+
+        # Direction flip (e.g. was +3.5%, now -3.1%)
+        direction_flipped = (last_pct > 0 and current_pct < 0) or (last_pct < 0 and current_pct > 0)
+
+        # Significant delta expansion (e.g. alert sent at 3.0%, now at 5.5%)
+        pct_expanded = abs(current_pct - last_pct) >= 2.0
+
+        if time_elapsed >= cooldown_seconds or direction_flipped or pct_expanded:
+            should_alert = True
+
+    if should_alert:
+        cursor.execute("""
+            INSERT INTO price_alert_tracker (user_id, symbol, last_alert_pct, last_alert_price, last_alert_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(user_id, symbol) DO UPDATE SET
+                last_alert_pct = excluded.last_alert_pct,
+                last_alert_price = excluded.last_alert_price,
+                last_alert_at = CURRENT_TIMESTAMP
+        """, (user_id, symbol, current_pct, current_price))
+        conn.commit()
+
+    conn.close()
+    return should_alert
 

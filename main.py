@@ -29,12 +29,15 @@ from database import (
     apply_ipo, get_ipo_bids, cancel_ipo_bid,
     get_capital_gains_tax_report, get_sector_allocation, resolve_stock_sector,
     transfer_bank_to_wallet, withdraw_wallet_to_bank, get_bank_account_details,
-    get_wallet_transactions, get_connection
+    get_wallet_transactions, get_connection,
+    add_notification, get_notifications, mark_notification_read, delete_notification,
+    save_push_subscription, delete_push_subscription, get_notification_settings, update_notification_settings
 )
 import market_service
 import market_hours
 import fo_service
 import ipo_service
+import notifications
 import security
 from datetime import datetime, timezone, timedelta
 
@@ -124,6 +127,7 @@ def startup():
         t_explore.start()
         t_indices = threading.Thread(target=market_service.get_indices, daemon=True, name="stoxify-warm-indices")
         t_indices.start()
+        notifications.start_price_alert_worker()
     except Exception:
         pass
 
@@ -213,7 +217,9 @@ def verify_session_token(token: Optional[str]) -> Optional[str]:
     return user_id
 
 
-def _request_token(request: Request) -> Optional[str]:
+def _request_token(request: Optional[Request]) -> Optional[str]:
+    if not request:
+        return None
     header = request.headers.get("authorization") or ""
     if header.lower().startswith("bearer "):
         return header[7:].strip()
@@ -2034,6 +2040,140 @@ def api_sector_allocation(request: Request):
 
     return get_sector_allocation(uid, price_lookup=lambda h: price_by_symbol.get(h["symbol"]))
 
+
+# --- Notification & Web Push API Endpoints ---
+
+class NotificationMarkReadRequest(BaseModel):
+    id: Optional[int] = None
+    mark_all: Optional[bool] = False
+
+class NotificationSettingsRequest(BaseModel):
+    price_alerts_enabled: Optional[bool] = None
+    threshold_pct: Optional[float] = None
+    sound_enabled: Optional[bool] = None
+
+class PushSubscribeRequest(BaseModel):
+    endpoint: str
+    keys: Dict[str, str]
+
+class PushUnsubscribeRequest(BaseModel):
+    endpoint: str
+
+class PushTestRequest(BaseModel):
+    symbol: Optional[str] = "RELIANCE.NS"
+    change_pct: Optional[float] = 3.85
+
+@app.get("/api/notifications")
+@app.get("/notifications/list")
+def api_get_notifications(
+    request: Request,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    unread_only: bool = Query(False)
+):
+    uid = get_user_id(request) or "default"
+    clean_limit = int(limit.default if hasattr(limit, "default") else (limit or 50))
+    clean_offset = int(offset.default if hasattr(offset, "default") else (offset or 0))
+    clean_unread = bool(unread_only.default if hasattr(unread_only, "default") else unread_only)
+    return get_notifications(uid, limit=clean_limit, offset=clean_offset, unread_only=clean_unread)
+
+@app.post("/api/notifications/mark-read")
+def api_mark_notification_read(req: NotificationMarkReadRequest, request: Request):
+    uid = get_user_id(request) or "default"
+    success = mark_notification_read(uid, notification_id=req.id, mark_all=bool(req.mark_all))
+    unread = get_notifications(uid, limit=1).get("unread_count", 0)
+    return {"success": success, "unread_count": unread}
+
+@app.delete("/api/notifications/{notification_id}")
+def api_delete_notification(notification_id: int, request: Request):
+    uid = get_user_id(request) or "default"
+    success = delete_notification(uid, notification_id=notification_id)
+    return {"success": success}
+
+@app.delete("/api/notifications")
+def api_clear_all_notifications(request: Request):
+    uid = get_user_id(request) or "default"
+    success = delete_notification(uid, delete_all=True)
+    return {"success": success}
+
+@app.get("/api/notifications/settings")
+def api_get_notification_settings(request: Request):
+    uid = get_user_id(request) or "default"
+    return get_notification_settings(uid)
+
+@app.post("/api/notifications/settings")
+def api_update_notification_settings(req: NotificationSettingsRequest, request: Request):
+    uid = get_user_id(request) or "default"
+    updated = update_notification_settings(
+        uid,
+        price_alerts_enabled=req.price_alerts_enabled,
+        threshold_pct=req.threshold_pct,
+        sound_enabled=req.sound_enabled
+    )
+    return {"success": True, "settings": updated}
+
+@app.get("/api/push/public-key")
+def api_get_push_public_key():
+    key = notifications.get_vapid_public_key()
+    return {"public_key": key}
+
+@app.post("/api/push/subscribe")
+def api_push_subscribe(req: PushSubscribeRequest, request: Request):
+    uid = get_user_id(request) or "default"
+    p256dh = req.keys.get("p256dh", "")
+    auth = req.keys.get("auth", "")
+    if not req.endpoint or not p256dh or not auth:
+        raise HTTPException(status_code=400, detail="Invalid push subscription keys")
+    success = save_push_subscription(uid, req.endpoint, p256dh, auth)
+    return {"success": success}
+
+@app.post("/api/push/unsubscribe")
+def api_push_unsubscribe(req: PushUnsubscribeRequest, request: Request):
+    uid = get_user_id(request) or "default"
+    success = delete_push_subscription(req.endpoint, user_id=uid)
+    return {"success": success}
+
+@app.post("/api/push/test")
+def api_push_test(req: PushTestRequest, request: Request):
+    uid = get_user_id(request) or "default"
+    sym = req.symbol or "RELIANCE.NS"
+    pct = float(req.change_pct or 3.85)
+    
+    quote = {}
+    try:
+        quote = market_service.get_stock_quote(sym)
+    except Exception:
+        pass
+    price = float(quote.get("price") or 2940.0)
+    name = quote.get("name") or sym.replace(".NS", "")
+    
+    sign = "+" if pct > 0 else ""
+    direction_emoji = "📈" if pct > 0 else "📉"
+    direction_word = "surged" if pct > 0 else "dropped"
+    
+    clean_sym = sym.replace(".NS", "").replace(".BO", "")
+    title = f"{direction_emoji} Drastic Change: {clean_sym} is {sign}{pct:.2f}%"
+    msg = f"{name} {direction_word} to ₹{price:,.2f} in your watchlist. Tap to view chart & details."
+    
+    notif_id = notifications.dispatch_notification(
+        user_id=uid,
+        title=title,
+        message=msg,
+        type="PRICE_ALERT",
+        symbol=sym,
+        asset_type="STOCK",
+        change_pct=pct,
+        price=price,
+        action_url=f"/stock/{sym}"
+    )
+    return {"success": True, "notification_id": notif_id, "title": title, "message": msg}
+
+@app.post("/api/notifications/trigger-scan")
+def api_trigger_scan():
+    dispatched = notifications.scan_and_dispatch_price_alerts()
+    return {"success": True, "count": len(dispatched), "alerts": dispatched}
+
+
 # --- Single Page Application (SPA) Deep-Linking Browser Routes ---
 @app.get("/explore")
 @app.get("/fo")
@@ -2042,6 +2182,7 @@ def api_sector_allocation(request: Request):
 @app.get("/positions")
 @app.get("/orders")
 @app.get("/watchlist")
+@app.get("/notifications")
 @app.get("/onboarding")
 @app.get("/login")
 @app.get("/stock/{symbol}")

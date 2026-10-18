@@ -21,6 +21,8 @@ npm-debug.log*
 # Database & Vercel local build
 *.db
 *.db-journal
+*.db-wal
+*.db-shm
 .vercel/
 
 # OS / IDE

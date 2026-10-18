@@ -108,3 +108,65 @@ DROP POLICY IF EXISTS "Allow public full access to holdings" ON public.holdings;
 DROP POLICY IF EXISTS "Allow public full access to positions" ON public.positions;
 DROP POLICY IF EXISTS "Allow public full access to orders" ON public.orders;
 DROP POLICY IF EXISTS "Allow public full access to watchlist" ON public.watchlist;
+
+-- ---------------------------------------------------------------------------
+-- Notifications, Price Alerts & Web Push Subscriptions
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS public.notifications (
+    id BIGSERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'PRICE_ALERT',
+    symbol TEXT,
+    asset_type TEXT DEFAULT 'STOCK',
+    change_pct NUMERIC(8, 2) DEFAULT 0.0,
+    price NUMERIC(15, 2) DEFAULT 0.0,
+    action_url TEXT,
+    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS notifications_user_idx ON public.notifications (user_id, id DESC);
+CREATE INDEX IF NOT EXISTS notifications_user_unread_idx ON public.notifications (user_id, is_read);
+
+CREATE TABLE IF NOT EXISTS public.price_alert_tracker (
+    id BIGSERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    symbol TEXT NOT NULL,
+    last_alert_pct NUMERIC(8, 2) NOT NULL,
+    last_alert_price NUMERIC(15, 2) NOT NULL,
+    last_alert_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT unique_user_symbol_alert UNIQUE (user_id, symbol)
+);
+
+CREATE TABLE IF NOT EXISTS public.push_subscriptions (
+    id BIGSERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    endpoint TEXT NOT NULL UNIQUE,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS push_subscriptions_user_idx ON public.push_subscriptions (user_id);
+
+CREATE TABLE IF NOT EXISTS public.user_notification_settings (
+    user_id TEXT PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
+    price_alerts_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    threshold_pct NUMERIC(5, 2) NOT NULL DEFAULT 3.0,
+    sound_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.price_alert_tracker ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_notification_settings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow public full access to notifications" ON public.notifications;
+DROP POLICY IF EXISTS "Allow public full access to price_alert_tracker" ON public.price_alert_tracker;
+DROP POLICY IF EXISTS "Allow public full access to push_subscriptions" ON public.push_subscriptions;
+DROP POLICY IF EXISTS "Allow public full access to user_notification_settings" ON public.user_notification_settings;
