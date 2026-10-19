@@ -721,9 +721,9 @@ body {
   background: var(--bg-card);
   color: var(--text-secondary);
   border-radius: var(--radius-full);
-  font-size: 0.74rem;
-  font-weight: 600;
-  padding: 0.25rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 0.32rem 0.85rem;
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
@@ -736,18 +736,18 @@ body {
 }
 
 .search-tab-pill.active {
-  background: var(--brand-cyan-bg);
-  border-color: rgba(14, 165, 233, 0.5);
-  color: var(--brand-cyan);
-  font-weight: 700;
+  background: rgba(0, 208, 156, 0.14);
+  border-color: #00D09C;
+  color: #00D09C;
+  font-weight: 600;
 }
 
 .search-highlight {
   background: transparent;
-  color: var(--brand-cyan);
+  color: #00D09C;
   font-weight: 800;
   text-decoration: underline;
-  text-decoration-color: rgba(14, 165, 233, 0.45);
+  text-decoration-color: rgba(0, 208, 156, 0.45);
   text-underline-offset: 2px;
 }
 
@@ -759,18 +759,19 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.73rem;
+  font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-  margin-bottom: 0.55rem;
+  letter-spacing: 0.06em;
+  color: #94A3B8;
+  margin-bottom: 0.65rem;
+  padding: 0 0.15rem;
 }
 
 .search-clear-recent-btn {
   background: none;
   border: none;
-  color: var(--brand-cyan);
+  color: #00D09C;
   font-size: 0.72rem;
   font-weight: 600;
   cursor: pointer;
@@ -783,19 +784,41 @@ body {
   opacity: 0.85;
 }
 
+.search-recent-list {
+  display: flex;
+  flex-direction: column;
+}
+
 .search-recent-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.55rem 0.65rem;
-  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.4rem;
+  border-bottom: 1px solid var(--border-subtle);
   cursor: pointer;
-  transition: var(--transition);
-  margin-bottom: 3px;
+  transition: background 0.15s ease;
 }
 
-.search-recent-item:hover, .search-recent-item.selected {
+.search-recent-item:last-child {
+  border-bottom: none;
+}
+
+.search-recent-item:hover, .search-recent-item.selected, .search-recent-item:active {
   background: var(--bg-elevated);
+}
+
+.search-recent-icon {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
 }
 
 .search-recent-remove {
@@ -803,7 +826,7 @@ body {
   border: none;
   color: var(--text-muted);
   font-size: 0.88rem;
-  padding: 3px 7px;
+  padding: 4px 8px;
   cursor: pointer;
   border-radius: 4px;
   transition: all 0.15s ease;
@@ -814,7 +837,6 @@ body {
   background: rgba(239, 68, 68, 0.12);
 }
 
-.search-trending-chips,
 .search-discovery-chips {
   display: flex;
   flex-wrap: wrap;
@@ -822,28 +844,70 @@ body {
   margin-top: 0.4rem;
 }
 
-.search-trending-chip,
 .search-discovery-chip {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  background: var(--bg-elevated);
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-full);
-  padding: 0.32rem 0.75rem;
-  font-size: 0.76rem;
-  font-weight: 600;
-  color: var(--text-primary);
+  border-radius: 20px;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.15s ease;
+  white-space: nowrap;
 }
 
-.search-trending-chip:hover,
-.search-discovery-chip:hover {
-  border-color: var(--brand-cyan);
-  color: var(--brand-cyan);
-  background: var(--brand-cyan-bg);
+.search-discovery-chip:hover,
+.search-discovery-chip:active {
+  border-color: #00D09C;
+  color: #00D09C;
+  background: rgba(0, 208, 156, 0.08);
   transform: translateY(-1px);
+}
+
+.search-trending-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.search-trending-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.72rem 0.4rem;
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.search-trending-row:last-child {
+  border-bottom: none;
+}
+
+.search-trending-row:hover,
+.search-trending-row:active {
+  background: var(--bg-elevated);
+}
+
+.search-trending-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-trending-sub {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 2px;
 }
 
 .search-item {
@@ -3011,7 +3075,7 @@ body.pwa-installed #mobileInstallBanner {
     bottom: 0;
     width: 100vw;
     height: 100dvh;
-    background: var(--bg-main);
+    background: #0B0E14;
     z-index: 99999;
     display: none;
     flex-direction: column;
@@ -3037,15 +3101,15 @@ body.pwa-installed #mobileInstallBanner {
     align-items: center;
     gap: 0.5rem;
     padding: 0.65rem 0.85rem;
-    background: var(--bg-card);
-    border-bottom: 1px solid var(--border-subtle);
+    background: #0F131C;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     flex-shrink: 0;
   }
 
   .mobile-search-back-btn {
-    width: 42px;
-    height: 42px;
-    min-width: 42px;
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
     border-radius: 50%;
     background: transparent;
     border: none;
@@ -3060,15 +3124,15 @@ body.pwa-installed #mobileInstallBanner {
   }
 
   .mobile-search-back-btn:active {
-    background: var(--bg-elevated);
+    background: rgba(255, 255, 255, 0.08);
   }
 
   .mobile-search-input-box {
     flex: 1;
     display: flex;
     align-items: center;
-    background: var(--bg-elevated);
-    border: 1.5px solid var(--border-subtle);
+    background: #161A23;
+    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: var(--radius-full);
     height: 44px;
     padding: 0 0.85rem;
@@ -3077,9 +3141,9 @@ body.pwa-installed #mobileInstallBanner {
   }
 
   .mobile-search-input-box:focus-within {
-    border-color: var(--brand-cyan);
-    background: var(--bg-card);
-    box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.18);
+    border-color: #00D09C;
+    background: #181C26;
+    box-shadow: 0 0 0 2px rgba(0, 208, 156, 0.15);
   }
 
   .mobile-search-input-box input {
@@ -3091,7 +3155,7 @@ body.pwa-installed #mobileInstallBanner {
     font-size: 16px !important; /* Prevents auto zoom on mobile */
     color: var(--text-primary);
     font-weight: 500;
-    caret-color: var(--brand-cyan);
+    caret-color: #00D09C;
   }
 
   .mobile-search-input-box input::placeholder {
@@ -3100,8 +3164,8 @@ body.pwa-installed #mobileInstallBanner {
   }
 
   .mobile-search-tabs-container {
-    background: var(--bg-card);
-    border-bottom: 1px solid var(--border-subtle);
+    background: #0F131C;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     padding: 0.5rem 0.85rem;
     flex-shrink: 0;
     overflow-x: auto;

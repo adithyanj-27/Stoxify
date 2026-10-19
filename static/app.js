@@ -7257,23 +7257,23 @@ const SEARCH_CATEGORY_TABS = [
 ];
 
 const SEARCH_THEME_CHIPS = [
-  { label: '⚡ NIFTY 50', query: 'NIFTY 50', cat: 'INDEX' },
-  { label: '🏦 Banking', query: 'bank', cat: 'STOCK' },
-  { label: '🛡️ Defense', query: 'defence', cat: 'STOCK' },
-  { label: '💻 IT Sector', query: 'it', cat: 'STOCK' },
-  { label: '🥇 Gold & Silver', query: 'gold etf', cat: 'ETF' },
-  { label: '📈 Flexi Cap MFs', query: 'flexi cap', cat: 'MUTUAL_FUND' },
-  { label: '⚡ Top F&O Options', query: 'nifty ce', cat: 'FO' }
+  { label: 'NIFTY 50', query: 'NIFTY 50', cat: 'INDEX' },
+  { label: 'Banking', query: 'bank', cat: 'STOCK' },
+  { label: 'Defense', query: 'defence', cat: 'STOCK' },
+  { label: 'IT Sector', query: 'it', cat: 'STOCK' },
+  { label: 'Gold & Silver', query: 'gold etf', cat: 'ETF' },
+  { label: 'Flexi Cap MFs', query: 'flexi cap', cat: 'MUTUAL_FUND' },
+  { label: 'Top F&O Options', query: 'nifty ce', cat: 'FO' }
 ];
 
 const TRENDING_SEARCHES = [
   { symbol: 'NIFTY 50', name: 'NIFTY 50', asset_type: 'INDEX', subtext: 'Index • NIFTY 50', sector: 'Index', price: 22622.7, change_pct: -0.44, exchange: 'INDEX' },
   { symbol: 'SENSEX', name: 'BSE SENSEX', asset_type: 'INDEX', subtext: 'Index • SENSEX', sector: 'Index', price: 72781.89, change_pct: -0.34, exchange: 'INDEX' },
   { symbol: 'BANK NIFTY', name: 'BANK NIFTY', asset_type: 'INDEX', subtext: 'Index • BANK NIFTY', sector: 'Index', price: 55316.0, change_pct: -0.30, exchange: 'INDEX' },
-  { symbol: 'RELIANCE.NS', name: 'Reliance Industries', asset_type: 'STOCK', subtext: 'Stock • RELIANCE', sector: 'Energy', price: 1187.0, change_pct: 0.42, exchange: 'NSE' },
-  { symbol: 'TATAPOWER.NS', name: 'Tata Power Company Ltd', asset_type: 'STOCK', subtext: 'Stock • TATAPOWER', sector: 'Energy', price: 359.0, change_pct: 1.15, exchange: 'NSE' },
-  { symbol: 'HDFCBANK.NS', name: 'HDFC Bank Ltd', asset_type: 'STOCK', subtext: 'Stock • HDFCBANK', sector: 'Banking', price: 708.7, change_pct: -0.65, exchange: 'NSE' },
-  { symbol: 'GOLDBEES.NS', name: 'Nippon India ETF Gold BeES', asset_type: 'ETF', subtext: 'ETF • GOLDBEES', sector: 'Gold', price: 125.75, change_pct: 0.79, exchange: 'NSE' },
+  { symbol: 'RELIANCE.NS', name: 'Reliance Industries', asset_type: 'STOCK', subtext: 'NSE • RELIANCE', sector: 'Energy', price: 1187.0, change_pct: 0.42, exchange: 'NSE' },
+  { symbol: 'TATAPOWER.NS', name: 'Tata Power Company Ltd', asset_type: 'STOCK', subtext: 'NSE • TATAPOWER', sector: 'Energy', price: 359.0, change_pct: 1.15, exchange: 'NSE' },
+  { symbol: 'HDFCBANK.NS', name: 'HDFC Bank Ltd', asset_type: 'STOCK', subtext: 'NSE • HDFCBANK', sector: 'Banking', price: 708.7, change_pct: -0.65, exchange: 'NSE' },
+  { symbol: 'GOLDBEES.NS', name: 'Nippon India ETF Gold BeES', asset_type: 'ETF', subtext: 'NSE • ETF • GOLDBEES', sector: 'Gold', price: 125.75, change_pct: 0.79, exchange: 'NSE' },
   { symbol: '122639', name: 'Parag Parikh Flexi Cap Fund', asset_type: 'MUTUAL_FUND', subtext: 'Mutual Fund • Flexi Cap', sector: 'Flexi Cap', price: 88.84, change_pct: 0.85, exchange: 'AMFI' },
   { symbol: 'NIFTY22550CE', name: 'NIFTY 22550 Call', asset_type: 'FO', subtext: 'F&O • Call CE • Exp Weekly', sector: 'Derivatives', price: 129.5, change_pct: 4.2, exchange: 'NSE NFO' }
 ];
@@ -7299,18 +7299,41 @@ function highlightSearchMatch(text, query) {
   return escaped.replace(regex, '<mark class="search-highlight">$1</mark>');
 }
 
+function getBadgeClass(assetType) {
+  const type = (assetType || '').toUpperCase();
+  if (type === 'FO' || type === 'OPTION') return 'fo';
+  if (type === 'INDEX') return 'index';
+  if (type === 'MUTUAL_FUND') return 'mf';
+  if (type === 'ETF') return 'etf';
+  return 'stock';
+}
+
+function filterTrendingByCategory() {
+  if (!searchActiveCategory || searchActiveCategory === 'ALL') return TRENDING_SEARCHES;
+  return TRENDING_SEARCHES.filter(t => {
+    const type = (t.asset_type || '').toUpperCase();
+    if (searchActiveCategory === 'STOCK') return type === 'STOCK' || type === 'EQUITY';
+    if (searchActiveCategory === 'FO') return type === 'FO' || type === 'OPTION';
+    if (searchActiveCategory === 'MUTUAL_FUND') return type === 'MUTUAL_FUND';
+    if (searchActiveCategory === 'ETF') return type === 'ETF';
+    if (searchActiveCategory === 'INDEX') return type === 'INDEX' || (t.symbol || '').startsWith('^');
+    return true;
+  });
+}
+
 function formatSearchSubtitle(r) {
   if (!r) return '';
-  if (r.subtext && (r.subtext.startsWith('Stock •') || r.subtext.startsWith('ETF •') || r.subtext.startsWith('Index •') || r.subtext.startsWith('Mutual Fund •') || r.subtext.startsWith('F&O •') || r.subtext.startsWith('NEW •'))) {
+  if (r.subtext && (r.subtext.startsWith('Stock •') || r.subtext.startsWith('ETF •') || r.subtext.startsWith('Index •') || r.subtext.startsWith('Mutual Fund •') || r.subtext.startsWith('F&O •') || r.subtext.startsWith('NEW •') || r.subtext.startsWith('NSE •') || r.subtext.startsWith('BSE •'))) {
     return r.subtext;
   }
   const cleanSym = (r.symbol || '').replace('.NS', '').replace('.BO', '').replace('^', '').toUpperCase();
   const type = (r.asset_type || 'STOCK').toUpperCase();
+  const exch = r.exchange || 'NSE';
   if (type === 'MUTUAL_FUND') return `Mutual Fund • ${r.subtext ? r.subtext.replace('Mutual Fund • ', '') : (r.sector || 'Direct Plan')}`;
-  if (type === 'ETF') return `ETF • ${cleanSym}`;
+  if (type === 'ETF') return `${exch} • ETF • ${cleanSym}`;
   if (type === 'INDEX') return `Index • ${cleanSym}`;
   if (type === 'FO') return `F&O • ${cleanSym}`;
-  return `Stock • ${cleanSym}`;
+  return `${exch} • ${cleanSym}`;
 }
 
 function getRecentSearches() {
@@ -7328,9 +7351,15 @@ function saveRecentSearch(item) {
     let recent = getRecentSearches();
     const cleanSym = (item.symbol || '').replace('.NS', '').replace('.BO', '').replace('^', '').toUpperCase();
     recent = recent.filter(r => (r.symbol || '').replace('.NS', '').replace('.BO', '').replace('^', '').toUpperCase() !== cleanSym);
+    
+    let cleanName = (item.name || item.symbol || '').trim();
+    if (cleanName.endsWith('.NS') || cleanName.endsWith('.BO')) {
+      cleanName = cleanName.replace(/\.(NS|BO)$/i, '');
+    }
+
     recent.unshift({
       symbol: item.symbol,
-      name: item.name || item.symbol,
+      name: cleanName,
       asset_type: item.asset_type || 'STOCK',
       subtext: formatSearchSubtitle(item),
       sector: item.sector || '',
@@ -7475,26 +7504,37 @@ function renderDesktopZeroState() {
   let recentHtml = '';
   if (recent.length > 0) {
     recentHtml = `
-      <div style="margin-bottom: 0.85rem;">
+      <div style="margin-bottom: 1.15rem;">
         <div class="search-zero-heading">
           <span>Recent Searches</span>
           <button type="button" class="search-clear-recent-btn" onclick="clearRecentSearches(event)">Clear All</button>
         </div>
-        <div>
+        <div class="search-recent-list">
           ${recent.map((r, idx) => {
             const hasPrice = r.price !== null && r.price !== undefined && !isNaN(r.price) && r.price > 0;
             const isPos = (r.change_pct || 0) >= 0;
+            const displayName = (r.name || r.symbol || '').replace(/\.(NS|BO)$/i, '');
             return `
               <div class="search-recent-item" data-index="${idx}" onclick="selectSearchResult('${r.symbol}', '${r.asset_type}')">
-                <div style="display: flex; align-items: center; gap: 0.65rem; min-width: 0;">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--text-muted); flex-shrink: 0;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                  <div style="min-width: 0;">
-                    <div style="font-weight: 600; font-size: 0.84rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(r.name)}</div>
-                    <div style="font-size: 0.72rem; color: var(--text-muted);">${escapeHtml(formatSearchSubtitle(r))}</div>
+                <div style="display: flex; align-items: center; gap: 0.65rem; min-width: 0; flex: 1;">
+                  <div class="search-recent-icon" style="width: 28px; height: 28px; min-width: 28px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                  </div>
+                  <div style="min-width: 0; flex: 1;">
+                    <div style="font-weight: 600; font-size: 0.86rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary);">${escapeHtml(displayName)}</div>
+                    <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 1px;">${escapeHtml(formatSearchSubtitle(r))}</div>
                   </div>
                 </div>
-                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                  ${hasPrice ? `<span style="font-size: 0.78rem; font-weight: 700; color: ${isPos ? 'var(--accent-green)' : 'var(--danger-red)'};">${isPos ? '+' : ''}${formatNumber(r.change_pct)}%</span>` : ''}
+                <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0;">
+                  ${hasPrice ? `
+                    <div style="text-align: right;">
+                      <div style="font-size: 0.82rem; font-weight: 600; color: var(--text-primary); font-variant-numeric: tabular-nums;">${formatINR(r.price)}</div>
+                      <div style="font-size: 0.7rem; font-weight: 600; color: ${isPos ? 'var(--accent-green)' : 'var(--danger-red)'}; font-variant-numeric: tabular-nums;">${isPos ? '+' : ''}${formatNumber(r.change_pct)}%</div>
+                    </div>
+                  ` : ''}
                   <button type="button" class="search-recent-remove" onclick="removeRecentSearch('${r.symbol}', event)" title="Remove">✕</button>
                 </div>
               </div>
@@ -7506,7 +7546,7 @@ function renderDesktopZeroState() {
   }
 
   const themesHtml = `
-    <div style="margin-bottom: 0.85rem;">
+    <div style="margin-bottom: 1.15rem;">
       <div class="search-zero-heading">
         <span>Popular Themes &amp; Sectors</span>
       </div>
@@ -7520,20 +7560,36 @@ function renderDesktopZeroState() {
     </div>
   `;
 
+  const filteredTrending = filterTrendingByCategory();
+
   const trendingHtml = `
     <div>
       <div class="search-zero-heading">
-        <span>Trending in India ⚡</span>
+        <span>Trending on Groww 🔥</span>
       </div>
-      <div class="search-trending-chips">
-        ${TRENDING_SEARCHES.map(t => {
+      <div class="search-trending-list">
+        ${filteredTrending.map(t => {
           const isPos = (t.change_pct || 0) >= 0;
+          const cleanSym = (t.symbol || '').replace('.NS', '').replace('.BO', '').replace('^', '').toUpperCase();
           return `
-            <button type="button" class="search-trending-chip" onclick="selectSearchResult('${t.symbol}', '${t.asset_type}')">
-              <span>${escapeHtml(t.name)}</span>
-              ${t.price ? `<span style="font-size: 0.68rem; font-weight: 700; color: ${isPos ? 'var(--accent-green)' : 'var(--danger-red)'};">${isPos ? '+' : ''}${t.change_pct}%</span>` : ''}
-              <span class="badge-exchange ${t.exchange.toLowerCase()}" style="font-size: 0.62rem; padding: 0 4px;">${t.exchange}</span>
-            </button>
+            <div class="search-trending-row" onclick="selectSearchResult('${t.symbol}', '${t.asset_type}')">
+              <div style="display: flex; align-items: center; gap: 0.65rem; min-width: 0; flex: 1;">
+                ${renderAssetAvatar(t, t.asset_type)}
+                <div style="min-width: 0; overflow: hidden; flex: 1;">
+                  <div class="search-trending-name" style="font-size: 0.86rem;">${escapeHtml(t.name)}</div>
+                  <div class="search-trending-sub">
+                    <span class="search-badge ${getBadgeClass(t.asset_type)}">${escapeHtml(t.exchange || t.asset_type)}</span>
+                    <span>${cleanSym}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="search-price-col">
+                <span class="search-item-price" style="font-size: 0.84rem;">${formatINR(t.price)}</span>
+                <span style="font-size: 0.7rem; font-weight: 600; color: ${isPos ? 'var(--accent-green)' : 'var(--danger-red)'};">
+                  ${isPos ? '+' : ''}${formatNumber(t.change_pct)}%
+                </span>
+              </div>
+            </div>
           `;
         }).join('')}
       </div>
@@ -7829,27 +7885,38 @@ function renderMobileZeroState() {
   let recentHtml = '';
   if (recent.length > 0) {
     recentHtml = `
-      <div style="margin-bottom: 1.25rem;">
+      <div style="margin-bottom: 1.5rem;">
         <div class="search-zero-heading">
           <span>Recent Searches</span>
           <button type="button" class="search-clear-recent-btn" onclick="clearRecentSearches(event)">Clear All</button>
         </div>
-        <div>
+        <div class="search-recent-list">
           ${recent.map((r, idx) => {
             const hasPrice = r.price !== null && r.price !== undefined && !isNaN(r.price) && r.price > 0;
             const isPos = (r.change_pct || 0) >= 0;
+            const displayName = (r.name || r.symbol || '').replace(/\.(NS|BO)$/i, '');
             return `
               <div class="search-recent-item" data-index="${idx}" onclick="selectSearchResult('${r.symbol}', '${r.asset_type}')">
-                <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--text-muted); flex-shrink: 0;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                  <div style="min-width: 0;">
-                    <div style="font-weight: 700; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(r.name)}</div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(formatSearchSubtitle(r))}</div>
+                <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0; flex: 1;">
+                  <div class="search-recent-icon">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                  </div>
+                  <div style="min-width: 0; flex: 1;">
+                    <div style="font-weight: 600; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary);">${escapeHtml(displayName)}</div>
+                    <div style="font-size: 0.74rem; color: var(--text-muted); margin-top: 1px;">${escapeHtml(formatSearchSubtitle(r))}</div>
                   </div>
                 </div>
-                <div style="display: flex; align-items: center; gap: 0.6rem;">
-                  ${hasPrice ? `<span style="font-size: 0.8rem; font-weight: 700; color: ${isPos ? 'var(--accent-green)' : 'var(--danger-red)'};">${isPos ? '+' : ''}${formatNumber(r.change_pct)}%</span>` : ''}
-                  <button type="button" class="search-recent-remove" onclick="removeRecentSearch('${r.symbol}', event)" title="Remove" style="padding: 6px 10px;">✕</button>
+                <div style="display: flex; align-items: center; gap: 0.65rem; flex-shrink: 0;">
+                  ${hasPrice ? `
+                    <div style="text-align: right;">
+                      <div style="font-size: 0.88rem; font-weight: 600; color: var(--text-primary); font-variant-numeric: tabular-nums;">${formatINR(r.price)}</div>
+                      <div style="font-size: 0.74rem; font-weight: 600; color: ${isPos ? 'var(--accent-green)' : 'var(--danger-red)'}; font-variant-numeric: tabular-nums;">${isPos ? '+' : ''}${formatNumber(r.change_pct)}%</div>
+                    </div>
+                  ` : ''}
+                  <button type="button" class="search-recent-remove" onclick="removeRecentSearch('${r.symbol}', event)" title="Remove">✕</button>
                 </div>
               </div>
             `;
@@ -7860,13 +7927,13 @@ function renderMobileZeroState() {
   }
 
   const themesHtml = `
-    <div style="margin-bottom: 1.25rem;">
+    <div style="margin-bottom: 1.5rem;">
       <div class="search-zero-heading">
         <span>Explore Sectors &amp; Themes</span>
       </div>
       <div class="search-discovery-chips">
         ${SEARCH_THEME_CHIPS.map(c => `
-          <button type="button" class="search-discovery-chip" onclick="triggerMobileTheme('${c.query}', '${c.cat}')" style="padding: 0.4rem 0.85rem; font-size: 0.82rem;">
+          <button type="button" class="search-discovery-chip" onclick="triggerMobileTheme('${c.query}', '${c.cat}')">
             <span>${c.label}</span>
           </button>
         `).join('')}
@@ -7874,20 +7941,36 @@ function renderMobileZeroState() {
     </div>
   `;
 
+  const filteredTrending = filterTrendingByCategory();
+
   const trendingHtml = `
     <div>
       <div class="search-zero-heading">
-        <span>Trending on Stoxify 🔥</span>
+        <span>Trending on Groww 🔥</span>
       </div>
-      <div class="search-trending-chips">
-        ${TRENDING_SEARCHES.map(t => {
+      <div class="search-trending-list">
+        ${filteredTrending.map(t => {
           const isPos = (t.change_pct || 0) >= 0;
+          const cleanSym = (t.symbol || '').replace('.NS', '').replace('.BO', '').replace('^', '').toUpperCase();
           return `
-            <button type="button" class="search-trending-chip" onclick="selectSearchResult('${t.symbol}', '${t.asset_type}')" style="padding: 0.4rem 0.85rem;">
-              <span>${escapeHtml(t.name)}</span>
-              ${t.price ? `<span style="font-size: 0.72rem; font-weight: 700; color: ${isPos ? 'var(--accent-green)' : 'var(--danger-red)'};">${isPos ? '+' : ''}${t.change_pct}%</span>` : ''}
-              <span class="badge-exchange ${t.exchange.toLowerCase()}" style="font-size: 0.65rem; padding: 1px 5px;">${t.exchange}</span>
-            </button>
+            <div class="search-trending-row" onclick="selectSearchResult('${t.symbol}', '${t.asset_type}')">
+              <div style="display: flex; align-items: center; gap: 0.85rem; min-width: 0; flex: 1;">
+                ${renderAssetAvatar(t, t.asset_type)}
+                <div style="min-width: 0; overflow: hidden; flex: 1;">
+                  <div class="search-trending-name">${escapeHtml(t.name)}</div>
+                  <div class="search-trending-sub">
+                    <span class="search-badge ${getBadgeClass(t.asset_type)}">${escapeHtml(t.exchange || t.asset_type)}</span>
+                    <span>${cleanSym}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="search-price-col">
+                <span class="search-item-price">${formatINR(t.price)}</span>
+                <span style="font-size: 0.74rem; font-weight: 600; color: ${isPos ? 'var(--accent-green)' : 'var(--danger-red)'};">
+                  ${isPos ? '+' : ''}${formatNumber(t.change_pct)}%
+                </span>
+              </div>
+            </div>
           `;
         }).join('')}
       </div>
