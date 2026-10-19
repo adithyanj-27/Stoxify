@@ -78,6 +78,69 @@ _POOL = concurrent.futures.ThreadPoolExecutor(max_workers=32)
 
 # --- Dynamic Newly Listed Stocks & Catalog Synchronization ---
 _NEW_LISTINGS_FILE = os.path.join(BASE_DIR, "data", "newly_listed_stocks.json")
+_NSE_EQUITIES_FILE = os.path.join(BASE_DIR, "data", "nse_equities.json")
+_NSE_EQUITIES_LIST: List[Dict[str, Any]] = []
+_NSE_EQUITIES_BY_SYMBOL: Dict[str, Dict[str, Any]] = {}
+
+def load_nse_equities() -> List[Dict[str, Any]]:
+    global _NSE_EQUITIES_LIST, _NSE_EQUITIES_BY_SYMBOL
+    if _NSE_EQUITIES_LIST:
+        return _NSE_EQUITIES_LIST
+
+    if os.path.exists(_NSE_EQUITIES_FILE):
+        try:
+            with open(_NSE_EQUITIES_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, list) and data:
+                    _NSE_EQUITIES_LIST = data
+                    _NSE_EQUITIES_BY_SYMBOL = {
+                        item["clean_symbol"].upper(): item for item in data if "clean_symbol" in item
+                    }
+                    return _NSE_EQUITIES_LIST
+        except Exception as e:
+            logger.warning(f"Error reading nse_equities.json: {e}")
+
+    try:
+        url = "https://archives.nseindia.com/content/equities/EQUITY_L.csv"
+        r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=6.0)
+        if r.status_code == 200:
+            import csv, io
+            reader = csv.DictReader(io.StringIO(r.text))
+            items = []
+            for row in reader:
+                sym = row.get("SYMBOL", "").strip().upper()
+                name = row.get("NAME OF COMPANY", "").strip()
+                series = row.get(" SERIES", row.get("SERIES", "")).strip()
+                isin = row.get(" ISIN NUMBER", row.get("ISIN NUMBER", "")).strip()
+                if sym and name:
+                    items.append({
+                        "symbol": f"{sym}.NS",
+                        "name": name,
+                        "clean_symbol": sym,
+                        "series": series,
+                        "isin": isin
+                    })
+            if items:
+                _NSE_EQUITIES_LIST = items
+                _NSE_EQUITIES_BY_SYMBOL = {
+                    item["clean_symbol"].upper(): item for item in items
+                }
+                try:
+                    os.makedirs(os.path.dirname(_NSE_EQUITIES_FILE), exist_ok=True)
+                    with open(_NSE_EQUITIES_FILE, "w", encoding="utf-8") as f:
+                        json.dump(items, f, indent=2)
+                except Exception:
+                    pass
+                return _NSE_EQUITIES_LIST
+    except Exception as e:
+        logger.debug(f"Auto-fetch NSE equities failed: {e}")
+
+    return _NSE_EQUITIES_LIST
+
+def get_nse_equity_by_symbol(symbol: str) -> Optional[Dict[str, Any]]:
+    load_nse_equities()
+    clean = symbol.upper().replace(".NS", "").replace(".BO", "").strip()
+    return _NSE_EQUITIES_BY_SYMBOL.get(clean)
 
 def _infer_sector(name: str, symbol: str, default: str = "NSE IPO") -> str:
     n = (name + " " + symbol).upper()
@@ -446,6 +509,12 @@ def get_stock_available_exchanges(symbol_or_clean: str, known_symbol: str = "") 
             _EXCHANGE_LISTINGS_CACHE[clean_sym] = ["NSE", "BSE"]
             return ["NSE", "BSE"]
 
+    # Check NSE equity directory
+    nse_match = get_nse_equity_by_symbol(clean_sym)
+    if nse_match:
+        _EXCHANGE_LISTINGS_CACHE[clean_sym] = ["NSE", "BSE"]
+        return ["NSE", "BSE"]
+
     # Check ETF catalog
     for e in ETF_MASTER:
         e_clean = e["symbol"].upper().replace(".NS", "").replace(".BO", "").strip()
@@ -529,8 +598,13 @@ def _refresh_stock_quote_sync(formatted_symbol: str) -> Dict[str, Any]:
         sector = matched.get("sector", "NSE Equities")
         asset_type = "STOCK"
     else:
-        name = formatted_symbol.replace(".NS", "").replace(".BO", "")
-        sector = "NSE Equities"
+        nse_entry = get_nse_equity_by_symbol(formatted_symbol)
+        if nse_entry:
+            name = nse_entry["name"]
+            sector = _infer_sector(nse_entry["name"], nse_entry["clean_symbol"], default="NSE Equities")
+        else:
+            name = formatted_symbol.replace(".NS", "").replace(".BO", "")
+            sector = "NSE Equities"
         asset_type = "STOCK"
 
     try:
@@ -892,6 +966,7 @@ _BASE_STOCK_PRICES = {
     "TRENT.NS": (2621.6, -13.4, -0.51),
     "JIOFIN.NS": (216.88, -0.68, -0.31),
     "ETERNAL.NS": (320.0, -7.85, -2.39),
+    "AVANTIFEED.NS": (722.95, 0.35, 0.05),
     "HAL.NS": (4668.0, 118.7, 2.61),
     "BEL.NS": (388.3, 0.55, 0.14),
     "MAZDOCK.NS": (2113.0, 25.9, 1.24),
@@ -1100,6 +1175,13 @@ def _get_default_stock_quote(symbol: str, name: str = "", sector: str = "NSE Equ
 
     clean_sym = symbol.replace(".NS", "").replace(".BO", "").upper()
     matched = next((s for s in get_combined_stock_master() if s["symbol"] == symbol or s["symbol"].replace(".NS", "").replace(".BO", "").upper() == clean_sym), None)
+    if not matched:
+        nse_entry = get_nse_equity_by_symbol(clean_sym)
+        if nse_entry:
+            matched = {
+                "name": nse_entry["name"],
+                "sector": _infer_sector(nse_entry["name"], clean_sym, default="NSE Equities")
+            }
     n = name or (matched["name"] if matched else clean_sym)
     sec = sector or (matched["sector"] if matched else "NSE Equities")
 
@@ -1914,6 +1996,63 @@ def search_market(query: str) -> List[Dict[str, Any]]:
                 "is_new_listing": s.get("is_new_listing", False)
             })
 
+    # 2.1 Complete Official NSE Equities Directory (All ~2,600+ listed Indian equities)
+    q_words = [w for w in q.split() if w]
+    for eq in load_nse_equities():
+        clean_s = eq["clean_symbol"].upper()
+        if clean_s in seen_clean_stocks:
+            continue
+        sym_clean = clean_s.lower()
+        name_clean = eq["name"].lower()
+
+        # Ultra-fast pre-check (<2ms) before deep scoring
+        is_candidate = (
+            q in sym_clean or
+            q in name_clean or
+            sym_clean.startswith(q) or
+            name_clean.startswith(q) or
+            any(w.startswith(q) for w in name_clean.split()) or
+            (len(q_words) > 1 and all(any(qw in w for w in [sym_clean] + name_clean.split()) for qw in q_words))
+        )
+        if not is_candidate and len(q) >= 3:
+            if sym_clean[:2] == q[:2] or name_clean[:2] == q[:2]:
+                is_candidate = True
+
+        if not is_candidate:
+            continue
+
+        score = _score_search_candidate(q, sym_clean, name_clean, [], is_index=False)
+        if score > 0:
+            seen_clean_stocks.add(clean_s)
+            sym_unified = f"{clean_s}.NS"
+            seen_symbols.add(sym_unified)
+
+            local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_s}.png")
+            logo_url = f"/static/logos/{clean_s}.png" if os.path.exists(local_logo) else f"https://images.financialmodelingprep.com/symbol/{clean_s}.NS.png"
+            sec = _infer_sector(eq["name"], clean_s, default="NSE Equities")
+
+            cq = get_cached(f"quote_{sym_unified}") or _CACHE.get(f"quote_{sym_unified}")
+            base_p = _BASE_STOCK_PRICES.get(sym_unified) or _BASE_STOCK_PRICES.get(clean_s)
+            price = cq.get("price") if (cq and cq.get("price")) else (base_p[0] if base_p else None)
+            chg = cq.get("change") if (cq and cq.get("price")) else (base_p[1] if base_p else None)
+            chg_pct = cq.get("change_pct") if (cq and cq.get("price")) else (base_p[2] if base_p else None)
+
+            candidates.append({
+                "score": score,
+                "symbol": sym_unified,
+                "name": eq["name"],
+                "asset_type": "STOCK",
+                "exchange": "NSE",
+                "price": price,
+                "change": chg,
+                "change_pct": chg_pct,
+                "logo_url": logo_url,
+                "subtext": f"Stock • {clean_s}",
+                "sector": sec,
+                "badge": "Stock",
+                "is_new_listing": False
+            })
+
     # 3. ETFs
     for e in ETF_MASTER:
         sym_clean = e["symbol"].lower().replace(".ns", "").replace(".bo", "").strip()
@@ -2060,75 +2199,120 @@ def search_market(query: str) -> List[Dict[str, Any]]:
     top_stock_score = max([c["score"] for c in stock_candidates], default=0)
 
     if (len(stock_candidates) < 3 or top_stock_score < 700) and len(q) >= 2:
+        # A. Groww Indian market search (matches 100% of Indian NSE & BSE stocks, scrip codes, and brand names)
         try:
-            yf_search_url = f"https://query2.finance.yahoo.com/v1/finance/search?q={requests.utils.quote(query.strip())}&quotesCount=10&newsCount=0"
-            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-            r = requests.get(yf_search_url, headers=headers, timeout=0.85)
-            if r.status_code == 200:
-                quotes = r.json().get("quotes", [])
-                quotes.sort(key=lambda x: 0 if x.get("symbol", "").upper().endswith(".NS") else 1)
-                for item in quotes:
-                    sym = item.get("symbol", "")
-                    exchange = item.get("exchange", "")
-                    if sym.startswith("0P") or "=" in sym or sym.startswith("^"):
+            groww_url = f"https://groww.in/v1/api/search/v1/entity?app=false&entity_type=stocks&page=0&q={requests.utils.quote(query.strip())}&size=10"
+            gr = requests.get(groww_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}, timeout=1.2)
+            if gr.status_code == 200:
+                content = gr.json().get("content", [])
+                for item in content:
+                    nse_code = (item.get("nse_scrip_code") or "").strip().upper()
+                    bse_code = str(item.get("bse_scrip_code") or "").strip()
+                    title = item.get("title") or item.get("company_short_name") or nse_code
+
+                    if nse_code:
+                        clean_sym = nse_code
+                        unified_sym = f"{nse_code}.NS"
+                        exch = "NSE"
+                    elif bse_code and bse_code != "None":
+                        clean_sym = bse_code
+                        unified_sym = f"{bse_code}.BO"
+                        exch = "BSE"
+                    else:
                         continue
-                    if sym.endswith(".NS") or sym.endswith(".BO") or exchange in ["NSI", "BSE", "NSE"]:
-                        clean_item_sym = sym.upper().replace(".NS", "").replace(".BO", "").strip()
-                        if not clean_item_sym:
+
+                    if clean_sym in seen_clean_stocks or unified_sym in seen_symbols:
+                        continue
+                    seen_clean_stocks.add(clean_sym)
+                    seen_symbols.add(unified_sym)
+
+                    ext_score = _score_search_candidate(q, clean_sym.lower(), (title or "").lower(), [], is_index=False)
+                    if ext_score <= 0:
+                        ext_score = 750 if clean_sym.startswith(q.upper()) else 600
+
+                    local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_sym}.png")
+                    logo_url = f"/static/logos/{clean_sym}.png" if os.path.exists(local_logo) else f"https://images.financialmodelingprep.com/symbol/{unified_sym}.png"
+
+                    cq = get_cached(f"quote_{unified_sym}") or _CACHE.get(f"quote_{unified_sym}")
+                    base_p = _BASE_STOCK_PRICES.get(unified_sym) or _BASE_STOCK_PRICES.get(clean_sym)
+                    price = cq.get("price") if (cq and cq.get("price")) else (base_p[0] if base_p else None)
+                    chg = cq.get("change") if (cq and cq.get("price")) else (base_p[1] if base_p else None)
+                    chg_pct = cq.get("change_pct") if (cq and cq.get("price")) else (base_p[2] if base_p else None)
+
+                    candidates.append({
+                        "score": ext_score,
+                        "symbol": unified_sym,
+                        "name": title,
+                        "asset_type": "STOCK",
+                        "exchange": exch,
+                        "price": price,
+                        "change": chg,
+                        "change_pct": chg_pct,
+                        "logo_url": logo_url,
+                        "subtext": f"{exch} • {clean_sym}",
+                        "sector": _infer_sector(title, clean_sym, default="Equity"),
+                        "badge": "Stock"
+                    })
+        except Exception as e:
+            logger.debug(f"Groww external search error: {e}")
+
+        # B. Yahoo Finance search fallback if still sparse
+        stock_candidates = [c for c in candidates if c["asset_type"] == "STOCK"]
+        if len(stock_candidates) < 3:
+            try:
+                yf_search_url = f"https://query2.finance.yahoo.com/v1/finance/search?q={requests.utils.quote(query.strip())}&quotesCount=25&newsCount=0"
+                headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+                r = requests.get(yf_search_url, headers=headers, timeout=0.85)
+                if r.status_code == 200:
+                    quotes = r.json().get("quotes", [])
+                    quotes.sort(key=lambda x: 0 if x.get("symbol", "").upper().endswith(".NS") else 1)
+                    for item in quotes:
+                        sym = item.get("symbol", "")
+                        exchange = item.get("exchange", "")
+                        if sym.startswith("0P") or "=" in sym or sym.startswith("^"):
                             continue
-                        if clean_item_sym in seen_clean_stocks or sym in seen_symbols:
-                            continue
-                        seen_clean_stocks.add(clean_item_sym)
-                        seen_symbols.add(sym)
+                        if sym.endswith(".NS") or sym.endswith(".BO") or exchange in ["NSI", "BSE", "NSE"]:
+                            clean_item_sym = sym.upper().replace(".NS", "").replace(".BO", "").strip()
+                            if not clean_item_sym:
+                                continue
+                            if clean_item_sym in seen_clean_stocks or sym in seen_symbols:
+                                continue
+                            seen_clean_stocks.add(clean_item_sym)
+                            seen_symbols.add(sym)
 
-                        short_name = item.get("shortname") or item.get("longname") or clean_item_sym
-                        unified_sym = f"{clean_item_sym}.NS"
-                        seen_symbols.add(unified_sym)
+                            short_name = item.get("shortname") or item.get("longname") or clean_item_sym
+                            unified_sym = f"{clean_item_sym}.NS"
+                            seen_symbols.add(unified_sym)
 
-                        # Intelligent relevance score for external candidates
-                        q_clean = q.strip().upper()
-                        clean_sym_upper = clean_item_sym.upper()
-                        name_upper = short_name.upper()
-                        if clean_sym_upper == q_clean:
-                            ext_score = 950
-                        elif clean_sym_upper.startswith(q_clean):
-                            ext_score = 840
-                        elif name_upper.startswith(q_clean):
-                            ext_score = 780
-                        elif any(w.startswith(q_clean) for w in name_upper.split()):
-                            ext_score = 720
-                        elif q_clean in clean_sym_upper:
-                            ext_score = 500
-                        elif q_clean in name_upper:
-                            ext_score = 420
-                        else:
-                            ext_score = 300
+                            ext_score = _score_search_candidate(q, clean_item_sym.lower(), short_name.lower(), [], is_index=False)
+                            if ext_score <= 0:
+                                ext_score = 500
 
-                        local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_item_sym}.png")
-                        logo_url = f"/static/logos/{clean_item_sym}.png" if os.path.exists(local_logo) else f"https://images.financialmodelingprep.com/symbol/{clean_item_sym}.NS.png"
+                            local_logo = os.path.join(STATIC_DIR, "logos", f"{clean_item_sym}.png")
+                            logo_url = f"/static/logos/{clean_item_sym}.png" if os.path.exists(local_logo) else f"https://images.financialmodelingprep.com/symbol/{clean_item_sym}.NS.png"
 
-                        cq = get_cached(f"quote_{unified_sym}") or _CACHE.get(f"quote_{unified_sym}")
-                        base_p = _BASE_STOCK_PRICES.get(unified_sym) or _BASE_STOCK_PRICES.get(clean_item_sym)
-                        price = cq.get("price") if (cq and cq.get("price")) else (base_p[0] if base_p else None)
-                        chg = cq.get("change") if (cq and cq.get("price")) else (base_p[1] if base_p else None)
-                        chg_pct = cq.get("change_pct") if (cq and cq.get("price")) else (base_p[2] if base_p else None)
+                            cq = get_cached(f"quote_{unified_sym}") or _CACHE.get(f"quote_{unified_sym}")
+                            base_p = _BASE_STOCK_PRICES.get(unified_sym) or _BASE_STOCK_PRICES.get(clean_item_sym)
+                            price = cq.get("price") if (cq and cq.get("price")) else (base_p[0] if base_p else None)
+                            chg = cq.get("change") if (cq and cq.get("price")) else (base_p[1] if base_p else None)
+                            chg_pct = cq.get("change_pct") if (cq and cq.get("price")) else (base_p[2] if base_p else None)
 
-                        candidates.append({
-                            "score": ext_score,
-                            "symbol": unified_sym,
-                            "name": short_name,
-                            "asset_type": "STOCK",
-                            "exchange": "NSE",
-                            "price": price,
-                            "change": chg,
-                            "change_pct": chg_pct,
-                            "logo_url": logo_url,
-                            "subtext": f"Stock • {clean_item_sym}",
-                            "sector": "Equity",
-                            "badge": "Stock"
-                        })
-        except Exception:
-            pass
+                            candidates.append({
+                                "score": ext_score,
+                                "symbol": unified_sym,
+                                "name": short_name,
+                                "asset_type": "STOCK",
+                                "exchange": "NSE",
+                                "price": price,
+                                "change": chg,
+                                "change_pct": chg_pct,
+                                "logo_url": logo_url,
+                                "subtext": f"Stock • {clean_item_sym}",
+                                "sector": "Equity",
+                                "badge": "Stock"
+                            })
+            except Exception:
+                pass
 
     # Sort descending by relevance score (so both local and external candidates rank properly)
     candidates.sort(key=lambda x: x["score"], reverse=True)

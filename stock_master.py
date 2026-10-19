@@ -128,6 +128,7 @@ STOCK_MASTER = [
     {"symbol": "GODREJCP.NS", "name": "Godrej Consumer Products Ltd", "sector": "Consumer", "aliases": ["godrej cp", "godrej consumer", "good knight"]},
     {"symbol": "KALYANKJIL.NS", "name": "Kalyan Jewellers India Ltd", "sector": "Consumer", "aliases": ["kalyan", "kalyan jewellers", "gold"]},
     {"symbol": "JUBLFOOD.NS", "name": "Jubilant FoodWorks Ltd (Domino's)", "sector": "Consumer", "aliases": ["jubilant", "dominos", "pizza"]},
+    {"symbol": "AVANTIFEED.NS", "name": "Avanti Feeds Ltd", "sector": "Consumer", "aliases": ["avanti", "avanti feeds", "avantifeed", "shrimp feed", "aquaculture"]},
     {"symbol": "INDHOTEL.NS", "name": "The Indian Hotels Co Ltd (Taj)", "sector": "Consumer", "aliases": ["indhotel", "taj", "taj hotels", "ihcl"]},
     {"symbol": "BATAINDIA.NS", "name": "Bata India Ltd", "sector": "Consumer", "aliases": ["bata", "shoes"]},
 
