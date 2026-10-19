@@ -8580,7 +8580,47 @@ const growwChartPlugin = {
       ctx.restore();
     }
 
-    // 2. Draw Interactive Vertical Crosshair Guide, Radar Pulse Glow Dot, & Time Pill
+    // 2. Draw Pulsing Live Ticker Dot at latest data point (for 1D intraday)
+    if (typeof currentChartRange !== 'undefined' && currentChartRange === '1D') {
+      const meta = chart.getDatasetMeta(0);
+      if (meta && meta.data && meta.data.length > 0) {
+        let lastEl = null;
+        for (let i = meta.data.length - 1; i >= 0; i--) {
+          const val = chart.data.datasets[0].data[i];
+          const el = meta.data[i];
+          if (val !== null && val !== undefined && !isNaN(val) && el && el.x !== undefined && el.y !== undefined) {
+            lastEl = el;
+            break;
+          }
+        }
+        if (lastEl) {
+          const x = lastEl.x;
+          const y = lastEl.y;
+          const strokeColor = chart.data.datasets[0].borderColor || '#00D09C';
+
+          ctx.save();
+          // Outer subtle glowing aura
+          ctx.beginPath();
+          ctx.arc(x, y, 6.0, 0, 2 * Math.PI);
+          ctx.fillStyle = strokeColor === '#00D09C' ? 'rgba(0, 208, 156, 0.28)' : 'rgba(235, 91, 60, 0.28)';
+          ctx.fill();
+
+          // Solid core dot
+          ctx.beginPath();
+          ctx.arc(x, y, 3.2, 0, 2 * Math.PI);
+          ctx.fillStyle = strokeColor;
+          ctx.fill();
+
+          // Contrast rim
+          ctx.lineWidth = 1.2;
+          ctx.strokeStyle = isDark ? '#0F172A' : '#FFFFFF';
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+    }
+
+    // 3. Draw Interactive Vertical Crosshair Guide, Radar Pulse Glow Dot, & Time Pill
     const activeElements = (chart.getActiveElements && chart.getActiveElements().length > 0)
       ? chart.getActiveElements()
       : (chart.tooltip?._active || []);
@@ -12404,16 +12444,31 @@ function initChartScrubbing() {
       }
     } else if (currentChartType === 'line' && pageChartInstance) {
       const chart = pageChartInstance;
-      if (!chart.chartArea || !currentChartPoints || currentChartPoints.length === 0) return;
+      if (!chart.chartArea || !chart.data.labels || chart.data.labels.length === 0) return;
 
       const area = chart.chartArea;
       const clampedX = Math.max(area.left, Math.min(area.right, x));
       const ratio = (clampedX - area.left) / Math.max(1, area.right - area.left);
-      const idx = Math.max(0, Math.min(currentChartPoints.length - 1, Math.round(ratio * (currentChartPoints.length - 1))));
+      const totalLen = chart.data.labels.length;
+      let idx = Math.max(0, Math.min(totalLen - 1, Math.round(ratio * (totalLen - 1))));
 
-      if (currentChartPoints[idx]) {
+      // Clamp to latest non-null point if dragging into future unfilled space
+      const dataArr = chart.data.datasets[0].data;
+      if (dataArr[idx] === null || dataArr[idx] === undefined) {
+        for (let k = idx; k >= 0; k--) {
+          if (dataArr[k] !== null && dataArr[k] !== undefined) {
+            idx = k;
+            break;
+          }
+        }
+      }
+
+      if (dataArr[idx] !== null && dataArr[idx] !== undefined) {
         chart.setActiveElements([{ datasetIndex: 0, index: idx }]);
         chart.update('none');
+
+        const priceEl = document.getElementById('pageAssetPrice');
+        if (priceEl) priceEl.innerText = formatINR(dataArr[idx]);
       }
     }
   }
@@ -12438,7 +12493,7 @@ function initChartScrubbing() {
   canvas.addEventListener('touchend', handleTouchEnd);
   canvas.addEventListener('touchcancel', handleTouchEnd);
 
-  // Desktop candlestick canvas hover (Chart.js handles line chart mouse hover natively with 0 lag/glitch)
+  // Desktop hover
   canvas.addEventListener('mousemove', (e) => {
     if (currentChartType === 'candle') {
       const rect = canvas.getBoundingClientRect();
@@ -12450,13 +12505,24 @@ function initChartScrubbing() {
           renderCandlestickCanvas(canvas, currentChartPoints, idx, y);
         }
       }
+    } else if (currentChartType === 'line' && pageChartInstance) {
+      const chart = pageChartInstance;
+      const elements = chart.getActiveElements ? chart.getActiveElements() : [];
+      if (elements && elements.length > 0) {
+        const idx = elements[0].index;
+        const val = chart.data.datasets[0].data[idx];
+        if (val !== null && val !== undefined) {
+          const priceEl = document.getElementById('pageAssetPrice');
+          if (priceEl) priceEl.innerText = formatINR(val);
+        }
+      }
     }
   });
   canvas.addEventListener('mouseleave', () => {
     if (currentChartType === 'candle') {
       renderCandlestickCanvas(canvas, currentChartPoints);
-      resetHeroPrice();
     }
+    resetHeroPrice();
   });
 }
 
@@ -12508,9 +12574,69 @@ function renderLineChartWithChartJs(canvas, points) {
     pageChartInstance = null;
   }
 
-  const prices = points.map(p => (p.price !== undefined ? p.price : p.value) || 0);
-  const firstVal = prices[0] || 0;
-  const lastVal = prices[prices.length - 1] || 0;
+  // 1. Session timeline mapping: For 1D, map minute candles across the full 09:15-15:30 trading session
+  let chartLabels = [];
+  let chartPrices = [];
+  let chartPointsLookup = [];
+
+  if (currentChartRange === '1D' && points.length > 0) {
+    const sessionSlots = [];
+    let h = 9, m = 15;
+    while (h < 15 || (h === 15 && m <= 30)) {
+      sessionSlots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+      m++;
+      if (m === 60) { h++; m = 0; }
+    }
+
+    const pMap = new Map();
+    let maxTimeStr = '09:15';
+    for (const p of points) {
+      const match = (p.time || '').match(/(\d{2}:\d{2})/);
+      const t = match ? match[1] : p.time;
+      if (t) {
+        pMap.set(t, p);
+        if (t > maxTimeStr && t <= '15:30') maxTimeStr = t;
+      }
+    }
+
+    const hasIntradayMatch = sessionSlots.some(s => pMap.has(s));
+    if (hasIntradayMatch) {
+      let lastVal = (points[0].price !== undefined ? points[0].price : points[0].value) || 0;
+      for (const slot of sessionSlots) {
+        chartLabels.push(slot);
+        if (slot <= maxTimeStr) {
+          const pt = pMap.get(slot);
+          if (pt) {
+            const val = (pt.price !== undefined ? pt.price : pt.value) || 0;
+            lastVal = val;
+            chartPrices.push(val);
+            chartPointsLookup.push(pt);
+          } else {
+            chartPrices.push(lastVal);
+            chartPointsLookup.push({ time: slot, price: lastVal });
+          }
+        } else {
+          // Future minutes remain null so line advances proportionally across the full trading day
+          chartPrices.push(null);
+          chartPointsLookup.push(null);
+        }
+      }
+    } else {
+      chartLabels = points.map(p => p.time);
+      chartPrices = points.map(p => (p.price !== undefined ? p.price : p.value) || 0);
+      chartPointsLookup = points;
+    }
+  } else {
+    chartLabels = points.map(p => p.time);
+    chartPrices = points.map(p => (p.price !== undefined ? p.price : p.value) || 0);
+    chartPointsLookup = points;
+  }
+
+  window.__currentSessionPoints = chartPointsLookup;
+
+  const validPrices = chartPrices.filter(v => v !== null && v !== undefined);
+  const firstVal = validPrices[0] || 0;
+  const lastVal = validPrices[validPrices.length - 1] || 0;
 
   // Accurately determine trend: 1D compares against prev_close; multi-day compares against first point
   let isPos;
@@ -12525,14 +12651,13 @@ function renderLineChartWithChartJs(canvas, points) {
   const strokeColor = isPos ? '#00D09C' : '#EB5B3C';
   const chartHeight = canvas.clientHeight || (isMobile ? 330 : 380);
 
-  // Groww Minimalist Mode on mobile: pure clean razor-sharp line without area gradient fill.
-  // On desktop: subtle radiant luminous gradient.
+  // Groww Minimalist Mode: subtle radiant luminous gradient on desktop, pure crisp line
   let gradient = 'transparent';
   if (!isMobile) {
     const grad = ctx.createLinearGradient(0, 0, 0, chartHeight);
-    grad.addColorStop(0, isPos ? 'rgba(0, 208, 156, 0.18)' : 'rgba(235, 91, 60, 0.18)');
-    grad.addColorStop(0.5, isPos ? 'rgba(0, 208, 156, 0.04)' : 'rgba(235, 91, 60, 0.04)');
-    grad.addColorStop(1, isPos ? 'rgba(0, 208, 156, 0.0)' : 'rgba(235, 91, 60, 0.0)');
+    grad.addColorStop(0, isPos ? 'rgba(0, 208, 156, 0.12)' : 'rgba(235, 91, 60, 0.12)');
+    grad.addColorStop(0.5, isPos ? 'rgba(0, 208, 156, 0.02)' : 'rgba(235, 91, 60, 0.02)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0.0)');
     gradient = grad;
   }
 
@@ -12544,29 +12669,30 @@ function renderLineChartWithChartJs(canvas, points) {
 
   const datasets = [{
     label: 'Price',
-    data: prices,
+    data: chartPrices,
     borderColor: strokeColor,
-    borderWidth: isMobile ? 1.75 : 2.0,
+    borderWidth: 2.0,
     backgroundColor: gradient,
     fill: !isMobile,
-    tension: 0.28,
+    tension: 0.02, // Crisp, authentic market tick line matching Groww
+    spanGaps: false,
     borderCapStyle: 'round',
     borderJoinStyle: 'round',
     pointRadius: 0,
-    pointHoverRadius: isMobile ? 3.5 : 5.0,
+    pointHoverRadius: 4.5,
     pointHoverBackgroundColor: strokeColor,
-    pointHoverBorderColor: isDark ? '#0F172A' : '#ffffff',
-    pointHoverBorderWidth: isMobile ? 1.8 : 2.5
+    pointHoverBorderColor: isDark ? '#000000' : '#ffffff',
+    pointHoverBorderWidth: 2.0
   }];
 
   if (activeEmas.has(20)) {
     datasets.push({
       label: '20 EMA',
-      data: calculateEMA(prices, 20),
+      data: calculateEMA(validPrices, 20),
       borderColor: '#F59E0B',
       borderWidth: 1.8,
       fill: false,
-      tension: 0.32,
+      tension: 0.1,
       borderCapStyle: 'round',
       borderJoinStyle: 'round',
       pointRadius: 0
@@ -12576,11 +12702,11 @@ function renderLineChartWithChartJs(canvas, points) {
   if (activeEmas.has(50)) {
     datasets.push({
       label: '50 EMA',
-      data: calculateEMA(prices, 50),
+      data: calculateEMA(validPrices, 50),
       borderColor: '#8B5CF6',
       borderWidth: 1.8,
       fill: false,
-      tension: 0.32,
+      tension: 0.1,
       borderCapStyle: 'round',
       borderJoinStyle: 'round',
       pointRadius: 0
@@ -12590,7 +12716,7 @@ function renderLineChartWithChartJs(canvas, points) {
   pageChartInstance = new Chart(ctx, {
     type: 'line',
     data: {
-      labels: points.map(p => p.time),
+      labels: chartLabels,
       datasets: datasets
     },
     plugins: [growwChartPlugin],
@@ -12602,8 +12728,8 @@ function renderLineChartWithChartJs(canvas, points) {
         padding: {
           left: 0,
           right: 0,
-          top: isMobile ? 12 : 8,
-          bottom: isMobile ? 8 : 0
+          top: 10,
+          bottom: 4
         }
       },
       interaction: {
@@ -12620,56 +12746,23 @@ function renderLineChartWithChartJs(canvas, points) {
           baseline: baseline
         },
         tooltip: {
-          enabled: activeEmas.size > 0,
-          mode: 'index',
-          intersect: false,
-          backgroundColor: isDark ? 'rgba(15, 23, 42, 0.94)' : 'rgba(255, 255, 255, 0.95)',
-          titleColor: isDark ? '#94A3B8' : '#64748B',
-          bodyColor: isDark ? '#F8FAFC' : '#0F172A',
-          borderColor: isDark ? '#334155' : '#E2E8F0',
-          borderWidth: 1,
-          bodyFont: { weight: '600', size: 11, family: 'Sora, sans-serif' },
-          padding: 8,
-          cornerRadius: 6,
-          displayColors: true,
-          boxWidth: 8,
-          boxHeight: 8,
-          usePointStyle: true,
-          callbacks: {
-            title: (items) => (items.length ? (points[items[0].dataIndex]?.time || items[0].label) : ''),
-            label: (item) => `${item.dataset.label}: ${formatINR(item.parsed.y)}`
-          }
+          enabled: false // Managed cleanly via growwChartPlugin crosshair & top badge
         }
       },
       scales: {
         x: { 
-          display: !isMobile,
+          display: false, // Clean, uncluttered canvas matching Groww
           border: { display: false },
           grid: { display: false },
-          ticks: {
-            display: !isMobile,
-            color: isDark ? '#64748B' : '#94A3B8',
-            font: { family: 'Sora, sans-serif', size: 10 },
-            maxTicksLimit: 6,
-            maxRotation: 0
-          }
+          ticks: { display: false }
         },
         y: { 
-          display: !isMobile,
+          display: false, // Clean, uncluttered canvas matching Groww
           position: 'right',
-          grace: isMobile ? '6%' : '8%',
+          grace: '8%',
           border: { display: false },
-          grid: { 
-            drawTicks: false,
-            color: isMobile ? 'transparent' : (isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)') 
-          },
-          ticks: {
-            display: !isMobile,
-            color: isDark ? '#64748B' : '#94A3B8',
-            padding: isMobile ? 0 : 8,
-            font: { family: 'Sora, sans-serif', size: 10.5, weight: '500' },
-            callback: (val) => formatINR(val)
-          }
+          grid: { display: false },
+          ticks: { display: false }
         }
       }
     }

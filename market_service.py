@@ -1481,7 +1481,7 @@ def _fetch_groww_chart(symbol: str, timeframe: str) -> Optional[List[Dict[str, A
 
     def _build_url(ex: str, s: str, t_frame: str) -> Optional[str]:
         u_map = {
-            "1D": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{ex}/segment/CASH/{s}/daily?intervalInMinutes=5",
+            "1D": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{ex}/segment/CASH/{s}/daily?intervalInMinutes=1",
             "1W": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{ex}/segment/CASH/{s}/weekly?intervalInMinutes=15",
             "1M": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{ex}/segment/CASH/{s}/monthly?intervalInMinutes=60",
             "3M": f"https://groww.in/v1/api/charting_service/v2/chart/exchange/{ex}/segment/CASH/{s}/monthly/v2?months=3",
@@ -1601,7 +1601,7 @@ def get_stock_chart(symbol: str, timeframe: str = "1D") -> List[Dict[str, Any]]:
     try:
         t = yf.Ticker(formatted_symbol)
         period_map = {
-            "1D": ("1d", "5m"),
+            "1D": ("1d", "1m"),
             "1W": ("5d", "15m"),
             "1M": ("1mo", "60m"),
             "3M": ("3mo", "1d"),
