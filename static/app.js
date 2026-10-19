@@ -12031,8 +12031,14 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
 
     const isPos = data.change >= 0;
     const badgeEl = document.getElementById('pageAssetChangeBadge');
-    badgeEl.className = isPos ? 'badge-positive' : 'badge-negative';
-    badgeEl.innerText = formatChange(data.change, data.change_pct);
+    if (badgeEl) {
+      badgeEl.className = isPos ? 'badge-positive' : 'badge-negative';
+      badgeEl.innerText = formatChange(data.change, data.change_pct);
+    }
+    const tfEl = document.getElementById('pageAssetChangeTf');
+    if (tfEl) {
+      tfEl.innerText = currentChartRange || '1D';
+    }
 
     // Sync mobile slide-up drawer header
     const dAvatar = document.getElementById('drawerAssetAvatar');
@@ -12345,16 +12351,50 @@ function getActiveTimeframeChange() {
   };
 }
 
-function updateHeroPriceForPoint(p) {
-  // Main stock price header remains rock-solid at live LTP and never varies when touching the chart.
-  // The touched point's price and timestamp are rendered directly on the graph's floating badge.
-  return;
+function updateHeroPriceForPoint(val, label) {
+  if (!currentPageAsset || val === undefined || val === null) return;
+  const priceEl = document.getElementById('pageAssetPrice');
+  const badgeEl = document.getElementById('pageAssetChangeBadge');
+  const tfEl = document.getElementById('pageAssetChangeTf');
+  const drawerPriceEl = document.getElementById('drawerAssetPrice');
+  const drawerBadgeEl = document.getElementById('drawerAssetChange');
+
+  if (priceEl) priceEl.innerText = formatINR(val);
+  if (drawerPriceEl) drawerPriceEl.innerText = formatINR(val);
+
+  let baseline = null;
+  if (currentChartRange === '1D') {
+    baseline = currentPageAsset.previous_close || (currentPageAsset.price - (currentPageAsset.change || 0));
+  } else if (currentChartPoints && currentChartPoints.length > 0) {
+    const firstP = currentChartPoints[0];
+    baseline = (firstP.open !== undefined ? firstP.open : (firstP.close !== undefined ? firstP.close : (firstP.price !== undefined ? firstP.price : firstP.value)));
+  }
+  if (!baseline) baseline = currentPageAsset.price - (currentPageAsset.change || 0);
+
+  if (baseline && baseline > 0) {
+    const diff = val - baseline;
+    const diffPct = (diff / baseline) * 100;
+    const isPos = diff >= 0;
+    if (badgeEl) {
+      badgeEl.className = isPos ? 'badge-positive' : 'badge-negative';
+      badgeEl.innerText = formatChange(diff, diffPct);
+    }
+    if (drawerBadgeEl) {
+      drawerBadgeEl.className = isPos ? 'badge-positive' : 'badge-negative';
+      drawerBadgeEl.innerText = formatChange(diff, diffPct);
+    }
+  }
+
+  if (tfEl) {
+    tfEl.innerText = currentChartRange || '1D';
+  }
 }
 
 function resetHeroPrice() {
   if (!currentPageAsset) return;
   const priceEl = document.getElementById('pageAssetPrice');
   const badgeEl = document.getElementById('pageAssetChangeBadge');
+  const tfEl = document.getElementById('pageAssetChangeTf');
   const drawerPriceEl = document.getElementById('drawerAssetPrice');
   const drawerBadgeEl = document.getElementById('drawerAssetChange');
 
@@ -12365,6 +12405,9 @@ function resetHeroPrice() {
   if (badgeEl) {
     badgeEl.className = tfData.isPos ? 'badge-positive' : 'badge-negative';
     badgeEl.innerText = tfData.text;
+  }
+  if (tfEl) {
+    tfEl.innerText = currentChartRange || '1D';
   }
   if (drawerBadgeEl) {
     drawerBadgeEl.className = tfData.isPos ? 'badge-positive' : 'badge-negative';
@@ -12762,9 +12805,8 @@ function initChartScrubbing() {
         }
       }
       renderCandlestickCanvas(canvas, currentChartPoints, closestIdx, y);
-      const priceEl = document.getElementById('pageAssetPrice');
-      if (priceEl && ohlc[closestIdx]) {
-        priceEl.innerText = formatINR(ohlc[closestIdx].close);
+      if (ohlc[closestIdx]) {
+        updateHeroPriceForPoint(ohlc[closestIdx].close, ohlc[closestIdx].date || ohlc[closestIdx].time);
       }
     } else if (currentChartType === 'line' && pageChartInstance) {
       const chart = pageChartInstance;
@@ -12790,9 +12832,7 @@ function initChartScrubbing() {
       if (dataArr[idx] !== null && dataArr[idx] !== undefined) {
         chart.setActiveElements([{ datasetIndex: 0, index: idx }]);
         chart.update('none');
-
-        const priceEl = document.getElementById('pageAssetPrice');
-        if (priceEl) priceEl.innerText = formatINR(dataArr[idx]);
+        updateHeroPriceForPoint(dataArr[idx], chart.data.labels[idx]);
       }
     }
   }
@@ -12835,9 +12875,8 @@ function initChartScrubbing() {
         }
       }
       renderCandlestickCanvas(canvas, currentChartPoints, closestIdx, y);
-      const priceEl = document.getElementById('pageAssetPrice');
-      if (priceEl && ohlc[closestIdx]) {
-        priceEl.innerText = formatINR(ohlc[closestIdx].close);
+      if (ohlc[closestIdx]) {
+        updateHeroPriceForPoint(ohlc[closestIdx].close, ohlc[closestIdx].date || ohlc[closestIdx].time);
       }
     } else if (currentChartType === 'line' && pageChartInstance) {
       const chart = pageChartInstance;
@@ -12846,8 +12885,7 @@ function initChartScrubbing() {
         const idx = elements[0].index;
         const val = chart.data.datasets[0].data[idx];
         if (val !== null && val !== undefined) {
-          const priceEl = document.getElementById('pageAssetPrice');
-          if (priceEl) priceEl.innerText = formatINR(val);
+          updateHeroPriceForPoint(val, chart.data.labels[idx]);
         }
       }
     }
@@ -13114,6 +13152,8 @@ async function loadPageChartTimeframe(range, btnEl = null) {
     });
   }
   currentChartRange = range;
+  const tfEl = document.getElementById('pageAssetChangeTf');
+  if (tfEl) tfEl.innerText = range;
   if (!currentPageAsset) return;
 
   const chartCard = document.querySelector('.asset-chart-card');
