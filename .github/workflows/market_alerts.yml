@@ -1,0 +1,33 @@
+name: Market Hours Price Alert Engine
+
+on:
+  schedule:
+    # Runs every 10 minutes from 09:15 AM to 03:30 PM IST (03:45 UTC to 10:00 UTC), Monday through Friday
+    - cron: '*/10 4-9 * * 1-5'
+    - cron: '45 3 * * 1-5'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab anytime
+
+jobs:
+  market-price-alerts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Scan Monitored Stocks & Dispatch Web Push Alerts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          python run_market_alert_scan.py
