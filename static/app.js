@@ -18214,6 +18214,21 @@ async function triggerTestNotification() {
   }
 }
 
+function areApplicationKeysEqual(appServerKeyBuffer, expectedKeyB64) {
+  if (!appServerKeyBuffer || !expectedKeyB64) return false;
+  try {
+    const expectedArr = urlBase64ToUint8Array(expectedKeyB64);
+    const existingArr = new Uint8Array(appServerKeyBuffer);
+    if (existingArr.byteLength !== expectedArr.byteLength) return false;
+    for (let i = 0; i < existingArr.byteLength; i++) {
+      if (existingArr[i] !== expectedArr[i]) return false;
+    }
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 async function initPushNotifications(registration) {
   if (!('Notification' in window) || !('PushManager' in window) || !registration) {
     return;
@@ -18226,11 +18241,67 @@ async function initPushNotifications(registration) {
       state.vapidPublicKey = data.public_key;
     }
 
-    const existingSub = await registration.pushManager.getSubscription();
-    if (existingSub) {
+    let existingSub = await registration.pushManager.getSubscription();
+
+    // If notification permission was granted by user:
+    if (Notification.permission === 'granted' && state.vapidPublicKey) {
+      let isKeyValid = false;
+      if (existingSub) {
+        if (existingSub.options && existingSub.options.applicationServerKey) {
+          isKeyValid = areApplicationKeysEqual(existingSub.options.applicationServerKey, state.vapidPublicKey);
+        }
+        // If subscription is signed with an old/stale VAPID key, unsubscribe cleanly
+        if (!isKeyValid) {
+          console.info('Stale push subscription VAPID key detected. Refreshing subscription...');
+          try {
+            await existingSub.unsubscribe();
+          } catch (ue) {
+            console.warn('Could not unsubscribe stale registration:', ue);
+          }
+          existingSub = null;
+        }
+      }
+
+      // If no valid subscription exists, create a new one with the master key
+      if (!existingSub) {
+        try {
+          const appServerKey = urlBase64ToUint8Array(state.vapidPublicKey);
+          existingSub = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: appServerKey
+          });
+        } catch (subErr) {
+          console.warn('Automatic push subscription renewal failed:', subErr);
+        }
+      }
+
+      // Sync active subscription to backend database
+      if (existingSub) {
+        state.pushSubscribed = true;
+        const subJson = existingSub.toJSON();
+        if (subJson && subJson.keys && subJson.endpoint) {
+          fetch('/api/push/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              endpoint: subJson.endpoint,
+              keys: {
+                p256dh: subJson.keys.p256dh,
+                auth: subJson.keys.auth
+              }
+            })
+          }).catch(err => console.warn('Push sync error:', err));
+        }
+      } else {
+        state.pushSubscribed = false;
+      }
+    } else if (existingSub) {
       state.pushSubscribed = true;
-      checkPushBannerVisibility();
+    } else {
+      state.pushSubscribed = false;
     }
+
+    checkPushBannerVisibility();
     updatePushPermissionUI();
   } catch (e) {
     console.warn('Failed to inspect push subscription:', e);
@@ -18264,6 +18335,13 @@ async function enablePushNotifications() {
     }
 
     if (state.vapidPublicKey) {
+      const existingSub = await reg.pushManager.getSubscription();
+      if (existingSub) {
+        try {
+          await existingSub.unsubscribe();
+        } catch (_) {}
+      }
+
       const applicationServerKey = urlBase64ToUint8Array(state.vapidPublicKey);
       const subscription = await reg.pushManager.subscribe({
         userVisibleOnly: true,

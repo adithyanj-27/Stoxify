@@ -13,6 +13,12 @@ import market_hours
 
 logger = logging.getLogger("stoxify.notifications")
 
+DEFAULT_VAPID_KEYS = {
+    "public_key": "BHU7aQAUOKmny28pNQWGfBJUHW2YcCi6i5C0tWxMyhtUOIvZdQIvn0cVHh5cGSdGA1TFLlCsJ2gtlSzHD2qsRkk",
+    "private_key": "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgX9M5eigC83x+/gCA\n3EbMN3skvP53KzTejDijOW4wiiKhRANCAAR1O2kAFDipp8tvKTUFhnwSVB1tmHAo\nuouQtLVsTMobVDiL2XUCL59HFR4eXBknRgNUxS5QrCdoLZUsxw9qrEZJ\n-----END PRIVATE KEY-----\n",
+    "subject": "mailto:support@stoxify.app"
+}
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
     import tempfile
@@ -50,51 +56,27 @@ def ensure_vapid_keys() -> Dict[str, str]:
             }
             return _vapid_keys_cache
 
-        # 2. Cached file on disk
-        if os.path.exists(VAPID_FILE):
-            try:
-                with open(VAPID_FILE, "r", encoding="utf-8") as f:
-                    keys = json.load(f)
-                    if keys.get("public_key") and keys.get("private_key"):
-                        _vapid_keys_cache = keys
-                        return keys
-            except Exception as e:
-                logger.warning(f"Failed to read existing VAPID file: {e}")
+        # 2. Master key file in source repo or cached file on disk
+        master_file = os.path.join(BASE_DIR, "data", "vapid_keys.json")
+        for candidate_file in [master_file, VAPID_FILE]:
+            if os.path.exists(candidate_file):
+                try:
+                    with open(candidate_file, "r", encoding="utf-8") as f:
+                        keys = json.load(f)
+                        if keys.get("public_key") and keys.get("private_key"):
+                            _vapid_keys_cache = keys
+                            return keys
+                except Exception as e:
+                    logger.warning(f"Failed to read VAPID file {candidate_file}: {e}")
 
-        # 3. Generate fresh VAPID keypair
+        # 3. Fallback to hardcoded master keypair (ensures 100% key consistency across Vercel cold starts)
+        _vapid_keys_cache = dict(DEFAULT_VAPID_KEYS)
         try:
-            from py_vapid import Vapid
-            from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
-
-            v = Vapid()
-            v.generate_keys()
-            raw_pub = v.public_key.public_bytes(Encoding.X962, PublicFormat.UncompressedPoint)
-            pub_b64 = base64.urlsafe_b64encode(raw_pub).decode().rstrip("=")
-            priv_pem = v.private_pem().decode()
-
-            keys = {
-                "public_key": pub_b64,
-                "private_key": priv_pem,
-                "subject": "mailto:support@stoxify.app"
-            }
-            try:
-                with open(VAPID_FILE, "w", encoding="utf-8") as f:
-                    json.dump(keys, f, indent=2)
-            except Exception as fe:
-                logger.warning(f"Could not persist VAPID file to disk (in-memory only): {fe}")
-
-            _vapid_keys_cache = keys
-            logger.info("Generated new persistent VAPID keypair for Web Push")
-            return keys
-        except Exception as e:
-            logger.error(f"Failed to generate VAPID keys: {e}")
-            fallback = {
-                "public_key": "",
-                "private_key": "",
-                "subject": "mailto:support@stoxify.app"
-            }
-            _vapid_keys_cache = fallback
-            return fallback
+            with open(VAPID_FILE, "w", encoding="utf-8") as f:
+                json.dump(DEFAULT_VAPID_KEYS, f, indent=2)
+        except Exception:
+            pass
+        return _vapid_keys_cache
 
 
 def get_vapid_public_key() -> str:
@@ -111,7 +93,7 @@ def send_web_push(subscription: Dict[str, Any], payload: Dict[str, Any]) -> bool
         return False
 
     try:
-        from pywebpush import webpush, WebPushException
+        from pywebpush import webpush, WebPushException, Vapid
 
         sub_info = {
             "endpoint": subscription["endpoint"],
@@ -125,10 +107,16 @@ def send_web_push(subscription: Dict[str, Any], payload: Dict[str, Any]) -> bool
         }
         data_str = json.dumps(payload)
 
+        # pywebpush requires a Vapid instance or file path. If priv_key is a PEM string, parse via Vapid.from_pem
+        if isinstance(priv_key, str) and "BEGIN PRIVATE KEY" in priv_key:
+            vapid_signer = Vapid.from_pem(priv_key.encode("utf-8"))
+        else:
+            vapid_signer = priv_key
+
         webpush(
             subscription_info=sub_info,
             data=data_str,
-            vapid_private_key=priv_key,
+            vapid_private_key=vapid_signer,
             vapid_claims=claims,
             timeout=10
         )
@@ -136,8 +124,8 @@ def send_web_push(subscription: Dict[str, Any], payload: Dict[str, Any]) -> bool
     except Exception as e:
         err_msg = str(e)
         logger.warning(f"Web push dispatch failed for {subscription.get('endpoint', '')[:40]}...: {err_msg}")
-        # Auto-remove invalid or expired subscriptions (HTTP 404 or 410 Gone)
-        if "410" in err_msg or "404" in err_msg or "NotRegistered" in err_msg or "expired" in err_msg.lower():
+        # Auto-remove invalid, expired, or forbidden subscriptions (HTTP 403, 404, 410 Gone)
+        if any(tok in err_msg.lower() for tok in ["410", "404", "403", "notregistered", "expired", "invalid", "unregistered"]):
             try:
                 database.delete_push_subscription(subscription.get("endpoint", ""))
                 logger.info(f"Removed dead push subscription endpoint: {subscription.get('endpoint', '')[:40]}")
@@ -200,9 +188,12 @@ def dispatch_notification(
             for sub in subs:
                 send_web_push(sub, push_payload)
         except Exception as ex:
-            logger.warning(f"Error in background push delivery: {ex}")
+            logger.warning(f"Error in push delivery: {ex}")
 
-    _PUSH_EXECUTOR.submit(_deliver_push)
+    if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+        _deliver_push()
+    else:
+        _PUSH_EXECUTOR.submit(_deliver_push)
     return notif_id
 
 

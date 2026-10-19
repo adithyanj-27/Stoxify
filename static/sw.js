@@ -1,5 +1,5 @@
 // Stoxify PWA Service Worker with Web Push & Offline Support
-const CACHE_NAME = 'stoxify-v2';
+const CACHE_NAME = 'stoxify-v3';
 
 // The app shell is precached so a cold offline navigation has something to serve.
 const SHELL_ASSETS = [
