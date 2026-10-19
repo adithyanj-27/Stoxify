@@ -7261,6 +7261,7 @@ const SEARCH_THEME_CHIPS = [
   { label: 'Banking', query: 'bank', cat: 'STOCK' },
   { label: 'Defense', query: 'defence', cat: 'STOCK' },
   { label: 'IT Sector', query: 'it', cat: 'STOCK' },
+  { label: 'Energy & Power', query: 'power', cat: 'STOCK' },
   { label: 'Gold & Silver', query: 'gold etf', cat: 'ETF' },
   { label: 'Flexi Cap MFs', query: 'flexi cap', cat: 'MUTUAL_FUND' },
   { label: 'Top F&O Options', query: 'nifty ce', cat: 'FO' }
@@ -7497,6 +7498,32 @@ function deduplicateResults(results) {
   return deduped;
 }
 
+function getCategoryIconSvg(label) {
+  const l = (label || '').toLowerCase();
+  if (l.includes('nifty') || l.includes('index')) {
+    return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline><polyline points="16 7 22 7 22 13"></polyline></svg>`;
+  }
+  if (l.includes('bank')) {
+    return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="21" x2="21" y2="21"></line><line x1="3" y1="10" x2="21" y2="10"></line><polyline points="5 6 12 3 19 6"></polyline><line x1="6" y1="10" x2="6" y2="21"></line><line x1="10" y1="10" x2="10" y2="21"></line><line x1="14" y1="10" x2="14" y2="21"></line><line x1="18" y1="10" x2="18" y2="21"></line></svg>`;
+  }
+  if (l.includes('defen')) {
+    return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>`;
+  }
+  if (l.includes('it') || l.includes('tech')) {
+    return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>`;
+  }
+  if (l.includes('energy') || l.includes('power')) {
+    return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>`;
+  }
+  if (l.includes('gold') || l.includes('silver')) {
+    return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M14.8 9A2 2 0 0 0 13 8h-2a2 2 0 0 0 0 4h2a2 2 0 0 1 0 4h-2a2 2 0 0 1-1.8-1"></path><path d="M12 6v2m0 8v2"></path></svg>`;
+  }
+  if (l.includes('mf') || l.includes('fund') || l.includes('cap')) {
+    return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>`;
+  }
+  return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>`;
+}
+
 function renderDesktopZeroState() {
   if (!searchDropdown) return;
   const recent = getRecentSearches();
@@ -7504,38 +7531,47 @@ function renderDesktopZeroState() {
   let recentHtml = '';
   if (recent.length > 0) {
     recentHtml = `
-      <div style="margin-bottom: 1.15rem;">
-        <div class="search-zero-heading">
-          <span>Recent Searches</span>
-          <button type="button" class="search-clear-recent-btn" onclick="clearRecentSearches(event)">Clear All</button>
+      <div style="margin-bottom: 1.35rem;">
+        <div class="search-section-header">
+          <span class="search-section-title">Recent Searches</span>
+          <button type="button" class="search-clear-btn-text" onclick="clearRecentSearches(event)">Clear all</button>
         </div>
         <div class="search-recent-list">
           ${recent.map((r, idx) => {
             const hasPrice = r.price !== null && r.price !== undefined && !isNaN(r.price) && r.price > 0;
             const isPos = (r.change_pct || 0) >= 0;
             const displayName = (r.name || r.symbol || '').replace(/\.(NS|BO)$/i, '');
+            const cleanSym = (r.symbol || '').replace('.NS', '').replace('.BO', '').replace('^', '').toUpperCase();
+            const sub = r.exchange ? `${r.exchange} • ${cleanSym}` : `NSE • ${cleanSym}`;
             return `
-              <div class="search-recent-item" data-index="${idx}" onclick="selectSearchResult('${r.symbol}', '${r.asset_type}')">
-                <div style="display: flex; align-items: center; gap: 0.65rem; min-width: 0; flex: 1;">
-                  <div class="search-recent-icon" style="width: 28px; height: 28px; min-width: 28px;">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <div class="search-list-row" data-index="${idx}" onclick="selectSearchResult('${r.symbol}', '${r.asset_type}')">
+                <div class="search-row-left">
+                  <div class="search-clock-avatar" style="width: 32px; height: 32px; min-width: 32px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                       <circle cx="12" cy="12" r="10"></circle>
                       <polyline points="12 6 12 12 16 14"></polyline>
                     </svg>
                   </div>
-                  <div style="min-width: 0; flex: 1;">
-                    <div style="font-weight: 600; font-size: 0.86rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary);">${escapeHtml(displayName)}</div>
-                    <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 1px;">${escapeHtml(formatSearchSubtitle(r))}</div>
+                  <div class="search-row-text">
+                    <div class="search-row-name" style="font-size: 0.88rem;">${escapeHtml(displayName)}</div>
+                    <div class="search-row-meta">${escapeHtml(sub)}</div>
                   </div>
                 </div>
-                <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0;">
+                <div class="search-row-right">
                   ${hasPrice ? `
-                    <div style="text-align: right;">
-                      <div style="font-size: 0.82rem; font-weight: 600; color: var(--text-primary); font-variant-numeric: tabular-nums;">${formatINR(r.price)}</div>
-                      <div style="font-size: 0.7rem; font-weight: 600; color: ${isPos ? 'var(--accent-green)' : 'var(--danger-red)'}; font-variant-numeric: tabular-nums;">${isPos ? '+' : ''}${formatNumber(r.change_pct)}%</div>
+                    <div class="search-row-price-col">
+                      <div class="search-row-price" style="font-size: 0.86rem;">${formatINR(r.price)}</div>
+                      <div class="search-row-change ${isPos ? 'pos' : 'neg'}">
+                        ${isPos ? '+' : ''}${formatNumber(r.change_pct)}%
+                      </div>
                     </div>
                   ` : ''}
-                  <button type="button" class="search-recent-remove" onclick="removeRecentSearch('${r.symbol}', event)" title="Remove">✕</button>
+                  <button type="button" class="search-remove-btn" onclick="removeRecentSearch('${r.symbol}', event)" title="Remove" aria-label="Remove">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
                 </div>
               </div>
             `;
@@ -7546,14 +7582,15 @@ function renderDesktopZeroState() {
   }
 
   const themesHtml = `
-    <div style="margin-bottom: 1.15rem;">
-      <div class="search-zero-heading">
-        <span>Popular Themes &amp; Sectors</span>
+    <div style="margin-bottom: 1.35rem;">
+      <div class="search-section-header">
+        <span class="search-section-title">Explore by Categories</span>
       </div>
-      <div class="search-discovery-chips">
+      <div class="search-category-grid">
         ${SEARCH_THEME_CHIPS.map(c => `
-          <button type="button" class="search-discovery-chip" onclick="triggerDesktopTheme('${c.query}', '${c.cat}')">
-            <span>${c.label}</span>
+          <button type="button" class="search-category-chip" onclick="triggerDesktopTheme('${c.query}', '${c.cat}')">
+            <span class="search-category-icon">${getCategoryIconSvg(c.label)}</span>
+            <span class="search-category-label">${c.label}</span>
           </button>
         `).join('')}
       </div>
@@ -7564,30 +7601,39 @@ function renderDesktopZeroState() {
 
   const trendingHtml = `
     <div>
-      <div class="search-zero-heading">
-        <span>Trending on Groww 🔥</span>
+      <div class="search-section-header">
+        <span class="search-section-title">Most Searched on Groww</span>
       </div>
       <div class="search-trending-list">
         ${filteredTrending.map(t => {
           const isPos = (t.change_pct || 0) >= 0;
           const cleanSym = (t.symbol || '').replace('.NS', '').replace('.BO', '').replace('^', '').toUpperCase();
+          const isWatched = (state.watchlist && state.watchlist.has(t.symbol));
+          const escapedName = (t.name || t.symbol).replace(/'/g, "\\'");
           return `
-            <div class="search-trending-row" onclick="selectSearchResult('${t.symbol}', '${t.asset_type}')">
-              <div style="display: flex; align-items: center; gap: 0.65rem; min-width: 0; flex: 1;">
+            <div class="search-list-row" onclick="selectSearchResult('${t.symbol}', '${t.asset_type}')">
+              <div class="search-row-left">
                 ${renderAssetAvatar(t, t.asset_type)}
-                <div style="min-width: 0; overflow: hidden; flex: 1;">
-                  <div class="search-trending-name" style="font-size: 0.86rem;">${escapeHtml(t.name)}</div>
-                  <div class="search-trending-sub">
-                    <span class="search-badge ${getBadgeClass(t.asset_type)}">${escapeHtml(t.exchange || t.asset_type)}</span>
+                <div class="search-row-text">
+                  <div class="search-row-name" style="font-size: 0.88rem;">${escapeHtml(t.name)}</div>
+                  <div class="search-row-meta">
+                    <span class="search-tag-pill ${getBadgeClass(t.asset_type)}">${escapeHtml(t.exchange || t.asset_type)}</span>
                     <span>${cleanSym}</span>
                   </div>
                 </div>
               </div>
-              <div class="search-price-col">
-                <span class="search-item-price" style="font-size: 0.84rem;">${formatINR(t.price)}</span>
-                <span style="font-size: 0.7rem; font-weight: 600; color: ${isPos ? 'var(--accent-green)' : 'var(--danger-red)'};">
-                  ${isPos ? '+' : ''}${formatNumber(t.change_pct)}%
-                </span>
+              <div class="search-row-right">
+                <div class="search-row-price-col">
+                  <div class="search-row-price" style="font-size: 0.86rem;">${formatINR(t.price)}</div>
+                  <div class="search-row-change ${isPos ? 'pos' : 'neg'}">
+                    ${isPos ? '+' : ''}${formatNumber(t.change_pct)}%
+                  </div>
+                </div>
+                <button type="button" class="search-star-btn ${isWatched ? 'watched' : ''}" data-sym="${t.symbol}" title="${isWatched ? 'Remove from watchlist' : 'Add to watchlist'}" onclick="toggleSearchWatchlist(event, '${t.symbol}', '${escapedName}', '${t.asset_type}')">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="${isWatched ? '#F59E0B' : 'none'}" stroke="${isWatched ? '#F59E0B' : 'currentColor'}" stroke-width="2">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                  </svg>
+                </button>
               </div>
             </div>
           `;
@@ -7885,38 +7931,50 @@ function renderMobileZeroState() {
   let recentHtml = '';
   if (recent.length > 0) {
     recentHtml = `
-      <div style="margin-bottom: 1.5rem;">
-        <div class="search-zero-heading">
-          <span>Recent Searches</span>
-          <button type="button" class="search-clear-recent-btn" onclick="clearRecentSearches(event)">Clear All</button>
+      <div style="margin-bottom: 1.35rem;">
+        <div class="search-section-header">
+          <span class="search-section-title">Recent Searches</span>
+          <button type="button" class="search-clear-btn-text" onclick="clearRecentSearches(event)">Clear all</button>
         </div>
         <div class="search-recent-list">
           ${recent.map((r, idx) => {
             const hasPrice = r.price !== null && r.price !== undefined && !isNaN(r.price) && r.price > 0;
             const isPos = (r.change_pct || 0) >= 0;
-            const displayName = (r.name || r.symbol || '').replace(/\.(NS|BO)$/i, '');
+            const displayName = (r.name || r.symbol || '').replace(/\.(NS|BO)$/i, '').replace('^', '');
+            const cleanSym = (r.symbol || '').replace('.NS', '').replace('.BO', '').replace('^', '').toUpperCase();
+            const sub = r.exchange ? `${r.exchange} • ${cleanSym}` : `NSE • ${cleanSym}`;
             return `
-              <div class="search-recent-item" data-index="${idx}" onclick="selectSearchResult('${r.symbol}', '${r.asset_type}')">
-                <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0; flex: 1;">
-                  <div class="search-recent-icon">
+              <div class="search-list-row" data-index="${idx}" onclick="selectSearchResult('${r.symbol}', '${r.asset_type}')">
+                <div class="search-row-left">
+                  <div class="search-clock-avatar">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                       <circle cx="12" cy="12" r="10"></circle>
                       <polyline points="12 6 12 12 16 14"></polyline>
                     </svg>
                   </div>
-                  <div style="min-width: 0; flex: 1;">
-                    <div style="font-weight: 600; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary);">${escapeHtml(displayName)}</div>
-                    <div style="font-size: 0.74rem; color: var(--text-muted); margin-top: 1px;">${escapeHtml(formatSearchSubtitle(r))}</div>
+                  <div class="search-row-text">
+                    <div class="search-row-name">${escapeHtml(displayName)}</div>
+                    <div class="search-row-meta">
+                      <span class="search-tag-pill ${getBadgeClass(r.asset_type)}">${escapeHtml(r.exchange || r.asset_type || 'NSE')}</span>
+                      <span>${escapeHtml(cleanSym)}</span>
+                    </div>
                   </div>
                 </div>
-                <div style="display: flex; align-items: center; gap: 0.65rem; flex-shrink: 0;">
+                <div class="search-row-right">
                   ${hasPrice ? `
-                    <div style="text-align: right;">
-                      <div style="font-size: 0.88rem; font-weight: 600; color: var(--text-primary); font-variant-numeric: tabular-nums;">${formatINR(r.price)}</div>
-                      <div style="font-size: 0.74rem; font-weight: 600; color: ${isPos ? 'var(--accent-green)' : 'var(--danger-red)'}; font-variant-numeric: tabular-nums;">${isPos ? '+' : ''}${formatNumber(r.change_pct)}%</div>
+                    <div class="search-row-price-col">
+                      <div class="search-row-price">${formatINR(r.price)}</div>
+                      <div class="search-row-change ${isPos ? 'pos' : 'neg'}">
+                        ${isPos ? '+' : ''}${formatNumber(r.change_pct)}%
+                      </div>
                     </div>
                   ` : ''}
-                  <button type="button" class="search-recent-remove" onclick="removeRecentSearch('${r.symbol}', event)" title="Remove">✕</button>
+                  <button type="button" class="search-remove-btn" onclick="removeRecentSearch('${r.symbol}', event)" title="Remove" aria-label="Remove">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
                 </div>
               </div>
             `;
@@ -7927,14 +7985,15 @@ function renderMobileZeroState() {
   }
 
   const themesHtml = `
-    <div style="margin-bottom: 1.5rem;">
-      <div class="search-zero-heading">
-        <span>Explore Sectors &amp; Themes</span>
+    <div style="margin-bottom: 1.35rem;">
+      <div class="search-section-header">
+        <span class="search-section-title">Explore by Categories</span>
       </div>
-      <div class="search-discovery-chips">
+      <div class="search-category-grid">
         ${SEARCH_THEME_CHIPS.map(c => `
-          <button type="button" class="search-discovery-chip" onclick="triggerMobileTheme('${c.query}', '${c.cat}')">
-            <span>${c.label}</span>
+          <button type="button" class="search-category-chip" onclick="triggerMobileTheme('${c.query}', '${c.cat}')">
+            <span class="search-category-icon">${getCategoryIconSvg(c.label)}</span>
+            <span class="search-category-label">${c.label}</span>
           </button>
         `).join('')}
       </div>
@@ -7945,30 +8004,39 @@ function renderMobileZeroState() {
 
   const trendingHtml = `
     <div>
-      <div class="search-zero-heading">
-        <span>Trending on Groww 🔥</span>
+      <div class="search-section-header">
+        <span class="search-section-title">Most Searched on Groww</span>
       </div>
       <div class="search-trending-list">
         ${filteredTrending.map(t => {
           const isPos = (t.change_pct || 0) >= 0;
           const cleanSym = (t.symbol || '').replace('.NS', '').replace('.BO', '').replace('^', '').toUpperCase();
+          const isWatched = (state.watchlist && state.watchlist.has(t.symbol));
+          const escapedName = (t.name || t.symbol).replace(/'/g, "\\'");
           return `
-            <div class="search-trending-row" onclick="selectSearchResult('${t.symbol}', '${t.asset_type}')">
-              <div style="display: flex; align-items: center; gap: 0.85rem; min-width: 0; flex: 1;">
+            <div class="search-list-row" onclick="selectSearchResult('${t.symbol}', '${t.asset_type}')">
+              <div class="search-row-left">
                 ${renderAssetAvatar(t, t.asset_type)}
-                <div style="min-width: 0; overflow: hidden; flex: 1;">
-                  <div class="search-trending-name">${escapeHtml(t.name)}</div>
-                  <div class="search-trending-sub">
-                    <span class="search-badge ${getBadgeClass(t.asset_type)}">${escapeHtml(t.exchange || t.asset_type)}</span>
+                <div class="search-row-text">
+                  <div class="search-row-name">${escapeHtml(t.name)}</div>
+                  <div class="search-row-meta">
+                    <span class="search-tag-pill ${getBadgeClass(t.asset_type)}">${escapeHtml(t.exchange || t.asset_type)}</span>
                     <span>${cleanSym}</span>
                   </div>
                 </div>
               </div>
-              <div class="search-price-col">
-                <span class="search-item-price">${formatINR(t.price)}</span>
-                <span style="font-size: 0.74rem; font-weight: 600; color: ${isPos ? 'var(--accent-green)' : 'var(--danger-red)'};">
-                  ${isPos ? '+' : ''}${formatNumber(t.change_pct)}%
-                </span>
+              <div class="search-row-right">
+                <div class="search-row-price-col">
+                  <div class="search-row-price">${formatINR(t.price)}</div>
+                  <div class="search-row-change ${isPos ? 'pos' : 'neg'}">
+                    ${isPos ? '+' : ''}${formatNumber(t.change_pct)}%
+                  </div>
+                </div>
+                <button type="button" class="search-star-btn ${isWatched ? 'watched' : ''}" data-sym="${t.symbol}" title="${isWatched ? 'Remove from watchlist' : 'Add to watchlist'}" onclick="toggleSearchWatchlist(event, '${t.symbol}', '${escapedName}', '${t.asset_type}')">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="${isWatched ? '#F59E0B' : 'none'}" stroke="${isWatched ? '#F59E0B' : 'currentColor'}" stroke-width="2">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                  </svg>
+                </button>
               </div>
             </div>
           `;
@@ -7993,18 +8061,30 @@ function renderMobileSearchResults(results, query) {
 
   if (filtered.length === 0) {
     body.innerHTML = `
-      <div style="padding: 3rem 1.5rem; text-align: center; color: var(--text-muted);">
-        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="margin-bottom: 0.75rem; opacity: 0.6;">
+      <div style="padding: 2.5rem 1rem; text-align: center; color: var(--text-muted);">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="margin-bottom: 0.75rem; opacity: 0.5;">
           <circle cx="11" cy="11" r="8"></circle>
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         </svg>
         <div style="font-weight: 700; font-size: 1.05rem; color: var(--text-primary); margin-bottom: 0.35rem;">No results found</div>
-        <div style="font-size: 0.85rem; margin-bottom: 1.25rem;">No securities match "${escapeHtml(query)}" in ${searchActiveCategory === 'ALL' ? 'all' : searchActiveCategory.toLowerCase()}</div>
-        <div class="search-trending-chips" style="justify-content: center;">
-          <button type="button" class="search-trending-chip" onclick="triggerMobileTheme('Reliance', 'STOCK')">Reliance</button>
-          <button type="button" class="search-trending-chip" onclick="triggerMobileTheme('NIFTY 50', 'INDEX')">Nifty 50</button>
-          <button type="button" class="search-trending-chip" onclick="triggerMobileTheme('gold etf', 'ETF')">Gold BeES</button>
-          <button type="button" class="search-trending-chip" onclick="triggerMobileTheme('bank', 'STOCK')">Banking</button>
+        <div style="font-size: 0.82rem; margin-bottom: 1.25rem; color: #8B95A5;">We couldn't find any securities matching "${escapeHtml(query)}" in ${searchActiveCategory === 'ALL' ? 'all categories' : searchActiveCategory.toLowerCase()}</div>
+        <div class="search-category-grid" style="max-width: 320px; margin: 0 auto;">
+          <button type="button" class="search-category-chip" onclick="triggerMobileTheme('Reliance', 'STOCK')">
+            <span class="search-category-icon">${getCategoryIconSvg('Reliance')}</span>
+            <span class="search-category-label">Reliance</span>
+          </button>
+          <button type="button" class="search-category-chip" onclick="triggerMobileTheme('NIFTY 50', 'INDEX')">
+            <span class="search-category-icon">${getCategoryIconSvg('NIFTY 50')}</span>
+            <span class="search-category-label">Nifty 50</span>
+          </button>
+          <button type="button" class="search-category-chip" onclick="triggerMobileTheme('gold etf', 'ETF')">
+            <span class="search-category-icon">${getCategoryIconSvg('gold etf')}</span>
+            <span class="search-category-label">Gold BeES</span>
+          </button>
+          <button type="button" class="search-category-chip" onclick="triggerMobileTheme('bank', 'STOCK')">
+            <span class="search-category-icon">${getCategoryIconSvg('bank')}</span>
+            <span class="search-category-label">Banking</span>
+          </button>
         </div>
       </div>
     `;
@@ -8025,32 +8105,32 @@ function renderMobileSearchResults(results, query) {
     else if (r.asset_type === 'ETF') badgeClass = 'etf';
 
     return `
-      <div class="mobile-search-item" onclick="selectSearchResult('${r.symbol}', '${r.asset_type}')">
-        <div style="display: flex; align-items: center; gap: 0.85rem; min-width: 0; flex: 1;">
+      <div class="search-list-row" onclick="selectSearchResult('${r.symbol}', '${r.asset_type}')">
+        <div class="search-row-left">
           ${renderAssetAvatar(r, r.asset_type)}
-          <div style="min-width: 0; overflow: hidden;">
-            <div style="font-weight: 700; font-size: 0.92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary);">
-              ${highlightSearchMatch(r.name, query)}
-            </div>
-            <div style="font-size: 0.76rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.35rem; margin-top: 3px;">
-              <span class="search-badge ${badgeClass}">${escapeHtml(r.badge || r.sector || r.asset_type)}</span>
+          <div class="search-row-text">
+            <div class="search-row-name">${highlightSearchMatch(r.name, query)}</div>
+            <div class="search-row-meta">
+              <span class="search-tag-pill ${badgeClass}">${escapeHtml(r.badge || r.sector || r.asset_type)}</span>
               <span>${highlightSearchMatch(cleanSym, query)}</span>
               <span>•</span>
               <span>${escapeHtml(r.exchange || 'NSE')}</span>
             </div>
           </div>
         </div>
-        <div style="display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0;">
-          <div class="search-price-col">
-            ${hasPrice ? `<span class="search-item-price" style="font-size: 0.92rem;">${formatINR(r.price)}</span>` : `<span class="pill-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;">${r.asset_type}</span>`}
-            ${hasPrice && r.change_pct !== null && r.change_pct !== undefined ? `
-              <span class="${isPos ? 'badge-positive' : 'badge-negative'}" style="font-size: 0.72rem; padding: 1px 6px;">
-                ${isPos ? '+' : ''}${formatNumber(r.change_pct)}%
-              </span>
-            ` : ''}
-          </div>
-          <button type="button" class="search-star-btn ${isWatched ? 'watched' : ''}" data-sym="${r.symbol}" title="${isWatched ? 'Remove from watchlist' : 'Add to watchlist'}" onclick="toggleSearchWatchlist(event, '${r.symbol}', '${escapedName}', '${r.asset_type}')" style="width: 38px; height: 38px;">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="${isWatched ? '#F59E0B' : 'none'}" stroke="${isWatched ? '#F59E0B' : 'currentColor'}" stroke-width="2">
+        <div class="search-row-right">
+          ${hasPrice ? `
+            <div class="search-row-price-col">
+              <div class="search-row-price">${formatINR(r.price)}</div>
+              ${r.change_pct !== null && r.change_pct !== undefined ? `
+                <div class="search-row-change ${isPos ? 'pos' : 'neg'}">
+                  ${isPos ? '+' : ''}${formatNumber(r.change_pct)}%
+                </div>
+              ` : ''}
+            </div>
+          ` : `<span class="search-tag-pill ${badgeClass}" style="margin-right: 4px;">${r.asset_type}</span>`}
+          <button type="button" class="search-star-btn ${isWatched ? 'watched' : ''}" data-sym="${r.symbol}" title="${isWatched ? 'Remove from watchlist' : 'Add to watchlist'}" onclick="toggleSearchWatchlist(event, '${r.symbol}', '${escapedName}', '${r.asset_type}')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="${isWatched ? '#F59E0B' : 'none'}" stroke="${isWatched ? '#F59E0B' : 'currentColor'}" stroke-width="2">
               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
             </svg>
           </button>
