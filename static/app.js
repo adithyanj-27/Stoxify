@@ -12208,6 +12208,7 @@ function resetHeroPrice() {
 function renderCandlestickCanvas(canvas, points, hoveredIdx = -1, crosshairY = -1) {
   const ctx = canvas.getContext('2d');
   const isMobile = window.innerWidth <= 768;
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
   const parentW = canvas.parentElement ? canvas.parentElement.clientWidth : 0;
   const fallbackW = isMobile ? Math.min(window.innerWidth - 30, 420) : 800;
   const cssWidth = parentW > 50 ? parentW : fallbackW;
@@ -12228,32 +12229,94 @@ function renderCandlestickCanvas(canvas, points, hoveredIdx = -1, crosshairY = -
     return;
   }
 
-  const paddingLeft = isMobile ? 0 : 16;
-  const paddingRight = isMobile ? 0 : 72;
-  const paddingTop = 15;
-  const paddingBottom = isMobile ? 8 : 26;
-  const chartWidth = cssWidth - paddingLeft - paddingRight;
-  const chartHeight = cssHeight - paddingTop - paddingBottom;
+  // Edge-to-edge canvas with minimal padding matching Groww style
+  const paddingLeft = isMobile ? 4 : 8;
+  const paddingRight = isMobile ? 4 : 8;
+  const paddingTop = 14;
+  const paddingBottom = isMobile ? 10 : 24;
+  const chartWidth = Math.max(10, cssWidth - paddingLeft - paddingRight);
+  const chartHeight = Math.max(10, cssHeight - paddingTop - paddingBottom);
 
-  // Compute OHLC for each point
-  const ohlc = points.map((p, idx) => {
+  // Raw OHLC conversion
+  const rawOhlc = points.map((p, idx) => {
     const close = (p.price !== undefined ? p.price : p.value) || 100;
     const prevClose = idx > 0 ? ((points[idx - 1].price !== undefined ? points[idx - 1].price : points[idx - 1].value) || close) : close;
     const open = p.open || prevClose;
     const high = p.high || Math.max(open, close) * 1.002;
     const low = p.low || Math.min(open, close) * 0.998;
-    const vol = p.volume || 10000;
-    return { time: p.time, open, high, low, close, volume: vol };
+    const vol = p.volume || 1000;
+    return { time: p.time, open, high, low, close, volume: vol, origPoint: p };
   });
 
-  const minPrice = Math.min(...ohlc.map(p => p.low)) * 0.998;
-  const maxPrice = Math.max(...ohlc.map(p => p.high)) * 1.002;
+  // Session timeline mapping: For 1D, map minute candles across 09:15-15:30 trading session (376 slots)
+  const hasIntradaySlots = currentChartRange === '1D' && rawOhlc.some(p => {
+    const m = (p.time || '').match(/(\d{2}):(\d{2})/);
+    if (!m) return false;
+    const sIdx = (parseInt(m[1], 10) - 9) * 60 + parseInt(m[2], 10) - 15;
+    return sIdx >= 0 && sIdx < 376;
+  });
+
+  let ohlc = [];
+  let slotWidth = 0;
+  const totalSessionSlots = 376;
+
+  if (hasIntradaySlots) {
+    slotWidth = chartWidth / totalSessionSlots;
+    const slotMap = new Map();
+    for (const bar of rawOhlc) {
+      const m = (bar.time || '').match(/(\d{2}):(\d{2})/);
+      if (m) {
+        const sIdx = (parseInt(m[1], 10) - 9) * 60 + parseInt(m[2], 10) - 15;
+        if (sIdx >= 0 && sIdx < totalSessionSlots) {
+          slotMap.set(sIdx, {
+            ...bar,
+            slotIdx: sIdx,
+            x: paddingLeft + sIdx * slotWidth + slotWidth / 2
+          });
+        }
+      }
+    }
+    ohlc = Array.from(slotMap.entries()).sort((a, b) => a[0] - b[0]).map(entry => entry[1]);
+  } else {
+    slotWidth = chartWidth / Math.max(1, rawOhlc.length);
+    ohlc = rawOhlc.map((bar, idx) => ({
+      ...bar,
+      slotIdx: idx,
+      x: paddingLeft + idx * slotWidth + slotWidth / 2
+    }));
+  }
+
+  if (ohlc.length === 0) {
+    ctx.restore();
+    return;
+  }
+
+  // Previous Close Baseline (matches Groww 1D baseline)
+  let baseline = null;
+  if (currentChartRange === '1D' && currentPageAsset) {
+    baseline = currentPageAsset.previous_close || (currentPageAsset.price - (currentPageAsset.change || 0));
+  }
+
+  const allLows = ohlc.map(p => p.low);
+  const allHighs = ohlc.map(p => p.high);
+  if (baseline && currentChartRange === '1D') {
+    allLows.push(baseline);
+    allHighs.push(baseline);
+  }
+  let minPrice = Math.min(...allLows);
+  let maxPrice = Math.max(...allHighs);
+  if (minPrice === maxPrice) {
+    minPrice *= 0.99;
+    maxPrice *= 1.01;
+  }
+  const priceMargin = (maxPrice - minPrice) * 0.08;
+  minPrice -= priceMargin;
+  maxPrice += priceMargin;
   const priceRange = maxPrice - minPrice || 1;
 
   // Dedicated volume sub-pane at bottom 18% of chart, keeping price candles strictly above
   const volumeHeight = Math.round(chartHeight * 0.18);
-  const pricePlotHeight = chartHeight - volumeHeight - 10;
-
+  const pricePlotHeight = chartHeight - volumeHeight - 8;
   const getY = (val) => paddingTop + pricePlotHeight - ((val - minPrice) / priceRange) * pricePlotHeight;
 
   // Store layout state for interactive touch & mouse scrubbing
@@ -12269,73 +12332,104 @@ function renderCandlestickCanvas(canvas, points, hoveredIdx = -1, crosshairY = -
     minPrice,
     maxPrice,
     priceRange,
-    candleSlot: chartWidth / ohlc.length,
+    slotWidth,
     cssWidth,
     cssHeight,
     getY
   };
 
-  // Background Grid Lines & Y-Axis Labels
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
-  ctx.lineWidth = 1;
-  const gridSteps = 4;
-  for (let i = 0; i <= gridSteps; i++) {
-    const y = paddingTop + (pricePlotHeight / gridSteps) * i;
-    ctx.beginPath();
-    ctx.moveTo(paddingLeft, y);
-    ctx.lineTo(cssWidth - paddingRight, y);
-    ctx.stroke();
+  // 1. Draw Previous Close Horizontal Baseline (for 1D session baseline)
+  if (baseline && currentChartRange === '1D') {
+    const yBaseline = getY(baseline);
+    if (yBaseline >= paddingTop && yBaseline <= paddingTop + pricePlotHeight + 4) {
+      ctx.save();
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = isDark ? 'rgba(148, 163, 184, 0.28)' : 'rgba(100, 116, 139, 0.28)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(paddingLeft, yBaseline);
+      ctx.lineTo(paddingLeft + chartWidth, yBaseline);
+      ctx.stroke();
 
-    if (!isMobile) {
-      const priceAtGrid = maxPrice - (priceRange / gridSteps) * i;
-      ctx.fillStyle = '#64748B';
-      ctx.font = '10px Sora, sans-serif';
-      ctx.textAlign = 'left';
-      ctx.fillText(formatINR(priceAtGrid), cssWidth - paddingRight + 6, y + 3);
+      // Right axis baseline indicator label (desktop only)
+      if (!isMobile && chartWidth > 220) {
+        ctx.fillStyle = isDark ? '#94A3B8' : '#64748B';
+        ctx.font = '500 9.5px Sora, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(`Prev. Close: ${formatINR(baseline)}`, paddingLeft + chartWidth - 8, yBaseline - 5);
+      }
+      ctx.restore();
     }
   }
 
-  const n = ohlc.length;
-  const candleSlot = chartWidth / n;
+  // 2. Candle dimensions
   let candleBodyWidth;
-  if (candleSlot < 3) {
-    candleBodyWidth = Math.max(1, candleSlot - 0.5);
+  if (slotWidth < 2.5) {
+    candleBodyWidth = Math.max(1.2, slotWidth * 0.75);
   } else {
-    candleBodyWidth = Math.max(2, Math.min(14, candleSlot * 0.68));
+    candleBodyWidth = Math.max(2, Math.min(14, slotWidth * 0.70));
   }
+  const wickWidth = slotWidth < 3 ? 1.0 : 1.2;
 
   const maxVol = Math.max(...ohlc.map(p => p.volume)) || 1;
+  const volBottom = paddingTop + chartHeight;
 
-  // Draw Candlesticks and Volume
-  ohlc.forEach((bar, i) => {
-    const x = paddingLeft + i * candleSlot + candleSlot / 2;
+  // 3. Draw Volume and Candlesticks
+  ohlc.forEach((bar) => {
     const isBull = bar.close >= bar.open;
     const color = isBull ? '#00D09C' : '#EB5B3C';
 
-    // 1. Volume Bar (Separated in bottom sub-pane)
+    // Volume Bar
     const volH = Math.max(2, (bar.volume / maxVol) * volumeHeight);
     ctx.fillStyle = isBull ? 'rgba(0, 208, 156, 0.22)' : 'rgba(235, 91, 60, 0.22)';
-    ctx.fillRect(x - candleBodyWidth / 2, paddingTop + chartHeight - volH, candleBodyWidth, volH);
+    ctx.fillRect(bar.x - candleBodyWidth / 2, volBottom - volH, candleBodyWidth, volH);
 
-    // 2. Wick
+    // Wick
     ctx.strokeStyle = color;
-    ctx.lineWidth = candleSlot < 3 ? 0.8 : 1.2;
+    ctx.lineWidth = wickWidth;
     ctx.beginPath();
-    ctx.moveTo(x, getY(bar.high));
-    ctx.lineTo(x, getY(bar.low));
+    ctx.moveTo(bar.x, getY(bar.high));
+    ctx.lineTo(bar.x, getY(bar.low));
     ctx.stroke();
 
-    // 3. Body
+    // Body
     const yOpen = getY(bar.open);
     const yClose = getY(bar.close);
     const bodyTop = Math.min(yOpen, yClose);
     const bodyHeight = Math.max(1.5, Math.abs(yClose - yOpen));
 
     ctx.fillStyle = color;
-    ctx.fillRect(x - candleBodyWidth / 2, bodyTop, candleBodyWidth, bodyHeight);
+    ctx.fillRect(bar.x - candleBodyWidth / 2, bodyTop, candleBodyWidth, bodyHeight);
   });
 
-  // Overlay EMAs
+  // 4. Pulsing Live Ticker Dot at latest candle (for 1D intraday)
+  if (currentChartRange === '1D' && ohlc.length > 0) {
+    const lastBar = ohlc[ohlc.length - 1];
+    const x = lastBar.x;
+    const y = getY(lastBar.close);
+    const strokeColor = lastBar.close >= (baseline || lastBar.open) ? '#00D09C' : '#EB5B3C';
+
+    ctx.save();
+    // Outer subtle glowing aura
+    ctx.beginPath();
+    ctx.arc(x, y, 6.0, 0, 2 * Math.PI);
+    ctx.fillStyle = strokeColor === '#00D09C' ? 'rgba(0, 208, 156, 0.28)' : 'rgba(235, 91, 60, 0.28)';
+    ctx.fill();
+
+    // Solid core dot
+    ctx.beginPath();
+    ctx.arc(x, y, 3.2, 0, 2 * Math.PI);
+    ctx.fillStyle = strokeColor;
+    ctx.fill();
+
+    // Contrast rim
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = isDark ? '#0F172A' : '#FFFFFF';
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // 5. Overlay EMAs
   const closePrices = ohlc.map(b => b.close);
   if (activeEmas.has(20)) {
     const ema20 = calculateEMA(closePrices, 20);
@@ -12343,7 +12437,7 @@ function renderCandlestickCanvas(canvas, points, hoveredIdx = -1, crosshairY = -
     ctx.lineWidth = 1.6;
     ctx.beginPath();
     ema20.forEach((val, i) => {
-      const x = paddingLeft + i * candleSlot + candleSlot / 2;
+      const x = ohlc[i].x;
       const y = getY(val);
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
@@ -12357,7 +12451,7 @@ function renderCandlestickCanvas(canvas, points, hoveredIdx = -1, crosshairY = -
     ctx.lineWidth = 1.6;
     ctx.beginPath();
     ema50.forEach((val, i) => {
-      const x = paddingLeft + i * candleSlot + candleSlot / 2;
+      const x = ohlc[i].x;
       const y = getY(val);
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
@@ -12365,62 +12459,114 @@ function renderCandlestickCanvas(canvas, points, hoveredIdx = -1, crosshairY = -
     ctx.stroke();
   }
 
-  // Time Axis Labels (Evenly spaced on desktop, hidden on mobile for clean full-height chart)
+  // 6. Time Axis Labels (Desktop only)
   if (!isMobile) {
-    ctx.fillStyle = '#64748B';
-    ctx.font = '10px Sora, sans-serif';
-    const labelCount = 6;
-    const step = Math.max(1, Math.floor(n / labelCount));
-    for (let i = 0; i < n; i += step) {
-      const x = paddingLeft + i * candleSlot + candleSlot / 2;
-      if (i === 0) {
-        ctx.textAlign = 'left';
-        ctx.fillText(ohlc[i].time, paddingLeft, cssHeight - 8);
-      } else if (i + step >= n) {
-        ctx.textAlign = 'right';
-        ctx.fillText(ohlc[i].time, paddingLeft + chartWidth, cssHeight - 8);
-      } else {
-        ctx.textAlign = 'center';
-        ctx.fillText(ohlc[i].time, x, cssHeight - 8);
+    ctx.fillStyle = isDark ? '#64748B' : '#94A3B8';
+    ctx.font = '500 10px Sora, sans-serif';
+    if (hasIntradaySlots) {
+      const markers = [
+        { label: '09:15', slot: 0 },
+        { label: '11:30', slot: 135 },
+        { label: '13:30', slot: 255 },
+        { label: '15:30', slot: 375 }
+      ];
+      for (const m of markers) {
+        const x = paddingLeft + m.slot * slotWidth + slotWidth / 2;
+        ctx.textAlign = m.slot === 0 ? 'left' : (m.slot === 375 ? 'right' : 'center');
+        const drawX = m.slot === 0 ? paddingLeft : (m.slot === 375 ? paddingLeft + chartWidth : x);
+        ctx.fillText(m.label, drawX, cssHeight - 6);
+      }
+    } else {
+      const n = ohlc.length;
+      const step = Math.max(1, Math.floor(n / 5));
+      for (let i = 0; i < n; i += step) {
+        const x = ohlc[i].x;
+        ctx.textAlign = i === 0 ? 'left' : (i + step >= n ? 'right' : 'center');
+        ctx.fillText(ohlc[i].time || '', x, cssHeight - 6);
       }
     }
   }
 
-  // Crosshair overlay if scrubbing
-  if (hoveredIdx >= 0 && hoveredIdx < n) {
+  // 7. Interactive Crosshair, Radar Pulse Glow Dot, & Floating Sleek Top Badge
+  if (hoveredIdx >= 0 && hoveredIdx < ohlc.length) {
     const target = ohlc[hoveredIdx];
-    const crossX = paddingLeft + hoveredIdx * candleSlot + candleSlot / 2;
+    const crossX = target.x;
     const targetY = getY(target.close);
+    const isPos = target.close >= (baseline || target.open);
+    const strokeColor = isPos ? '#00D09C' : '#EB5B3C';
 
-    ctx.strokeStyle = 'rgba(148, 163, 184, 0.45)';
-    ctx.lineWidth = 1;
+    ctx.save();
+    // Vertical dashed guide line
     ctx.setLineDash([3, 3]);
-
-    // Vertical line
+    ctx.strokeStyle = isDark ? 'rgba(148, 163, 184, 0.35)' : 'rgba(100, 116, 139, 0.35)';
+    ctx.lineWidth = isMobile ? 0.8 : 1.0;
     ctx.beginPath();
     ctx.moveTo(crossX, paddingTop);
     ctx.lineTo(crossX, paddingTop + chartHeight);
     ctx.stroke();
 
-    // Horizontal line
+    // Horizontal dashed guide line
     ctx.beginPath();
     ctx.moveTo(paddingLeft, targetY);
-    ctx.lineTo(cssWidth - paddingRight, targetY);
+    ctx.lineTo(paddingLeft + chartWidth, targetY);
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Price badge on right axis (desktop only)
-    if (!isMobile) {
-      const badgeW = 62;
-      ctx.fillStyle = '#1E293B';
-      ctx.fillRect(cssWidth - paddingRight, targetY - 9, badgeW, 18);
-      ctx.strokeStyle = '#38BDF8';
-      ctx.strokeRect(cssWidth - paddingRight, targetY - 9, badgeW, 18);
-      ctx.fillStyle = '#F8FAFC';
-      ctx.font = '10px Sora, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(formatINR(target.close), cssWidth - paddingRight + badgeW / 2, targetY + 3.5);
+    // Radar Pulse Glow Dot
+    const auraRadius = isMobile ? 6.5 : 9.0;
+    const dotRadius = isMobile ? 3.5 : 5.0;
+    const ringWidth = isMobile ? 1.8 : 2.5;
+
+    ctx.beginPath();
+    ctx.arc(crossX, targetY, auraRadius, 0, 2 * Math.PI);
+    ctx.fillStyle = isPos ? 'rgba(0, 208, 156, 0.22)' : 'rgba(235, 91, 60, 0.22)';
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(crossX, targetY, dotRadius, 0, 2 * Math.PI);
+    ctx.fillStyle = strokeColor;
+    ctx.fill();
+
+    ctx.lineWidth = ringWidth;
+    ctx.strokeStyle = isDark ? '#0F172A' : '#FFFFFF';
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(crossX, targetY, isMobile ? 1.4 : 1.8, 0, 2 * Math.PI);
+    ctx.fillStyle = isDark ? '#0F172A' : '#FFFFFF';
+    ctx.fill();
+
+    // Floating Sleek Top Badge
+    const priceStr = formatINR(target.close);
+    const timeStr = target.time || '';
+    let text = timeStr ? `${priceStr}  •  ${timeStr}` : priceStr;
+    if (!isMobile && chartWidth > 450) {
+      text += `   O:${formatINR(target.open)} H:${formatINR(target.high)} L:${formatINR(target.low)} C:${formatINR(target.close)}`;
     }
+    ctx.font = isMobile ? '600 9.5px Sora, sans-serif' : '600 10.5px Sora, sans-serif';
+    const textWidth = ctx.measureText(text).width;
+    const pillW = textWidth + (isMobile ? 14 : 18);
+    const pillH = isMobile ? 20 : 22;
+    const pillX = Math.max(paddingLeft + 4, Math.min(paddingLeft + chartWidth - pillW - 4, crossX - pillW / 2));
+    const pillY = paddingTop + 6;
+
+    ctx.fillStyle = isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.96)';
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(pillX, pillY, pillW, pillH, 5);
+    } else {
+      ctx.rect(pillX, pillY, pillW, pillH);
+    }
+    ctx.fill();
+
+    ctx.strokeStyle = isDark ? '#334155' : '#CBD5E1';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = isDark ? '#F8FAFC' : '#0F172A';
+    ctx.textAlign = 'center';
+    ctx.fillText(text, pillX + pillW / 2, pillY + (isMobile ? 14 : 15));
+    ctx.restore();
   }
 
   ctx.restore();
@@ -12437,10 +12583,21 @@ function initChartScrubbing() {
     const y = clientY - rect.top;
 
     if (currentChartType === 'candle') {
-      if (!candleState) return;
-      const idx = Math.floor((x - candleState.paddingLeft) / candleState.candleSlot);
-      if (idx >= 0 && idx < candleState.ohlc.length) {
-        renderCandlestickCanvas(canvas, currentChartPoints, idx, y);
+      if (!candleState || !candleState.ohlc || candleState.ohlc.length === 0) return;
+      const ohlc = candleState.ohlc;
+      let closestIdx = 0;
+      let minDiff = Infinity;
+      for (let i = 0; i < ohlc.length; i++) {
+        const diff = Math.abs(ohlc[i].x - x);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestIdx = i;
+        }
+      }
+      renderCandlestickCanvas(canvas, currentChartPoints, closestIdx, y);
+      const priceEl = document.getElementById('pageAssetPrice');
+      if (priceEl && ohlc[closestIdx]) {
+        priceEl.innerText = formatINR(ohlc[closestIdx].close);
       }
     } else if (currentChartType === 'line' && pageChartInstance) {
       const chart = pageChartInstance;
@@ -12499,11 +12656,21 @@ function initChartScrubbing() {
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
-      if (candleState) {
-        const idx = Math.floor((x - candleState.paddingLeft) / candleState.candleSlot);
-        if (idx >= 0 && idx < candleState.ohlc.length) {
-          renderCandlestickCanvas(canvas, currentChartPoints, idx, y);
+      if (!candleState || !candleState.ohlc || candleState.ohlc.length === 0) return;
+      const ohlc = candleState.ohlc;
+      let closestIdx = 0;
+      let minDiff = Infinity;
+      for (let i = 0; i < ohlc.length; i++) {
+        const diff = Math.abs(ohlc[i].x - x);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestIdx = i;
         }
+      }
+      renderCandlestickCanvas(canvas, currentChartPoints, closestIdx, y);
+      const priceEl = document.getElementById('pageAssetPrice');
+      if (priceEl && ohlc[closestIdx]) {
+        priceEl.innerText = formatINR(ohlc[closestIdx].close);
       }
     } else if (currentChartType === 'line' && pageChartInstance) {
       const chart = pageChartInstance;
