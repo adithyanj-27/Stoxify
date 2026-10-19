@@ -7501,27 +7501,27 @@ function deduplicateResults(results) {
 function getCategoryIconSvg(label) {
   const l = (label || '').toLowerCase();
   if (l.includes('nifty') || l.includes('index')) {
-    return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline><polyline points="16 7 22 7 22 13"></polyline></svg>`;
+    return `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline><polyline points="16 7 22 7 22 13"></polyline></svg>`;
   }
   if (l.includes('bank')) {
-    return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="21" x2="21" y2="21"></line><line x1="3" y1="10" x2="21" y2="10"></line><polyline points="5 6 12 3 19 6"></polyline><line x1="6" y1="10" x2="6" y2="21"></line><line x1="10" y1="10" x2="10" y2="21"></line><line x1="14" y1="10" x2="14" y2="21"></line><line x1="18" y1="10" x2="18" y2="21"></line></svg>`;
+    return `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="21" x2="21" y2="21"></line><line x1="3" y1="10" x2="21" y2="10"></line><polyline points="5 6 12 3 19 6"></polyline><line x1="6" y1="10" x2="6" y2="21"></line><line x1="10" y1="10" x2="10" y2="21"></line><line x1="14" y1="10" x2="14" y2="21"></line><line x1="18" y1="10" x2="18" y2="21"></line></svg>`;
   }
   if (l.includes('defen')) {
-    return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>`;
+    return `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>`;
   }
   if (l.includes('it') || l.includes('tech')) {
-    return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>`;
+    return `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>`;
   }
   if (l.includes('energy') || l.includes('power')) {
-    return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>`;
+    return `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>`;
   }
   if (l.includes('gold') || l.includes('silver')) {
-    return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M14.8 9A2 2 0 0 0 13 8h-2a2 2 0 0 0 0 4h2a2 2 0 0 1 0 4h-2a2 2 0 0 1-1.8-1"></path><path d="M12 6v2m0 8v2"></path></svg>`;
+    return `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M14.8 9A2 2 0 0 0 13 8h-2a2 2 0 0 0 0 4h2a2 2 0 0 1 0 4h-2a2 2 0 0 1-1.8-1"></path><path d="M12 6v2m0 8v2"></path></svg>`;
   }
   if (l.includes('mf') || l.includes('fund') || l.includes('cap')) {
-    return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>`;
+    return `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>`;
   }
-  return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>`;
+  return `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>`;
 }
 
 function renderDesktopZeroState() {
@@ -7841,13 +7841,17 @@ window.openMobileSearch = openMobileSearch;
 function closeMobileSearch(options = {}) {
   const overlay = document.getElementById('mobileSearchOverlay');
   const input = document.getElementById('mobileSearchInput');
+  const box = document.getElementById('mobileSearchInputBox');
   if (overlay) {
     overlay.style.display = 'none';
   }
   document.body.style.overflow = '';
   if (input) {
+    input.value = '';
     input.blur();
   }
+  if (box) box.classList.remove('has-text');
+  currentSearchResults = [];
   dismissModalState('mobileSearchOverlay', options);
 }
 window.closeMobileSearch = closeMobileSearch;
@@ -7931,7 +7935,7 @@ function renderMobileZeroState() {
   let recentHtml = '';
   if (recent.length > 0) {
     recentHtml = `
-      <div style="margin-bottom: 1.35rem;">
+      <div style="margin-bottom: 0.85rem;">
         <div class="search-section-header">
           <span class="search-section-title">Recent Searches</span>
           <button type="button" class="search-clear-btn-text" onclick="clearRecentSearches(event)">Clear all</button>
@@ -7947,7 +7951,7 @@ function renderMobileZeroState() {
               <div class="search-list-row" data-index="${idx}" onclick="selectSearchResult('${r.symbol}', '${r.asset_type}')">
                 <div class="search-row-left">
                   <div class="search-clock-avatar">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                       <circle cx="12" cy="12" r="10"></circle>
                       <polyline points="12 6 12 12 16 14"></polyline>
                     </svg>
@@ -7970,7 +7974,7 @@ function renderMobileZeroState() {
                     </div>
                   ` : ''}
                   <button type="button" class="search-remove-btn" onclick="removeRecentSearch('${r.symbol}', event)" title="Remove" aria-label="Remove">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
                       <line x1="18" y1="6" x2="6" y2="18"></line>
                       <line x1="6" y1="6" x2="18" y2="18"></line>
                     </svg>
@@ -7985,9 +7989,9 @@ function renderMobileZeroState() {
   }
 
   const themesHtml = `
-    <div style="margin-bottom: 1.35rem;">
+    <div style="margin-bottom: 0.85rem;">
       <div class="search-section-header">
-        <span class="search-section-title">Explore by Categories</span>
+        <span class="search-section-title">Explore Categories</span>
       </div>
       <div class="search-category-grid">
         ${SEARCH_THEME_CHIPS.map(c => `
@@ -8005,7 +8009,7 @@ function renderMobileZeroState() {
   const trendingHtml = `
     <div>
       <div class="search-section-header">
-        <span class="search-section-title">Most Searched on Groww</span>
+        <span class="search-section-title">Trending on Groww</span>
       </div>
       <div class="search-trending-list">
         ${filteredTrending.map(t => {
@@ -8033,7 +8037,7 @@ function renderMobileZeroState() {
                   </div>
                 </div>
                 <button type="button" class="search-star-btn ${isWatched ? 'watched' : ''}" data-sym="${t.symbol}" title="${isWatched ? 'Remove from watchlist' : 'Add to watchlist'}" onclick="toggleSearchWatchlist(event, '${t.symbol}', '${escapedName}', '${t.asset_type}')">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="${isWatched ? '#F59E0B' : 'none'}" stroke="${isWatched ? '#F59E0B' : 'currentColor'}" stroke-width="2">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="${isWatched ? '#F59E0B' : 'none'}" stroke="${isWatched ? '#F59E0B' : 'currentColor'}" stroke-width="2">
                     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
                   </svg>
                 </button>
@@ -8130,7 +8134,7 @@ function renderMobileSearchResults(results, query) {
             </div>
           ` : `<span class="search-tag-pill ${badgeClass}" style="margin-right: 4px;">${r.asset_type}</span>`}
           <button type="button" class="search-star-btn ${isWatched ? 'watched' : ''}" data-sym="${r.symbol}" title="${isWatched ? 'Remove from watchlist' : 'Add to watchlist'}" onclick="toggleSearchWatchlist(event, '${r.symbol}', '${escapedName}', '${r.asset_type}')">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="${isWatched ? '#F59E0B' : 'none'}" stroke="${isWatched ? '#F59E0B' : 'currentColor'}" stroke-width="2">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="${isWatched ? '#F59E0B' : 'none'}" stroke="${isWatched ? '#F59E0B' : 'currentColor'}" stroke-width="2">
               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
             </svg>
           </button>
