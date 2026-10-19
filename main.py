@@ -825,16 +825,18 @@ def api_list_users(request: Request):
 # --- Market Status & Simulation Controls ---
 @app.get("/api/market-status")
 @app.get("/market-status")
-def read_market_status(response: Response):
+def read_market_status(response: Response = None):
     if market_hours.is_intraday_auto_square_off_due():
         auto_square_off_intraday()
-    response.headers["Cache-Control"] = "public, max-age=15, s-maxage=30"
+    if response:
+        response.headers["Cache-Control"] = "public, max-age=15, s-maxage=30"
     return market_hours.get_market_status()
 
 @app.get("/api/market-holidays")
 @app.get("/market-holidays")
-def read_market_holidays(response: Response):
-    response.headers["Cache-Control"] = "public, max-age=3600, s-maxage=86400"
+def read_market_holidays(response: Response = None):
+    if response:
+        response.headers["Cache-Control"] = "public, max-age=3600, s-maxage=86400"
     return market_hours.get_all_market_holidays()
 
 
@@ -866,8 +868,9 @@ def read_account(request: Request):
 
 @app.get("/api/indices")
 @app.get("/indices")
-def read_indices(response: Response):
-    response.headers["Cache-Control"] = "public, max-age=10, s-maxage=15"
+def read_indices(response: Response = None):
+    if response:
+        response.headers["Cache-Control"] = "public, max-age=10, s-maxage=15"
     return market_service.get_indices()
 
 @app.get("/api/explore")
