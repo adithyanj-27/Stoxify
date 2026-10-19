@@ -825,14 +825,16 @@ def api_list_users(request: Request):
 # --- Market Status & Simulation Controls ---
 @app.get("/api/market-status")
 @app.get("/market-status")
-def read_market_status():
+def read_market_status(response: Response):
     if market_hours.is_intraday_auto_square_off_due():
         auto_square_off_intraday()
+    response.headers["Cache-Control"] = "public, max-age=15, s-maxage=30"
     return market_hours.get_market_status()
 
 @app.get("/api/market-holidays")
 @app.get("/market-holidays")
-def read_market_holidays():
+def read_market_holidays(response: Response):
+    response.headers["Cache-Control"] = "public, max-age=3600, s-maxage=86400"
     return market_hours.get_all_market_holidays()
 
 
@@ -864,7 +866,8 @@ def read_account(request: Request):
 
 @app.get("/api/indices")
 @app.get("/indices")
-def read_indices():
+def read_indices(response: Response):
+    response.headers["Cache-Control"] = "public, max-age=10, s-maxage=15"
     return market_service.get_indices()
 
 @app.get("/api/explore")
@@ -2068,7 +2071,7 @@ _last_market_alert_scan_at = 0.0
 def maybe_trigger_background_price_scan():
     global _last_market_alert_scan_at
     now = time.time()
-    if now - _last_market_alert_scan_at < 60.0:
+    if now - _last_market_alert_scan_at < 180.0:
         return
     _last_market_alert_scan_at = now
     try:

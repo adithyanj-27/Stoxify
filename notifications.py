@@ -209,21 +209,28 @@ def scan_and_dispatch_price_alerts() -> List[Dict[str, Any]]:
 
     dispatched = []
 
-    for sym, info in monitored_map.items():
+    def _fetch_quote_item(item):
+        sym, info = item
         asset_type = info.get("asset_type", "STOCK")
-        name = info.get("name", sym)
-
-        # Get latest quote
         try:
             if asset_type == "MUTUAL_FUND":
                 q = market_service.get_mutual_fund_quote(sym)
             else:
                 q = market_service.get_stock_quote(sym)
+            return sym, info, q
         except Exception:
-            continue
+            return sym, info, None
 
+    max_workers = min(10, len(monitored_map))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        results = list(executor.map(_fetch_quote_item, monitored_map.items()))
+
+    for sym, info, q in results:
         if not q:
             continue
+
+        asset_type = info.get("asset_type", "STOCK")
+        name = info.get("name", sym)
 
         price = float(q.get("price") or 0.0)
         change_pct = float(q.get("change_pct") or 0.0)

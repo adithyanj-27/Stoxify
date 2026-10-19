@@ -9580,16 +9580,33 @@ function bootApp() {
     fetchNotifications().catch(e => console.warn(e))
   ]);
 
-  // Polling intervals
-  setInterval(() => fetchMarketStatus(), 10000);
+  // Polling intervals - guarded with Page Visibility API to conserve CPU & bandwidth
   setInterval(() => {
+    if (document.hidden) return;
+    fetchMarketStatus();
+  }, 45000);
+
+  setInterval(() => {
+    if (document.hidden) return;
     fetchIndices();
     if (state.currentTab === 'explore' && state.activeProduct === 'stocks') fetchExploreData();
     if (state.currentTab === 'holdings') fetchPortfolio(true);
     if (state.currentTab === 'dashboard') renderMutualFundDashboard(true);
     if (state.currentTab === 'positions') fetchPositions();
     fetchNotifications(true);
-  }, 15000);
+  }, 30000);
+
+  // When tab becomes visible again, refresh immediately
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      fetchMarketStatus();
+      fetchIndices();
+      if (state.currentTab === 'explore' && state.activeProduct === 'stocks') fetchExploreData();
+      if (state.currentTab === 'holdings') fetchPortfolio(true);
+      if (state.currentTab === 'positions') fetchPositions();
+      fetchNotifications(true);
+    }
+  });
 }
 
 if (document.readyState === 'loading') {
@@ -12710,6 +12727,7 @@ window.addEventListener('resize', () => {
 
 // Live Quote & 1D Chart Real-time Tick Sync
 setInterval(async () => {
+  if (document.hidden) return;
   const detailPane = document.getElementById('pane-asset-detail');
   if (detailPane && detailPane.classList.contains('active') && currentPageAsset && currentPageAsset.symbol) {
     try {
@@ -12744,7 +12762,7 @@ setInterval(async () => {
       }
     } catch (_) {}
   }
-}, 5000);
+}, 8000);
 
 function openMobileTradeDrawer(action = 'BUY') {
   setPageOrderAction(action);
