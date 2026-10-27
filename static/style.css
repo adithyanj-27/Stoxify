@@ -10917,6 +10917,14 @@ body:has(#pane-onboarding.active) .sub-nav {
   margin-top: 2px;
 }
 
+.groww-holding-row-secondary.invested-val {
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .groww-holding-row-secondary.invested-val {
+  color: var(--text-primary) !important;
+}
+
 /* 4. Dedicated Portfolio Analysis Sub-Page */
 .portfolio-analysis-subpage {
   animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);

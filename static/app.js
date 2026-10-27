@@ -6267,9 +6267,11 @@ function renderStockHoldingsListAndTable(holdings) {
           const curVal = Number(h.current_value !== undefined ? h.current_value : (h.quantity * h.current_price)) || 0;
           const invVal = Number(h.invested_value !== undefined ? h.invested_value : (h.quantity * h.avg_price)) || 0;
 
+          const curValColorClass = displayMode === 'day_pnl' ? dayClass : totalClass;
+
           let secondaryHtml = '';
           if (displayMode === 'invested') {
-            secondaryHtml = `<div class="groww-holding-row-secondary">(${isPrivate ? '••••••' : formatINR(invVal)})</div>`;
+            secondaryHtml = `<div class="groww-holding-row-secondary invested-val">(${isPrivate ? '••••••' : formatINR(invVal)})</div>`;
           } else if (displayMode === 'total_pnl') {
             secondaryHtml = `<div class="groww-holding-row-secondary ${totalClass}">${isPrivate ? '••••••' : `${totalSign}${formatINR(h.total_pnl)} (${totalSign}${formatNumber(h.total_pnl_pct)}%)`}</div>`;
           } else if (displayMode === 'day_pnl') {
@@ -6285,7 +6287,7 @@ function renderStockHoldingsListAndTable(holdings) {
                 </div>
               </div>
               <div class="groww-holding-row-right">
-                <div class="groww-holding-row-curval">${isPrivate ? '••••••••' : formatINR(curVal)}</div>
+                <div class="groww-holding-row-curval ${curValColorClass}">${isPrivate ? '••••••••' : formatINR(curVal)}</div>
                 ${secondaryHtml}
               </div>
             </div>
