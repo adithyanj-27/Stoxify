@@ -35,6 +35,7 @@ STOCK_MASTER = [
     {"symbol": "BAJAJ-AUTO.NS", "name": "Bajaj Auto Ltd", "sector": "Auto", "aliases": ["bajaj auto", "pulsar"]},
     {"symbol": "TRENT.NS", "name": "Trent Ltd (Westside & Zudio)", "sector": "Consumer", "aliases": ["trent", "zudio", "westside"]},
     {"symbol": "JIOFIN.NS", "name": "Jio Financial Services Ltd", "sector": "Finance", "aliases": ["jio financial", "jiofin", "jfs"]},
+    {"symbol": "JPL.NS", "name": "Jio Platforms Ltd", "sector": "Technology", "aliases": ["jpl", "jio platforms", "jio", "reliance jio", "jio platform"]},
     {"symbol": "ETERNAL.NS", "name": "Zomato Ltd (Eternal Ltd)", "sector": "Consumer", "aliases": ["zomato", "blinkit", "eternal"]},
 
     # --- Defense & Aerospace & Shipbuilding ---

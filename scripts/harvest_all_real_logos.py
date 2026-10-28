@@ -116,6 +116,7 @@ REAL_LOGO_SOURCES = {
     # Wikimedia & Verified Official Marks
     "TATATECH": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5b/Tata_Technologies_logo.svg/500px-Tata_Technologies_logo.svg.png",
     "JIOFIN": "https://thumb.wikimedia.org/wikipedia/en/thumb/8/86/Jio_Financial_Services_Logo.svg/960px-Jio_Financial_Services_Logo.svg.png",
+    "JPL": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/bf/Reliance_Jio_Logo.svg/960px-Reliance_Jio_Logo.svg.png",
     "IREDA": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/65/IREDA_Logo.png/500px-IREDA_Logo.png",
 
     # Indices & ETFs
