@@ -119,15 +119,18 @@ def startup():
         # If server starts up while market is closed or cutoff is reached, auto square-off immediately
         if market_hours.is_intraday_auto_square_off_due():
             auto_square_off_intraday()
-        t = threading.Thread(target=_auto_square_off_worker, daemon=True, name="stoxify-auto-square-off")
-        t.start()
-        t_sync = threading.Thread(target=market_service.run_daily_market_sync_worker, daemon=True, name="stoxify-daily-market-sync")
-        t_sync.start()
-        t_explore = threading.Thread(target=market_service.get_explore_data, daemon=True, name="stoxify-warm-explore")
-        t_explore.start()
-        t_indices = threading.Thread(target=market_service.get_indices, daemon=True, name="stoxify-warm-indices")
-        t_indices.start()
-        notifications.start_price_alert_worker()
+        # On Vercel serverless, background worker threads get frozen/killed and waste CPU during cold starts.
+        # Only run background polling/warmup workers when running locally or on a continuous server.
+        if not os.environ.get("VERCEL") and not os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+            t = threading.Thread(target=_auto_square_off_worker, daemon=True, name="stoxify-auto-square-off")
+            t.start()
+            t_sync = threading.Thread(target=market_service.run_daily_market_sync_worker, daemon=True, name="stoxify-daily-market-sync")
+            t_sync.start()
+            t_explore = threading.Thread(target=market_service.get_explore_data, daemon=True, name="stoxify-warm-explore")
+            t_explore.start()
+            t_indices = threading.Thread(target=market_service.get_indices, daemon=True, name="stoxify-warm-indices")
+            t_indices.start()
+            notifications.start_price_alert_worker()
     except Exception:
         pass
 
@@ -325,6 +328,30 @@ NO_CACHE_HEADERS = {
     "Pragma": "no-cache",
     "Expires": "0"
 }
+
+def set_market_cache_headers(response: Response, is_chart: bool = False):
+    """
+    During market hours: No caching (must-revalidate / no-store) so real-time ticks are 100% fresh.
+    Outside market hours (nights/weekends/holidays): Aggressive Edge CDN cache to save Vercel CPU.
+    """
+    if not response:
+        return
+    try:
+        status = market_hours.get_market_status()
+        is_open = status.get("is_open", False) or status.get("is_simulated", False)
+    except Exception:
+        is_open = True
+
+    if is_open:
+        # Live market hours: 100% real-time, no stale prices
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    else:
+        # Outside market hours: Prices are frozen at closing price. Edge CDN caches with 0 CPU.
+        s_max = 86400 if is_chart else 3600
+        response.headers["Cache-Control"] = f"public, max-age=300, s-maxage={s_max}, stale-while-revalidate=86400"
+
 
 @app.get("/")
 def read_root():
@@ -829,7 +856,7 @@ def read_market_status(response: Response = None):
     if market_hours.is_intraday_auto_square_off_due():
         auto_square_off_intraday()
     if response:
-        response.headers["Cache-Control"] = "public, max-age=15, s-maxage=30"
+        set_market_cache_headers(response)
     return market_hours.get_market_status()
 
 @app.get("/api/market-holidays")
@@ -870,13 +897,15 @@ def read_account(request: Request):
 @app.get("/indices")
 def read_indices(response: Response = None):
     if response:
-        response.headers["Cache-Control"] = "public, max-age=10, s-maxage=15"
+        set_market_cache_headers(response)
     return market_service.get_indices()
 
 @app.get("/api/explore")
-def read_explore(refresh: Optional[int] = 0):
+def read_explore(refresh: Optional[int] = 0, response: Response = None):
     if refresh:
         market_service.clear_explore_cache()
+    if response:
+        set_market_cache_headers(response)
     return market_service.get_explore_data()
 
 @app.post("/api/stocks/sync-new-listings")
@@ -891,14 +920,18 @@ def search(q: str = Query(..., min_length=1)):
 
 @app.get("/api/quote")
 @app.get("/quote")
-def read_quote(symbol: str, asset_type: str = "STOCK"):
+def read_quote(symbol: str, asset_type: str = "STOCK", response: Response = None):
+    if response:
+        set_market_cache_headers(response)
     if asset_type.upper() == "MUTUAL_FUND":
         return market_service.get_mutual_fund_quote(symbol)
     return market_service.get_stock_quote(symbol)
 
 @app.get("/api/depth")
 @app.get("/depth")
-def read_depth(symbol: str):
+def read_depth(symbol: str, response: Response = None):
+    if response:
+        set_market_cache_headers(response)
     quote = market_service.get_stock_quote(symbol)
     ltp = float(quote.get("price", 100.0))
     import random
@@ -947,7 +980,9 @@ def read_depth(symbol: str):
 
 @app.get("/api/history")
 @app.get("/history")
-def read_history(symbol: str, range: str = "1M", asset_type: str = "STOCK", timeframe: Optional[str] = None):
+def read_history(symbol: str, range: str = "1M", asset_type: str = "STOCK", timeframe: Optional[str] = None, response: Response = None):
+    if response:
+        set_market_cache_headers(response, is_chart=True)
     tf = timeframe or range
     if asset_type.upper() == "MUTUAL_FUND" or symbol.isdigit():
         pts = market_service.get_mf_chart(symbol, tf)

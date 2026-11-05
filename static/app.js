@@ -9797,6 +9797,9 @@ function bootApp() {
 
   setInterval(() => {
     if (document.hidden) return;
+    const isMarketOpen = state.marketStatus && (state.marketStatus.is_open || state.marketStatus.is_simulated);
+    // When market is closed, stock & index prices are static closing prices. Do not poll.
+    if (!isMarketOpen) return;
     fetchIndices();
     if (state.currentTab === 'explore' && state.activeProduct === 'stocks') fetchExploreData();
     if (state.currentTab === 'holdings') fetchPortfolio(true);
@@ -9809,11 +9812,14 @@ function bootApp() {
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
       fetchMarketStatus();
-      fetchIndices();
-      if (state.currentTab === 'explore' && state.activeProduct === 'stocks') fetchExploreData();
-      if (state.currentTab === 'holdings') fetchPortfolio(true);
-      if (state.currentTab === 'positions') fetchPositions();
-      fetchNotifications(true);
+      const isMarketOpen = state.marketStatus && (state.marketStatus.is_open || state.marketStatus.is_simulated);
+      if (isMarketOpen) {
+        fetchIndices();
+        if (state.currentTab === 'explore' && state.activeProduct === 'stocks') fetchExploreData();
+        if (state.currentTab === 'holdings') fetchPortfolio(true);
+        if (state.currentTab === 'positions') fetchPositions();
+        fetchNotifications(true);
+      }
     }
   });
 }
@@ -13197,6 +13203,8 @@ window.addEventListener('resize', () => {
 // Live Quote & 1D Chart Real-time Tick Sync
 setInterval(async () => {
   if (document.hidden) return;
+  const isMarketOpen = state.marketStatus && (state.marketStatus.is_open || state.marketStatus.is_simulated);
+  if (!isMarketOpen) return;
   const detailPane = document.getElementById('pane-asset-detail');
   if (detailPane && detailPane.classList.contains('active') && currentPageAsset && currentPageAsset.symbol) {
     try {

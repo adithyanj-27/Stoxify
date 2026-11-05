@@ -2,11 +2,31 @@
   "version": 2,
   "builds": [
     {
+      "src": "static/**",
+      "use": "@vercel/static"
+    },
+    {
       "src": "api/index.py",
       "use": "@vercel/python"
     }
   ],
   "routes": [
+    {
+      "src": "/static/(.*)",
+      "dest": "/static/$1"
+    },
+    {
+      "src": "/(favicon.*|icon-.*|logo-.*|manifest.json|sw.js)",
+      "dest": "/static/$1"
+    },
+    {
+      "src": "/style.css",
+      "dest": "/static/style.css"
+    },
+    {
+      "src": "/app.js",
+      "dest": "/static/app.js"
+    },
     {
       "src": "/(.*)",
       "dest": "api/index.py"
