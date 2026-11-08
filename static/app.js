@@ -11879,6 +11879,8 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
   }
 
   // Pre-populate or clear stats so old numbers never linger
+  const pageAnalystSec = document.getElementById('pageAnalystRatingsSection');
+  if (pageAnalystSec) pageAnalystSec.style.display = 'none';
   const initPrice = initialAsset ? initialAsset.price : 0;
   const pLow = document.getElementById('perfTodayLow');
   const pHigh = document.getElementById('perfTodayHigh');
@@ -12099,6 +12101,7 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
 
     fetchPageMarketDepth(data.symbol);
     renderPageFundamentals(data);
+    loadPageAnalystConsensus(data.symbol, data.asset_type, loadId);
 
     document.getElementById('pageAboutTitle').innerText = data.name;
     document.getElementById('pageAboutText').innerText = data.description || `${data.name} is a leading Indian security actively traded on the National Stock Exchange (NSE).`;
@@ -12163,10 +12166,14 @@ async function showAssetPage(symbol, assetType = 'STOCK') {
     const tabFin = document.getElementById('tab-asset-financials');
     const tabSh = document.getElementById('tab-asset-shareholding');
     const tabPeers = document.getElementById('tab-asset-peers');
+    const tabPred = document.getElementById('tab-asset-predictions');
+    const teaserSec = document.getElementById('pageAnalystOverviewTeaser');
     if (sipSec) sipSec.style.display = isMF ? 'block' : 'none';
     if (tabFin) tabFin.style.display = isMF ? 'none' : 'inline-block';
     if (tabSh) tabSh.style.display = isMF ? 'none' : 'inline-block';
     if (tabPeers) tabPeers.style.display = isMF ? 'none' : 'inline-block';
+    if (tabPred) tabPred.style.display = (isMF || isIndex) ? 'none' : 'inline-block';
+    if (teaserSec) teaserSec.style.display = 'none';
 
     const chartToggle = document.querySelector('.chart-type-toggle');
     const emaBtn20 = document.getElementById('btnEma20');
@@ -12286,6 +12293,189 @@ function renderPageFundamentals(data) {
       <div class="fundamental-item"><span class="f-name">EPS (TTM)</span><strong class="f-val">${eps}</strong></div>
       <div class="fundamental-item"><span class="f-name">Dividend Yield</span><strong class="f-val">${divYield}</strong></div>
     `;
+  }
+}
+
+async function loadPageAnalystConsensus(symbol, assetType, loadId) {
+  const section = document.getElementById('pageAnalystRatingsSection');
+  if (!section) return;
+
+  const isStock = (!assetType || assetType === 'STOCK') && !(symbol || '').startsWith('^');
+  const teaser = document.getElementById('pageAnalystOverviewTeaser');
+  const tabPred = document.getElementById('tab-asset-predictions');
+  if (!isStock) {
+    section.style.display = 'none';
+    if (teaser) teaser.style.display = 'none';
+    if (tabPred) tabPred.style.display = 'none';
+    return;
+  }
+
+  const cleanSym = (symbol || '').replace('.NS', '').replace('.BO', '').replace('^', '').trim();
+  if (!cleanSym) {
+    section.style.display = 'none';
+    if (teaser) teaser.style.display = 'none';
+    if (tabPred) tabPred.style.display = 'none';
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/stock/consensus?symbol=${encodeURIComponent(cleanSym + '.NS')}`);
+    if (loadId !== currentAssetPageLoadId) return;
+    if (!res.ok) {
+      section.style.display = 'none';
+      if (teaser) teaser.style.display = 'none';
+      if (tabPred) tabPred.style.display = 'none';
+      return;
+    }
+    const data = await res.json();
+    if (loadId !== currentAssetPageLoadId) return;
+
+    if (!data || (!data.has_coverage && (!data.individual_institution_predictions || data.individual_institution_predictions.length === 0))) {
+      section.style.display = 'none';
+      if (teaser) teaser.style.display = 'none';
+      if (tabPred) tabPred.style.display = 'none';
+      return;
+    }
+
+    section.style.display = 'block';
+    if (tabPred) tabPred.style.display = 'inline-block';
+
+    // Populate Overview Teaser Card
+    if (teaser) {
+      teaser.style.display = 'block';
+      const tBadge = document.getElementById('analystTeaserStanceBadge');
+      const tTarget = document.getElementById('analystTeaserTarget');
+      const tDesks = document.getElementById('analystTeaserDesks');
+      if (tBadge) {
+        tBadge.innerText = '● ' + (data.consensus_stance || 'UNCOVERED');
+        tBadge.style.color = data.stance_color || 'var(--text-muted)';
+        tBadge.style.borderColor = data.stance_color || 'var(--border-subtle)';
+      }
+      if (tTarget) {
+        const ptTemp = data.price_targets || {};
+        const mUp = ptTemp.mean_upside_pct !== undefined ? ptTemp.mean_upside_pct : 0;
+        const meanPrice = ptTemp.mean ? formatINR(ptTemp.mean) : '—';
+        tTarget.innerText = `Consensus Target: ${meanPrice} (${mUp >= 0 ? '+' : ''}${mUp.toFixed(1)}%)`;
+      }
+      if (tDesks) {
+        tDesks.innerText = `${data.total_analysts || 0} Covering Desks · `;
+      }
+    }
+
+    // Populate Stance Badge & Desks Count
+    const badge = document.getElementById('analystStanceBadge');
+    if (badge) {
+      badge.innerText = '● ' + (data.consensus_stance || 'UNCOVERED');
+      badge.style.color = data.stance_color || 'var(--text-muted)';
+      badge.style.borderColor = data.stance_color || 'var(--border-subtle)';
+      badge.style.background = 'rgba(255, 255, 255, 0.05)';
+    }
+    const countEl = document.getElementById('analystCoverageCount');
+    if (countEl) countEl.innerText = `${data.total_analysts || 0} Covering Desks`;
+
+    // Recommendation Breakdown Bar
+    const segBuy = document.getElementById('analystSegBuy');
+    const segHold = document.getElementById('analystSegHold');
+    const segSell = document.getElementById('analystSegSell');
+    if (segBuy) segBuy.style.width = `${data.buy_ratio_pct || 0}%`;
+    if (segHold) segHold.style.width = `${data.hold_ratio_pct || 0}%`;
+    if (segSell) segSell.style.width = `${data.sell_ratio_pct || 0}%`;
+    const buyPct = document.getElementById('analystBuyPct');
+    const holdPct = document.getElementById('analystHoldPct');
+    const sellPct = document.getElementById('analystSellPct');
+    if (buyPct) buyPct.innerText = `${Math.round(data.buy_ratio_pct || 0)}%`;
+    if (holdPct) holdPct.innerText = `${Math.round(data.hold_ratio_pct || 0)}%`;
+    if (sellPct) sellPct.innerText = `${Math.round(data.sell_ratio_pct || 0)}%`;
+
+    // 1-Year Target Corridor
+    const pt = data.price_targets || {};
+    const corridorCard = document.getElementById('analystCorridorCard');
+    if (!pt.mean && !pt.high && !pt.low) {
+      if (corridorCard) corridorCard.style.display = 'none';
+    } else {
+      if (corridorCard) corridorCard.style.display = 'block';
+
+      const lowEl = document.getElementById('analystLowPrice');
+      const lowRetEl = document.getElementById('analystLowReturn');
+      if (lowEl) lowEl.innerText = formatINR(pt.low || 0);
+      if (lowRetEl) {
+        const lRet = pt.bear_return_pct || 0;
+        lowRetEl.innerText = (lRet >= 0 ? '+' : '') + lRet.toFixed(1) + (lRet >= 0 ? '% Min Upside' : '% Floor');
+        lowRetEl.style.color = lRet >= 0 ? 'var(--accent-green)' : '#F59E0B';
+      }
+
+      const meanEl = document.getElementById('analystMeanPrice');
+      const meanUpEl = document.getElementById('analystMeanUpside');
+      const meanBadge = document.getElementById('analystMeanUpsideBadge');
+      if (meanEl) meanEl.innerText = formatINR(pt.mean || 0);
+      const mUp = pt.mean_upside_pct || 0;
+      if (meanUpEl) meanUpEl.innerText = (mUp >= 0 ? '+' : '') + mUp.toFixed(1) + '% Upside';
+      if (meanBadge) meanBadge.innerText = (mUp >= 0 ? '+' : '') + mUp.toFixed(1) + '% Expected Upside';
+
+      const highEl = document.getElementById('analystHighPrice');
+      const highUpEl = document.getElementById('analystHighUpside');
+      if (highEl) highEl.innerText = formatINR(pt.high || 0);
+      const hUp = pt.bull_upside_pct || 0;
+      if (highUpEl) highUpEl.innerText = (hUp >= 0 ? '+' : '') + hUp.toFixed(1) + '% Bull Target';
+
+      // Corridor Slider CMP Pin Placement
+      const marker = document.getElementById('corridorCmpMarker');
+      if (marker && pt.current && pt.low && pt.high) {
+        const rMin = Math.min(pt.low, pt.current) * 0.98;
+        const rMax = Math.max(pt.high, pt.current) * 1.02;
+        const pct = Math.max(5, Math.min(95, ((pt.current - rMin) / (rMax - rMin)) * 100));
+        marker.style.left = `${pct}%`;
+      }
+    }
+
+    // Recent Broker Calls Grid
+    const brokerBlock = document.getElementById('analystReportsBlock');
+    const brokerGrid = document.getElementById('analystBrokerGrid');
+    const calls = data.individual_institution_predictions || [];
+    if (calls.length === 0) {
+      if (brokerBlock) brokerBlock.style.display = 'none';
+    } else {
+      if (brokerBlock) brokerBlock.style.display = 'block';
+      if (brokerGrid) {
+        brokerGrid.innerHTML = calls.slice(0, 6).map(c => {
+          const avatarInitials = (c.institution || 'IB').replace('Securities', '').replace('Institutional', '').trim().split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+          const tpDisplay = c.target_price ? formatINR(c.target_price) : '<span class="broker-card-no-tp">Target in Report</span>';
+          const upDisplay = (c.implied_upside !== null && c.implied_upside !== undefined) ? `<span class="broker-card-upside">${c.implied_upside >= 0 ? '+' : ''}${c.implied_upside.toFixed(1)}%</span>` : '';
+          return `
+            <div class="broker-call-card">
+              <div>
+                <div class="broker-card-top">
+                  <div class="broker-inst-details">
+                    <div class="broker-avatar-badge">${escapeHtml(avatarInitials)}</div>
+                    <div>
+                      <div class="broker-inst-name">${escapeHtml(c.institution)}</div>
+                      <div class="broker-inst-type">${escapeHtml(c.institution_type || 'Institutional Desk')}</div>
+                    </div>
+                  </div>
+                  <span class="broker-stance-pill" style="color: ${c.stance_color || '#38BDF8'}; background: rgba(255,255,255,0.06);">${escapeHtml(c.stance)}</span>
+                </div>
+                <div class="broker-card-price-row">
+                  <span class="broker-card-tp">${tpDisplay}</span>
+                  ${upDisplay}
+                </div>
+                <div class="broker-card-headline">${escapeHtml(c.headline)}</div>
+              </div>
+              <div class="broker-card-foot">
+                <span>📅 ${escapeHtml(c.published_date)}</span>
+                <a href="${escapeHtml(c.link)}" target="_blank" rel="noopener noreferrer">Read Report ↗</a>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+  } catch (err) {
+    console.error('[Analyst Ratings] Failed to load consensus:', err);
+    section.style.display = 'none';
+    const teaserErr = document.getElementById('pageAnalystOverviewTeaser');
+    if (teaserErr) teaserErr.style.display = 'none';
+    const tabErr = document.getElementById('tab-asset-predictions');
+    if (tabErr) tabErr.style.display = 'none';
   }
 }
 

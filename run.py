@@ -12,8 +12,15 @@ if sys.platform == "win32":
         pass
 
 def open_browser():
-    time.sleep(1.2)
+    import urllib.request
     url = "http://127.0.0.1:8000"
+    for _ in range(30):
+        time.sleep(0.5)
+        try:
+            with urllib.request.urlopen(url, timeout=1):
+                break
+        except Exception:
+            pass
     print(f"\nLaunching Stoxify in your browser: {url}")
     webbrowser.open(url)
 

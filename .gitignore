@@ -24,6 +24,7 @@ npm-debug.log*
 *.db-wal
 *.db-shm
 .vercel/
+data/cache/
 
 # OS / IDE
 .DS_Store

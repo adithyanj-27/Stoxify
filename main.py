@@ -39,6 +39,7 @@ import fo_service
 import ipo_service
 import notifications
 import security
+import analyst_service
 from datetime import datetime, timezone, timedelta
 
 app = FastAPI(title="Stoxify", description="Stoxify - Stock Market Simulator & Paper Trading Platform", version="1.0.0")
@@ -926,6 +927,14 @@ def read_quote(symbol: str, asset_type: str = "STOCK", response: Response = None
     if asset_type.upper() == "MUTUAL_FUND":
         return market_service.get_mutual_fund_quote(symbol)
     return market_service.get_stock_quote(symbol)
+
+@app.get("/api/stock/consensus")
+@app.get("/stock/consensus")
+def read_stock_consensus(symbol: str, response: Response = None):
+    """Return sell-side consensus, price targets, and institutional broker predictions."""
+    if response:
+        response.headers["Cache-Control"] = "public, s-maxage=14400, stale-while-revalidate=86400"
+    return analyst_service.get_institutional_consensus(symbol)
 
 @app.get("/api/depth")
 @app.get("/depth")

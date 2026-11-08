@@ -12,7 +12,7 @@
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-dark.png" id="dynamicFavicon">
   <link rel="apple-touch-icon" href="/static/icon-192.png">
-  <link rel="stylesheet" href="/static/style.css?v=8.7" onerror="this.onerror=null;this.href='/style.css?v=8.7';">
+  <link rel="stylesheet" href="/static/style.css?v=8.9" onerror="this.onerror=null;this.href='/style.css?v=8.9';">
   <!-- Chart.js for high performance financial line & area charts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Pre-render synchronous auth & theme hydration to completely eliminate cold-boot flash of 'Invest' button -->
@@ -1492,6 +1492,7 @@
           <!-- Asset Detail Navigation Tab Strip (Groww Style) -->
           <div class="asset-tab-strip">
             <button class="asset-tab-btn active" id="tab-asset-overview" onclick="switchAssetPageTab('overview')">Overview</button>
+            <button class="asset-tab-btn" id="tab-asset-predictions" onclick="switchAssetPageTab('predictions')">Predictions</button>
             <button class="asset-tab-btn" id="tab-asset-financials" onclick="switchAssetPageTab('financials')">Financials</button>
             <button class="asset-tab-btn" id="tab-asset-shareholding" onclick="switchAssetPageTab('shareholding')">Shareholding</button>
             <button class="asset-tab-btn" id="tab-asset-peers" onclick="switchAssetPageTab('peers')">Peers</button>
@@ -1575,6 +1576,23 @@
               <div class="fundamentals-grid" id="pageFundamentalsGrid"></div>
             </div>
 
+            <!-- Analyst Consensus Overview Teaser Card -->
+            <div class="asset-section-card" id="pageAnalystOverviewTeaser" style="cursor: pointer; display: none;" onclick="switchAssetPageTab('predictions')">
+              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                <div>
+                  <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; letter-spacing: 0.5px;">Sell-Side Institutional Consensus</div>
+                  <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+                    <span class="pill-btn analyst-stance-badge" id="analystTeaserStanceBadge">● STRONG BUY</span>
+                    <span style="font-size: 0.95rem; font-weight: 700; color: var(--brand-cyan);" id="analystTeaserTarget">Consensus Target: ₹959.40 (+22.4%)</span>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px; color: var(--brand-cyan); font-weight: 700; font-size: 0.85rem;">
+                  <span id="analystTeaserDesks" style="color: var(--text-muted); font-size: 0.80rem;">42 Covering Desks ·</span>
+                  <span>View Predictions & Broker Calls →</span>
+                </div>
+              </div>
+            </div>
+
             <!-- Mutual Fund SIP Return Calculator (Groww Style Compounding) -->
             <div class="asset-section-card" id="pageSipCalcSection" style="display: none;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
@@ -1635,7 +1653,89 @@
             </div>
           </div>
 
-          <!-- Tab 2: Financials -->
+          <!-- Tab 2: Predictions (Angel One Style Analyst Ratings & Institutional Forecasts) -->
+          <div id="asset-tab-content-predictions" class="asset-tab-pane" style="display: none;">
+            <!-- Angel One Style: Analyst Ratings & Price Targets Card -->
+            <div class="asset-section-card" id="pageAnalystRatingsSection">
+              <div class="analyst-ratings-header">
+                <div>
+                  <h3 class="section-heading" style="margin-bottom: 0.2rem;">Analyst Ratings & Predictions</h3>
+                  <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">Consensus target prices & ratings published by institutional research houses</p>
+                </div>
+                <div class="analyst-header-badges">
+                  <span class="pill-btn analyst-stance-badge" id="analystStanceBadge">● STRONG BUY</span>
+                  <span class="analyst-coverage-count" id="analystCoverageCount">42 Covering Desks</span>
+                </div>
+              </div>
+
+              <!-- Recommendation Breakdown Bar (Buy / Hold / Sell Segmented Bar) -->
+              <div class="analyst-breakdown-wrapper" id="analystBreakdownWrapper">
+                <div class="analyst-breakdown-bar">
+                  <div class="breakdown-seg seg-buy" id="analystSegBuy" style="width: 80%;"></div>
+                  <div class="breakdown-seg seg-hold" id="analystSegHold" style="width: 15%;"></div>
+                  <div class="breakdown-seg seg-sell" id="analystSegSell" style="width: 5%;"></div>
+                </div>
+                <div class="analyst-breakdown-labels">
+                  <span class="lbl-buy"><span class="dot"></span> <strong id="analystBuyPct">80%</strong> Buy</span>
+                  <span class="lbl-hold"><span class="dot"></span> <strong id="analystHoldPct">15%</strong> Hold</span>
+                  <span class="lbl-sell"><span class="dot"></span> <strong id="analystSellPct">5%</strong> Sell</span>
+                </div>
+              </div>
+
+              <!-- 1-Year Price Target Corridor -->
+              <div class="analyst-corridor-card" id="analystCorridorCard">
+                <div class="corridor-title-row">
+                  <span class="corridor-heading">1-Year Price Target Corridor</span>
+                  <span class="corridor-mean-badge" id="analystMeanUpsideBadge">+22.4% Expected Upside</span>
+                </div>
+
+                <div class="corridor-pills-grid">
+                  <!-- Bear Case -->
+                  <div class="corridor-pill-box pill-bear">
+                    <span class="corridor-pill-lbl">Bear Case (Min)</span>
+                    <strong class="corridor-pill-val" id="analystLowPrice">₹0.00</strong>
+                    <span class="corridor-pill-sub" id="analystLowReturn">0.0% Floor</span>
+                  </div>
+
+                  <!-- Consensus Expected (Mean) -->
+                  <div class="corridor-pill-box pill-mean">
+                    <span class="corridor-pill-lbl">Consensus Target (Mean)</span>
+                    <strong class="corridor-pill-val val-mean" id="analystMeanPrice">₹0.00</strong>
+                    <span class="corridor-pill-sub" id="analystMeanUpside">+0.0% Upside</span>
+                  </div>
+
+                  <!-- Bull Case -->
+                  <div class="corridor-pill-box pill-bull">
+                    <span class="corridor-pill-lbl">Bull Case (Max)</span>
+                    <strong class="corridor-pill-val" id="analystHighPrice">₹0.00</strong>
+                    <span class="corridor-pill-sub" id="analystHighUpside">+0.0% Bull Target</span>
+                  </div>
+                </div>
+
+                <!-- Visual Range Bar Slider -->
+                <div class="corridor-slider-track">
+                  <div class="corridor-slider-fill" id="corridorSliderFill"></div>
+                  <div class="corridor-cmp-marker" id="corridorCmpMarker" title="Current Market Price">
+                    <span class="marker-pin"></span>
+                    <span class="marker-lbl">CMP</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Recent Institutional Research Calls Grid -->
+              <div class="analyst-reports-block" id="analystReportsBlock">
+                <div class="reports-header-row">
+                  <span class="reports-heading">Recent Brokerage Calls & Price Targets</span>
+                  <span class="reports-sub">Verified reports from Dalal Street desks</span>
+                </div>
+                <div class="analyst-broker-grid" id="analystBrokerGrid">
+                  <!-- Dynamically populated cards -->
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 3: Financials -->
           <div id="asset-tab-content-financials" class="asset-tab-pane" style="display: none;">
             <div class="asset-section-card">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
@@ -3892,6 +3992,6 @@
     </button>
   </nav>
 
-  <script src="/static/app.js?v=8.7" onerror="this.onerror=null;this.src='/app.js?v=8.7';"></script>
+  <script src="/static/app.js?v=8.9" onerror="this.onerror=null;this.src='/app.js?v=8.9';"></script>
 </body>
 </html>
