@@ -12566,42 +12566,9 @@ function getActiveTimeframeChange() {
 }
 
 function updateHeroPriceForPoint(val, label) {
-  if (!currentPageAsset || val === undefined || val === null) return;
-  const priceEl = document.getElementById('pageAssetPrice');
-  const badgeEl = document.getElementById('pageAssetChangeBadge');
-  const tfEl = document.getElementById('pageAssetChangeTf');
-  const drawerPriceEl = document.getElementById('drawerAssetPrice');
-  const drawerBadgeEl = document.getElementById('drawerAssetChange');
-
-  if (priceEl) priceEl.innerText = formatINR(val);
-  if (drawerPriceEl) drawerPriceEl.innerText = formatINR(val);
-
-  let baseline = null;
-  if (currentChartRange === '1D') {
-    baseline = currentPageAsset.previous_close || (currentPageAsset.price - (currentPageAsset.change || 0));
-  } else if (currentChartPoints && currentChartPoints.length > 0) {
-    const firstP = currentChartPoints[0];
-    baseline = (firstP.open !== undefined ? firstP.open : (firstP.close !== undefined ? firstP.close : (firstP.price !== undefined ? firstP.price : firstP.value)));
-  }
-  if (!baseline) baseline = currentPageAsset.price - (currentPageAsset.change || 0);
-
-  if (baseline && baseline > 0) {
-    const diff = val - baseline;
-    const diffPct = (diff / baseline) * 100;
-    const isPos = diff >= 0;
-    if (badgeEl) {
-      badgeEl.className = isPos ? 'badge-positive' : 'badge-negative';
-      badgeEl.innerText = formatChange(diff, diffPct);
-    }
-    if (drawerBadgeEl) {
-      drawerBadgeEl.className = isPos ? 'badge-positive' : 'badge-negative';
-      drawerBadgeEl.innerText = formatChange(diff, diffPct);
-    }
-  }
-
-  if (tfEl) {
-    tfEl.innerText = currentChartRange || '1D';
-  }
+  // Main header price and returns badge stay anchored to current asset values.
+  // Hovered historical price and time are displayed directly in the floating chart badge.
+  return;
 }
 
 function resetHeroPrice() {
@@ -13019,9 +12986,6 @@ function initChartScrubbing() {
         }
       }
       renderCandlestickCanvas(canvas, currentChartPoints, closestIdx, y);
-      if (ohlc[closestIdx]) {
-        updateHeroPriceForPoint(ohlc[closestIdx].close, ohlc[closestIdx].date || ohlc[closestIdx].time);
-      }
     } else if (currentChartType === 'line' && pageChartInstance) {
       const chart = pageChartInstance;
       if (!chart.chartArea || !chart.data.labels || chart.data.labels.length === 0) return;
@@ -13046,7 +13010,6 @@ function initChartScrubbing() {
       if (dataArr[idx] !== null && dataArr[idx] !== undefined) {
         chart.setActiveElements([{ datasetIndex: 0, index: idx }]);
         chart.update('none');
-        updateHeroPriceForPoint(dataArr[idx], chart.data.labels[idx]);
       }
     }
   }
@@ -13089,19 +13052,6 @@ function initChartScrubbing() {
         }
       }
       renderCandlestickCanvas(canvas, currentChartPoints, closestIdx, y);
-      if (ohlc[closestIdx]) {
-        updateHeroPriceForPoint(ohlc[closestIdx].close, ohlc[closestIdx].date || ohlc[closestIdx].time);
-      }
-    } else if (currentChartType === 'line' && pageChartInstance) {
-      const chart = pageChartInstance;
-      const elements = chart.getActiveElements ? chart.getActiveElements() : [];
-      if (elements && elements.length > 0) {
-        const idx = elements[0].index;
-        const val = chart.data.datasets[0].data[idx];
-        if (val !== null && val !== undefined) {
-          updateHeroPriceForPoint(val, chart.data.labels[idx]);
-        }
-      }
     }
   });
   canvas.addEventListener('mouseleave', () => {
@@ -17030,14 +16980,6 @@ async function renderStockPerformanceChart() {
           ], { x: clampedX, y: chart.scales.y.getPixelForValue(curr.values[idx] || 0) });
         }
         chart.update('none');
-
-        const hVal = curr.values[idx] || 0;
-        const hInv = curr.investedValues[idx] || 0;
-        const firstInv = curr.firstInvested || (curr.investedValues && curr.investedValues[0]) || 0;
-        const hTf = (tf === '1D' && curr.baseline) ? (hVal - curr.baseline) : ((hVal - hInv) - (curr.firstVal - firstInv));
-        const baseCap = (tf === '1D' && curr.baseline) ? curr.baseline : Math.max(firstInv, hInv);
-        const hTfPct = baseCap > 0 ? ((hTf / baseCap) * 100) : 0;
-        updateStockSummaryDisplay(hVal, hInv, hTf, hTfPct);
       }
 
       function handleEnd() {
@@ -17212,18 +17154,6 @@ async function renderStockPerformanceChart() {
           }
         },
         interaction: { mode: 'index', intersect: false },
-        onHover: (event, activeElements) => {
-          if (activeElements && activeElements.length) {
-            const idx = activeElements[0].index;
-            const hVal = values[idx] || 0;
-            const hInv = investedValues[idx] || 0;
-            const firstInv = investedValues[0] || 0;
-            const hTf = (tf === '1D' && baseline) ? (hVal - baseline) : ((hVal - hInv) - (firstVal - firstInv));
-            const baseCap = (tf === '1D' && baseline) ? baseline : Math.max(firstInv, hInv);
-            const hTfPct = baseCap > 0 ? ((hTf / baseCap) * 100) : 0;
-            updateStockSummaryDisplay(hVal, hInv, hTf, hTfPct);
-          }
-        },
         plugins: {
           legend: {
             display: true,
@@ -17758,14 +17688,6 @@ async function renderMfPerformanceChart() {
           ], { x: clampedX, y: chart.scales.y.getPixelForValue(curr.values[idx] || 0) });
         }
         chart.update('none');
-
-        const hVal = curr.values[idx] || 0;
-        const hInv = curr.investedValues[idx] || 0;
-        const firstInv = curr.firstInvested || (curr.investedValues && curr.investedValues[0]) || 0;
-        const hTf = (tf === '1D' && curr.baseline) ? (hVal - curr.baseline) : ((hVal - hInv) - (curr.firstVal - firstInv));
-        const baseCap = (tf === '1D' && curr.baseline) ? curr.baseline : Math.max(firstInv, hInv);
-        const hTfPct = baseCap > 0 ? ((hTf / baseCap) * 100) : 0;
-        updateMfSummaryDisplay(hVal, hInv, hTf, hTfPct);
       }
 
       function handleEnd() {
@@ -17940,18 +17862,6 @@ async function renderMfPerformanceChart() {
           }
         },
         interaction: { mode: 'index', intersect: false },
-        onHover: (event, activeElements) => {
-          if (activeElements && activeElements.length) {
-            const idx = activeElements[0].index;
-            const hVal = values[idx] || 0;
-            const hInv = investedValues[idx] || 0;
-            const firstInv = investedValues[0] || 0;
-            const hTf = (tf === '1D' && baseline) ? (hVal - baseline) : ((hVal - hInv) - (firstVal - firstInv));
-            const baseCap = (tf === '1D' && baseline) ? baseline : Math.max(firstInv, hInv);
-            const hTfPct = baseCap > 0 ? ((hTf / baseCap) * 100) : 0;
-            updateMfSummaryDisplay(hVal, hInv, hTf, hTfPct);
-          }
-        },
         plugins: {
           legend: {
             display: true,
