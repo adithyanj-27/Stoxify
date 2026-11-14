@@ -75,6 +75,8 @@ STOCK_MASTER = [
     {"symbol": "CANBK.NS", "name": "Canara Bank", "sector": "Banking", "aliases": ["canara bank", "canbk"]},
     {"symbol": "IDFCFIRSTB.NS", "name": "IDFC First Bank Ltd", "sector": "Banking", "aliases": ["idfc", "idfc first"]},
     {"symbol": "YESBANK.NS", "name": "Yes Bank Ltd", "sector": "Banking", "aliases": ["yes bank"]},
+    {"symbol": "SOUTHBANK.NS", "name": "The South Indian Bank Ltd", "sector": "Banking", "aliases": ["south indian bank", "southbank", "sib"]},
+    {"symbol": "DHANBANK.NS", "name": "Dhanlaxmi Bank Ltd", "sector": "Banking", "aliases": ["dhanlaxmi bank", "dhanbank", "dhanalakshmi bank"]},
     {"symbol": "CDSL.NS", "name": "Central Depository Services Ltd", "sector": "Finance", "aliases": ["cdsl", "demat"]},
     {"symbol": "BSE.NS", "name": "BSE Ltd", "sector": "Finance", "aliases": ["bse", "bombay stock exchange"]},
     {"symbol": "NSE.BO", "name": "National Stock Exchange of India Ltd", "sector": "Finance", "aliases": ["nse", "national stock exchange", "nse india", "nse.bo"], "exchanges": ["BSE"]},
