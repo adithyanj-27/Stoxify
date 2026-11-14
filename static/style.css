@@ -2392,7 +2392,13 @@ body.pwa-installed .btn-install-app,
 body.pwa-installed #btnInstallApp,
 body.pwa-installed #dropdownInstallItem,
 body.pwa-installed .mobile-install-banner,
-body.pwa-installed #mobileInstallBanner {
+body.pwa-installed #mobileInstallBanner,
+body.pwa-installed .welcome-top-install-btn,
+body.pwa-installed #welcomeTopInstallBtn,
+body.pwa-installed .welcome-install-card-wrap,
+body.pwa-installed #welcomeHeroInstallWrap,
+body.pwa-installed .welcome-features-install-btn,
+body.pwa-installed #welcomeFeaturesInstallBtn {
   display: none !important;
 }
 
@@ -2401,7 +2407,14 @@ body.pwa-installed #mobileInstallBanner {
   #btnInstallApp,
   #dropdownInstallItem,
   .mobile-install-banner,
-  #mobileInstallBanner {
+  #mobileInstallBanner,
+  .welcome-top-bar,
+  .welcome-top-install-btn,
+  #welcomeTopInstallBtn,
+  .welcome-install-card-wrap,
+  #welcomeHeroInstallWrap,
+  .welcome-features-install-btn,
+  #welcomeFeaturesInstallBtn {
     display: none !important;
   }
 }

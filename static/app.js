@@ -9572,6 +9572,15 @@ function updateInstallButtonsVisibility() {
       mobBanner.style.display = isMobile ? 'flex' : 'none';
     }
   }
+
+  // Welcome / Get Started screen install buttons (visible in browser, hidden in standalone PWA)
+  const welcomeTopBtn = document.getElementById('welcomeTopInstallBtn');
+  const welcomeHeroWrap = document.getElementById('welcomeHeroInstallWrap');
+  const welcomeFeaturesBtn = document.getElementById('welcomeFeaturesInstallBtn');
+
+  if (welcomeTopBtn) welcomeTopBtn.style.display = installed ? 'none' : 'inline-flex';
+  if (welcomeHeroWrap) welcomeHeroWrap.style.display = installed ? 'none' : 'block';
+  if (welcomeFeaturesBtn) welcomeFeaturesBtn.style.display = installed ? 'none' : 'flex';
 }
 
 // Check getInstalledRelatedApps if supported by modern browser
@@ -9608,13 +9617,19 @@ function openPwaGuideModal(defaultPlatform) {
     promptWrap.style.display = deferredInstallPrompt ? 'block' : 'none';
   }
   const modal = document.getElementById('pwaInstallGuideModalOverlay');
-  if (modal) modal.style.display = 'flex';
+  if (modal) {
+    modal.style.display = 'flex';
+    modal.classList.add('active');
+  }
   pushModalState('pwaInstallGuideModalOverlay', closePwaGuideModal);
 }
 
 function closePwaGuideModal(options = {}) {
   const modal = document.getElementById('pwaInstallGuideModalOverlay');
-  if (modal) modal.style.display = 'none';
+  if (modal) {
+    modal.classList.remove('active');
+    modal.style.display = 'none';
+  }
   dismissModalState('pwaInstallGuideModalOverlay', options);
 }
 
@@ -9938,6 +9953,7 @@ function showWelcomePane() {
   showWelcomeStep1();
   const pane = document.getElementById('welcomePane');
   if (pane) pane.scrollTop = 0;
+  updateInstallButtonsVisibility();
 }
 
 function hideWelcomePane() {
